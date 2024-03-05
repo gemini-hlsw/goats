@@ -1,0 +1,13 @@
+Below are the scince programs (observation IDs) I am using to prototype application of DRAGONS API. I have tried to cover the various instruments and observing modes of Gemini (see also https://dragons.readthedocs.io/en/stable/). 
+
+
+GMOS imaging - GN-2015A-Q-86-5
+GNIRS Keyhole imaging - GN-2011B-Q-34-155
+NIRI imaging - GN-2015A-Q-55-51
+F2 imaging - GS-2015B-Q-46-59
+GSAOI imaging - GS-2019A-DD-107-13
+
+GMOS longlsit classic - GN-2018B-Q-315-11
+GMOS longslit nod and shuffle - GN-2019B-Q-109-17, GN-2008B-Q-56-75 (these are from the DRAGONS tutorial examples)
+GHOST Standard Resolution - 
+GHOST High Resolution - 
