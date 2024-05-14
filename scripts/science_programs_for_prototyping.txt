@@ -17,5 +17,5 @@ Spectroscopy
 =============
 GMOS longlsit classic - GN-2018B-Q-315-11
 GMOS longslit nod and shuffle - GN-2019B-Q-109-17, GN-2008B-Q-56-75 (these are from the DRAGONS tutorial examples)
-GHOST Standard Resolution - 
-GHOST High Resolution - 
+GHOST Standard Resolution -  GS-2024A-Q-414-13
+GHOST High Resolution -  GS-2024A-FT-107-2
