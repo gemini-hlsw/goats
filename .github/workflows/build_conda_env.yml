@@ -1,0 +1,62 @@
+name: Build Conda Environment
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs daily at midnight UTC
+
+jobs:
+  build_conda_env:
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          path: goats
+
+      - name: Setup Mambaforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          mamba-version: "*"
+          python-version: ${{ matrix.python-version }}
+          miniforge-variant: Mambaforge
+          miniforge-version: latest
+          activate-environment: goats-env
+          use-mamba: true
+          auto-activate-base: false
+
+      - name: Get date
+        id: get-date
+        run: echo "today=$(/bin/date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Cache conda env
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.CONDA }}/envs
+          key: conda-${{ runner.os }}--${{ runner.arch }}--${{
+            steps.get-date.outputs.today }}-${{
+            hashFiles('goats/environment.yml', 'goats/pyproject.toml') }}-${{
+            env.CACHE_NUMBER }}
+        env:
+          # Increase this value to reset cache if goats/environment.yml has not changed
+          CACHE_NUMBER: 0
+        id: cache
+
+      - name: Update environment
+        run: |
+          mamba env update -n goats-env -f goats/environment.yml
+          cd goats
+          pip install -v -e ".[test]"
+        if: steps.cache.outputs.cache-hit != 'true'
+
+      - name: Test environment installation
+        run: |
+          conda list -n goats-env
