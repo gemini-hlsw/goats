@@ -3,9 +3,13 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
+from goats_tom.models import DataProductMetadata, DRAGONSFile, DRAGONSRecipe
 from goats_tom.tests.factories import (
     DataProductFactory,
+    DataProductMetadataFactory,
     DownloadFactory,
+    DRAGONSFileFactory,
+    DRAGONSRecipeFactory,
     DRAGONSRunFactory,
     GOALoginFactory,
     ProgramKeyFactory,
@@ -119,3 +123,88 @@ class TestDRAGONSRunFactory:
         custom_run_id = "custom_run_id"
         dragons_run = DRAGONSRunFactory(run_id=custom_run_id)
         assert dragons_run.run_id == custom_run_id
+
+
+@pytest.mark.django_db
+class TestDataProductMetadataFactory:
+    """Class to test `DataProductMetadataFactory`."""
+
+    def test_factory_creation(self):
+        """Test that the factory creates a valid metadata instance."""
+        metadata = DataProductMetadataFactory()
+        assert isinstance(
+            metadata, DataProductMetadata
+        ), "Factory should create a DataProductMetadata instance."
+
+    def test_factory_with_specific_values(self):
+        """Test factory creation with specific values."""
+        data_product = DataProductFactory()
+        metadata = DataProductMetadataFactory(
+            data_product=data_product,
+            file_type="BIAS",
+            group_id="group_1",
+            exposure_time=30.0,
+            object_name="Test Object",
+            central_wavelength=500.0,
+            wavelength_band="VIS",
+            observation_date="2023-01-01",
+            roi_setting="Full Frame",
+        )
+        assert metadata.data_product == data_product
+        assert metadata.file_type == "BIAS"
+        assert metadata.group_id == "group_1"
+        assert metadata.exposure_time == 30.0
+        assert metadata.object_name == "Test Object"
+        assert metadata.central_wavelength == 500.0
+        assert metadata.wavelength_band == "VIS"
+        assert metadata.observation_date == "2023-01-01"
+        assert metadata.roi_setting == "Full Frame"
+
+
+@pytest.mark.django_db
+class TestDRAGONSFileFactory:
+    """Class to test `DRAGONSFileFactory`."""
+
+    def test_factory_creation(self):
+        """Test that the factory creates a valid DRAGONSFile instance."""
+        dragons_file = DRAGONSFileFactory()
+        assert isinstance(
+            dragons_file, DRAGONSFile
+        ), "Factory should create a DRAGONSFile instance."
+
+    def test_factory_with_specific_values(self):
+        """Test factory creation with specific values."""
+        dragons_run = DRAGONSRunFactory()
+        data_product = DataProductFactory(create_metadata=True)
+        dragons_file = DRAGONSFileFactory(
+            dragons_run=dragons_run, data_product=data_product, enabled=False
+        )
+        assert dragons_file.dragons_run == dragons_run
+        assert dragons_file.data_product == data_product
+        assert dragons_file.enabled is False
+
+
+@pytest.mark.django_db
+class TestDRAGONSRecipeFactory:
+    """Class to test `DRAGONSRecipeFactory`."""
+
+    def test_factory_creation(self):
+        """Test that the factory creates a valid DRAGONSRecipe instance."""
+        recipe = DRAGONSRecipeFactory()
+        assert isinstance(
+            recipe, DRAGONSRecipe
+        ), "Factory should create a DRAGONSRecipe instance."
+
+    def test_factory_with_specific_values(self):
+        """Test factory creation with specific values."""
+        dragons_run = DRAGONSRunFactory()
+        recipe = DRAGONSRecipeFactory(
+            dragons_run=dragons_run,
+            file_type="BIAS",
+            name="Test Recipe",
+            function_definition="def test_function(): pass",
+        )
+        assert recipe.dragons_run == dragons_run
+        assert recipe.file_type == "BIAS"
+        assert recipe.name == "Test Recipe"
+        assert recipe.function_definition == "def test_function(): pass"

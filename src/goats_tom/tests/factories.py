@@ -8,7 +8,17 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.utils import timezone
-from goats_tom.models import Download, DRAGONSRun, GOALogin, Key, ProgramKey, UserKey
+from goats_tom.models import (
+    DataProductMetadata,
+    Download,
+    DRAGONSFile,
+    DRAGONSRecipe,
+    DRAGONSRun,
+    GOALogin,
+    Key,
+    ProgramKey,
+    UserKey,
+)
 from tom_dataproducts.models import DataProduct, ReducedDatum
 from tom_observations.tests.factories import ObservingRecordFactory
 from tom_targets.tests.factories import SiderealTargetFactory
@@ -76,6 +86,11 @@ class DataProductFactory(factory.django.DjangoModelFactory):
     extra_data = factory.Faker("text")
     data_product_type = "photometry"
     featured = False
+
+    @factory.post_generation
+    def create_metadata(self, create, extracted, **kwargs):
+        if create and extracted and not hasattr(self, "metadata"):
+            DataProductMetadataFactory(data_product=self)
 
 
 class ReducedDatumFactory(factory.django.DjangoModelFactory):
@@ -150,3 +165,49 @@ class DRAGONSRunFactory(factory.django.DjangoModelFactory):
     output_directory = ""
     cal_manager_filename = "cal_manager.db"
     log_filename = "log.log"
+
+
+class DataProductMetadataFactory(factory.django.DjangoModelFactory):
+    """Factory for `DataProductMetadata`."""
+
+    class Meta:
+        """Configuration."""
+
+        model = DataProductMetadata
+
+    data_product = factory.SubFactory(DataProductFactory)
+    file_type = factory.Faker("word")
+    group_id = factory.Faker("word")
+    exposure_time = factory.Faker("pyfloat", positive=True)
+    object_name = factory.Faker("word")
+    central_wavelength = factory.Faker("pyfloat", positive=True)
+    wavelength_band = factory.Faker("word")
+    observation_date = factory.Faker("date")
+    roi_setting = factory.Faker("word")
+
+
+class DRAGONSFileFactory(factory.django.DjangoModelFactory):
+    """Factory for `DRAGONSFile`."""
+
+    class Meta:
+        """Configuration."""
+
+        model = DRAGONSFile
+
+    dragons_run = factory.SubFactory(DRAGONSRunFactory)
+    data_product = factory.SubFactory(DataProductFactory, create_metadata=True)
+    enabled = factory.Faker("boolean")
+
+
+class DRAGONSRecipeFactory(factory.django.DjangoModelFactory):
+    """Factory for `DRAGONSRecipe`."""
+
+    class Meta:
+        """Configuration."""
+
+        model = DRAGONSRecipe
+
+    dragons_run = factory.SubFactory(DRAGONSRunFactory)
+    file_type = factory.Faker("word")
+    name = factory.Faker("sentence")
+    function_definition = factory.Faker("text")
