@@ -9,7 +9,7 @@ GSAOI imaging - GS-2019A-DD-107-13
 **********************************************
 Below are very low-priority for GOATS for dragons-imaging support 
 GNIRS Keyhole imaging (only done at extreme circumstance) - GN-2011B-Q-34-155  
-NIRI imaging (no longer supported) - GN-2015A-Q-55-51
+NIRI imaging (no longer supported) - GN-2015A-Q-55-51, GN-2016B-FT-16-9
 **********************************************
 
 
