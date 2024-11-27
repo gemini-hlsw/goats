@@ -243,6 +243,7 @@ class DRAGONSRun(models.Model):
         try:
             caldb._calmgr.session.close()
         except Exception:
+            print("XKCD EXCEPTION CLOSING")
             pass
 
     def add_caldb_file(self, filepath: str | Path) -> None:

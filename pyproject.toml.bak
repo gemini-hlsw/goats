@@ -4,52 +4,49 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "goats"
-version = "24.10.0"
 description = "Gemini Observation and Analysis of Targets System."
 readme = "README.md"
 authors = [{ name = "GOATS Team" }]
-requires-python = ">=3.10.0"
 classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
+requires-python = ">=3.10.0"
 dependencies = [
-    "channels-redis>=4.0.0,<5",
-    "channels[daphne]>=4.0,<5",
-    "click>=8.1.7,<9",
-    "django-cors-headers>=4.3.0,<5",
-    "django-cryptography>=1.1,<2",
-    "django>=4,<5",
-    "fontawesomefree>=6.5.0,<7",
-    "greenlet>=3.0.2,<4",
     "tom-antares==1.2.6",
     "tomtoolkit>=2.19.7,<3",
+    "click>=8.1.7,<9",
+    "django-cors-headers>=4.3.0,<5",
+    "greenlet>=3.0.2,<4",
+    "fontawesomefree>=6.5.0,<7",
+    "django-cryptography>=1.1,<2",
+    "channels[daphne]>=4.0,<5",
+    "channels_redis>=4.0.0,<5",
+    "django>=4,<5",
     "djangorestframework>=3.15.0,<4",
-    "dramatiq[redis,watch]>=1.17.0",
+    "dramatiq[redis, watch]>=1.17.0",
     "django-dramatiq>=0.11.6",
     "dramatiq-abort>=1.1.0",
     "numpydoc>=1.7.0,<2",
-    "pillow>=11.0.0",
 ]
-
-[project.optional-dependencies]
-test = [
-    "pytest-xdist>=3.6.1",
-    "pytest>=8.3.3",
-    "pytest-cov>=6.0.0",
-    "pytest-django>=4.9.0",
-    "pytest-asyncio>=0.24.0",
-    "factory-boy>=3.3.1",
-    "pytest-remotedata>=0.4.1",
-    "ruff>=0.8.0",
-]
-
+version = "24.10.0"
 
 [project.urls]
 "Homepage" = "https://github.com/gemini-hlsw/goats"
 
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-xdist",
+    "pytest-cov",
+    "pytest-django",
+    "pytest-asyncio",
+    "factory_boy",
+    "pytest-remotedata",
+    "ruff"
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -116,3 +113,4 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
+
