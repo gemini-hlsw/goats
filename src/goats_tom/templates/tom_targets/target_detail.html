@@ -158,8 +158,15 @@
 
   // Helper function to fetch reduced data.
   const fetchReducedData = async (dataproductId, dataType) => {
-    const url = `http://localhost:8000/api/reduceddatums/?data_product=${dataproductId}&data_type=${dataType}`;
-    const response = await fetch(url);
+    const url = `/api/reduceddatums/?data_product=${dataproductId}&data_type=${dataType}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": "{{ csrf_token }}",
+      },
+      credentials: "same-origin",
+    });
     if (!response.ok) {
       throw new Error(`Fetch failed with status: ${response.status}`);
     }
@@ -169,13 +176,14 @@
 
   // Helper function to run the processor.
   const runProcessor = async (dataproductId, dataType) => {
-    const url = `http://localhost:8000/api/runprocessor/`;
+    const url = `/api/runprocessor/`;
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-CSRFToken": "{{ csrf_token }}",
       },
+      credentials: "same-origin",
       body: JSON.stringify({
         data_product: dataproductId,
         data_product_type: dataType,

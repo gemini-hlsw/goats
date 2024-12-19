@@ -181,7 +181,9 @@ class RecipeReductionsManagerController {
   }
 
   _setupWebSocket() {
-    this.ws = new WebSocket("ws://localhost:8000/ws/dragons/");
+    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${wsProtocol}://${window.location.host}/ws/dragons/`;
+    this.ws = new WebSocket(wsUrl);
 
     this.ws.onmessage = (event) => {
       const data = JSON.parse(event.data);

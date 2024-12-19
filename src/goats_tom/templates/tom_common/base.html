@@ -1,25 +1,33 @@
 {% load static bootstrap4 tom_common_extras custom_filters %}
 
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en" data-bs-core="goats" data-bs-theme="dark">
   <head>
     <!-- Meta Tags -->
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="{% static 'css/halfmoon.min.css' %}">
-    <link rel="stylesheet" href="{% static 'css/cores/halfmoon.goats.css' %}">
-    <link rel="icon" type="image/x-icon" href="{% static 'img/favicon-32.png' %}" sizes="32x32" />
-    <link rel="icon" type="image/x-icon" href="{% static 'img/favicon-16.png' %}" sizes="16x16" />
+    <link rel="stylesheet" href="{% static 'css/halfmoon.min.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/cores/halfmoon.goats.css' %}" />
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="{% static 'img/favicon-32.png' %}"
+      sizes="32x32" />
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="{% static 'img/favicon-16.png' %}"
+      sizes="16x16" />
 
     <script src="{% static 'fontawesomefree/js/all.min.js' %}"></script>
     <!-- JavaScript -->
     {% bootstrap_javascript jquery='True' %}
     <script src="{% static 'js/toggle_mode.js' %}"></script>
     <script src="{% static 'bootstrap5/bootstrap.bundle.min.js' %}"></script>
-
-
 
     <title>GOATS</title>
   </head>
@@ -29,46 +37,50 @@
       <nav class="container-fluid bg-light-subtle">{% include 'navbar.html' %}</nav>
     </header>
 
-    <main role="main" class="{% if request.path == '/' %}container-fluid img-container{% else %}container{% endif %} pt-5 pb-5">
-      {% bootstrap_messages %}
-      {% block content %}{% endblock %}
-      <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3">
-      </div>
+    <main
+      role="main"
+      class="{% if request.path == '/' %}container-fluid img-container{% else %}container{% endif %} pt-5 pb-5">
+      {% bootstrap_messages %} {% block content %}{% endblock %}
+      <div
+        id="toastContainer"
+        class="toast-container position-fixed bottom-0 end-0 p-3"></div>
     </main>
 
-    <footer class="container-fluid py-4 bg-light-subtle">{% include 'footer.html' %}</footer>
+    <footer class="container-fluid py-4 bg-light-subtle">
+      {% include 'footer.html' %}
+    </footer>
 
     {% block javascript %}
     <script type="module">
       import { createAndShowToast } from "{% static 'js/toast_utils.js' %}";
       import { updateDownloadProgress } from "{% static 'js/download_progress.js' %}";
 
-      const webSocket = new WebSocket('ws://localhost:8000/ws/updates/');
-      webSocket.onopen = function(event) {
-          console.log('WebSocket connection established');
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const wsUrl = `${wsProtocol}://${window.location.host}/ws/updates/`;
+      console.log(wsUrl, "new ws url")
+      const webSocket = new WebSocket(wsUrl);
+      webSocket.onopen = function (event) {
+        console.log("WebSocket connection established");
       };
 
-      webSocket.onmessage = function(event) {
-          const data = JSON.parse(event.data);
-          if (data.update === "notification") {
-            createAndShowToast(data);
-          }
-          else if (data.update == "download") {
-            updateDownloadProgress(data);
-          }
+      webSocket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        if (data.update === "notification") {
+          createAndShowToast(data);
+        } else if (data.update == "download") {
+          updateDownloadProgress(data);
+        }
       };
 
-      webSocket.onclose = function(event) {
-          console.log('WebSocket connection closed', event);
+      webSocket.onclose = function (event) {
+        console.log("WebSocket connection closed", event);
       };
 
-      webSocket.onerror = function(error) {
-          console.log('WebSocket error', error);
+      webSocket.onerror = function (error) {
+        console.log("WebSocket error", error);
       };
     </script>
 
     {% endblock %}
-
   </body>
 </html>
-
