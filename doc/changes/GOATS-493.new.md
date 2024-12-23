@@ -1,1 +1,0 @@
-Connected backend API with frontend fetching: Implemented async fetching to dynamically retrieve or process dataproducts for plotting.

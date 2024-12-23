@@ -1,1 +1,0 @@
-Extended Gemini facility class functionality: Added methods for reading FITS headers and handling Gemini-specific image data.

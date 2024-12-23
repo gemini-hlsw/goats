@@ -1,11 +1,30 @@
 <div class="container my-3">
   <h5>Select and Plot Data Products</h5>
   <p>
-    Use the table below to select data products. Click the <strong>Plot</strong> button to add the selected data product to the plot.
+    Use the table below to select data products.
+    <em>
+      {% if data_type == "photometry" %}
+        Note that only CSV files are supported.
+      {% elif data_type == "spectroscopy" %}
+        Note that FITS and CSV files are supported.
+      {% endif %}
+      See <a href="{% url 'targets:detail' pk=target.id %}?tab=manage-data" target="_blank">Manage Data</a>
+      for an example of the format.
+    </em>
+    Click the <strong>Plot</strong> button to add the selected data product to the plot.
   </p>
   <div class="row g-3">
     <div class="col-12">
       <div id="{{ data_type }}Plot" class="plotly-container"></div>
+      <figcaption class="figure-caption text-center mt-2">Click on labels to edit text, and click directly on the end values of the x and y axes to adjust their ranges.</figcaption>
+    </div>
+    <div class="col-lg-6 col-12 offset-lg-6">
+      <input
+        type="text"
+        class="form-control"
+        id="{{ data_type }}FileSearch"
+        placeholder="Type to filter file names..."
+      >
     </div>
     <div class="col-12">
       <div style="overflow-y: auto; height: 400px">
@@ -19,30 +38,65 @@
           <tbody id="{{ data_type }}PlotTBody">
             {% if dataproducts %}
               {% for dataproduct in dataproducts %}
-              <tr
-                data-file="{{ dataproduct.data.name }}"
-                data-dataproduct-id="{{ dataproduct.id }}"
-                data-data-type="{{ data_type }}">
-                <td>{{ dataproduct.data.name }}</td>
-                <td>
-                  <button
-                    type="button"
-                    class="btn btn-primary btn-sm plot-button"
-                    data-action="plot"
-                    title="Click to add this data product to the plot">
-                    Plot
-                  </button>
-                </td>
-              </tr>
+                <tr
+                  data-file="{{ dataproduct.data.name }}"
+                  data-dataproduct-id="{{ dataproduct.id }}"
+                  data-data-type="{{ data_type }}">
+                  <td>{{ dataproduct.data.name }}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="btn btn-primary btn-sm plot-button"
+                      data-action="plot"
+                      title="Click to add this data product to the plot">
+                      Plot
+                    </button>
+                  </td>
+                </tr>
               {% endfor %}
             {% else %}
               <tr>
-                <td colspan="2" class="text-center">No data products available to plot.</td>
+                <td colspan="2" class="text-center">
+                  No data products available to plot.
+                </td>
               </tr>
             {% endif %}
+            <tr id="{{ data_type }}NoMatchesRow" style="display: none;">
+              <td colspan="2" class="text-center">No matches found...</td>
+            </tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // Get references to the search input and the table body.
+  const searchInput = document.getElementById("{{ data_type }}FileSearch");
+  const tableBody = document.getElementById("{{ data_type }}PlotTBody");
+  const noMatchesRow = document.getElementById("{{ data_type }}NoMatchesRow")
+
+  // Add an input event listener to the search field so the table updates as the user types.
+  searchInput.addEventListener("input", () => {
+    const query = searchInput.value.toLowerCase().trim();
+    // Select all table rows that have a "data-file" attribute.
+    const rows = tableBody.querySelectorAll("tr[data-file]");
+
+    // Loop through each row and determine if it should be shown or hidden based on the query.
+    let visibleCount = 0;
+    rows.forEach((row) => {
+      let fileName = row.getAttribute("data-file").toLowerCase();
+      if (fileName.includes(query)) {
+        row.style.display = "";
+        visibleCount++;
+      } else {
+        row.style.display = "none";
+      }
+    });
+    // If no rows are visible, show the "No matches found" row. Otherwise hide it.
+    noMatchesRow.style.display = visibleCount === 0 ? "" : "none";
+  });
+});
+</script>

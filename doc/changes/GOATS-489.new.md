@@ -1,1 +1,0 @@
-Implemented dataproduct visualizer template tag: Designed and implemented a templatetag to fetch and display dataproducts for visualization based on data type.

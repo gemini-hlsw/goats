@@ -208,11 +208,43 @@
       const wavelength = result.value.wavelength;
       const flux = result.value.flux;
       const timestamp = result.timestamp;
+      const wavelengthUnits = result.value.wavelength_units;
+      const fluxUnits = result.value.flux_units;
 
       if (!wavelength || !flux) {
         return;
       }
 
+      const plottingConfig = plottingConfigurations.get("spectroscopy");
+      const defaultFluxTitle = plottingConfig.layout.yaxis.title;
+      const defaultWavelengthTitle = plottingConfig.layout.xaxis.title;
+
+      // Build axis labels.
+      const newWavelengthLabel = `Wavelength${wavelengthUnits ? ` (${wavelengthUnits})` : ""}`;
+      const newFluxLabel = `Flux${fluxUnits ? ` (${fluxUnits})` : ""}`;
+
+      // Check if axes need updating.
+      if (!plottingConfig.wavelengthUnits || !plottingConfig.fluxUnits) {
+        plottingConfig.wavelengthUnits = wavelengthUnits || "";
+        plottingConfig.fluxUnits = fluxUnits || "";
+        Plotly.relayout(plotId, {
+          "xaxis.title.text": newWavelengthLabel,
+          "yaxis.title.text": newFluxLabel,
+        });
+      } else if (
+        plottingConfig.wavelengthUnits !== wavelengthUnits ||
+        plottingConfig.fluxUnits !== fluxUnits
+      ) {
+        // Mismatch in units, reset to default and show alert.
+        plottingConfig.wavelengthUnits = "";
+        plottingConfig.fluxUnits = "";
+        Plotly.relayout(plotId, {
+          "xaxis.title.text": "Wavelength",
+          "yaxis.title.text": "Flux",
+        });
+        showAlert("", "Mismatch in units, removing label.", "warning");
+      }
+      // Add trace to the plot.
       const trace = {
         x: wavelength,
         y: flux,
@@ -221,8 +253,9 @@
       };
 
       Plotly.addTraces(plotId, trace);
-      if (!plottingConfigurations.get("spectroscopy").initialized) {
-        plottingConfigurations.get("spectroscopy").initialized = true;
+
+      if (!plottingConfig.initialized) {
+        plottingConfig.initialized = true;
       }
     });
   };
@@ -392,10 +425,11 @@
       "spectroscopy",
       {
         initialized: false,
+        wavelengthUnits: null,
+        fluxUnits: null,
         plotFunction: plotSpectroscopy,
         dummyTraces: [],
         layout: {
-          title: "",
           xaxis: {
             title: "Wavelength",
             tickformat: "d",
@@ -425,7 +459,6 @@
           },
         ],
         layout: {
-          title: "",
           xaxis: {
             title: "Time (MJD)",
             tickformat: ".2f",
@@ -472,6 +505,7 @@
           displayModeBar: true,
           displayLogo: false,
           responsive: true,
+          editable: true,
         }
       );
 

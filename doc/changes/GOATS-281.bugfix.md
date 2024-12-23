@@ -1,1 +1,0 @@
-Dynamic WebSocket URL generation: Built WebSocket URL from window and request.

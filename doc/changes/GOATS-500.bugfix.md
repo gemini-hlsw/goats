@@ -1,1 +1,0 @@
-Fixed issue with Django template and airmass plot.

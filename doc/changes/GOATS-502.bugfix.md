@@ -1,1 +1,0 @@
-Implemented workaround for CORS-related issue with plotting.

@@ -1,3 +1,37 @@
+## GOATS 24.12.0 (2024-12-21)
+
+
+### New Features
+
+- Implemented dataproduct visualizer template tag: Designed and implemented a templatetag to fetch and display dataproducts for visualization based on data type. [[#GOATS-489](https://noirlab.atlassian.net/browse/GOATS-489)]
+- Add photometric data plotting: Refactored plotting logic and enhanced interface usability. [[#GOATS-490](https://noirlab.atlassian.net/browse/GOATS-490)]
+- Added tests for API endpoints added for data visualizer. [[#GOATS-492](https://noirlab.atlassian.net/browse/GOATS-492)]
+- Connected backend API with frontend fetching: Implemented async fetching to dynamically retrieve or process dataproducts for plotting. [[#GOATS-493](https://noirlab.atlassian.net/browse/GOATS-493)]
+- Added Plotly.js for dynamic plotting: Integrated Plotly.js for interactive plotting in the dataproduct visualizer and implemented styling to toggle between dark and light themes. [[#GOATS-494](https://noirlab.atlassian.net/browse/GOATS-494)]
+- Added django filter for reduced dataproducts: Allowed querying of reduced data by product ID and data type. [[#GOATS-496](https://noirlab.atlassian.net/browse/GOATS-496)]
+- Added plotting function to update plot with requested spectroscopy data. [[#GOATS-499](https://noirlab.atlassian.net/browse/GOATS-499)]
+- Extended Gemini facility class functionality: Added methods for reading FITS headers and handling Gemini-specific image data. [[#GOATS-503](https://noirlab.atlassian.net/browse/GOATS-503)]
+- Added search field for file names: Implemented client-side filtering for the File Name column on the data visualizer to allow users to quickly find files. [[#GOATS-509](https://noirlab.atlassian.net/browse/GOATS-509)]
+- Update plot with axis unit handling and editable labels: Added support to display correct units for Wavelength and Flux if available in FITS files. Defaulted to "Wavelength" and "Flux" when units are missing. Made axis labels editable for manual input with CSV files for both photometry and spectroscopy. [[#GOATS-510](https://noirlab.atlassian.net/browse/GOATS-510)]
+- Added editable axis ranges: Enabled users to click directly on x and y axis end values to edit their ranges. [[#GOATS-511](https://noirlab.atlassian.net/browse/GOATS-511)]
+- Added user feedback when no files matched filter criteria during file plotting. [[#GOATS-512](https://noirlab.atlassian.net/browse/GOATS-512)]
+
+
+### Changes
+
+- Update photometry tab message: Revised message to include supported CSV format with a link to Manage Data. [[#GOATS-507](https://noirlab.atlassian.net/browse/GOATS-507)]
+- Update spectroscopy tab message: Revised message to include supported FITS and CSV formats with a link to Manage Data. [[#GOATS-508](https://noirlab.atlassian.net/browse/GOATS-508)]
+
+
+### Bug Fixes
+
+- Dynamic WebSocket URL generation: Built WebSocket URL from window and request. [[#GOATS-281](https://noirlab.atlassian.net/browse/GOATS-281)]
+- Converted endpoint to API: Browser extension endpoint now functions as a fully integrated API endpoint with proper token authentication to validate posts. [[#GOATS-383](https://noirlab.atlassian.net/browse/GOATS-383)]
+- Fixed issue with Django template and airmass plot. [[#GOATS-500](https://noirlab.atlassian.net/browse/GOATS-500)]
+- Fixed typo with filter backend in the settings template. [[#GOATS-501](https://noirlab.atlassian.net/browse/GOATS-501)]
+- Implemented workaround for CORS-related issue with plotting. [[#GOATS-502](https://noirlab.atlassian.net/browse/GOATS-502)]
+- Fixed issue with url for fetching and plotting data. [[#GOATS-505](https://noirlab.atlassian.net/browse/GOATS-505)]
+
 ## GOATS 24.11.0 (2024-11-27)
 
 

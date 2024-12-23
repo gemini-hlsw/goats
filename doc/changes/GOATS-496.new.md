@@ -1,1 +1,0 @@
-Added django filter for reduced dataproducts: Allowed querying of reduced data by product ID and data type.
