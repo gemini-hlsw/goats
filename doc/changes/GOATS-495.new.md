@@ -1,0 +1,1 @@
+Added user docs button: Added a button to the navbar that opens the user documentation in a new tab.
