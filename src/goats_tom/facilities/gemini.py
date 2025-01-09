@@ -676,42 +676,22 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
     def all_data_products(
         self,
         observation_record: ObservationRecord,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, list[Any]]:
         """Grabs all the data products.
 
         Parameters
         ----------
-        observation_record : ObservationRecord
+        observation_record : `ObservationRecord`
             The observation record to use for querying.
 
         Returns
         -------
-        list[dict[str, Any]]
-            A list of dict of data products
+        `dict[str, list[Any]]`
+            Saved and unsaved data products.
 
         """
-        products = {"saved": [], "unsaved": []}
-        for product in self.data_products(observation_record):
-            try:
-                dp = DataProduct.objects.get(product_id=product["id"])
-                products["saved"].append(dp)
-            except DataProduct.DoesNotExist:
-                products["unsaved"].append(product)
-        # Obtain products uploaded manually by users
-        user_products = DataProduct.objects.filter(
-            observation_record_id=observation_record.id,
-            product_id=None,
-        )
-        for product in user_products:
-            products["saved"].append(product)
-
-        # Add any JPEG images created from DataProducts
-        image_products = DataProduct.objects.filter(
-            observation_record_id=observation_record.id,
-            data_product_type="image_file",
-        )
-        for product in image_products:
-            products["saved"].append(product)
+        products = {"unsaved": []}
+        products["saved"] = self.data_products(observation_record)
         return products
 
     def save_data_products(
@@ -729,110 +709,22 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
         self,
         observation_record: ObservationRecord,
         product_id: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Gets the products to save to the observation.
+    ) -> list[DataProduct]:
+        """Return a list of DataProduct objects for the given observation.
 
         Parameters
         ----------
         observation_record : `ObservationRecord`
-            The observation record to look for products for.
+            The observation record to look for data products for.
         product_id : `str | None`, optional
-            The product ID to match, by default ``None``.
+            The product ID to match, by default `None`.
 
         Returns
         -------
-        `list[dict[str, Any]]`
-            A list of products for the observation ID.
-
+        `list[DataProduct]`
+            A list of DataProduct objects.
         """
-        # Store products.
-        products = []
-        files = []
-
-        observation_id = observation_record.observation_id
-
-        # Get file list from GOA.
-        try:
-            files = GOA.query_criteria(program_id=observation_id)
-        except HTTPError as e:
-            logger.error("HTTP Error occured: %s", e)
-        except (ConnectTimeout, ReadTimeout):
-            logger.error("Timeout hit querying GOA.")
-
-        # Query DataProduct objects associated with the observation record.
-        all_products = DataProduct.objects.filter(observation_record=observation_record)
-
-        # Create a set of filenames from the DataProduct objects
-        filenames = {f"{p.product_id}.fits" for p in all_products}
-
-        # Generate calibration files by performing a set difference between
-        # filenames and file names returned from GOA.
-        cal_files = [
-            {
-                "name": name,
-                "created": product.created,
-                "release": None,
-                "lastmod": product.modified,
-                "filename": f"{name}.bz2",
-                "reduction": "fits_file",
-            }
-            for product, name in zip(
-                all_products,
-                filenames - {f["name"] for f in files},
-                strict=False,
-            )
-        ]
-
-        # Look for the product ID if it exists.
+        products = DataProduct.objects.filter(observation_record=observation_record)
         if product_id is not None:
-            product_found = False
-            for f in files:
-                if f["name"].replace(".fits", "") == product_id:
-                    product_found = True
-                    products.append(_create_data_product_entry(f))
-                    break
-            if not product_found:
-                for c in cal_files:
-                    if c["name"].replace(".fits", "") == product_id:
-                        products.append(_create_data_product_entry(c))
-                        break
-
-        # Loop through files and build data products.
-        else:
-            products.extend([_create_data_product_entry(f) for f in files])
-            products.extend([_create_data_product_entry(c) for c in cal_files])
-
-        return products
-
-
-def _create_data_product_entry(product: Any) -> dict[str, Any]:
-    """Creates the entry for a specified product.
-
-    Parameters
-    ----------
-    product : `Any`
-        The product information from GOA.
-
-    Returns
-    -------
-    `dict[str, Any]`
-        A data product entry.
-
-    """
-    uncompressed_filename = product["name"]
-    if product["release"] is None:
-        is_proprietary = False
-    else:
-        release_date = Time(product["release"], format="isot", scale="utc")
-        today_ut = Time.now()
-        is_proprietary = today_ut < release_date
-
-    return {
-        "id": uncompressed_filename.replace(".fits", ""),
-        "filename": uncompressed_filename,
-        "compressed_filename": product["filename"],
-        "created": product["lastmod"],
-        "url": GOA.get_file_url(product["name"]),
-        "is_proprietary": is_proprietary,
-        "data_product_type": product["reduction"],
-    }
+            products = products.filter(product_id=product_id)
+        return list(products)

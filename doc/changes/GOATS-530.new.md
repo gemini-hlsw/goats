@@ -1,0 +1,1 @@
+Added responsive table format for long Target values in view.

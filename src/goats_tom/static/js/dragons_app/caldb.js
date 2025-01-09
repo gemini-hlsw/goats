@@ -239,9 +239,7 @@ class CaldbTemplate {
 
       // Create the filename cell with a data attribute.
       const tdFilename = Utils.createElement("td");
-      // TODO: Change back when formatter is figured out.
-      // tdFilename.textContent = `${item.path}/${item.name}`;
-      tdFilename.textContent = item.name;
+      tdFilename.textContent = `${item.path}/${item.name}`;
 
       // Create user uploaded flag cell.
       const tdUserUploaded = Utils.createElement("td");

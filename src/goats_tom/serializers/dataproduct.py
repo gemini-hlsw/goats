@@ -58,7 +58,6 @@ class DataProductSerializer(BaseDataProductSerializer):
 
     def create(self, validated_data):
         fullpath = Path(validated_data.pop("filepath")) / validated_data.pop("filename")
-        filename = fullpath.stem
         dragons_run = validated_data.pop("dragons_run")
         observation_record = dragons_run.observation_record
 
@@ -66,7 +65,7 @@ class DataProductSerializer(BaseDataProductSerializer):
         data_product_type = validated_data.pop("data_product_type", "fits_file")
 
         target = observation_record.target
-        product_id = dragons_run.generate_dragons_run_product_id(filename)
+        product_id = str(fullpath)
         validated_data.update(
             {
                 "product_id": product_id,

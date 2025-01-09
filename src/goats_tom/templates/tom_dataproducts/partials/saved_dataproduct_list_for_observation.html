@@ -5,7 +5,7 @@
 <table class="table table-striped">
   <thead>
     <tr>
-      <th>Filename</th>
+      <th>File</th>
       <th>Type</th>
       <th>Created</th>
       <th><a href="{% url 'delete-observation-data-products' observation_record.id %}" class="btn btn-danger">Delete All</a></th>
@@ -14,7 +14,7 @@
   <tbody>
     {% for product in products_page %}
     <tr>
-      <td><a href="{{ product.data.url }}">{{ product.get_file_name }}</a></td>
+      <td><a href="{{ product.data.url }}">{{ product.product_id }}</a></td>
       <td>
         {% if product.data_product_type %}
           {{ product.get_type_display }}

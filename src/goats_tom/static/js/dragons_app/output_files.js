@@ -251,7 +251,7 @@ class OutputFilesTemplate {
 
       // Create the filename cell with a data attribute.
       const tdFilename = Utils.createElement("td");
-      tdFilename.textContent = item.name;
+      tdFilename.textContent = `${item.path}/${item.name}`;
 
       // Create a last modified cell.
       const tdLastModified = Utils.createElement("td");

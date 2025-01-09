@@ -5,6 +5,7 @@
       <div class="card-header">
         <p class="mb-0">Details</p>
       </div>
+      <div class="table-responsive">
         <table class="table table-striped table-borderless">
           <tbody>
             {% for target_name in target.names %}
@@ -40,7 +41,7 @@
             {% endfor %}
           </tbody>
         </table>
-
+      </div>
         {% if extras %}
           <table class="table">
             <tbody>

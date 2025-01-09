@@ -1,5 +1,6 @@
 from .brokerquery_name import update_brokerquery_name
 from .dataproduct_delete import DataProductDeleteView
+from .dataproduct_upload import DataProductUploadView
 from .delete_observation_dataproducts import DeleteObservationDataProductsView
 from .downloads import recent_downloads
 from .dragons import DRAGONSView
@@ -31,4 +32,5 @@ __all__ = [
     "recent_downloads",
     "update_brokerquery_name",
     "ObservationRecordDeleteView",
+    "DataProductUploadView",
 ]

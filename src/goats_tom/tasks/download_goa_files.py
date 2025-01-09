@@ -194,7 +194,7 @@ def download_goa_files(
             if file_path.suffix != ".fits":
                 continue
 
-            product_id = _generate_product_id(file_path.stem, observation_record)
+            product_id = str(file_path.relative_to(settings.MEDIA_ROOT))
 
             # Use the mapping to get the data product type.
             # If not found, return default for calibration.
@@ -212,16 +212,13 @@ def download_goa_files(
             else:
                 # Otherwise, create a new DataProduct.
                 try:
-                    data_product_name = (
-                        f"{target.name}/{facility}/{observation_id}/{file_path.name}"
-                    )
                     dp = DataProduct.objects.create(
                         product_id=product_id,
                         target=target,
                         observation_record=observation_record,
                         data_product_type=data_product_type,
                     )
-                    dp.data.name = data_product_name
+                    dp.data.name = product_id
                     dp.save()
                     logger.info("Saved new dataproduct from tarfile: %s", dp.data)
                 except IntegrityError:

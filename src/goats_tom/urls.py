@@ -118,4 +118,9 @@ urlpatterns = [
         name="activate-user-key",
     ),
     path("observations/<int:pk>/dragons/", views.DRAGONSView.as_view(), name="dragons"),
+    path(
+        "dataproducts/data/upload/",
+        views.DataProductUploadView.as_view(),
+        name="upload",
+    ),
 ]

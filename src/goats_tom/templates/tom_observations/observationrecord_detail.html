@@ -29,7 +29,7 @@
 {% render_goa_query_form %}
 {% render_launch_dragons %}
 <div class="row justify-content-center">
-  <div class="col-md-8">
+  <div class="col-md-12">
     <h4>Saved Data Products</h4>
     <form method="POST" action="{% url 'tom_dataproducts:group-data' %}">
       {% csrf_token %}

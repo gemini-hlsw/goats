@@ -289,7 +289,7 @@ class DRAGONSRun(models.Model):
                 files.append(
                     {
                         "name": f.name,
-                        "path": str(path),
+                        "path": str(path.relative_to(settings.MEDIA_ROOT)),
                         "is_user_uploaded": path.name == "uploaded",
                     }
                 )
@@ -375,7 +375,7 @@ class DRAGONSRun(models.Model):
             ).strftime("%Y-%m-%d %H:%M:%S")
 
             # Generate the product ID for the file.
-            potential_product_id = self.generate_dragons_run_product_id(f.stem)
+            potential_product_id = str(f.relative_to(settings.MEDIA_ROOT))
 
             # Check if this file is a data product.
             dataproduct_id = data_products.get(potential_product_id)
