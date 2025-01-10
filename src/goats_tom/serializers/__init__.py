@@ -1,9 +1,10 @@
 from .antares2goats import Antares2GoatsSerializer
 from .base_recipe import BaseRecipeSerializer
 from .dataproduct import DataProductSerializer
+from .dataproduct_metadata import DataProductMetadataSerializer
 from .dragons_caldb import DRAGONSCaldbSerializer
 from .dragons_file import DRAGONSFileFilterSerializer, DRAGONSFileSerializer
-from .dragons_output_files import DRAGONSOutputFilesSerializer
+from .dragons_processed_files import DRAGONSProcessedFilesSerializer
 from .dragons_recipe import DRAGONSRecipeFilterSerializer, DRAGONSRecipeSerializer
 from .dragons_reduce import (
     DRAGONSReduceFilterSerializer,
@@ -27,8 +28,9 @@ __all__ = [
     "RecipesModuleSerializer",
     "DRAGONSCaldbSerializer",
     "BaseRecipeSerializer",
-    "DRAGONSOutputFilesSerializer",
+    "DRAGONSProcessedFilesSerializer",
     "DataProductSerializer",
     "RunProcessorSerializer",
+    "DataProductMetadataSerializer",
     "Antares2GoatsSerializer",
 ]

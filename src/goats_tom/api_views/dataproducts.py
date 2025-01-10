@@ -7,7 +7,7 @@ direct file uploads.
 """
 
 __all__ = ["DataProductsViewSet"]
-
+import astrodata
 from django.conf import settings
 from guardian.shortcuts import assign_perm
 from rest_framework import status
@@ -19,6 +19,7 @@ from tom_dataproducts.api_views import DataProductViewSet as BaseDataProductView
 from tom_dataproducts.data_processor import run_data_processor
 from tom_dataproducts.models import DataProduct, ReducedDatum
 
+from goats_tom.models import DataProductMetadata
 from goats_tom.serializers import DataProductSerializer
 
 
@@ -39,6 +40,14 @@ class DataProductsViewSet(BaseDataProductViewSet):
         if response.status_code == status.HTTP_201_CREATED:
             response.data["message"] = "Data product successfully uploaded."
             dp = DataProduct.objects.get(pk=response.data["id"])
+            # Add the metadata.
+            ad = astrodata.open(dp.data.path)
+            tags = ad.tags
+            processed = False
+            if "PREPARED" in tags or "PROCESSED" in tags:
+                processed = True
+
+            DataProductMetadata.objects.create(dataproduct=dp, processed=processed)
             try:
                 run_hook("data_product_post_upload", dp)
                 reduced_data = run_data_processor(dp)

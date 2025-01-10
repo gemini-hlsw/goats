@@ -20,9 +20,9 @@ router.register(
 )
 router.register(r"dragonscaldb", api_views.DRAGONSCaldbViewSet, basename="dragonscaldb")
 router.register(
-    r"dragonsoutputfiles",
-    api_views.DRAGONSOutputFilesViewSet,
-    basename="dragonsoutputfiles",
+    r"dragonsprocessedfiles",
+    api_views.DRAGONSProcessedFilesViewSet,
+    basename="dragonsprocessedfiles",
 )
 router.register(
     r"dragonsdataproducts",

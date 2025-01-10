@@ -130,7 +130,7 @@ class DRAGONSRunsViewSet(
                 print("Adding BPM to calibration database.")
                 cal_db.add_cal(data_product.data.path)
                 continue
-            if "PREPARED" in tags or "PROCESSED" in tags:
+            if data_product.metadata.processed:
                 print("Skipping prepared or processed file.")
                 continue
 

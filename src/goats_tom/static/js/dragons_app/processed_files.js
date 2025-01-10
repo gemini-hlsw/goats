@@ -1,8 +1,8 @@
 /**
- * Template class for managing the output files section in the UI.
+ * Template class for managing the processed files section in the UI.
  * @param {Object} options - Configuration options for the template.
  */
-class OutputFilesTemplate {
+class ProcessedFilesTemplate {
   constructor(options) {
     this.options = options;
   }
@@ -51,7 +51,7 @@ class OutputFilesTemplate {
    */
   _createCardHeader() {
     const div = Utils.createElement("div", ["card-header", "h5", "mb-0"]);
-    div.textContent = "Output Files";
+    div.textContent = "Processed Files";
 
     return div;
   }
@@ -65,7 +65,7 @@ class OutputFilesTemplate {
   _createCardBody(data) {
     const cardBody = Utils.createElement("div", ["card-body"]);
     const accordion = Utils.createElement("div", ["accordion", "accordion-flush"]);
-    accordion.id = "outputFilesAccordion";
+    accordion.id = "processedFilesAccordion";
     accordion.appendChild(this._createAccordion(data));
     cardBody.appendChild(accordion);
 
@@ -103,7 +103,7 @@ class OutputFilesTemplate {
     collapseDiv.id = collapseId;
     collapseDiv.className = "accordion-collapse collapse";
     collapseDiv.setAttribute("aria-labelledby", headerId);
-    collapseDiv.setAttribute("data-bs-parent", `#outputFilesAccordion`);
+    collapseDiv.setAttribute("data-bs-parent", `#processedFilesAccordion`);
 
     const accordionBody = Utils.createElement("div", [
       "accordion-body",
@@ -304,11 +304,11 @@ class OutputFilesTemplate {
 }
 
 /**
- * View class for managing the display of output files in the UI.
- * @param {OutputFilesTemplate} template - Template instance used for rendering the UI.
+ * View class for managing the display of processed files in the UI.
+ * @param {ProcessedFilesTemplate} template - Template instance used for rendering the UI.
  * @param {Object} options - Configuration options for the view.
  */
-class OutputFilesView {
+class ProcessedFilesView {
   constructor(template, options) {
     this.template = template;
     this.options = options;
@@ -444,6 +444,7 @@ class OutputFilesView {
           if (!row) return;
           handler({
             filename: row.dataset.filename,
+            filepath: row.dataset.filepath,
             productId: row.dataset.productId,
           });
         });
@@ -456,17 +457,17 @@ class OutputFilesView {
 }
 
 /**
- * Model class for managing output file data.
+ * Model class for managing processed file data.
  * @param {Object} options - Configuration options for the model.
  */
-class OutputFilesModel {
+class ProcessedFilesModel {
   constructor(options) {
     this.options = options;
     this._runId = null;
     this._data = null;
     this._previousData = null;
     this.api = this.options.api;
-    this.outputFilesUrl = "dragonsoutputfiles/";
+    this.processedFilesUrl = "dragonsprocessedfiles/";
     this.dragonsDataProductsUrl = "dragonsdataproducts/";
   }
 
@@ -487,16 +488,16 @@ class OutputFilesModel {
   }
 
   /**
-   * Fetches files from the output directory for the set run ID.
+   * Fetches files from the processed directory for the set run ID.
    * @async
    * @throws {Error} Throws an error if the network request fails.
    */
   async fetchFiles() {
     try {
-      const response = await this.api.get(`${this.outputFilesUrl}${this.runId}/`);
+      const response = await this.api.get(`${this.processedFilesUrl}${this.runId}/`);
       this.data = response;
     } catch (error) {
-      console.error("Error fetching list of output files:", error);
+      console.error("Error fetching list of processed files:", error);
       throw error;
     }
   }
@@ -526,17 +527,19 @@ class OutputFilesModel {
   /**
    * Removes a file from the data product repository.
    * @param {string} filename - The name of the file to remove.
+   * @param {string} filepath - The path to the file to remove.
    * @param {string} productId - The product ID associated with the file.
    */
-  async removeFile(filename, productId) {
+  async removeFile(filename, filepath, productId) {
     try {
       const body = {
         filename: filename,
+        filepath: filepath,
         product_id: productId,
         action: "remove",
       };
       const response = await this.api.patch(
-        `${this.outputFilesUrl}${this.runId}/`,
+        `${this.processedFilesUrl}${this.runId}/`,
         body
       );
       this.data = response;
@@ -574,11 +577,11 @@ class OutputFilesModel {
 
 /**
  * Controller class for managing interactions between the model and view.
- * @param {OutputFilesModel} model - The model component of the feature.
- * @param {OutputFilesView} view - The view component of the feature.
+ * @param {ProcessedFilesModel} model - The model component of the feature.
+ * @param {ProcessedFilesView} view - The view component of the feature.
  * @param {Object} options - Configuration options for the controller.
  */
-class OutputFilesController {
+class ProcessedFilesController {
   constructor(model, view, options) {
     this.model = model;
     this.view = view;
@@ -593,14 +596,14 @@ class OutputFilesController {
     this.view.bindCallback("refresh", () => this.refresh());
     this.view.bindCallback("add", (item) => this.add(item.filename, item.filepath));
     this.view.bindCallback("remove", (item) =>
-      this.remove(item.filename, item.productId)
+      this.remove(item.filename, item.filepath, item.productId)
     );
   }
 
   /**
    * Updates the model run ID and view with data.
    * @async
-   * @param {number} runId - The run ID to get output files for.
+   * @param {number} runId - The run ID to get processed files for.
    */
   async update(runId) {
     this.model.runId = runId;
@@ -624,8 +627,8 @@ class OutputFilesController {
    * @param {string} filename - The name of the file to remove.
    * @param {string} productId - The product ID associated with the file.
    */
-  async remove(filename, productId) {
-    await this.model.removeFile(filename, productId);
+  async remove(filename, filepath, productId) {
+    await this.model.removeFile(filename, filepath, productId);
     if (this.model.dataChanged()) {
       this.view.render("update", { data: this.model.data });
     }
@@ -661,23 +664,23 @@ class OutputFilesController {
 }
 
 /**
- * The main class that orchestrates the initialization and management of the OutputFiles
+ * The main class that orchestrates the initialization and management of the ProcessedFiles
  * application.
  * @param {HTMLElement} parentElement - The parent element where the application will be mounted.
- * @param {number} runId - The run ID used to fetch output files.
+ * @param {number} runId - The run ID used to fetch processed files.
  * @param {Object} options - Configuration options for the application.
  */
-class OutputFiles {
+class ProcessedFiles {
   static #defaultOptions = {
-    id: "OutputFiles",
+    id: "ProcessedFiles",
   };
 
   constructor(parentElement, runId, options = {}) {
-    this.options = { ...OutputFiles.#defaultOptions, ...options, api: window.api };
-    this.model = new OutputFilesModel(this.options);
-    const template = new OutputFilesTemplate(this.options);
-    this.view = new OutputFilesView(template, this.options);
-    this.controller = new OutputFilesController(this.model, this.view, this.options);
+    this.options = { ...ProcessedFiles.#defaultOptions, ...options, api: window.api };
+    this.model = new ProcessedFilesModel(this.options);
+    const template = new ProcessedFilesTemplate(this.options);
+    this.view = new ProcessedFilesView(template, this.options);
+    this.controller = new ProcessedFilesController(this.model, this.view, this.options);
 
     this._create(parentElement, runId);
   }
@@ -701,7 +704,7 @@ class OutputFiles {
   }
 
   /**
-   * Refreshes the view of the files in the output directory.
+   * Refreshes the view of the files in the processed directory.
    */
   refresh() {
     this.controller.refresh();

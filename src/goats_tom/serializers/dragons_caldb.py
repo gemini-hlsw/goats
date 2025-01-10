@@ -70,7 +70,7 @@ class DRAGONSCaldbSerializer(serializers.ModelSerializer):
 
         if action == "remove":
             existing_files = self.instance.list_caldb_files()
-            if not any(value == file["name"] for file in existing_files):
+            if not any(value == f["name"] for f in existing_files):
                 raise serializers.ValidationError(
                     "File does not exist in the database."
                 )

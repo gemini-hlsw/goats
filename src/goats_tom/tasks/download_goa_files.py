@@ -7,6 +7,7 @@ import tarfile
 import time
 
 # Now import the DRAGONS libraries
+import astrodata
 import dramatiq
 from django.conf import settings
 from django.core import serializers
@@ -14,10 +15,9 @@ from django.db import IntegrityError
 from dramatiq.middleware import TimeLimitExceeded
 from requests.exceptions import HTTPError
 from tom_dataproducts.models import DataProduct
-from tom_observations.models import ObservationRecord
 
 from goats_tom.astroquery import Observations as GOA
-from goats_tom.models import Download, GOALogin
+from goats_tom.models import DataProductMetadata, Download, GOALogin
 from goats_tom.realtime import DownloadState, NotificationInstance
 from goats_tom.utils import create_name_reduction_map
 
@@ -220,6 +220,16 @@ def download_goa_files(
                     )
                     dp.data.name = product_id
                     dp.save()
+                    # TODO: Do we need to add the hook after?
+                    # Now create the metadata.
+                    ad = astrodata.open(dp.data.path)
+                    tags = ad.tags
+                    processed = False
+                    if "PREPARED" in tags or "PROCESSED" in tags:
+                        processed = True
+                    DataProductMetadata.objects.create(
+                        dataproduct=dp, processed=processed
+                    )
                     logger.info("Saved new dataproduct from tarfile: %s", dp.data)
                 except IntegrityError:
                     logger.error(
@@ -274,24 +284,3 @@ def download_goa_files(
             color="danger",
         )
         raise
-
-
-def _generate_product_id(filename: str, observation_record: ObservationRecord) -> str:
-    """Generates the product ID.
-
-    Parameters
-    ----------
-    filename : `str`
-        The name of the file, no extension.
-    observation_record : `ObservationRecord`
-        The observation record for this product.
-
-    Returns
-    -------
-    `str`
-        The detailed product ID.
-    """
-    product_id = f"{observation_record.target.name}__"
-    product_id += f"{observation_record.observation_id}__"
-    product_id += f"{filename}"
-    return product_id

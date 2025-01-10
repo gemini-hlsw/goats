@@ -32,7 +32,7 @@
     <div id="caldbContainer"></div>
   </div>
   <div class="col-12">
-    <div id="outputFilesContainer"></div>
+    <div id="processedFilesContainer"></div>
   </div>
 </div>
 <div id="helpOffcanvasContainer"></div>
@@ -50,7 +50,7 @@
 <script src="{% static 'js/dragons_app/progress.js' %}"></script>
 <script src="{% static 'js/dragons_app/files_table.js' %}"></script>
 <script src="{% static 'js/dragons_app/caldb.js' %}"></script>
-<script src="{% static 'js/dragons_app/output_files.js' %}"></script>
+<script src="{% static 'js/dragons_app/processed_files.js' %}"></script>
 <script src="{% static 'js/dragons_app/run_table.js' %}"></script>
 <script src="{% static 'js/dragons_app/help_offcanvas.js' %}"></script>
 <script src="{% static 'js/dragons_app/recipes_and_files_manager.js' %}"></script>
@@ -92,8 +92,8 @@
           runId
         );
         this.caldb = new Caldb(document.getElementById("caldbContainer"), runId);
-        this.outputFiles = new OutputFiles(
-          document.getElementById("outputFilesContainer"),
+        this.processedFiles = new ProcessedFiles(
+          document.getElementById("processedFilesContainer"),
           runId
         );
         this.recipeReductionsManager = new RecipeReductionsManager(
@@ -105,7 +105,7 @@
         this.recipesAndFilesManager.update(runId);
         this.recipeReductionsManager.update(runId);
         this.caldb.update(runId);
-        this.outputFiles.update(runId);
+        this.processedFiles.update(runId);
       }
     }
   }
