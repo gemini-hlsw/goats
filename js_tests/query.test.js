@@ -3,7 +3,7 @@ const { js_dir } = require("./testConfig.js");
 const path  = require("path");
 
 // Load script.
-const script = new JSDOM('<!DOCTYPE html><textarea id="esquery"></textarea>', {
+const script = new JSDOM('<!DOCTYPE html><textarea id="id_query"></textarea>', {
   runScripts: "dangerously",
   resources: "usable"
 });
@@ -12,14 +12,14 @@ const document = window.document;
 
 // Append the script to the document.
 const scriptTag = document.createElement("script");
-const scriptPath = path.join(js_dir, "esquery.js");
+const scriptPath = path.join(js_dir, "query.js");
 scriptTag.textContent = require("fs").readFileSync(scriptPath, "utf8");
 document.head.appendChild(scriptTag);
 
 // Run tests.
-test("Testing esquery", () => {
+test("Testing query", () => {
   // Trigger the event.
-  const textarea = document.getElementById("esquery");
+  const textarea = document.getElementById("id_query");
   textarea.value = '{"key": "value"}';
   const event1 = new window.Event("blur");
   textarea.dispatchEvent(event1);

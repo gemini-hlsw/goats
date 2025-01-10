@@ -12,27 +12,25 @@ from tom_alerts.alerts import GenericQueryForm
 from tom_antares.antares import ANTARESBroker as BaseANTARESBroker
 
 
-
 class ANTARESBrokerForm(GenericQueryForm):
     """A Django form class.
 
     Attributes
     ----------
-    esquery : `JSONField`
+    query : `JSONField`
         A JSON field required for receiving Elastic Search queries.
 
     """
 
-    esquery = forms.JSONField(
+    query = forms.JSONField(
         required=False,
-        label="Elastic Search query in JSON format",
-        widget=Textarea(attrs={"rows": 10, "id": "esquery"}),
-        initial={},
+        label="Elastic Searh query in JSON format",
+        widget=Textarea(attrs={"rows": 10}),
     )
 
     class Media:
         # Incorporating additional JavaScript file.
-        js = (static("js/esquery.js"),)
+        js = (static("js/query.js"),)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -92,7 +90,7 @@ class ANTARESBrokerForm(GenericQueryForm):
             ),
             HTML("<hr>"),
             Div(
-                Fieldset("Elastic Search Query", "query_name", "esquery"),
+                Fieldset("Elastic Search Query", "query_name", "query"),
                 HTML(
                     """
                     <p>
@@ -106,7 +104,7 @@ class ANTARESBrokerForm(GenericQueryForm):
         )
 
     def clean(self):
-        """Cleans the data of the "esquery" field and validates it.
+        """Cleans the data of the "query" field and validates it.
 
         Returns
         -------
@@ -116,11 +114,11 @@ class ANTARESBrokerForm(GenericQueryForm):
         Raises
         ------
         forms.ValidationError
-            Raised if the "esquery" field is empty.
+            Raised if the "query" field is empty.
 
         """
         cleaned_data = super().clean()
-        if not cleaned_data.get("esquery"):
+        if not cleaned_data.get("query"):
             raise forms.ValidationError("Invalid entry for Elastic Search query form.")
 
         return cleaned_data
@@ -152,7 +150,7 @@ class ANTARESBroker(BaseANTARESBroker):
             An iterator of alerts.
 
         """
-        esquery = parameters.get("esquery")
+        query = parameters.get("query")
         locusid = parameters.get("locusid")
         # TODO: Determine max alerts.
         max_alerts = 20
@@ -162,9 +160,8 @@ class ANTARESBroker(BaseANTARESBroker):
             locus = antares_client.search.get_by_id(locusid)
             alerts.append(self.alert_to_dict(locus))
 
-        elif esquery:
+        elif query:
             # Set query parameter.
-            query = esquery
             # Initiate search with the given query.
             loci = antares_client.search.search(query)
 

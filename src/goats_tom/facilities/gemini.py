@@ -28,6 +28,7 @@ from goats_tom.astroquery import Observations as GOA
 from goats_tom.ocs import GeminiID, OCSClient
 from goats_tom.utils import get_key_info
 from requests.exceptions import ConnectTimeout
+from bs4 import BeautifulSoup
 
 try:
     AUTO_THUMBNAILS = settings.AUTO_THUMBNAILS
@@ -632,7 +633,12 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
         `site_dict = {'code': 'XYZ', 'weather_url': 'http://path/to/weather'}`
 
         """
-        return {}
+        sites_status = [
+            {"code": "cpo", "weather_url": "https://www.gemini.edu/sciops/schedules/obsStatus/GS_Instrument.html"},
+            {"code": "mko", "weather_url": "https://www.gemini.edu/sciops/schedules/obsStatus/GN_Instrument.html"}
+        ]
+        status = {"code": self.name, "sites": sites_status}
+        return status
 
     def get_facility_status(self):
         """Returns a dictionary describing the current availability of the
@@ -652,7 +658,31 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
 
         See lco.py for a concrete implementation example.
         """
-        return {}
+        def fetch_shutter(url: str, timeout: int = 5) -> str:
+            """Fetch the 'shutter' status from a Gemini schedule page."""
+            try:
+                with requests.get(url, timeout=timeout) as resp:
+                    resp.raise_for_status()
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    td = soup.find("td", id="shutter")
+                    return td.get_text(strip=True) if td else "NO STATUS FOUND"
+            except Exception:
+                return "ERROR FETCHING STATUS"
+
+        north_url = "https://www.gemini.edu/sciops/schedules/obsStatus/GN_Instrument.html"
+        south_url = "https://www.gemini.edu/sciops/schedules/obsStatus/GS_Instrument.html"
+        cpo_telescope_status = [
+            {"code": "Gemini South", "status": fetch_shutter(south_url)}
+        ]
+        mko_telescope_status = [
+            {"code": "Gemini North", "status": fetch_shutter(north_url)}
+        ]
+        sites_status = [
+            {"code": "cpo", "telescopes": cpo_telescope_status},
+            {"code": "mko", "telescopes": mko_telescope_status}
+        ]
+        status = {"code": self.name, "sites": sites_status}
+        return status
 
     def cancel_observation(self, observation_id):
         """Takes an observation id and submits a request to the observatory that

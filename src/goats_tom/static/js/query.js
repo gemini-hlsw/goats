@@ -5,7 +5,7 @@
  * If the content is not valid JSON, the textarea is highlighted.
  */
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("esquery").addEventListener("blur", (event) => {
+  document.getElementById("id_query").addEventListener("blur", (event) => {
     const value = event.target.value;
     if (value !== null && value.trim() !== "") {
       try {

@@ -77,12 +77,13 @@ class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
             target.save(extras=extras, names=aliases)
 
         elif "esquery" in serializer.validated_data:
-            esquery = serializer.validated_data["esquery"]
+            query = serializer.validated_data["esquery"]
+            query_name = f"esquery_ANTARES_{datetime.now().strftime('%Y%m%d%H%M%S')}"
             # Create a new query.
             broker_query = BrokerQuery.objects.create(
-                name=f"esquery_ANTARES_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                name=query_name,
                 broker="ANTARES",
-                parameters=esquery,
+                parameters={"query": query, "query_name": query_name},
             )
             # Save the new BrokerQuery instance to the database.
             broker_query.save()

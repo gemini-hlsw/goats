@@ -1,4 +1,5 @@
 __all__ = ["update_brokerquery_name"]
+
 from django.http import (
     HttpRequest,
     JsonResponse,
