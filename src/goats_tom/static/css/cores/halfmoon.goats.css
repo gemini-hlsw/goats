@@ -476,6 +476,21 @@ select.form-control[multiple] {
   overflow-y: auto;
 }
 
+.goat-spinner {
+  display: inline-block;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 /* Allows dark/light mode hack for plotly.js */
 :root[data-bs-theme="dark"] .plotly-container {
   filter: invert(100%) hue-rotate(180deg);

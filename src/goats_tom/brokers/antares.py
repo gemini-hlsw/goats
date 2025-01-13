@@ -1,15 +1,18 @@
 __all__ = ["ANTARESBrokerForm", "ANTARESBroker"]
 
-from typing import Any
+from typing import Any, Iterator
 
 import antares_client
 import marshmallow
+from astropy.time import Time, TimezoneInfo
 from crispy_forms.layout import HTML, Div, Fieldset, Layout
 from django import forms
 from django.forms.widgets import Textarea
 from django.templatetags.static import static
-from tom_alerts.alerts import GenericQueryForm
-from tom_antares.antares import ANTARESBroker as BaseANTARESBroker
+from tom_alerts.alerts import GenericAlert, GenericBroker, GenericQueryForm
+from tom_targets.models import BaseTarget, Target, TargetName
+
+ANTARES_BASE_URL = "https://antares.noirlab.edu"
 
 
 class ANTARESBrokerForm(GenericQueryForm):
@@ -24,8 +27,9 @@ class ANTARESBrokerForm(GenericQueryForm):
 
     query = forms.JSONField(
         required=False,
-        label="Elastic Searh query in JSON format",
-        widget=Textarea(attrs={"rows": 10}),
+        label="Elastic Search query in JSON format",
+        widget=Textarea(attrs={"rows": 10}, ),
+        initial={"query":{}},
     )
 
     class Media:
@@ -44,6 +48,8 @@ class ANTARESBrokerForm(GenericQueryForm):
             "https://addons.mozilla.org/en-US/firefox/addon/antares2goats/"
         )
         chrome_extension_url = "https://chromewebstore.google.com/detail/antares2goats/nmnbkpfjnpachfajklpjimbdpkoebcba"
+
+        # ruff: noqa: E501
         self.helper.layout = Layout(
             self.common_layout,
             HTML(
@@ -102,6 +108,7 @@ class ANTARESBrokerForm(GenericQueryForm):
                 css_class="col",
             ),
         )
+        # ruff: enable
 
     def clean(self):
         """Cleans the data of the "query" field and validates it.
@@ -118,13 +125,14 @@ class ANTARESBrokerForm(GenericQueryForm):
 
         """
         cleaned_data = super().clean()
+        print("CLEAN ", cleaned_data)
         if not cleaned_data.get("query"):
             raise forms.ValidationError("Invalid entry for Elastic Search query form.")
 
         return cleaned_data
 
 
-class ANTARESBroker(BaseANTARESBroker):
+class ANTARESBroker(GenericBroker):
     """Extends the ANTARESBroker.
 
     Attributes
@@ -134,27 +142,59 @@ class ANTARESBroker(BaseANTARESBroker):
 
     """
 
+    name = "ANTARES"
     form = ANTARESBrokerForm
 
-    def fetch_alerts(self, parameters: dict[str, Any]) -> iter:
-        """Fetches alerts from user input.
+    @classmethod
+    def alert_to_dict(cls, locus) -> dict[str, Any]:
+        """Serializes a Locus object into a dictionary for caching in the view.
+
+        Parameters
+        ----------
+        locus : `Locus`
+            The Locus object returned by the ANTARES API.
+
+        Returns
+        -------
+        `dict`
+            A dictionary representation of the Locus object.
+        """
+        return {
+            "locus_id": locus.locus_id,
+            "ra": locus.ra,
+            "dec": locus.dec,
+            "properties": locus.properties,
+            "tags": locus.tags,
+            # 'lightcurve': locus.lightcurve.to_json(),
+            "catalogs": locus.catalogs,
+            "alerts": [
+                {
+                    "alert_id": alert.alert_id,
+                    "mjd": alert.mjd,
+                    "properties": alert.properties,
+                }
+                for alert in locus.alerts
+            ],
+        }
+
+    def fetch_alerts(self, parameters: dict[str, Any]) -> Iterator[dict[str, Any]]:
+        """Fetches alerts based on user input.
 
         Parameters
         ----------
         parameters : `dict[str, Any]`
-            The parameters to use to query.
+            Query parameters containing either a query string or a locus ID.
 
         Returns
         -------
-        `iter`
-            An iterator of alerts.
-
+        `Iterator[dict[str, Any]]`
+            An iterator of alert dictionaries.
         """
         query = parameters.get("query")
         locusid = parameters.get("locusid")
-        # TODO: Determine max alerts.
-        max_alerts = 20
+        max_alerts = 40
         alerts = []
+
         if locusid:
             # Fetch alert by locus ID.
             locus = antares_client.search.get_by_id(locusid)
@@ -169,9 +209,70 @@ class ANTARESBroker(BaseANTARESBroker):
                 try:
                     locus = next(loci)
                 except (marshmallow.exceptions.ValidationError, StopIteration):
-                    # Break the loop if there is a validation error
-                    # or no more items in the iterator.
+                    # Break the loop if there is a validation error or no more items in
+                    # the iterator.
                     break
                 alerts.append(self.alert_to_dict(locus))
 
         return iter(alerts)
+
+    def to_target(
+        self, alert: dict[str, Any]
+    ) -> tuple[BaseTarget, list, list[TargetName]]:
+        """Converts an alert dictionary into a Target object and associated aliases.
+
+        Parameters
+        ----------
+        alert : `dict[str, Any]`
+            The alert data containing target details.
+
+        Returns
+        -------
+        `tuple[BaseTarget, list, list[TargetName]]`
+            A tuple containing the created `BaseTarget`, an empty list, and a list of
+            aliases.
+        """
+        target = Target.objects.create(
+            name=alert["properties"]["ztf_object_id"],
+            type="SIDEREAL",
+            ra=alert["ra"],
+            dec=alert["dec"],
+        )
+        aliases = [TargetName(target=target, name=alert["locus_id"])]
+
+        horizons_name = alert["properties"].get("horizons_targetname")
+        if horizons_name is not None:
+            aliases.append(TargetName(name=horizons_name))
+
+        return target, [], aliases
+
+    def to_generic_alert(self, alert: dict[str, Any]) -> GenericAlert:
+        """Converts an alert dictionary into a `GenericAlert` object.
+
+        Parameters
+        ----------
+        alert : `dict[str, Any]`
+            The alert data to be converted.
+
+        Returns
+        -------
+        `GenericAlert`
+            The corresponding GenericAlert object.
+        """
+        url = f'{ANTARES_BASE_URL}/loci/{alert["locus_id"]}'
+        timestamp = Time(
+            alert["properties"].get("newest_alert_observation_time"),
+            format="mjd",
+            scale="utc",
+        ).to_datetime(timezone=TimezoneInfo())
+
+        return GenericAlert(
+            timestamp=timestamp,
+            url=url,
+            id=alert["locus_id"],
+            name=alert["properties"]["ztf_object_id"],
+            ra=alert["ra"],
+            dec=alert["dec"],
+            mag=alert["properties"].get("newest_alert_magnitude", ""),
+            score=alert["alerts"][-1]["properties"].get("ztf_rb", ""),
+        )

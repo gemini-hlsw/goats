@@ -1,0 +1,1 @@
+Remove tom-antares dependency: Ingested its functionality directly into GOATS due to extensive customizations and installation complexities.

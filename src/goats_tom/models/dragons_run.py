@@ -273,6 +273,18 @@ class DRAGONSRun(models.Model):
         finally:
             self.close_caldb(caldb)
 
+    def check_and_remove_caldb_file(self, filename: str) -> None:
+        """Checks if a file is a caldb file, if so, removes it.
+
+        Parameters
+        ----------
+        filename : `str`
+            The name of the file to remove.
+        """
+        existing_files = self.list_caldb_files()
+        if any(filename == f["name"] for f in existing_files):
+            self.remove_caldb_file(filename)
+
     def list_caldb_files(self) -> list[dict[str, str]]:
         """Lists all files in the calibration database.
 
@@ -282,15 +294,18 @@ class DRAGONSRun(models.Model):
             The list of dicts of all files in the calibration database.
         """
         caldb = self.get_caldb()
+        files = []
         try:
-            files = []
             for f in caldb.list_files():
-                path = Path(f.path)
+                relative_path = (
+                    Path(f.path).joinpath(f.name).relative_to(settings.MEDIA_ROOT)
+                )
                 files.append(
                     {
                         "name": f.name,
-                        "path": str(path.relative_to(settings.MEDIA_ROOT)),
-                        "is_user_uploaded": path.name == "uploaded",
+                        "path": str(relative_path.parent),
+                        "is_user_uploaded": Path(f.path).name == "uploaded",
+                        "url": f"{settings.MEDIA_URL}{relative_path}",
                     }
                 )
         finally:
@@ -307,30 +322,11 @@ class DRAGONSRun(models.Model):
             # Iterate over each file in the uploaded directory.
             for filepath in uploaded_dir.iterdir():
                 if filepath not in files:
+                    print("removing file: ", filepath)
                     # Remove files not in database in uploaded.
                     filepath.unlink()
         finally:
             self.close_caldb(caldb)
-
-    def generate_dragons_run_product_id(self, filename) -> str:
-        """Generates the run data product ID.
-
-        Parameters
-        ----------
-        filename : `str`
-            The filename.
-
-        Returns
-        -------
-        `str`
-            The product ID with the run ID.
-        """
-        product_id = ""
-        product_id += f"{self.observation_record.target.name}"
-        product_id += f"__{self.observation_record.observation_id}"
-        product_id += f"__{self.run_id}__{filename}"
-
-        return product_id
 
     def remove_output_file(self, filename: str) -> None:
         """Removes the filename from the output directory.
@@ -342,56 +338,87 @@ class DRAGONSRun(models.Model):
 
         """
         filepath = self.get_output_dir() / filename
-        try:
-            filepath.unlink()
-        except OSError as e:
-            print(f"Failed to remove file {filename}: {e}")
+        self.remove_file(filepath)
 
-    def get_output_files(self) -> list[dict[str, str]]:
-        """Returns all the output files (*.fits) of the output directory.
+    def remove_file(self, filepath: Path) -> None:
+        """Removes a file and removes it from caldb if it exists.
+
+        Parameters
+        ----------
+        filepath : `Path`
+            Path to the file.
+        """
+        try:
+            filename = filepath.name
+            filepath.unlink()
+            self.check_and_remove_caldb_file(filename)
+
+        except OSError as e:
+            print(f"Failed to remove file {filepath}: {e}")
+
+    def get_processed_files(self) -> list[dict]:
+        """Returns all the processed output files of the output directory, combined
+        with any additional `DataProducts` that are processed but not in the output
+        directory.
 
         Returns
         -------
-        `list[dict[str, str]]`
-            List of the name and path of the files in the output directory.
+        `list[dict]`
+            A list of file information dictionaries.
         """
         output_dir = self.get_output_dir()
-
         output_files = []
 
-        # Retrieve all DataProducts associated with the observation_record and map them
-        # by product_id.
-        data_products = {
-            dp.product_id: dp.id
-            for dp in DataProduct.objects.filter(
-                observation_record=self.observation_record
-            )
-        }
+        # Query all processed DataProducts.
+        data_products_qs = DataProduct.objects.filter(
+            observation_record=self.observation_record, metadata__processed=True
+        )
 
+        # Create a dict from product_id to the DataProduct instance for quick lookups.
+        data_products = {dp.product_id: dp for dp in data_products_qs}
+
+        # Keep a set to record which product_ids we’ve already handled (to avoid
+        # duplicates).
+        processed_product_ids: set[str] = set()
+
+        # Iterate over files in the output directory.
         for f in output_dir.glob("*.fits"):
-            # Get the file's last modified time, convert it to UTC, and format it.
-            last_modified_time = datetime.datetime.fromtimestamp(
-                f.stat().st_mtime, datetime.timezone.utc
-            ).strftime("%Y-%m-%d %H:%M:%S")
-
-            # Generate the product ID for the file.
+            # Generate the product ID from the file path.
             potential_product_id = str(f.relative_to(settings.MEDIA_ROOT))
 
-            # Check if this file is a data product.
-            dataproduct_id = data_products.get(potential_product_id)
-            is_dataproduct = dataproduct_id is not None
+            # Check if this file is backed by a DataProduct.
+            dp = data_products.get(potential_product_id)
+            is_dataproduct = dp is not None
+            if is_dataproduct:
+                # Mark this product_id as processed so we don't add it again later.
+                processed_product_ids.add(potential_product_id)
 
-            # Append the file information to the list as a dictionary.
+            # Append the file info to output_files.
             output_files.append(
                 {
                     "name": f.name,
-                    # Don't want to provide full path.
                     "path": str(f.parent.relative_to(settings.MEDIA_ROOT)),
-                    "last_modified": last_modified_time,
                     "is_dataproduct": is_dataproduct,
-                    "dataproduct_id": dataproduct_id,
+                    "dataproduct_id": dp.id if dp else None,
                     "product_id": potential_product_id,
+                    "url": f"{settings.MEDIA_URL}{potential_product_id}",
                 }
             )
 
-        return sorted(output_files, key=lambda x: x["last_modified"], reverse=True)
+        # Add remaining DataProducts not in the output_dir.
+        # These have processed=True but aren't found in output_dir.
+        for product_id, dp in data_products.items():
+            if product_id not in processed_product_ids:
+                dp_path = Path(dp.data.name)
+                output_files.append(
+                    {
+                        "name": dp_path.name,
+                        "path": str(dp_path.parent),
+                        "is_dataproduct": True,
+                        "dataproduct_id": dp.id,
+                        "product_id": product_id,
+                        "url": dp.data.url,
+                    }
+                )
+
+        return sorted(output_files, key=lambda x: x["product_id"])

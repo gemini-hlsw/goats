@@ -2,6 +2,8 @@
 
 __all__ = ["DRAGONSCaldbViewSet"]
 
+import bz2
+
 from rest_framework import mixins, permissions
 from rest_framework.viewsets import GenericViewSet
 
@@ -38,17 +40,28 @@ class DRAGONSCaldbViewSet(
             filepath = cal_dir / file_obj.name
 
             try:
-                # Write the uploaded file to the calibrations uploaded directory.
-                with open(filepath, "wb+") as destination:
-                    for chunk in file_obj.chunks():
-                        destination.write(chunk)
-            except (IOError, PermissionError):
+                # Handle .bz2 compressed files.
+                if file_obj.name.endswith(".bz2"):
+                    unpacked_path = filepath.with_suffix("")  # Remove .bz2 suffix
+                    with bz2.BZ2File(file_obj, "rb") as compressed_file:
+                        with open(unpacked_path, "wb") as decompressed_file:
+                            decompressed_file.write(compressed_file.read())
+                    # Update filepath to the decompressed file.
+                    filepath = unpacked_path
+                else:
+                    # Write the uploaded file directly if not compressed.
+                    with open(filepath, "wb+") as destination:
+                        for chunk in file_obj.chunks():
+                            destination.write(chunk)
+            except (IOError, PermissionError) as e:
+                print(f"Error handling file {file_obj.name}: {e}")
                 return
 
             try:
                 # Update the database with the new file.
                 serializer.instance.add_caldb_file(filepath)
-            except Exception:
+            except Exception as e:
+                print(e)
                 pass
             # DRAGONS does not raise an error if it's not valid for use, so need to
             # check if in database and remove if not.

@@ -41,6 +41,7 @@ class RecipeReductionModel {
    */
   async stopReduce() {
     const data = { status: "canceled" };
+    if (!this.currentReduceData) return;
     try {
       const response = await this.api.patch(
         `${this.reducesUrl}${this.currentReduceData.id}/`,
@@ -204,7 +205,7 @@ class RecipeReductionTemplate {
     startButton.textContent = "Start";
     stopButton.textContent = "Stop";
     stopButton.dataset.action = "stopReduce";
-    stopButton.disabled = true;
+    stopButton.disabled = false;
     col2.append(startButton, stopButton);
 
     // Build the layout.
@@ -546,12 +547,15 @@ class RecipeReductionView {
   _startReduce(data) {
     this.startButton.disabled = true;
     this.stopButton.disabled = false;
+    if (!data) return;
     this._update(data);
   }
 
   _stopReduce(data) {
     this.startButton.disabled = false;
-    this.stopButton.disabled = true;
+    // To let multiple cancels if the first fails.
+    this.stopButton.disabled = false;
+    if (!data) return;
     this._update(data);
   }
 
@@ -564,7 +568,7 @@ class RecipeReductionView {
     this.progress.update(data.status);
     if (["canceled", "done", "error"].includes(data.status)) {
       this.startButton.disabled = false;
-      this.stopButton.disabled = true;
+      this.stopButton.disabled = false;
     } else {
       this.startButton.disabled = true;
       this.stopButton.disabled = false;
@@ -834,6 +838,8 @@ class RecipeReductionController {
   }
 
   update(data) {
+    // Update the model with new information.
+    this.model.currentReduceData = { id: data.reduce_id };
     this.view.render("update", { data });
   }
 

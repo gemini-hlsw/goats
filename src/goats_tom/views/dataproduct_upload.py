@@ -34,6 +34,9 @@ class DataProductUploadView(BaseDataProductUploadView):
             product_id = data_product_path(dp, f)
             dp.product_id = product_id
             dp.save()
+
+            # TODO: Do I need to handle uploading files here with metadata?
+
             try:
                 run_hook("data_product_post_upload", dp)
                 reduced_data = run_data_processor(dp)

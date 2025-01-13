@@ -50,7 +50,6 @@ class API {
 
       return data;
     } catch (error) {
-      console.error("Fetch operation failed:", error);
       throw error;
     }
   }

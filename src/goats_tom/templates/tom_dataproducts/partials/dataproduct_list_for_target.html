@@ -1,75 +1,121 @@
 {% load bootstrap4 %}
 {% include 'tom_dataproducts/partials/js9_scripts.html' %}
 <h4>Data</h4>
-<table class="table table-striped">
-  <thead><tr>
-    <th></th>
-    <th></th>
-    <th>Filename</th>
-    <th>Type</th>
-    <th>Share</th>
-    <th>Delete</th>
-  </tr></thead>
-  <tbody>
-  {% for product in products %}
-    <tr>
-      {% if not product.featured %}
-      <td><a href="{% url 'tom_dataproducts:feature' pk=product.id %}?target_id={{ target.id }}" title="Make Featured Image" class="btn btn-primary">Feature</a></td>
-      {% else %}
-      <td><span class="btn btn-secondary active featured">Featured</span></td>
-      {% endif %}
-      <td>
-        {%  if 'fits' in product.get_file_name or product.data_product_type == 'fits_file' %}
-          {% include 'tom_dataproducts/partials/js9_button.html' with url=product.data.url only %}
-        {% endif %}
-      </td>
-      <td><a href="{{ product.data.url }}" target="_blank">{{ product.product_id }}</a></td>
-      <td>
-        {% if product.data_product_type %}
-          {{ product.get_type_display }}
-        {% endif %}
-      </td>
-      <td>
-        {% if sharing_destinations %}
-          <button type="button" class="btn btn-info" data-toggle="collapse" data-target="#share-{{ forloop.counter }}">Share</button>
-        {% else %}
-          <p>
-            <a href="https://tom-toolkit.readthedocs.io/en/stable/managing_data/tom_direct_sharing.html"
-               target="_blank">Not Configured</a>.
-          </p>
-        {% endif %}
-      </td>
-      <td><a href="{% url 'tom_dataproducts:delete' product.id %}" class="btn btn-danger">Delete</a></td>
-    </tr>
-    <tr id="share-{{ forloop.counter }}" class="collapse">
-      <td colspan=100%>
-        <form method="POST" action="{% url 'tom_dataproducts:share' dp_pk=product.id %}" enctype="multipart/form-data">
-          {% csrf_token %}
-          {% for hidden in data_product_share_form.hidden_fields %}
-            {{ hidden }}
-          {% endfor %}
-          <div class="form-row">
-            <div class="col-sm-12">
-              {% bootstrap_field data_product_share_form.share_title %}
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="col-sm-12">
-              {% bootstrap_field data_product_share_form.share_message %}
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="col-sm-4">
-              {% bootstrap_field data_product_share_form.share_destination %}
-            </div>
-            <div class="col-sm-2 offset-sm-1">
-              {% buttons %}
-                <input type="submit" class="btn btn-primary" value="Submit" name="share_dataproduct_form" style="position:absolute; bottom:1rem">
-              {% endbuttons %}
-            </div>
-          </div>
-        </form>
-      </td>
-    </tr>
-  {% endfor %}
-</table>
+<div class="row g-3">
+  <div class="col-lg-6 col-12 offset-lg-6">
+    <input
+      type="text"
+      class="form-control"
+      id="manageDataFileSearch"
+      placeholder="Type to filter file names..."
+    >
+  </div>
+  <div class="col-12">
+    <div style="overflow-y: auto; height: 600px">
+      <table class="table table-striped">
+        <thead><tr>
+          <th></th>
+          <th></th>
+          <th>Filename</th>
+          <th>Type</th>
+          <th>Share</th>
+          <th>Delete</th>
+        </tr></thead>
+        <tbody id="manageDataTBody">
+        {% for product in products %}
+          <tr data-file="{{ product.product_id }}">
+            {% if not product.featured %}
+            <td><a href="{% url 'tom_dataproducts:feature' pk=product.id %}?target_id={{ target.id }}" title="Make Featured Image" class="btn btn-primary">Feature</a></td>
+            {% else %}
+            <td><span class="btn btn-secondary active featured">Featured</span></td>
+            {% endif %}
+            <td>
+              {%  if 'fits' in product.get_file_name or product.data_product_type == 'fits_file' %}
+                {% include 'tom_dataproducts/partials/js9_button.html' with url=product.data.url only %}
+              {% endif %}
+            </td>
+            <td><a href="{{ product.data.url }}" target="_blank">{{ product.product_id }}</a></td>
+            <td>
+              {% if product.data_product_type %}
+                {{ product.get_type_display }}
+              {% endif %}
+            </td>
+            <td>
+              {% if sharing_destinations %}
+                <button type="button" class="btn btn-info" data-toggle="collapse" data-target="#share-{{ forloop.counter }}">Share</button>
+              {% else %}
+                <p>
+                  <a href="https://tom-toolkit.readthedocs.io/en/stable/managing_data/tom_direct_sharing.html"
+                    target="_blank">Not Configured</a>.
+                </p>
+              {% endif %}
+            </td>
+            <td><a href="{% url 'tom_dataproducts:delete' product.id %}" class="btn btn-danger">Delete</a></td>
+          </tr>
+          <tr id="share-{{ forloop.counter }}" class="collapse">
+            <td colspan=100%>
+              <form method="POST" action="{% url 'tom_dataproducts:share' dp_pk=product.id %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                {% for hidden in data_product_share_form.hidden_fields %}
+                  {{ hidden }}
+                {% endfor %}
+                <div class="form-row">
+                  <div class="col-sm-12">
+                    {% bootstrap_field data_product_share_form.share_title %}
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="col-sm-12">
+                    {% bootstrap_field data_product_share_form.share_message %}
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="col-sm-4">
+                    {% bootstrap_field data_product_share_form.share_destination %}
+                  </div>
+                  <div class="col-sm-2 offset-sm-1">
+                    {% buttons %}
+                      <input type="submit" class="btn btn-primary" value="Submit" name="share_dataproduct_form" style="position:absolute; bottom:1rem">
+                    {% endbuttons %}
+                  </div>
+                </div>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        <tr id="manageDataNoMatchesRow" style="display: none;">
+          <td colspan="6" class="text-center">No matches found...</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // Get references to the search input and the table body.
+    const searchInput = document.getElementById("manageDataFileSearch");
+    const tableBody = document.getElementById("manageDataTBody");
+    const noMatchesRow = document.getElementById("manageDataNoMatchesRow")
+  
+    // Add an input event listener to the search field so the table updates as the user types.
+    searchInput.addEventListener("input", () => {
+      const query = searchInput.value.toLowerCase().trim();
+      // Select all table rows that have a "data-file" attribute.
+      const rows = tableBody.querySelectorAll("tr[data-file]");
+  
+      // Loop through each row and determine if it should be shown or hidden based on the query.
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        let fileName = row.getAttribute("data-file").toLowerCase();
+        if (fileName.includes(query)) {
+          row.style.display = "";
+          visibleCount++;
+        } else {
+          row.style.display = "none";
+        }
+      });
+      // If no rows are visible, show the "No matches found" row. Otherwise hide it.
+      noMatchesRow.style.display = visibleCount === 0 ? "" : "none";
+    });
+  });
+  </script>

@@ -1,8 +1,8 @@
 /**
- * Template class for managing the output files section in the UI.
+ * Template class for managing the processed files section in the UI.
  * @param {Object} options - Configuration options for the template.
  */
-class OutputFilesTemplate {
+class ProcessedFilesTemplate {
   constructor(options) {
     this.options = options;
   }
@@ -19,6 +19,32 @@ class OutputFilesTemplate {
     container.appendChild(card);
 
     return container;
+  }
+
+  /**
+   * Formats header data into a table with rows of key-value pairs.
+   * @param {Object} data The data object containing key-value pairs to display.
+   * @returns {HTMLElement} A table element with key-value pairs.
+   */
+  createHeaderModalTable(data) {
+    // Create the table element.
+    const table = Utils.createElement("table", ["table", "table-sm"]);
+
+    // Create and append the table body.
+    const tbody = Utils.createElement("tbody");
+    for (const [key, value] of Object.entries(data)) {
+      const row = Utils.createElement("tr");
+      const cellKey = Utils.createElement("td");
+      cellKey.textContent = key;
+      const cellValue = Utils.createElement("td");
+      cellValue.textContent = value;
+      row.appendChild(cellKey);
+      row.appendChild(cellValue);
+      tbody.appendChild(row);
+    }
+    table.append(tbody);
+
+    return table;
   }
 
   /**
@@ -51,7 +77,7 @@ class OutputFilesTemplate {
    */
   _createCardHeader() {
     const div = Utils.createElement("div", ["card-header", "h5", "mb-0"]);
-    div.textContent = "Output Files";
+    div.textContent = "Processed Files";
 
     return div;
   }
@@ -65,7 +91,7 @@ class OutputFilesTemplate {
   _createCardBody(data) {
     const cardBody = Utils.createElement("div", ["card-body"]);
     const accordion = Utils.createElement("div", ["accordion", "accordion-flush"]);
-    accordion.id = "outputFilesAccordion";
+    accordion.id = "processedFilesAccordion";
     accordion.appendChild(this._createAccordion(data));
     cardBody.appendChild(accordion);
 
@@ -103,7 +129,7 @@ class OutputFilesTemplate {
     collapseDiv.id = collapseId;
     collapseDiv.className = "accordion-collapse collapse";
     collapseDiv.setAttribute("aria-labelledby", headerId);
-    collapseDiv.setAttribute("data-bs-parent", `#outputFilesAccordion`);
+    collapseDiv.setAttribute("data-bs-parent", `#processedFilesAccordion`);
 
     const accordionBody = Utils.createElement("div", [
       "accordion-body",
@@ -203,22 +229,22 @@ class OutputFilesTemplate {
     thName.textContent = `Filename ${Utils.getFileCountLabel(data.length)}`;
     thName.id = `thName${this.options.id}`;
 
-    // Create cell for last modified.
-    const thLastModified = Utils.createElement("th", ["fw-normal"]);
-    thLastModified.setAttribute("scope", "col");
-    thLastModified.textContent = "Last Modified (UTC)";
+    // Create cell for actions.
+    const thActions = Utils.createElement("th", ["fw-normal"]);
+    thActions.setAttribute("scope", "col");
+    thActions.textContent = "";
 
     // Create another cell.
     const thAdd = Utils.createElement("th", ["text-end", "fw-normal"]);
     thAdd.setAttribute("scope", "col");
-    thAdd.textContent = "Add To Data Products";
+    thAdd.textContent = "Add To GOATS Data Products";
 
     // Create remove cell.
     const thRemove = Utils.createElement("th", ["text-end", "fw-normal"]);
     thRemove.setAttribute("scope", "col");
     thRemove.textContent = "Delete";
 
-    tr.append(thName, thLastModified, thAdd, thRemove);
+    tr.append(thName, thActions, thAdd, thRemove);
     thead.appendChild(tr);
 
     return thead;
@@ -248,14 +274,50 @@ class OutputFilesTemplate {
       tr.dataset.filename = item.name;
       tr.dataset.filepath = item.path;
       tr.dataset.productId = item.product_id;
+      tr.dataset.fileUrl = item.url;
 
       // Create the filename cell with a data attribute.
       const tdFilename = Utils.createElement("td");
       tdFilename.textContent = `${item.path}/${item.name}`;
 
-      // Create a last modified cell.
-      const tdLastModified = Utils.createElement("td");
-      tdLastModified.textContent = item.last_modified;
+      // Build the view dropdown.
+      const tdViewer = Utils.createElement("td", ["py-0", "mb-0", "text-end"]);
+      const viewDropdown = Utils.createElement("div", "dropdown");
+      const viewLink = Utils.createElement("a", [
+        "btn",
+        "btn-link",
+        "dropdown-toggle",
+        "pt-0",
+      ]);
+      viewLink.href = "#";
+      viewLink.setAttribute("role", "button");
+      viewLink.setAttribute("data-toggle", "dropdown");
+      viewLink.setAttribute("aria-expanded", "false");
+      viewLink.textContent = "View";
+
+      // Build the dropdown menu.
+      const ul = Utils.createElement("ul", ["dropdown-menu", "dropdown-menu-right"]);
+      const li1 = Utils.createElement("li");
+      const li2 = Utils.createElement("li");
+      const li3 = Utils.createElement("li");
+      const button1 = Utils.createElement("button", ["dropdown-item", "header-button"]);
+      button1.setAttribute("type", "button");
+      button1.setAttribute("aria-current", "true");
+      button1.textContent = "Header";
+      button1.dataset.action = "showHeaderModal";
+      const divider = Utils.createElement("hr", "dropdown-divider");
+      const button2 = Utils.createElement("button", ["dropdown-item", "js9-button"]);
+      button2.setAttribute("type", "button");
+      button2.setAttribute("aria-current", "true");
+      button2.textContent = "JS9";
+      button2.dataset.action = "showJs9";
+
+      li1.appendChild(button1);
+      li2.appendChild(divider);
+      li3.appendChild(button2);
+      ul.append(li1, li2, li3);
+      viewDropdown.append(viewLink, ul);
+      tdViewer.appendChild(viewDropdown);
 
       // Create the add to data products button cell.
       const tdAdd = Utils.createElement("td", ["text-end"]);
@@ -293,7 +355,7 @@ class OutputFilesTemplate {
       tdRemove.appendChild(removeButton);
 
       // Append the cells to the row.
-      tr.append(tdFilename, tdLastModified, tdAdd, tdRemove);
+      tr.append(tdFilename, tdViewer, tdAdd, tdRemove);
 
       // Append the row to the tbody.
       tbody.appendChild(tr);
@@ -304,14 +366,15 @@ class OutputFilesTemplate {
 }
 
 /**
- * View class for managing the display of output files in the UI.
- * @param {OutputFilesTemplate} template - Template instance used for rendering the UI.
+ * View class for managing the display of processed files in the UI.
+ * @param {ProcessedFilesTemplate} template - Template instance used for rendering the UI.
  * @param {Object} options - Configuration options for the view.
  */
-class OutputFilesView {
+class ProcessedFilesView {
   constructor(template, options) {
     this.template = template;
     this.options = options;
+    this.modal = this.options.modal;
 
     this.container = null;
     this.card = null;
@@ -394,6 +457,18 @@ class OutputFilesView {
   }
 
   /**
+   * Displays the header modal with the provided file data.
+   * @param {Object} data - The data object containing file information and astrodata descriptors.
+   */
+  _showHeaderModal(data) {
+    const header = `Viewing header for ${data.filename}`;
+    // Format and apply to body.
+    const body = this.template.createHeaderModalTable(data.astrodata_descriptors);
+    this.modal.update(header, body);
+    this.modal.show();
+  }
+
+  /**
    * Renders changes to the view based on a command.
    * @param {string} viewCmd - The command that dictates the rendering action.
    * @param {Object} parameter - Parameters used for rendering.
@@ -414,6 +489,9 @@ class OutputFilesView {
         break;
       case "create":
         this._create(parameter.parentElement, parameter.data);
+        break;
+      case "showHeaderModal":
+        this._showHeaderModal(parameter.data);
         break;
     }
   }
@@ -444,6 +522,7 @@ class OutputFilesView {
           if (!row) return;
           handler({
             filename: row.dataset.filename,
+            filepath: row.dataset.filepath,
             productId: row.dataset.productId,
           });
         });
@@ -451,22 +530,39 @@ class OutputFilesView {
       case "refresh":
         Utils.delegate(this.body, selector, "click", () => handler());
         break;
+      case "showJs9":
+        Utils.delegate(this.table, selector, "click", (e) => {
+          const tr = e.target.closest("tr");
+          const fileUrl = tr?.dataset.fileUrl;
+          handler({ fileUrl });
+        });
+        break;
+      case "showHeaderModal":
+        Utils.delegate(this.table, selector, "click", (e) => {
+          const tr = e.target.closest("tr");
+          const filepath = tr?.dataset.filepath;
+          const filename = tr?.dataset.filename;
+          const fullPath = `${filepath}/${filename}`;
+          handler({ filepath: fullPath });
+        });
+        break;
     }
   }
 }
 
 /**
- * Model class for managing output file data.
+ * Model class for managing processed file data.
  * @param {Object} options - Configuration options for the model.
  */
-class OutputFilesModel {
+class ProcessedFilesModel {
   constructor(options) {
     this.options = options;
     this._runId = null;
     this._data = null;
     this._previousData = null;
     this.api = this.options.api;
-    this.outputFilesUrl = "dragonsoutputfiles/";
+    this.processedFilesUrl = "dragonsprocessedfiles/";
+    this.processedFilesHeaderUrl = `${this.processedFilesUrl}header/`;
     this.dragonsDataProductsUrl = "dragonsdataproducts/";
   }
 
@@ -487,16 +583,33 @@ class OutputFilesModel {
   }
 
   /**
-   * Fetches files from the output directory for the set run ID.
+   * Fetches files from the processed directory for the set run ID.
    * @async
    * @throws {Error} Throws an error if the network request fails.
    */
   async fetchFiles() {
     try {
-      const response = await this.api.get(`${this.outputFilesUrl}${this.runId}/`);
+      const response = await this.api.get(`${this.processedFilesUrl}${this.runId}/`);
       this.data = response;
     } catch (error) {
-      console.error("Error fetching list of output files:", error);
+      console.error("Error fetching list of processed files:", error);
+      throw error;
+    }
+  }
+  /**
+   * Fetches the file header.
+   * @async
+   * @param {string} filepath - The full filepath.
+   * @returns {object} The return data.
+   * @throws {Error} Throws an error if the network request fails.
+   */
+  async fetchFileHeader(filepath) {
+    try {
+      const body = { filepath };
+      const response = await this.api.post(`${this.processedFilesHeaderUrl}`, body);
+      return response;
+    } catch (error) {
+      console.error("Error fetching header of processed file:", error);
       throw error;
     }
   }
@@ -526,17 +639,19 @@ class OutputFilesModel {
   /**
    * Removes a file from the data product repository.
    * @param {string} filename - The name of the file to remove.
+   * @param {string} filepath - The path to the file to remove.
    * @param {string} productId - The product ID associated with the file.
    */
-  async removeFile(filename, productId) {
+  async removeFile(filename, filepath, productId) {
     try {
       const body = {
         filename: filename,
+        filepath: filepath,
         product_id: productId,
         action: "remove",
       };
       const response = await this.api.patch(
-        `${this.outputFilesUrl}${this.runId}/`,
+        `${this.processedFilesUrl}${this.runId}/`,
         body
       );
       this.data = response;
@@ -574,11 +689,11 @@ class OutputFilesModel {
 
 /**
  * Controller class for managing interactions between the model and view.
- * @param {OutputFilesModel} model - The model component of the feature.
- * @param {OutputFilesView} view - The view component of the feature.
+ * @param {ProcessedFilesModel} model - The model component of the feature.
+ * @param {ProcessedFilesView} view - The view component of the feature.
  * @param {Object} options - Configuration options for the controller.
  */
-class OutputFilesController {
+class ProcessedFilesController {
   constructor(model, view, options) {
     this.model = model;
     this.view = view;
@@ -593,14 +708,38 @@ class OutputFilesController {
     this.view.bindCallback("refresh", () => this.refresh());
     this.view.bindCallback("add", (item) => this.add(item.filename, item.filepath));
     this.view.bindCallback("remove", (item) =>
-      this.remove(item.filename, item.productId)
+      this.remove(item.filename, item.filepath, item.productId)
     );
+    this.view.bindCallback("showJs9", (item) => this._showJs9(item.fileUrl));
+    this.view.bindCallback("showHeaderModal", (item) =>
+      this._showHeaderModal(item.filepath)
+    );
+  }
+
+  /**
+   * Handles the display of the file in the JS9 viewer.
+   * @param {string} url - The URL of the file to display in JS9.
+   * @private
+   */
+  _showJs9(fileUrl) {
+    openJS9Window(fileUrl);
+  }
+
+  /**
+   * Handles the display of the file header.
+   * @param {number} filepath - The filepath to the header to display.
+   * @private
+   */
+  async _showHeaderModal(filepath) {
+    const data = await this.model.fetchFileHeader(filepath);
+    // Show the modal.
+    this.view.render("showHeaderModal", { data });
   }
 
   /**
    * Updates the model run ID and view with data.
    * @async
-   * @param {number} runId - The run ID to get output files for.
+   * @param {number} runId - The run ID to get processed files for.
    */
   async update(runId) {
     this.model.runId = runId;
@@ -624,8 +763,8 @@ class OutputFilesController {
    * @param {string} filename - The name of the file to remove.
    * @param {string} productId - The product ID associated with the file.
    */
-  async remove(filename, productId) {
-    await this.model.removeFile(filename, productId);
+  async remove(filename, filepath, productId) {
+    await this.model.removeFile(filename, filepath, productId);
     if (this.model.dataChanged()) {
       this.view.render("update", { data: this.model.data });
     }
@@ -661,23 +800,28 @@ class OutputFilesController {
 }
 
 /**
- * The main class that orchestrates the initialization and management of the OutputFiles
+ * The main class that orchestrates the initialization and management of the ProcessedFiles
  * application.
  * @param {HTMLElement} parentElement - The parent element where the application will be mounted.
- * @param {number} runId - The run ID used to fetch output files.
+ * @param {number} runId - The run ID used to fetch processed files.
  * @param {Object} options - Configuration options for the application.
  */
-class OutputFiles {
+class ProcessedFiles {
   static #defaultOptions = {
-    id: "OutputFiles",
+    id: "ProcessedFiles",
   };
 
   constructor(parentElement, runId, options = {}) {
-    this.options = { ...OutputFiles.#defaultOptions, ...options, api: window.api };
-    this.model = new OutputFilesModel(this.options);
-    const template = new OutputFilesTemplate(this.options);
-    this.view = new OutputFilesView(template, this.options);
-    this.controller = new OutputFilesController(this.model, this.view, this.options);
+    this.options = {
+      ...ProcessedFiles.#defaultOptions,
+      ...options,
+      api: window.api,
+      modal: window.modal,
+    };
+    this.model = new ProcessedFilesModel(this.options);
+    const template = new ProcessedFilesTemplate(this.options);
+    this.view = new ProcessedFilesView(template, this.options);
+    this.controller = new ProcessedFilesController(this.model, this.view, this.options);
 
     this._create(parentElement, runId);
   }
@@ -701,7 +845,7 @@ class OutputFiles {
   }
 
   /**
-   * Refreshes the view of the files in the output directory.
+   * Refreshes the view of the files in the processed directory.
    */
   refresh() {
     this.controller.refresh();

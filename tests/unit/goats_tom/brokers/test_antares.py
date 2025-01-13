@@ -10,12 +10,12 @@ def test_antaresbroker_form_valid():
     """Test the form with valid data.
     """
     form_data = {
-        "esquery": {"query": "some valid query"},
+        "query": {"query": "some valid query"},
         "query_name": "test",
         "broker": "ANTARES",
     }
     form = ANTARESBrokerForm(data=form_data)
-    assert form.is_valid(), "Form should be valid with correct esquery data."
+    assert form.is_valid(), "Form should be valid with correct query data."
 
 
 @pytest.mark.django_db()
@@ -24,7 +24,7 @@ def test_antaresbroker_form_invalid():
     """
     form_data = {}
     form = ANTARESBrokerForm(data=form_data)
-    assert not form.is_valid(), "Form should not be valid with empty esquery."
+    assert not form.is_valid(), "Form should not be valid with empty query."
 
     with pytest.raises(ValidationError):
         form.clean()
@@ -47,9 +47,9 @@ def test_fetch_alerts_locusid_remote():
 
 
 @pytest.mark.remote_data()
-def test_fetch_alerts_esquery_remote():
+def test_fetch_alerts_query_remote():
     broker = ANTARESBroker()
-    esquery = {
+    query = {
         "query": {
             "bool": {
                 "filter": [
@@ -66,6 +66,6 @@ def test_fetch_alerts_esquery_remote():
             },
         },
     }
-    parameters = {"esquery": esquery}  # Example parameter
+    parameters = {"query": query}  # Example parameter
     alerts = broker.fetch_alerts(parameters)
     assert isinstance(alerts, Iterator)

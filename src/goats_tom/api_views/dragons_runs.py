@@ -105,7 +105,7 @@ class DRAGONSRunsViewSet(
 
         # Write the DRAGONS config file.
         with config_file.open("w") as f:
-            f.write(f"[calibs]\ndatabases = {cal_manager_db_file} get store")
+            f.write(f"[calibs]\ndatabases = \"{cal_manager_db_file}\" get store")
 
         # Create the calibration manager for DRAGONS.
         cal_db = cal_service.LocalDB(cal_manager_db_file, force_init=True)
@@ -130,7 +130,7 @@ class DRAGONSRunsViewSet(
                 print("Adding BPM to calibration database.")
                 cal_db.add_cal(data_product.data.path)
                 continue
-            if "PREPARED" in tags or "PROCESSED" in tags:
+            if data_product.metadata.processed:
                 print("Skipping prepared or processed file.")
                 continue
 

@@ -24,12 +24,11 @@ jobs:
       - name: Setup Mambaforge
         uses: conda-incubator/setup-miniconda@v3
         with:
-          mamba-version: "*"
           python-version: ${{ matrix.python-version }}
           miniforge-version: latest
           activate-environment: goats-env
-          use-mamba: true
           auto-activate-base: false
+          miniforge-variant: Miniforge3
 
       - name: Get date
         id: get-date

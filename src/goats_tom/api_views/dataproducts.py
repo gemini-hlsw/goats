@@ -7,7 +7,6 @@ direct file uploads.
 """
 
 __all__ = ["DataProductsViewSet"]
-
 from django.conf import settings
 from guardian.shortcuts import assign_perm
 from rest_framework import status
@@ -19,6 +18,7 @@ from tom_dataproducts.api_views import DataProductViewSet as BaseDataProductView
 from tom_dataproducts.data_processor import run_data_processor
 from tom_dataproducts.models import DataProduct, ReducedDatum
 
+from goats_tom.models import DataProductMetadata
 from goats_tom.serializers import DataProductSerializer
 
 
@@ -39,6 +39,12 @@ class DataProductsViewSet(BaseDataProductViewSet):
         if response.status_code == status.HTTP_201_CREATED:
             response.data["message"] = "Data product successfully uploaded."
             dp = DataProduct.objects.get(pk=response.data["id"])
+            # Add the metadata.
+            # NOTE: Instead of opening with astrodata and checking for prepared or
+            # processed tags, we assume it is processed. This api endpoint is for
+            # DRAGONS reduction, only Gemini data will be here and only processed files
+            # will appear in the run directory.
+            DataProductMetadata.objects.create(dataproduct=dp, processed=True)
             try:
                 run_hook("data_product_post_upload", dp)
                 reduced_data = run_data_processor(dp)

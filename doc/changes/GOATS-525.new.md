@@ -1,0 +1,1 @@
+Fetch initial running reductions: Added functionality to retrieve and display initial running reductions on the DRAGONS page. Users can now see the current status of reductions immediately upon page load.

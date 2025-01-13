@@ -41,11 +41,8 @@ class AvailableRecipesTemplate {
   _createNav(data) {
     const title = Utils.createElement("p", "mb-2");
     title.textContent = "Available Recipes";
-    // TODO: Where to get observationType??
-    const observationType = "FAKE";
 
     const nav = Utils.createElement("ul", ["nav", "nav-pills", "flex-column"]);
-    nav.setAttribute("id", `${observationType}${this.options.id}`);
     nav.setAttribute("role", "tablist");
     nav.setAttribute("aria-orientation", "vertical");
 

@@ -4,7 +4,7 @@ from .dataproducts import DataProductsViewSet
 from .dragons_caldb import DRAGONSCaldbViewSet
 from .dragons_data import DRAGONSDataViewSet
 from .dragons_files import DRAGONSFilesViewSet
-from .dragons_output_files import DRAGONSOutputFilesViewSet
+from .dragons_processed_files import DRAGONSProcessedFilesViewSet
 from .dragons_recipes import DRAGONSRecipesViewSet
 from .dragons_reduce import DRAGONSReduceViewSet
 from .dragons_runs import DRAGONSRunsViewSet
@@ -20,7 +20,7 @@ __all__ = [
     "DRAGONSReduceViewSet",
     "RecipesModuleViewSet",
     "BaseRecipeViewSet",
-    "DRAGONSOutputFilesViewSet",
+    "DRAGONSProcessedFilesViewSet",
     "DataProductsViewSet",
     "Antares2GoatsViewSet",
     "RunProcessorViewSet",

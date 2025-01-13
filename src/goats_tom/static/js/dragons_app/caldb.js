@@ -22,6 +22,32 @@ class CaldbTemplate {
   }
 
   /**
+   * Formats header data into a table with rows of key-value pairs.
+   * @param {Object} data The data object containing key-value pairs to display.
+   * @returns {HTMLElement} A table element with key-value pairs.
+   */
+  createHeaderModalTable(data) {
+    // Create the table element.
+    const table = Utils.createElement("table", ["table", "table-sm"]);
+
+    // Create and append the table body.
+    const tbody = Utils.createElement("tbody");
+    for (const [key, value] of Object.entries(data)) {
+      const row = Utils.createElement("tr");
+      const cellKey = Utils.createElement("td");
+      cellKey.textContent = key;
+      const cellValue = Utils.createElement("td");
+      cellValue.textContent = value;
+      row.appendChild(cellKey);
+      row.appendChild(cellValue);
+      tbody.appendChild(row);
+    }
+    table.append(tbody);
+
+    return table;
+  }
+
+  /**
    * Creates a container element.
    * @returns {HTMLElement} The container element.
    * @private
@@ -200,6 +226,11 @@ class CaldbTemplate {
     thName.textContent = `Filename ${Utils.getFileCountLabel(data.length)}`;
     thName.id = `thName${this.options.id}`;
 
+    // Create cell for actions.
+    const thActions = Utils.createElement("th", ["fw-normal"]);
+    thActions.setAttribute("scope", "col");
+    thActions.textContent = "";
+
     // Create cell for user uploaded.
     const thUserUploaded = Utils.createElement("th", ["fw-normal"]);
     thUserUploaded.setAttribute("scope", "col");
@@ -207,8 +238,9 @@ class CaldbTemplate {
     // Create another cell.
     const thRemove = Utils.createElement("th", ["text-end", "fw-normal"]);
     thRemove.setAttribute("scope", "col");
+    thRemove.textContent = "Remove";
 
-    tr.append(thName, thUserUploaded, thRemove);
+    tr.append(thName, thActions, thUserUploaded, thRemove);
     thead.appendChild(tr);
 
     return thead;
@@ -236,10 +268,52 @@ class CaldbTemplate {
     // Loop through each item in the data array to create table rows.
     data.forEach((item) => {
       const tr = Utils.createElement("tr");
+      tr.dataset.filename = item.name;
+      tr.dataset.filepath = item.path;
+      tr.dataset.fileUrl = item.url;
 
       // Create the filename cell with a data attribute.
       const tdFilename = Utils.createElement("td");
       tdFilename.textContent = `${item.path}/${item.name}`;
+
+      // Build the view dropdown.
+      const tdViewer = Utils.createElement("td", ["py-0", "mb-0", "text-end"]);
+      const viewDropdown = Utils.createElement("div", "dropdown");
+      const viewLink = Utils.createElement("a", [
+        "btn",
+        "btn-link",
+        "dropdown-toggle",
+        "pt-0",
+      ]);
+      viewLink.href = "#";
+      viewLink.setAttribute("role", "button");
+      viewLink.setAttribute("data-toggle", "dropdown");
+      viewLink.setAttribute("aria-expanded", "false");
+      viewLink.textContent = "View";
+
+      // Build the dropdown menu.
+      const ul = Utils.createElement("ul", ["dropdown-menu", "dropdown-menu-right"]);
+      const li1 = Utils.createElement("li");
+      const li2 = Utils.createElement("li");
+      const li3 = Utils.createElement("li");
+      const button1 = Utils.createElement("button", ["dropdown-item", "header-button"]);
+      button1.setAttribute("type", "button");
+      button1.setAttribute("aria-current", "true");
+      button1.textContent = "Header";
+      button1.dataset.action = "showHeaderModal";
+      const divider = Utils.createElement("hr", "dropdown-divider");
+      const button2 = Utils.createElement("button", ["dropdown-item", "js9-button"]);
+      button2.setAttribute("type", "button");
+      button2.setAttribute("aria-current", "true");
+      button2.textContent = "JS9";
+      button2.dataset.action = "showJs9";
+
+      li1.appendChild(button1);
+      li2.appendChild(divider);
+      li3.appendChild(button2);
+      ul.append(li1, li2, li3);
+      viewDropdown.append(viewLink, ul);
+      tdViewer.appendChild(viewDropdown);
 
       // Create user uploaded flag cell.
       const tdUserUploaded = Utils.createElement("td");
@@ -259,7 +333,7 @@ class CaldbTemplate {
       tdRemove.appendChild(removeButton);
 
       // Append the cells to the row.
-      tr.append(tdFilename, tdUserUploaded, tdRemove);
+      tr.append(tdFilename, tdViewer, tdUserUploaded, tdRemove);
 
       // Append the row to the tbody.
       tbody.appendChild(tr);
@@ -278,6 +352,7 @@ class CaldbView {
   constructor(template, options) {
     this.template = template;
     this.options = options;
+    this.modal = this.options.modal;
 
     this.container = null;
     this.card = null;
@@ -321,7 +396,21 @@ class CaldbView {
     this.tbody = newTbody;
 
     // Update the file count.
-    this.thead.textContent = `Filename ${Utils.getFileCountLabel(data.length)}`;
+    this.thead.querySelector(
+      `#thName${this.options.id}`
+    ).textContent = `Filename ${Utils.getFileCountLabel(data.length)}`;
+  }
+
+  /**
+   * Displays the header modal with the provided file data.
+   * @param {Object} data - The data object containing file information and astrodata descriptors.
+   */
+  _showHeaderModal(data) {
+    const header = `Viewing header for ${data.filename}`;
+    // Format and apply to body.
+    const body = this.template.createHeaderModalTable(data.astrodata_descriptors);
+    this.modal.update(header, body);
+    this.modal.show();
   }
 
   /**
@@ -336,6 +425,9 @@ class CaldbView {
         break;
       case "create":
         this._create(parameter.parentElement, parameter.data);
+        break;
+      case "showHeaderModal":
+        this._showHeaderModal(parameter.data);
         break;
     }
   }
@@ -365,6 +457,22 @@ class CaldbView {
       case "refresh":
         Utils.delegate(this.body, selector, "click", () => handler());
         break;
+      case "showJs9":
+        Utils.delegate(this.table, selector, "click", (e) => {
+          const tr = e.target.closest("tr");
+          const fileUrl = tr?.dataset.fileUrl;
+          handler({ fileUrl });
+        });
+        break;
+      case "showHeaderModal":
+        Utils.delegate(this.table, selector, "click", (e) => {
+          const tr = e.target.closest("tr");
+          const filepath = tr?.dataset.filepath;
+          const filename = tr?.dataset.filename;
+          const fullPath = `${filepath}/${filename}`;
+          handler({ filepath: fullPath });
+        });
+        break;
     }
   }
 }
@@ -379,6 +487,7 @@ class CaldbModel {
     this._runId = null;
     this.api = this.options.api;
     this.caldbUrl = "dragonscaldb/";
+    this.processedFilesHeaderUrl = "dragonsprocessedfiles/header/";
   }
 
   get runId() {
@@ -400,6 +509,24 @@ class CaldbModel {
       return response.files;
     } catch (error) {
       console.error("Error fetching list of calibration database files:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetches the file header.
+   * @async
+   * @param {string} filepath - The full filepath.
+   * @returns {object} The return data.
+   * @throws {Error} Throws an error if the network request fails.
+   */
+  async fetchFileHeader(filepath) {
+    try {
+      const body = { filepath };
+      const response = await this.api.post(`${this.processedFilesHeaderUrl}`, body);
+      return response;
+    } catch (error) {
+      console.error("Error fetching header of processed file:", error);
       throw error;
     }
   }
@@ -472,6 +599,30 @@ class CaldbController {
     this.view.bindCallback("refresh", () => this.refresh());
     this.view.bindCallback("remove", (item) => this.remove(item.filename));
     this.view.bindCallback("add", (item) => this.add(item.file));
+    this.view.bindCallback("showJs9", (item) => this._showJs9(item.fileUrl));
+    this.view.bindCallback("showHeaderModal", (item) =>
+      this._showHeaderModal(item.filepath)
+    );
+  }
+
+  /**
+   * Handles the display of the file in the JS9 viewer.
+   * @param {string} url - The URL of the file to display in JS9.
+   * @private
+   */
+  _showJs9(fileUrl) {
+    openJS9Window(fileUrl);
+  }
+
+  /**
+   * Handles the display of the file header.
+   * @param {number} filepath - The filepath to the header to display.
+   * @private
+   */
+  async _showHeaderModal(filepath) {
+    const data = await this.model.fetchFileHeader(filepath);
+    // Show the modal.
+    this.view.render("showHeaderModal", { data });
   }
 
   /**
@@ -536,7 +687,12 @@ class Caldb {
   };
 
   constructor(parentElement, runId, options = {}) {
-    this.options = { ...Caldb.#defaultOptions, ...options, api: window.api };
+    this.options = {
+      ...Caldb.#defaultOptions,
+      ...options,
+      api: window.api,
+      modal: window.modal,
+    };
     this.model = new CaldbModel(this.options);
     const template = new CaldbTemplate(this.options);
     this.view = new CaldbView(template, this.options);

@@ -1,0 +1,1 @@
+Fixed calibration path handling: Resolved issue with spaces in calibration database paths causing errors during DRAGONS reduction.
