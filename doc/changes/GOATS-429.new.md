@@ -1,1 +1,0 @@
-Show processed files in run directory: Renamed "Output Files" to "Processed Files" across classes and objects. Added button to view files in JS9 and display headers in a modal. Introduced `DataProductMetadata` model to minimize astrodata reads.

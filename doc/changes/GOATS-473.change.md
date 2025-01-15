@@ -1,1 +1,0 @@
-Refactored product IDs: Changed how products are stored by using file paths to handle files in different directories with the same product IDs.

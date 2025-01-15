@@ -1,1 +1,0 @@
-Improve cancel functionality: Enabled multiple attempts to stop background tasks during DRAGONS reduction if the initial cancellation fails.

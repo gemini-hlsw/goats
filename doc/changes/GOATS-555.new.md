@@ -1,1 +1,0 @@
-Added calibration file viewing and header display: Implemented support for viewing calibration files through the DRAGONS interface with JS9 and displaying FITS header information.

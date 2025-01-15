@@ -1,1 +1,0 @@
-Add default recipe card with instructions: Introduced a default card that guides users to select a recipe. Provides tips on starting and stopping DRAGONS reduction, modifying recipes, and viewing logs.

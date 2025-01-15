@@ -3,10 +3,12 @@
 __all__ = ["DRAGONSRun"]
 
 import datetime
+import subprocess
 from importlib import metadata
 from pathlib import Path
 
 from django.conf import settings
+from django.core.files.storage import default_storage
 from django.db import models
 from recipe_system import cal_service
 from tom_dataproducts.models import DataProduct
@@ -16,6 +18,23 @@ from goats_tom.models import DRAGONSRecipe
 
 
 def get_dragons_version():
+    try:
+        # FIXME: Remove this conda subprocess when DRAGONS updates.
+        # Run 'conda list dragons' and capture the output.
+        result = subprocess.run(
+            ["conda", "list", "dragons"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        # Parse the output to find the version.
+        for line in result.stdout.splitlines():
+            if line.startswith("dragons"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    return parts[1]
+    except subprocess.CalledProcessError:
+        pass
     try:
         return metadata.version("dragons")
     except metadata.PackageNotFoundError:
@@ -328,18 +347,6 @@ class DRAGONSRun(models.Model):
         finally:
             self.close_caldb(caldb)
 
-    def remove_output_file(self, filename: str) -> None:
-        """Removes the filename from the output directory.
-
-        Parameters
-        ----------
-        filename : `str`
-            The filename to remove.
-
-        """
-        filepath = self.get_output_dir() / filename
-        self.remove_file(filepath)
-
     def remove_file(self, filepath: Path) -> None:
         """Removes a file and removes it from caldb if it exists.
 
@@ -349,8 +356,9 @@ class DRAGONSRun(models.Model):
             Path to the file.
         """
         try:
+            full_path = Path(default_storage.path(str(filepath)))
             filename = filepath.name
-            filepath.unlink()
+            full_path.unlink()
             self.check_and_remove_caldb_file(filename)
 
         except OSError as e:

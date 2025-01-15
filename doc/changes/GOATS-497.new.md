@@ -1,1 +1,0 @@
-Improved facility status page: Fetches and displays Gemini North and South status and updated weather URLs.

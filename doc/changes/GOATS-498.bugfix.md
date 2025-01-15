@@ -1,1 +1,0 @@
-Fixed ANTARES queries: Ensured user queries can be renamed properly and querying with elastic search works.

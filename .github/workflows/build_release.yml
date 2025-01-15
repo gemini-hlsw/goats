@@ -39,11 +39,15 @@ jobs:
         run: |
           sed -i '/^\[project\]/,/^version = / s/^version = ".*"$/version = "${{ inputs.version }}"/' pyproject.toml
 
+      - name: Update environment.yml with new tag
+        run: |
+          sed -i 's|git+https://github.com/gemini-hlsw/goats.git@.*|git+https://github.com/gemini-hlsw/goats.git@${{ inputs.version }}|' environment.yml
+
       - name: Commit updated changelog
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGES.md pyproject.toml
+          git add CHANGES.md pyproject.toml environment.yml
           git commit -m "Update version to ${{ inputs.version }} and generate release notes."
           git push origin main
 

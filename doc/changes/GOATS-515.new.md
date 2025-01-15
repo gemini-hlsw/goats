@@ -1,1 +1,0 @@
-Add filesearch textbox in Manage Data: Enhanced file management with a search box to filter files by filename and path.

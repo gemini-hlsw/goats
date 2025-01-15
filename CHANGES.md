@@ -1,3 +1,36 @@
+## GOATS 25.1.0-alpha.0 (2025-01-14)
+
+
+### New Features
+
+- Added LICENSE to repository. [[#GOATS-151](https://noirlab.atlassian.net/browse/GOATS-151)]
+- Add default recipe card with instructions: Introduced a default card that guides users to select a recipe. Provides tips on starting and stopping DRAGONS reduction, modifying recipes, and viewing logs. [[#GOATS-370](https://noirlab.atlassian.net/browse/GOATS-370)]
+- Show processed files in run directory: Renamed "Output Files" to "Processed Files" across classes and objects. Added button to view files in JS9 and display headers in a modal. Introduced `DataProductMetadata` model to minimize astrodata reads. [[#GOATS-429](https://noirlab.atlassian.net/browse/GOATS-429)]
+- Added user docs button: Added a button to the navbar that opens the user documentation in a new tab. [[#GOATS-495](https://noirlab.atlassian.net/browse/GOATS-495)]
+- Improved facility status page: Fetches and displays Gemini North and South status and updated weather URLs. [[#GOATS-497](https://noirlab.atlassian.net/browse/GOATS-497)]
+- Add filesearch textbox in Manage Data: Enhanced file management with a search box to filter files by filename and path. [[#GOATS-515](https://noirlab.atlassian.net/browse/GOATS-515)]
+- Improve cancel functionality: Enabled multiple attempts to stop background tasks during DRAGONS reduction if the initial cancellation fails. [[#GOATS-524](https://noirlab.atlassian.net/browse/GOATS-524)]
+- Fetch initial running reductions: Added functionality to retrieve and display initial running reductions on the DRAGONS page. Users can now see the current status of reductions immediately upon page load. [[#GOATS-525](https://noirlab.atlassian.net/browse/GOATS-525)]
+- Added responsive table format for long Target values in view. [[#GOATS-530](https://noirlab.atlassian.net/browse/GOATS-530)]
+- Added calibration file viewing and header display: Implemented support for viewing calibration files through the DRAGONS interface with JS9 and displaying FITS header information. [[#GOATS-555](https://noirlab.atlassian.net/browse/GOATS-555)]
+
+
+### Changes
+
+- Removed Update Broker Data button: Removed the "Update Broker Data" button from the target list view. [[#GOATS-160](https://noirlab.atlassian.net/browse/GOATS-160)]
+- Refactored product IDs: Changed how products are stored by using file paths to handle files in different directories with the same product IDs. [[#GOATS-473](https://noirlab.atlassian.net/browse/GOATS-473)]
+- Updated environment.yaml for latest DRAGONS: Updated the environment file to include the latest DRAGONS release with patches specific to GOATS. [[#GOATS-547](https://noirlab.atlassian.net/browse/GOATS-547)]
+- Remove tom-antares dependency: Ingested its functionality directly into GOATS due to extensive customizations and installation complexities. [[#GOATS-554](https://noirlab.atlassian.net/browse/GOATS-554)]
+
+
+### Bug Fixes
+
+- Fixed calibration path handling: Resolved issue with spaces in calibration database paths causing errors during DRAGONS reduction. [[#GOATS-317](https://noirlab.atlassian.net/browse/GOATS-317)]
+- Fixed ANTARES queries: Ensured user queries can be renamed properly and querying with elastic search works. [[#GOATS-498](https://noirlab.atlassian.net/browse/GOATS-498)]
+- Fix issue with conda environment with GitHub Actions. [[#GOATS-504](https://noirlab.atlassian.net/browse/GOATS-504)]
+- Added functionality to handle decompression of bz2 FITS files uploaded into the calibration database. Previously, silent errors occurred due to improper handling of decompression and file placement. [[#GOATS-556](https://noirlab.atlassian.net/browse/GOATS-556)]
+- Workaround for DRAGONS version mismatch: Addressed an issue where the DRAGONS version reported by pip differed from the conda-installed version by implementing logic to pull the version directly from conda. [[#GOATS-557](https://noirlab.atlassian.net/browse/GOATS-557)]
+
 ## GOATS 24.12.0 (2024-12-21)
 
 

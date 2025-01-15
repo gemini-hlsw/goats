@@ -1,1 +1,0 @@
-Added functionality to handle decompression of bz2 FITS files uploaded into the calibration database. Previously, silent errors occurred due to improper handling of decompression and file placement.
