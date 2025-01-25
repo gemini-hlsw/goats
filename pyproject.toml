@@ -20,7 +20,6 @@ dependencies = [
     "tomtoolkit>=2.19.7,<3",
     "click>=8.1.7,<9",
     "django-cors-headers>=4.3.0,<5",
-    "fontawesomefree>=6.5.0,<7",
     "django-cryptography>=1.1,<2",
     "channels[daphne]>=4.0,<5",
     "channels_redis>=4.0.0,<5",
@@ -31,7 +30,7 @@ dependencies = [
     "dramatiq-abort>=1.1.0",
     "numpydoc>=1.7.0,<2",
 ]
-version = "25.1.0-alpha.0"
+version = "25.1.0-alpha.1"
 
 [project.urls]
 "Homepage" = "https://github.com/gemini-hlsw/goats"

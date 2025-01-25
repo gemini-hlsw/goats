@@ -1,3 +1,23 @@
+## GOATS 25.1.0-alpha.1 (2025-01-25)
+
+
+### New Features
+
+- Added TNS query support: Developed class to query TNS objects and return payload. [[#GOATS-574](https://noirlab.atlassian.net/browse/GOATS-574)]
+- Updated TNS harvester: Modified harvester to use the TNSClient for object querying. [[#GOATS-575](https://noirlab.atlassian.net/browse/GOATS-575)]
+
+
+### Changes
+
+- Used local fontawesomefree: Incorporated FontAwesome into GOATS static assets and removed external Python dependency. [[#GOATS-535](https://noirlab.atlassian.net/browse/GOATS-535)]
+
+
+### Bug Fixes
+
+- Fixed file deletion bug: Correctly built full path for processed files to delete. [[#GOATS-559](https://noirlab.atlassian.net/browse/GOATS-559)]
+- Handle duplicate file entries in checksum files: Fixed an issue where duplicate file entries in GOA checksum files caused errors during downloading and decompression. The process now skips duplicates and continues without interruption. [[#GOATS-577](https://noirlab.atlassian.net/browse/GOATS-577)]
+- Set astroquery version: Fixed SIMBAD query compatibility by pinning astroquery to a working version. [[#GOATS-579](https://noirlab.atlassian.net/browse/GOATS-579)]
+
 ## GOATS 25.1.0-alpha.0 (2025-01-14)
 
 

@@ -39,7 +39,6 @@ INSTALLED_APPS = [
     'daphne',
     'goats_tom',
     'channels',
-    'fontawesomefree',
     'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -303,7 +302,7 @@ TOM_HARVESTER_CLASSES = [
     'tom_catalogs.harvesters.simbad.SimbadHarvester',
     'tom_catalogs.harvesters.ned.NEDHarvester',
     'tom_catalogs.harvesters.jplhorizons.JPLHorizonsHarvester',
-    'tom_catalogs.harvesters.tns.TNSHarvester',
+    'goats_tom.harvesters.tns.TNSHarvester',
 ]
 
 HARVESTERS = {

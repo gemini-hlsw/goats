@@ -899,13 +899,17 @@ class ObservationsClass(QueryWithLogin):
         md5sums_path = extract_dir / "md5sums.txt"
 
         # Get names of files downloaded.
-        downloaded_files = []
+        downloaded_files = set()
         if md5sums_path.exists():
             with open(md5sums_path) as file:
                 for line in file:
                     parts = line.strip().split()
                     if len(parts) == 2:
-                        downloaded_files.append(parts[1])
+                        filename = parts[1]
+                        if filename in downloaded_files:
+                            print(f"Duplicate file detected in md5sums: {filename}")
+                        # Set ignores duplicates.
+                        downloaded_files.add(filename)
 
         # Get number of files downloaded.
         num_files_downloaded = len(downloaded_files)
@@ -937,7 +941,7 @@ class ObservationsClass(QueryWithLogin):
                         break
 
         download_info = {
-            "downloaded_files": downloaded_files,
+            "downloaded_files": list(downloaded_files),
             "num_files_downloaded": num_files_downloaded,
             "num_files_omitted": num_files_omitted,
             "message": message,

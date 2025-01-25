@@ -39,7 +39,6 @@ INSTALLED_APPS = [
     'daphne',
     'goats_tom',
     'channels',
-    'fontawesomefree',
     'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',

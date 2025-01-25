@@ -5,7 +5,8 @@
     "**/bootstrap.css",
     "**/custom.sass",
     "**/halfmoon.min.css",
-    "**/tom-select.bootstrap5.css"
+    "**/tom-select.bootstrap5.css",
+    "**/fontawesome-free-6.7.2/**/*.css"
   ],
   "extends": "stylelint-config-standard"
 }

@@ -176,4 +176,6 @@ class URLHelper:
         if orderby is not None:
             query_string = f"?orderby={orderby}"
 
+        print(f"{self.server}{path}{query_string}")
+
         return f"{self.server}{path}{query_string}"
