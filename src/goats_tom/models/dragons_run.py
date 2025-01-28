@@ -3,6 +3,7 @@
 __all__ = ["DRAGONSRun"]
 
 import datetime
+import shutil
 import subprocess
 from importlib import metadata
 from pathlib import Path
@@ -22,10 +23,7 @@ def get_dragons_version():
         # FIXME: Remove this conda subprocess when DRAGONS updates.
         # Run 'conda list dragons' and capture the output.
         result = subprocess.run(
-            ["conda", "list", "dragons"],
-            capture_output=True,
-            text=True,
-            check=True
+            ["conda", "list", "dragons"], capture_output=True, text=True, check=True
         )
         # Parse the output to find the version.
         for line in result.stdout.splitlines():
@@ -154,6 +152,15 @@ class DRAGONSRun(models.Model):
 
         """
         return self.get_raw_dir() / self.output_directory
+
+    def remove_output_dir(self) -> None:
+        """Removes the output directory and its contents recursively."""
+        output_dir = self.get_output_dir()
+        if output_dir.exists():
+            try:
+                shutil.rmtree(output_dir)
+            except Exception as e:
+                print(f"Error deleting output directory {output_dir}: {e}")
 
     def get_cal_manager_db_file(self) -> Path:
         """Returns the full path to the calibration manager database file.

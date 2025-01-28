@@ -1,0 +1,1 @@
+Add delete run functionality: Enabled a delete button for DRAGONS runs, allowing users to reclaim disk space. Extended the API to support run deletions.

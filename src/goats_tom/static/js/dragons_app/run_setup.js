@@ -228,6 +228,8 @@ class RunSetupTemplate {
    * @private
    */
   _createRunSelect() {
+    const container = this._createContainer();
+    container.id = `runSelectContainer${this.options.id}`;
     const row = Utils.createElement("div", ["row", "g-3"]);
     const col = Utils.createElement("div", "col-12");
 
@@ -236,15 +238,22 @@ class RunSetupTemplate {
     select.id = `runSelect${this.options.id}`;
     select.innerHTML = `<option value="" selected hidden>Select A Run</option>`;
 
-    inputGroup.appendChild(select);
+    const deleteButton = Utils.createElement("button", ["btn", "btn-danger"]);
+    deleteButton.setAttribute("type", "button");
+    deleteButton.dataset.action = "deleteRun";
+    deleteButton.textContent = "Delete";
+    deleteButton.disabled = true;
+
+    inputGroup.append(select, deleteButton);
     col.appendChild(inputGroup);
 
     // Create run table row to append to.
     const tableCol = Utils.createElement("div", "col-12");
     tableCol.id = `runTable${this.options.id}`;
     row.append(col, tableCol);
+    container.appendChild(row);
 
-    return row;
+    return container;
   }
 
   /**
@@ -362,6 +371,22 @@ class RunSetupModel {
       throw error;
     }
   }
+
+  /**
+   * Deletes the current DRAGONS run by its ID using the API.
+   *
+   * @async
+   * @throws {Error} - Throws an error if the delete request fails.
+   * @returns {Promise<void>} - Resolves when the run is successfully deleted.
+   */
+  async deleteRun() {
+    try {
+      await this.api.delete(`${this.url}${this.runId}`);
+    } catch (error) {
+      console.error(`Error deleting DRAGONS run ID: ${this.runId}`);
+      throw error;
+    }
+  }
 }
 
 /**
@@ -380,6 +405,9 @@ class RunSetupView {
     this.container = this._create();
 
     // Grab the important elements
+    this.runSelectContainer = this.container.querySelector(
+      `#runSelectContainer${this.options.id}`
+    );
     this.runSelect = this.container.querySelector(`#runSelect${this.options.id}`);
     this.form = this.container.querySelector(`#form${this.options.id}`);
     this.runTypeExistingRadio = this.container.querySelector(
@@ -392,6 +420,7 @@ class RunSetupView {
     this.runTable = new RunTable(
       this.container.querySelector(`#runTable${this.options.id}`)
     );
+    this.deleteButton = this.container.querySelector('[data-action="deleteRun"]');
     this.parentElement.appendChild(this.container);
 
     // Bind the renders and callbacks.
@@ -450,7 +479,7 @@ class RunSetupView {
   _setLoading(isLoading) {
     // Always want to go back to the existing view.
     this.form.classList.toggle("d-none", true);
-    this.runSelect.classList.toggle("d-none", isLoading);
+    this.runSelectContainer.classList.toggle("d-none", isLoading);
     isLoading ? this.runTable.hide() : this.runTable.show();
     this.loadingDiv.classList.toggle("d-none", !isLoading);
     this.runTypeNewRadio.disabled = isLoading;
@@ -464,7 +493,8 @@ class RunSetupView {
    */
   _setNewFormVisibility(isVisible) {
     this.form.classList.toggle("d-none", !isVisible);
-    this.runSelect.classList.toggle("d-none", isVisible);
+    this.runSelectContainer.classList.toggle("d-none", isVisible);
+    // this.runSelect.classList.toggle("d-none", isVisible);
     isVisible ? this.runTable.hide() : this.runTable.show();
   }
 
@@ -482,6 +512,8 @@ class RunSetupView {
    * @private
    */
   _updateRunTable(data) {
+    // Need to enable the button to delete.
+    this.deleteButton.disabled = false;
     this.runTable.update(data);
   }
 
@@ -490,7 +522,13 @@ class RunSetupView {
    * @private
    */
   _resetRunTable() {
+    // Need to disable delete button again.
+    this.deleteButton.disabled = true;
     this.runTable.reset();
+  }
+
+  _deleteRun() {
+    // Logic here needs to reset everything to default.
   }
 
   /**
@@ -524,6 +562,9 @@ class RunSetupView {
         break;
       case "resetRunTable":
         this._resetRunTable();
+        break;
+      case "deleteRun":
+        this._deleteRun();
         break;
     }
   }
@@ -559,6 +600,11 @@ class RunSetupView {
       case "selectRun":
         Utils.on(this.runSelect, "change", (e) => {
           handler({ runId: e.target.value });
+        });
+        break;
+      case "deleteRun":
+        Utils.on(this.deleteButton, "click", () => {
+          handler();
         });
         break;
     }
@@ -599,6 +645,7 @@ class RunSetupController {
       this.submitNewRunForm(item.formData)
     );
     this.view.bindCallback("selectRun", (item) => this._selectRun(item.runId));
+    this.view.bindCallback("deleteRun", () => this._deleteRun());
     this.view.bindGlobalCallback("updateRun", (item) => this._updateRun(item.runId));
   }
 
@@ -611,6 +658,27 @@ class RunSetupController {
   async init() {
     await this.model.fetchRuns();
     this.view.render("update", { data: this.model.data });
+  }
+
+  /**
+   * Deletes the current DRAGONS run if a run ID is set.
+   *
+   * @async
+   * @returns {Promise<void>} - Resolves after the run is successfully deleted and the view is updated.
+   */
+  async _deleteRun() {
+    if (!this.model.runId) {
+      return;
+    }
+    try {
+      await this.model.deleteRun();
+      window.location.reload();
+    } catch (error) {
+      console.error("Error deleting the run:", error)
+    }
+    // FIXME: Refreshing the page is just a quick hack to reset everything, this should
+    // be better when there is time to properly handle deleting a run.
+    // this.view.render("deleteRun");
   }
 
   /**
@@ -631,7 +699,6 @@ class RunSetupController {
    * @returns {Promise<void>} A promise that resolves when form submission and data update are complete.
    */
   async submitNewRunForm(formData) {
-    // TODO: Prepare form data.
     formData.append("observation_record", this.model.observationRecordId);
     this.view.render("loading");
     await Utils.ensureMinimumDuration(await this.model.submitForm(formData));

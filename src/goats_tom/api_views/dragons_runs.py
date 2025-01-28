@@ -105,7 +105,7 @@ class DRAGONSRunsViewSet(
 
         # Write the DRAGONS config file.
         with config_file.open("w") as f:
-            f.write(f"[calibs]\ndatabases = \"{cal_manager_db_file}\" get store")
+            f.write(f'[calibs]\ndatabases = "{cal_manager_db_file}" get store')
 
         # Create the calibration manager for DRAGONS.
         cal_db = cal_service.LocalDB(cal_manager_db_file, force_init=True)
@@ -229,3 +229,16 @@ class DRAGONSRunsViewSet(
                 data["groups"] = instance.list_groups()
 
         return Response(data)
+
+    def perform_destroy(self, instance: DRAGONSRun) -> None:
+        """Handle the deletion of a DRAGONS run instance and its associated output
+        directory.
+
+        Parameters
+        ----------
+        instance : `DRAGONSRun`
+            The instance of the run.
+        """
+        # Delete the output directory.
+        instance.remove_output_dir()
+        super().perform_destroy(instance)

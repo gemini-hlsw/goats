@@ -26,7 +26,8 @@ class API {
    * Performs a fetch request with default settings and error handling.
    * @param {string} endpoint - The endpoint to append to the base URL.
    * @param {Object} [options={}] - Additional options for the fetch request.
-   * @returns {Promise<Object>} - A promise resolving to the response data.
+   * @returns {Promise<Object|null>} - A promise resolving to the parsed JSON data or `null` for 
+   * empty responses.
    */
   async request(endpoint, options = {}) {
     const url = `${this.baseUrl}${endpoint}`;
@@ -46,9 +47,12 @@ class API {
         throw response;
       }
 
-      const data = await response.json();
-
-      return data;
+      // Check if the response has a JSON content-type or is empty.
+      const contentType = response.headers.get("Content-Type");
+      if (contentType && contentType.includes("application/json")) {
+        return await response.json();
+      }
+      return null;
     } catch (error) {
       throw error;
     }

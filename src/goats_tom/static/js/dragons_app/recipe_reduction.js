@@ -825,7 +825,6 @@ class RecipeReductionController {
   async _resetRecipe() {
     const data = await this.model.updateFunctionDefinitionAndUparms();
     this.view.render("updateRecipe", { data });
-    // TODO:
   }
 
   /**
