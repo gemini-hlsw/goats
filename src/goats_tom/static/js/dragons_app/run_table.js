@@ -13,14 +13,13 @@ const KEYS_TO_DISPLAY = [
  */
 class RunTableTemplate {
   createContainer() {
-    const container = Utils.createElement("div");
+    const container = Utils.createElement("div", "table-responsive");
     return container;
   }
 
   create() {
     const container = this.createContainer();
     container.appendChild(this.createTable());
-
     return container;
   }
   /**
@@ -73,6 +72,26 @@ class RunTableTemplate {
         tbody.appendChild(tr);
       }
     });
+
+    // Determine the documentation URL.
+    const dragonsDocsUrl = "https://dragons.readthedocs.io/en";
+    const docsUrl = data["version"]
+      ? `${dragonsDocsUrl}/v${data["version"]}/`
+      : dragonsDocsUrl;
+
+    // Create a row for the documentation link.
+    const docRow = Utils.createElement("tr");
+    const docCell = Utils.createElement("td");
+    docCell.setAttribute("colspan", "2");
+
+    const docLink = Utils.createElement("a");
+    docLink.href = docsUrl;
+    docLink.setAttribute("target", "_blank");
+    docLink.textContent = "View DRAGONS Documentation";
+
+    docCell.appendChild(docLink);
+    docRow.appendChild(docCell);
+    tbody.appendChild(docRow);
 
     return tbody;
   }

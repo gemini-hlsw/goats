@@ -1,3 +1,10 @@
+## GOATS 25.1.1 (2025-01-30)
+
+
+### New Features
+
+- Add delete run functionality: Enabled a delete button for DRAGONS runs, allowing users to reclaim disk space. Extended the API to support run deletions. [[#GOATS-428](https://noirlab.atlassian.net/browse/GOATS-428)]
+
 ## GOATS 25.1.0-alpha.1 (2025-01-25)
 
 

@@ -30,7 +30,7 @@ dependencies = [
     "dramatiq-abort>=1.1.0",
     "numpydoc>=1.7.0,<2",
 ]
-version = "25.1.0-alpha.1"
+version = "25.1.1"
 
 [project.urls]
 "Homepage" = "https://github.com/gemini-hlsw/goats"

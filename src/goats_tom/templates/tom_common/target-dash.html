@@ -8,8 +8,10 @@
   <div class="row">
     <div class="col-lg-4 col-12">
       <div id="target-info">
-        <div class="d-flex">
+        <div class="overflow-auto">
           <p class="h3">{{ target.name }}</p>
+        </div>
+        <div>
           {% target_buttons target %}
         </div>
         {% target_data target %}

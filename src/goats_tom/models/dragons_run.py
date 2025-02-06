@@ -398,6 +398,11 @@ class DRAGONSRun(models.Model):
 
         # Iterate over files in the output directory.
         for f in output_dir.glob("*.fits"):
+            # Get the file's last modified time, convert it to UTC, and format it.
+            last_modified = datetime.datetime.fromtimestamp(
+                f.stat().st_mtime, datetime.timezone.utc
+            ).strftime("%Y-%m-%d %H:%M:%S")
+
             # Generate the product ID from the file path.
             potential_product_id = str(f.relative_to(settings.MEDIA_ROOT))
 
@@ -413,6 +418,7 @@ class DRAGONSRun(models.Model):
                 {
                     "name": f.name,
                     "path": str(f.parent.relative_to(settings.MEDIA_ROOT)),
+                    "last_modified": last_modified,
                     "is_dataproduct": is_dataproduct,
                     "dataproduct_id": dp.id if dp else None,
                     "product_id": potential_product_id,
@@ -433,6 +439,8 @@ class DRAGONSRun(models.Model):
                         "dataproduct_id": dp.id,
                         "product_id": product_id,
                         "url": dp.data.url,
+                        # Match same format as above.
+                        "last_modified": dp.modified.strftime("%Y-%m-%d %H:%M:%S")
                     }
                 )
 

@@ -223,11 +223,16 @@ class ProcessedFilesTemplate {
     const thead = Utils.createElement("thead");
     const tr = Utils.createElement("tr");
 
-    // Creating a cell.
+    // Creating a cell for name.
     const thName = Utils.createElement("th", ["fw-normal"]);
     thName.setAttribute("scope", "col");
     thName.textContent = `Filename ${Utils.getFileCountLabel(data.length)}`;
     thName.id = `thName${this.options.id}`;
+
+    // Create a cell for last modified.
+    const thLastModified = Utils.createElement("th", ["fw-normal"]);
+    thLastModified.setAttribute("scope", "col");
+    thLastModified.textContent = "Last Modified (UTC)";
 
     // Create cell for actions.
     const thActions = Utils.createElement("th", ["fw-normal"]);
@@ -244,7 +249,7 @@ class ProcessedFilesTemplate {
     thRemove.setAttribute("scope", "col");
     thRemove.textContent = "Delete";
 
-    tr.append(thName, thActions, thAdd, thRemove);
+    tr.append(thName, thLastModified, thActions, thAdd, thRemove);
     thead.appendChild(tr);
 
     return thead;
@@ -279,6 +284,10 @@ class ProcessedFilesTemplate {
       // Create the filename cell with a data attribute.
       const tdFilename = Utils.createElement("td");
       tdFilename.textContent = `${item.path}/${item.name}`;
+
+      // Create last modified.
+      const tdLastModified = Utils.createElement("td");
+      tdLastModified.textContent = item.last_modified
 
       // Build the view dropdown.
       const tdViewer = Utils.createElement("td", ["py-0", "mb-0", "text-end"]);
@@ -355,7 +364,7 @@ class ProcessedFilesTemplate {
       tdRemove.appendChild(removeButton);
 
       // Append the cells to the row.
-      tr.append(tdFilename, tdViewer, tdAdd, tdRemove);
+      tr.append(tdFilename, tdLastModified, tdViewer, tdAdd, tdRemove);
 
       // Append the row to the tbody.
       tbody.appendChild(tr);

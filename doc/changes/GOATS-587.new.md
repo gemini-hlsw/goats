@@ -1,0 +1,1 @@
+Open browser on GOATS start: GOATS now opens in the default browser when launched. Users can specify a browser via CLI, and if none is given, the system default is used.

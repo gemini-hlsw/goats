@@ -1,0 +1,1 @@
+Improve target name handling: Long target names now scroll instead of breaking the layout. Edit and delete buttons are now in a separate div for better responsiveness.

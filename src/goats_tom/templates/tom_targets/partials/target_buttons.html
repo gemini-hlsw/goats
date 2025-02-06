@@ -1,8 +1,8 @@
 {% load targets_extras %}
-<a href="{% url 'tom_targets:update' pk=target.id %}" title="Update target" class="btn  btn-secondary btn-square"><i class="fa-solid fa-pencil"></i></a>
+<a href="{% url 'tom_targets:update' pk=target.id %}" title="Update target" class="btn  btn-secondary"><i class="fa-solid fa-pencil"></i></a>
 {% if sharing %}
-    <a href="{% url 'tom_targets:share' pk=target.id %}" title="Share target" class="btn  btn-secondary btn-square"><i class="fa-solid fa-share"></i></a>
+    <a href="{% url 'tom_targets:share' pk=target.id %}" title="Share target" class="btn  btn-secondary"><i class="fa-solid fa-share"></i></a>
 {% endif %}
-<a href="{% url 'target-delete' pk=target.id %}" title="Delete target" class="btn btn-danger btn-square"><i class="fa-solid fa-trash"></i></a>
+<a href="{% url 'target-delete' pk=target.id %}" title="Delete target" class="btn btn-danger"><i class="fa-solid fa-trash"></i></a>
 
 {% get_buttons target %}

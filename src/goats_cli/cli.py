@@ -5,10 +5,12 @@ import re
 import shutil
 import subprocess
 import time
+import webbrowser
 from pathlib import Path
 from typing import IO, Any
 
 import click
+import requests
 from click._compat import get_text_stderr
 
 from goats_cli.modify_settings import modify_settings
@@ -25,6 +27,37 @@ REDIS_HOST: str = "localhost"
 REDIS_PORT: int = 6379
 REDIS_ADDRPORT: str = f"{REDIS_HOST}:{REDIS_PORT}"
 REGEX_PATTERN = r"^(?:(?P<host>[^:]+):)?(?P<port>[0-9]+)$"
+DEFAULT_HOST: str = "localhost"
+DEFAULT_PORT: int = 8000
+DEFAULT_ADDRPORT: str = f"{DEFAULT_HOST}:{DEFAULT_PORT}"
+
+
+def parse_addrport(addrport: str) -> tuple[str, int]:
+    """Parses an address and port string into host and port components.
+
+    Parameters
+    ----------
+    addrport : `str`
+        The address and port string, e.g., "localhost:8000" or "8000".
+
+    Returns
+    -------
+    `tuple[str, int]`
+        A tuple of (host, port), where host is a string and port is an integer.
+
+    Raises
+    ------
+    ValueError
+        If the input does not match the expected format.
+    """
+    pattern = re.compile(REGEX_PATTERN)
+    match = pattern.match(addrport)
+    if not match:
+        raise ValueError(f"Invalid addrport format: '{addrport}'")
+
+    host = match.group("host") or DEFAULT_HOST
+    port = int(match.group("port"))
+    return host, port
 
 
 class GOATSClickException(click.ClickException):
@@ -253,7 +286,7 @@ def install(
 )
 @click.option(
     "--addrport",
-    default="127.0.0.1:8000",
+    default=DEFAULT_ADDRPORT,
     type=str,
     help=(
         "Specify the IP address and port number to serve GOATS. "
@@ -273,12 +306,31 @@ def install(
     ),
     callback=validate_addrport,
 )
+@click.option(
+    "-b",
+    "--browser",
+    type=click.Choice(
+        [
+            "google-chrome",
+            "firefox",
+            "mozilla",
+            "chromium",
+            "chrome",
+            "chromium-browser",
+            "default",
+        ],
+        case_sensitive=False,
+    ),
+    default="default",
+    help="Specify the browser to open GOATS in (chrome, firefox, or default).",
+)
 def run(
     project_name: str,
     directory: Path,
     workers: int,
     addrport: str,
     redis_addrport: str,
+    browser: str,
 ) -> None:
     """Starts the webserver, Redis server, and workers for GOATS.
 
@@ -294,6 +346,8 @@ def run(
         The host and port to serve GOATS on.
     redis_addrport : `str`
         The host and port Redis is served on.
+    browser: `str`
+        The browser to open GOATS with.
 
     Raises
     ------
@@ -341,26 +395,34 @@ def run(
     )
     time.sleep(2)
 
-    process_manager = ProcessManager()
-
-    # Start the Redis server.
-    process_manager.add_process("redis", start_redis_server(redis_addrport))
-
-    # Start Django server.
-    process_manager.add_process("django", start_django_server(manage_file, addrport))
-
-    # Start the background consumer.
-    process_manager.add_process(
-        "background_workers",
-        start_background_workers(manage_file, workers=workers),
-    )
-
-    # Handle the termination
     try:
-        # Wait for termination signal (Ctrl+C)
+        process_manager = ProcessManager()
+
+        # Start the Redis server.
+        process_manager.add_process("redis", start_redis_server(redis_addrport))
+
+        # Start Django server.
+        process_manager.add_process(
+            "django", start_django_server(manage_file, addrport)
+        )
+
+        # Start the background consumer.
+        process_manager.add_process(
+            "background_workers",
+            start_background_workers(manage_file, workers=workers),
+        )
+
+        # Open the browser.
+        host, port = parse_addrport(addrport)
+        url = f"http://{host}:{port}"
+        if wait_until_responsive(url):
+            # Build the url and open it.
+            open_browser(url, browser)
+
         while True:
             time.sleep(0.1)
-    except KeyboardInterrupt:
+
+    finally:
         process_manager.stop_all()
 
 
@@ -477,6 +539,67 @@ def start_background_workers(manage_file: Path, workers: int) -> subprocess.Pope
             f"Exit status: {error.returncode}."
         )
     return background_workers_process
+
+
+def wait_until_responsive(
+    url: str, timeout: int = 30, retry_interval: float = 1.0
+) -> bool:
+    """Waits until the server responds with a valid HTTP status.
+
+    Parameters
+    ----------
+    url : `str`
+        The URL of the server to check.
+    timeout : `int`
+        Maximum time in seconds to wait for the server to respond.
+    retry_interval : `float`
+        Time in seconds to wait between retries (default: 1s).
+
+    Returns
+    -------
+    `bool`
+        `True` if the server is responsive, `False` if the timeout is reached.
+    """
+    start_time = time.time()
+    attempts = 0  # Track how many times we retry
+
+    while time.time() - start_time < timeout:
+        attempts += 1
+        try:
+            response = requests.get(url, timeout=5)
+
+            if response.status_code == 200:
+                return True
+        except Exception:
+            time.sleep(retry_interval)
+
+    display_warning(f"GOATS server did not respond after {attempts} attempts.")
+    display_warning(
+        f"Check if the server is running, then open your browser and go to: {url}"
+    )
+    return False
+
+
+def open_browser(url: str, browser_choice: str) -> None:
+    """Opens the specified browser or defaults to the system browser.
+
+    Parameters
+    ----------
+    url : `str`
+        The URL to open in the browser.
+    browser_choice : `str`
+        The browser choice.
+    """
+    display_message(f"Opening GOATS at {url} in {browser_choice} browser.")
+    try:
+        if browser_choice == "default":
+            webbrowser.open_new(url)
+        else:
+            browser = webbrowser.get(browser_choice)
+            browser.open_new(url)
+    except webbrowser.Error as e:
+        display_warning(f"Failed to open browser '{browser_choice}': {str(e)}.")
+        display_warning(f"Try opening a browser and navigate to: {url}")
 
 
 cli.add_command(install)
