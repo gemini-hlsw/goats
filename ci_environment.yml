@@ -20,10 +20,7 @@ channels:
   - nodefaults
 
 dependencies:
-  - astropy>=5.3.3,<6  # Required for tomtoolkit.
-  - astroquery=0.4.7  # SIMBAD bug in 0.4.8.
   - dragons=3.2.3
-  - ds9
   - python-confluent-kafka=1.7.0  # Required for linking librdkafka in conda.
   - librdkafka>=1.7.0  # Required while antares-client upgrades kafka.
   - pip
