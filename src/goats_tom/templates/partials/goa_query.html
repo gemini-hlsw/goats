@@ -88,7 +88,17 @@
     <input type="hidden" name="facility" value="{{ object.facility }}">
     <div class="row">
       <div class="col text-center">
-        <button type="submit" class="btn btn-primary">Submit</button>
+        <button 
+          type="submit" 
+          class="btn btn-primary"
+          {% if object.status.lower != "observed" %} disabled {% endif %}
+        >
+          {% if object.status.lower != "observed" %}
+            Observation incomplete. Update status to enable.
+          {% else %}
+            Submit
+          {% endif %}
+        </button>
       </div>
     </div>
   </form>

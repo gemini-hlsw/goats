@@ -190,6 +190,32 @@ class AvailableFilesTemplate {
     label.setAttribute("for", tsId);
     label.textContent = "Create Groupings";
 
+    // Create information popover button with an icon.
+    const infoButton = Utils.createElement("a", ["link-primary", "ms-1"]);
+    infoButton.setAttribute("type", "button");
+    infoButton.setAttribute("tabindex", "0");
+    infoButton.setAttribute("data-bs-trigger", "focus");
+    infoButton.setAttribute("data-bs-toggle", "popover");
+    infoButton.setAttribute("data-bs-placement", "top");
+    infoButton.setAttribute("data-bs-html", "true");
+    infoButton.setAttribute("data-bs-title", "Group Files by Astrodata Descriptors");
+    infoButton.setAttribute(
+      "data-bs-content",
+      `
+    <div>
+      <p>Use this dropdown to create groupings based on shared properties like filters and binnings. 
+      Start typing in the select box to search for available descriptors.</p>
+      <p class="mb-0">Only available groupings based on astrodata descriptors will be listed.</p>
+    </div>
+      `
+    );
+
+    // Create icon element.
+    const icon = Utils.createElement("i", ["fa-solid", "fa-circle-info"]);
+    infoButton.appendChild(icon);
+
+    new bootstrap.Popover(infoButton);
+
     // Build the select.
     const select = Utils.createElement("select", []);
     select.id = id;
@@ -208,7 +234,7 @@ class AvailableFilesTemplate {
     select.appendChild(fragment);
 
     // Put together.
-    col1.append(label);
+    col1.append(label, infoButton);
     col2.append(select);
     row.append(col1, col2);
 
@@ -249,7 +275,33 @@ class AvailableFilesTemplate {
     label.setAttribute("for", id);
     label.textContent = "Use all files for observation ID";
 
-    div.append(checkbox, label);
+    // Create information popover button with an icon.
+    const infoButton = Utils.createElement("a", ["link-primary", "ms-1"]);
+    infoButton.setAttribute("type", "button");
+    infoButton.setAttribute("tabindex", "0");
+    infoButton.setAttribute("data-bs-trigger", "focus");
+    infoButton.setAttribute("data-bs-toggle", "popover");
+    infoButton.setAttribute("data-bs-placement", "top");
+    infoButton.setAttribute("data-bs-html", "true");
+    infoButton.setAttribute("data-bs-title", "Access All Files for This Observation");
+    infoButton.setAttribute(
+      "data-bs-content",
+      `
+      <div>
+        <p>By default, files are grouped by observation type, observation class, and object name. 
+        Enabling this option removes those groupings, giving access to all files for this observation.</p>
+        <p class="mb-0">Some reduction recipes require files from multiple categories, making this setting essential for certain cases.</p>
+      </div>
+      `
+    );
+
+    // Create icon element.
+    const icon = Utils.createElement("i", ["fa-solid", "fa-circle-info"]);
+    infoButton.appendChild(icon);
+
+    new bootstrap.Popover(infoButton);
+
+    div.append(checkbox, label, infoButton);
     col.appendChild(div);
     row.appendChild(col);
 

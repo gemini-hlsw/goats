@@ -34,6 +34,21 @@ class GOAQueryFormView(View):
         # Check if your GOAQueryForm was submitted.
         form = GOAQueryForm(request.POST)
         observation_record = ObservationRecord.objects.get(pk=kwargs["pk"])
+        observation_detail_url = reverse(
+            "tom_observations:detail", kwargs={"pk": kwargs["pk"]}
+        )
+
+        # Check if the observation status is valid, if not stop here and issue message.
+        if observation_record.status.lower() != "observed":
+            messages.error(
+                request,
+                (
+                    "GOA data is unavailable until the observation is complete. Update "
+                    "the observation status on the overview page once it's finished."
+                ),
+            )
+            return redirect(observation_detail_url)
+
         if form.is_valid():
             # Get GOA credentials.
             prop_data_msg = "Proprietary data will not be downloaded."
@@ -77,4 +92,4 @@ class GOAQueryFormView(View):
                     msg = f"Error in {field}: {error}"
                     messages.error(request, msg)
 
-        return redirect(reverse("tom_observations:detail", kwargs={"pk": kwargs["pk"]}))
+        return redirect(observation_detail_url)

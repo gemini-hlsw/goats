@@ -381,7 +381,7 @@ class GOAQueryFormViewTest(TestCase):
         self.user = User.objects.create_user(username="testuser", password="password")
         self.target = SiderealTargetFactory.create()
         self.observation_record = ObservingRecordFactory.create(
-            target_id=self.target.id,
+            target_id=self.target.id, status="Observed"
         )
         self.url = reverse("goa_query", kwargs={"pk": self.observation_record.pk})
         self.form_data = {"download_calibrations": "yes", "facility": "test_facility"}
