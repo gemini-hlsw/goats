@@ -75,7 +75,7 @@ class AstroDatalabViewSet(GenericViewSet, mixins.CreateModelMixin):
         # Lazy import to avoid creating .datalab dir collision.
         from dl import authClient as ac
         from dl import storeClient as sc
-        
+
         astro_datalab_login = user.astrodatalablogin
         token = ac.login(astro_datalab_login.username, astro_datalab_login.password)
         if not ac.isValidToken(token):
