@@ -133,8 +133,8 @@ class DRAGONSRun(models.Model):
         Applies default values for "run_id" and assigns `output_directory`.
         """
         # TODO: Do we want to allow spaces in `run_id`?
-        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         if not self.run_id:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             self.run_id = f"run-{timestamp}"
 
         # Output directory matches `run_id`.

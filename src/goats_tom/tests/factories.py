@@ -45,7 +45,7 @@ class UserFactory(factory.django.DjangoModelFactory):
         model = User
 
     username = factory.Sequence(lambda n: f"user_{n}")
-    password = make_password("password")
+    password = factory.PostGenerationMethodCall("set_password", "password")
 
 
 class DownloadFactory(factory.django.DjangoModelFactory):
@@ -156,6 +156,9 @@ class DRAGONSRunFactory(factory.django.DjangoModelFactory):
     output_directory = factory.Faker("file_path")
     cal_manager_filename = "cal_manager.db"
     log_filename = "log.log"
+    created = None
+    modified = None
+    version = factory.Faker("numerify", text="3.0.#")
 
 
 class RecipesModuleFactory(factory.django.DjangoModelFactory):

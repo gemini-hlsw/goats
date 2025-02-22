@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from pathlib import Path
 
 from bs4 import BeautifulSoup
-from goats_tom.tns_client import TNSClient
+from goats_tom.tns import TNSClient
 
 
 @pytest.fixture

@@ -6,16 +6,15 @@ from goats_tom.api_views import DRAGONSFilesViewSet
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 
-
 class TestDRAGONSFilesViewSet(APITestCase):
     """Class to test the `DRAGONSFile` API view."""
-
-    def setUp(self):
-        self.factory = APIRequestFactory()
-        self.user = UserFactory()
-        self.list_view = DRAGONSFilesViewSet.as_view({"get": "list"})
-        self.detail_view = DRAGONSFilesViewSet.as_view({"get": "retrieve"})
-        self.update_view = DRAGONSFilesViewSet.as_view({"patch": "partial_update"})
+    @classmethod
+    def setUpTestData(cls):
+        cls.factory = APIRequestFactory()
+        cls.user = UserFactory()
+        cls.list_view = DRAGONSFilesViewSet.as_view({"get": "list"})
+        cls.detail_view = DRAGONSFilesViewSet.as_view({"get": "retrieve"})
+        cls.update_view = DRAGONSFilesViewSet.as_view({"patch": "partial_update"})
 
     def authenticate(self, request):
         """Helper method to authenticate requests."""

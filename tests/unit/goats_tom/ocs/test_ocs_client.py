@@ -74,6 +74,7 @@ def test_get_sequence(client, sequence_xml, observation_id):
 
     result = client.get_sequence(observation_id)
     assert isinstance(result, dict)
+    print(result)
     assert result["success"]
 
 

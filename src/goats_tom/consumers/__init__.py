@@ -1,5 +1,5 @@
-from .dragons_consumer import DRAGONSConsumer
-from .updates_consumer import UpdatesConsumer
+from .dragons import DRAGONSConsumer
+from .updates import UpdatesConsumer
 
 __all__ = [
     "UpdatesConsumer",

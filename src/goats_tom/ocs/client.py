@@ -15,7 +15,7 @@ import requests
 import urllib3
 
 from .gemini_id import GeminiID
-from .ocs_parser import OCSParser
+from .parser import OCSParser
 
 # Disable warnings about insecure HTTP connection for now.
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
