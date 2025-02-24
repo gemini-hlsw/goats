@@ -1,4 +1,3 @@
-from .bootstrap4_overrides import bootstrap_pagination
 from .custom_filters import starts_with
 from .dataproduct_visualizer import dataproduct_visualizer
 from .gemini import render_goa_query_form, render_launch_dragons
@@ -10,7 +9,6 @@ __all__ = [
     "render_goa_query_form",
     "render_launch_dragons",
     "goats_dataproduct_list_for_observation_saved",
-    "bootstrap_pagination",
     "render_target_navbar",
     "dataproduct_visualizer",
 ]

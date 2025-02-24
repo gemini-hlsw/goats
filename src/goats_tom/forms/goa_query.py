@@ -1,8 +1,8 @@
+__all__ = ["GOAQueryForm"]
+
 import re
 
 from django import forms
-
-from .models import ProgramKey, UserKey
 
 
 class GOAQueryForm(forms.Form):
@@ -154,51 +154,3 @@ class GOAQueryForm(forms.Form):
         cleaned_data["query_params"] = query_params
         self.cleaned_data = cleaned_data
 
-
-class GOALoginForm(forms.Form):
-    """A form to input GOA login information. This form is used to save GOA
-    login details for a user.
-
-    Attributes
-    ----------
-    username : `forms.CharField`
-        The field for the GOA username.
-    password : `forms.CharField`
-        The field for the GOA password.
-
-    """
-
-    username = forms.CharField(
-        label="Username",
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-        required=True,
-    )
-
-    password = forms.CharField(
-        label="Password",
-        widget=forms.PasswordInput(attrs={"class": "form-control"}),
-        required=True,
-    )
-
-
-class UserKeyForm(forms.ModelForm):
-    class Meta:
-        model = UserKey
-        fields = ["email", "site", "password"]
-        widgets = {
-            "email": forms.EmailInput(attrs={"class": "form-control"}),
-            "site": forms.Select(attrs={"class": "form-control"}),
-            "password": forms.PasswordInput(attrs={"class": "form-control"}),
-        }
-
-
-class ProgramKeyForm(forms.ModelForm):
-    class Meta:
-        model = ProgramKey
-        fields = ["program_id", "site", "password"]
-        widgets = {
-            "program_id": forms.TextInput(attrs={"class": "form-control"}),
-            "site": forms.Select(attrs={"class": "form-control"}),
-            "password": forms.PasswordInput(attrs={"class": "form-control"}),
-        }
-        labels = {"program_id": "Program ID:"}

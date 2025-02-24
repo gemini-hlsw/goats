@@ -14,7 +14,6 @@ from goats_tom.tests.factories import (
     DRAGONSRecipeFactory,
     DRAGONSReduceFactory,
     DRAGONSRunFactory,
-    GOALoginFactory,
     ProgramKeyFactory,
     UserFactory,
     UserKeyFactory,
@@ -22,23 +21,11 @@ from goats_tom.tests.factories import (
     RecipesModuleFactory
 )
 from tom_observations.tests.factories import ObservingRecordFactory
-from unittest.mock import patch, MagicMock
 
 @pytest.fixture()
 def gmos_test_file():
     file_path = Path(__file__).parent.parent.parent / "data" / "gmos_bias.fits"
     return file_path
-
-
-@pytest.mark.django_db()
-class TestGOALoginModel(TestCase):
-    def setUp(self):
-        self.goa_login = GOALoginFactory()
-
-    def test_empty_password(self):
-        self.goa_login.password = ""
-        with pytest.raises(ValidationError):
-            self.goa_login.clean()
 
 
 @pytest.mark.django_db()

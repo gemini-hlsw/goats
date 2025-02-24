@@ -17,7 +17,7 @@ from dramatiq.middleware import TimeLimitExceeded
 from gempy.utils import logutils
 from recipe_system.reduction.coreReduce import Reduce
 
-from goats_tom.logging.handlers import DRAGONSHandler
+from goats_tom.logging_extensions.handlers import DRAGONSHandler
 from goats_tom.models import DRAGONSFile, DRAGONSReduce
 from goats_tom.realtime import DRAGONSProgress, NotificationInstance
 

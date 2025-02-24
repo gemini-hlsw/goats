@@ -17,19 +17,11 @@ from goats_tom.tests.factories import (
     ReducedDatumFactory,
     UserKeyFactory,
     RecipesModuleFactory,
+    UserFactory,
+    GOALoginFactory,
+    AstroDatalabLoginFactory
 )
 
-
-@pytest.mark.django_db()
-def test_goalogin_set_password():
-    """Test to verify that the set_password method correctly hashes the
-    password.
-    """
-    # Create a GOALogin instance with a factory
-    goa_login = GOALoginFactory(password="testpassword")
-
-    # Check if the password is correctly hashed
-    assert "testpassword", goa_login.password
 
 
 @pytest.mark.django_db()
@@ -244,3 +236,39 @@ class TestDRAGONSRecipeFactory:
         assert (
             dragons_recipe.function_definition is None
         ), "Function definition should be None by default."
+
+
+class TestGOALogin(TestCase):
+    """Tests for the BaseLoginFactory."""
+
+    def setUp(self) -> None:
+        """Create a user for all tests in this class."""
+        self.user = UserFactory()
+
+    def test_create_login(self) -> None:
+        """Test that the factory can create an instance with valid fields for a given
+        user.
+        """
+        login = GOALoginFactory(user=self.user)
+        self.assertIsNotNone(login)
+        self.assertEqual(login.user, self.user)
+        self.assertIsNotNone(login.username)
+        self.assertIsNotNone(login.password)
+
+
+class TestAstroDataLab(TestCase):
+    """Tests for the BaseLoginFactory."""
+
+    def setUp(self) -> None:
+        """Create a user for all tests in this class."""
+        self.user = UserFactory()
+
+    def test_create_login(self) -> None:
+        """Test that the factory can create an instance with valid fields for a given
+        user.
+        """
+        login = AstroDatalabLoginFactory(user=self.user)
+        self.assertIsNotNone(login)
+        self.assertEqual(login.user, self.user)
+        self.assertIsNotNone(login.username)
+        self.assertIsNotNone(login.password)

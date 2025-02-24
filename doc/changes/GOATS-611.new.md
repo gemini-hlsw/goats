@@ -1,0 +1,1 @@
+Extend user page: Added form to store and validate Astro Datalab credentials. Users receive feedback on whether their credentials are correct.

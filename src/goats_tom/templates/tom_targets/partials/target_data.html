@@ -23,7 +23,7 @@
               {% if value and key != 'name' %}
                 <tr>
                   <th scope="row">{% verbose_name target key %}</th>
-                  <td>{{ value|truncate_number }}</td>
+                  <td>{{ value|truncate_value_for_display }}</td>
                 </tr>
               {% endif %}
               {% if key == 'ra' %}

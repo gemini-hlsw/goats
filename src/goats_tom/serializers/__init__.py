@@ -1,4 +1,5 @@
 from .antares2goats import Antares2GoatsSerializer
+from .astro_datalab import AstroDatalabSerializer
 from .base_recipe import BaseRecipeSerializer
 from .dataproduct import DataProductSerializer
 from .dataproduct_metadata import DataProductMetadataSerializer
@@ -35,4 +36,5 @@ __all__ = [
     "DataProductMetadataSerializer",
     "Antares2GoatsSerializer",
     "HeaderSerializer",
+    "AstroDatalabSerializer",
 ]

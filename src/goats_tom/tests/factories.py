@@ -14,6 +14,7 @@ from goats_tom.models import (
     DRAGONSReduce,
     DRAGONSRun,
     GOALogin,
+    AstroDatalabLogin,
     Key,
     ProgramKey,
     UserKey,
@@ -25,7 +26,6 @@ from tom_targets.tests.factories import SiderealTargetFactory
 from datetime import datetime, timedelta
 import random
 import uuid
-from rest_framework.authtoken.models import Token
 
 
 class UserFactory(factory.django.DjangoModelFactory):
@@ -46,18 +46,6 @@ class UserFactory(factory.django.DjangoModelFactory):
 
     username = factory.Sequence(lambda n: f"user_{n}")
     password = make_password("password")
-
-
-class GOALoginFactory(factory.django.DjangoModelFactory):
-    """Factory for creating GOALogin instances for testing."""
-
-    class Meta:
-        model = GOALogin
-        skip_postgeneration_save = True
-
-    user = factory.SubFactory(UserFactory)
-    username = factory.Sequence(lambda n: f"testuser{n}")
-    password = "default_password"
 
 
 class DownloadFactory(factory.django.DjangoModelFactory):
@@ -246,3 +234,31 @@ class DRAGONSReduceFactory(factory.django.DjangoModelFactory):
     status = "created"
     task_id = None
 
+
+class _BaseLoginFactory(factory.django.DjangoModelFactory):
+    """Abstract factory for BaseLogin subclasses."""
+    user = factory.SubFactory(UserFactory)
+    username = factory.Faker("user_name")
+    password = factory.Faker(
+        "password",
+        length=12,
+        special_chars=True,
+        digits=True,
+        upper_case=True,
+        lower_case=True,
+    )
+
+    class Meta:
+        abstract = True
+
+
+class GOALoginFactory(_BaseLoginFactory):
+    """Factory for GOALogin."""
+    class Meta:
+        model = GOALogin
+
+
+class AstroDatalabLoginFactory(_BaseLoginFactory):
+    """Factory for AstroDatalabLogin."""
+    class Meta:
+        model = AstroDatalabLogin

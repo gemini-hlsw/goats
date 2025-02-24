@@ -1,0 +1,1 @@
+Added model for encrypted Astro Datalab credentials.

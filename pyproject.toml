@@ -6,7 +6,13 @@ build-backend = "setuptools.build_meta"
 name = "goats"
 description = "Gemini Observation and Analysis of Targets System."
 readme = "README.md"
-authors = [{ name = "GOATS Team" }]
+authors = [
+    { name = "Dan Avner", email = "dan.avner@noirlab.edu" },
+    { name = "Monika Soraisam", email = "monika.soraisam@noirlab.edu" },
+]
+maintainers = [
+    { name = "GOATS Team", email = "goats@noirlab.edu" },
+]
 classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
@@ -15,9 +21,11 @@ classifiers = [
 ]
 requires-python = ">=3.10.0"
 dependencies = [
-    "astropy>=5.3,<6",
-    "antares-client",
-    "tomtoolkit>=2.19.7,<3",
+    "astropy>=5.3.3,<7",
+    "astro-datalab==2.24.0",
+    "astroquery==0.4.7",
+    "antares-client>=1.8.0",
+    "tomtoolkit==2.23.1",
     "click>=8.1.7,<9",
     "django-cors-headers>=4.3.0,<5",
     "django-cryptography>=1.1,<2",
@@ -33,7 +41,11 @@ dependencies = [
 version = "25.1.1"
 
 [project.urls]
-"Homepage" = "https://github.com/gemini-hlsw/goats"
+Homepage = "https://github.com/gemini-hlsw/goats"
+Documentation = "https://goats.readthedocs.io/en/latest/"
+Repository = "https://github.com/gemini-hlsw/goats"
+Issues = "https://github.com/gemini-hlsw/goats/issues"
+Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 
 [project.optional-dependencies]
 test = [
@@ -63,8 +75,7 @@ testpaths = ["tests/unit"]
 DJANGO_SETTINGS_MODULE = "goats_tom.tests.settings"
 norecursedirs = "tests/unit/goats_tom/ocs"
 asyncio_default_fixture_loop_scope = "session"
-
-# addopts = "-r A -v -n auto --cov=src --cov-report=term --cov=tests --cov-branch"
+addopts = "-r A -v -n auto --cov=src --cov-report=term --cov=tests --cov-branch"
 
 [tool.towncrier]
 version = ""

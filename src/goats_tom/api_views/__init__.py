@@ -1,4 +1,5 @@
 from .antares2goats import Antares2GoatsViewSet
+from .astro_datalab import AstroDatalabViewSet
 from .base_recipe import BaseRecipeViewSet
 from .dataproducts import DataProductsViewSet
 from .dragons_caldb import DRAGONSCaldbViewSet
@@ -25,5 +26,6 @@ __all__ = [
     "Antares2GoatsViewSet",
     "RunProcessorViewSet",
     "DRAGONSDataViewSet",
-    "ReducedDatumViewSet"
+    "ReducedDatumViewSet",
+    "AstroDatalabViewSet",
 ]

@@ -34,10 +34,12 @@ router.register(r"runprocessor", api_views.RunProcessorViewSet, basename="runpro
 router.register(
     r"antares2goats", api_views.Antares2GoatsViewSet, basename="antares2goats"
 )
+router.register(r"astrodatalab", api_views.AstroDatalabViewSet, basename="astrodatalab")
 # TODO: Add app_name and update paths and URL lookups.
 # TODO: Make unified path formats.
 
 urlpatterns = [
+    path("astro-datalab/", views.AstroDatalabView.as_view(), name="astro-datalab"),
     path("api/", include(router.urls)),
     path(
         "targets/<int:pk>/delete/",
@@ -79,6 +81,11 @@ urlpatterns = [
         "users/<int:pk>/goa_login/",
         views.GOALoginView.as_view(),
         name="user-goa-login",
+    ),
+    path(
+        "users/<int:pk>/astro_datalab/",
+        views.AstroDatalabLoginView.as_view(),
+        name="user-astro-datalab-login",
     ),
     path("goa_query/<int:pk>/", views.GOAQueryFormView.as_view(), name="goa_query"),
     path("api/ongoing-tasks/", views.ongoing_tasks, name="ongoing_tasks"),

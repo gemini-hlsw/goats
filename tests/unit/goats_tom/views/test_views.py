@@ -26,13 +26,14 @@ from goats_tom.views import (
 )
 from rest_framework import status
 from rest_framework.authtoken.models import Token
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APITestCase
 from tom_alerts.models import BrokerQuery
 from tom_dataproducts.models import DataProduct, ReducedDatum
 from tom_observations.models import ObservationRecord
 from tom_observations.tests.factories import ObservingRecordFactory
 from tom_targets.tests.factories import SiderealTargetFactory
-
+from goats_tom.views import GOALoginView, AstroDatalabLoginView
+from goats_tom.models import GOALogin, AstroDatalabLogin
 
 @pytest.fixture()
 def mock_request():
@@ -311,68 +312,6 @@ class UserGenerateTokenViewTest(TestCase):
         self.client.logout()
 
 
-class GOALoginViewTest(TestCase):
-    def setUp(self):
-        self.client = Client()
-        self.user = User.objects.create_user("testuser", "test@example.com", "password")
-        self.superuser = User.objects.create_superuser(
-            "superuser", "super@example.com", "password",
-        )
-        self.url = reverse("user-goa-login", kwargs={"pk": self.user.pk})
-
-    def test_access_by_superuser(self):
-        self.client.login(username="superuser", password="password")
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "auth/goa_login.html")
-
-    def test_access_by_non_superuser(self):
-        self.client.login(username="testuser", password="password")
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 200)
-
-    @patch("goats_tom.views.goa_login.GOA")
-    def test_form_valid(self, mock_goa):
-        self.client.login(username="superuser", password="password")
-        mock_goa.authenticated.return_value = True
-
-        response = self.client.post(
-            self.url, {"username": "testgoa", "password": "goapass"},
-        )
-        self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse("user-list"))
-        self.assertTrue(
-            GOALogin.objects.filter(user=self.user, username="testgoa").exists(),
-        )
-
-        # Check success message.
-        messages = list(get_messages(response.wsgi_request))
-        self.assertIn(
-            "GOA login information verified and saved successfully.",
-            messages[0].message,
-        )
-
-    @patch("goats_tom.views.goa_login.GOA")
-    def test_form_invalid(self, mock_goa):
-        self.client.login(username="superuser", password="password")
-        mock_goa.authenticated.return_value = False
-
-        response = self.client.post(
-            self.url, {"username": "wronguser", "password": "wrongpass"},
-        )
-        self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse("user-list"))
-
-        # Check error message.
-        messages = list(get_messages(response.wsgi_request))
-        self.assertIn(
-            "Failed to verify GOA login credentials. Please try again.",
-            messages[0].message,
-        )
-
-    def tearDown(self):
-        self.client.logout()
-
 
 class GOAQueryFormViewTest(TestCase):
     def setUp(self):
@@ -638,3 +577,143 @@ class TestManageKeysView(TestCase):
     def test_manage_keys_view_unauthorized(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 302)  # Redirects to login page
+
+
+class TestGOALoginView(TestCase):
+    """
+    Tests for the GOALoginView, which inherits from BaseLoginView.
+    """
+
+    def setUp(self) -> None:
+        self.user = User.objects.create_user(username="testuser", password="secret")
+        self.client.login(username="testuser", password="secret")
+        self.url = reverse("user-goa-login", kwargs={"pk": self.user.pk})
+
+    def test_get_request_renders_form(self):
+        """
+        Ensure GET request renders the login form.
+        """
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "auth/login_form.html")
+        self.assertContains(response, "GOA")
+        self.assertContains(response, "username")
+        self.assertContains(response, "password")
+
+    @patch.object(GOALoginView, "perform_login_and_logout", return_value=True)
+    def test_post_valid_credentials(self, mock_method):
+        """
+        When valid credentials are posted and login check passes,
+        it should create/update GOALogin, show success message, and redirect.
+        """
+        form_data = {"username": "goa_user", "password": "goa_pass"}
+        response = self.client.post(self.url, form_data, follow=True)
+
+        # Check we redirected to success URL.
+        self.assertRedirects(response, reverse("user-list"))
+        # Check success message.
+        messages_list = list(response.context["messages"])
+        self.assertTrue(any("GOA login information verified" in str(msg) for msg in messages_list))
+
+        # Check credentials saved in GOALogin model.
+        login_obj = GOALogin.objects.get(user=self.user)
+        self.assertEqual(login_obj.username, "goa_user")
+        self.assertEqual(login_obj.password, "goa_pass")
+
+    @patch.object(GOALoginView, "perform_login_and_logout", return_value=False)
+    def test_post_invalid_credentials(self, mock_method):
+        """
+        If login check fails, a failure message should be displayed,
+        but credentials are still saved in the model (by design).
+        """
+        form_data = {"username": "invalid_user", "password": "wrong_pass"}
+        response = self.client.post(self.url, form_data, follow=True)
+
+        self.assertRedirects(response, reverse("user-list"))
+        messages_list = list(response.context["messages"])
+        self.assertTrue(any("Failed to verify GOA credentials" in str(msg) for msg in messages_list))
+
+        # Credentials are still saved (based on BaseLoginView logic).
+        login_obj = GOALogin.objects.get(user=self.user)
+        self.assertEqual(login_obj.username, "invalid_user")
+        self.assertEqual(login_obj.password, "wrong_pass")
+
+    def test_post_form_invalid(self):
+        """
+        If the form is invalid (missing fields), we expect no redirect,
+        and an error message from form_invalid().
+        """
+        # Missing password.
+        form_data = {"username": ""}
+        response = self.client.post(self.url, form_data)
+
+        # Should re-render the form with error message.
+        self.assertEqual(response.status_code, 200)
+        messages_list = list(response.context["messages"])
+        self.assertTrue(any("Failed to save GOA login information" in str(msg) for msg in messages_list))
+        # Ensure nothing was saved
+        self.assertFalse(GOALogin.objects.filter(user=self.user).exists())
+
+
+class TestAstroDatalabLoginView(TestCase):
+    """
+    Tests for the AstroDatalabLoginView, which inherits from BaseLoginView.
+    """
+
+    def setUp(self) -> None:
+        self.user = User.objects.create_user(username="testuser", password="secret")
+        self.client.login(username="testuser", password="secret")
+        self.url = reverse("user-astro-datalab-login", kwargs={"pk": self.user.pk})
+
+    def test_get_request_renders_form(self):
+        """
+        Ensure GET request renders the login form for AstroDatalab.
+        """
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "auth/login_form.html")
+        self.assertContains(response, "Astro Datalab")
+
+    @patch.object(AstroDatalabLoginView, "perform_login_and_logout", return_value=True)
+    def test_post_valid_credentials(self, mock_method):
+        """
+        Valid credentials, login passes -> success message, credentials stored.
+        """
+        form_data = {"username": "astro_user", "password": "astro_pass"}
+        response = self.client.post(self.url, form_data, follow=True)
+
+        self.assertRedirects(response, reverse("user-list"))
+        messages_list = list(response.context["messages"])
+        self.assertTrue(any("Astro Datalab login information verified" in str(msg) for msg in messages_list))
+
+        login_obj = AstroDatalabLogin.objects.get(user=self.user)
+        self.assertEqual(login_obj.username, "astro_user")
+        self.assertEqual(login_obj.password, "astro_pass")
+
+    @patch.object(AstroDatalabLoginView, "perform_login_and_logout", return_value=False)
+    def test_post_invalid_credentials(self, mock_method):
+        """
+        Invalid credentials -> failure message, but credentials still saved by design.
+        """
+        form_data = {"username": "bad_user", "password": "bad_pass"}
+        response = self.client.post(self.url, form_data, follow=True)
+
+        self.assertRedirects(response, reverse("user-list"))
+        messages_list = list(response.context["messages"])
+        self.assertTrue(any("Failed to verify Astro Datalab credentials" in str(msg) for msg in messages_list))
+
+        login_obj = AstroDatalabLogin.objects.get(user=self.user)
+        self.assertEqual(login_obj.username, "bad_user")
+        self.assertEqual(login_obj.password, "bad_pass")
+
+    def test_post_form_invalid(self):
+        """
+        Form invalid for Astro Datalab -> re-renders with an error, no credentials saved.
+        """
+        form_data = {"username": ""}
+        response = self.client.post(self.url, form_data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(any("Failed to save Astro Datalab login information" in str(msg)
+                            for msg in response.context["messages"]))
+        self.assertFalse(AstroDatalabLogin.objects.filter(user=self.user).exists())

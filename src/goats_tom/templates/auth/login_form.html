@@ -1,14 +1,19 @@
 {% extends 'tom_common/base.html' %}
-{% block title %}GOA Login Information{% endblock %}
+{% block title %}{{ service_name }} Login Information{% endblock %}
 {% block content %}
 <div class="mb-3">
-  <p class="h2">Manage GOA Login</p>
+  <p class="h2">Manage {{ service_name }} Login</p>
+  {% if service_description %}
+  <p class="mb-3">
+    {{ service_description }}
+  </p>
+  {% endif %}
   <p class="mb-0">
     User: <code>{{ user.username }}</code>
   </p>
 </div>
 <div class="alert alert-danger" role="alert">
-  <strong>Important:</strong> This information will be securely stored and used for GOA queries. Do not share your GOA login credentials.
+  <strong>Important:</strong> This information will be securely stored. Do not share your {{ service_name }} login credentials.
 </div>
 <hr />
 
@@ -23,7 +28,7 @@
     {{ form.password }}
   </div>
 
-  <input type="submit" value="Save GOA Login" class="btn btn-primary">
+  <input type="submit" value="Save {{ service_name }} Login" class="btn btn-primary">
 </form>
 
 {% endblock %}

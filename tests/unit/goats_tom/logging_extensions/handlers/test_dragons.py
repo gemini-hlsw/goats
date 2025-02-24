@@ -3,7 +3,7 @@
 import logging
 from unittest import TestCase, mock
 
-from goats_tom.logging.handlers import DRAGONSHandler
+from goats_tom.logging_extensions.handlers import DRAGONSHandler
 
 
 class TestDRAGONSHandler(TestCase):
@@ -12,7 +12,7 @@ class TestDRAGONSHandler(TestCase):
     def setUp(self):
         # Patch the get_channel_layer to return a mock.
         self.patcher = mock.patch(
-            "goats_tom.logging.handlers.dragons.get_channel_layer",
+            "goats_tom.logging_extensions.handlers.dragons.get_channel_layer",
         )
         self.mock_get_channel_layer = self.patcher.start()
         self.mock_channel_layer = mock.Mock()

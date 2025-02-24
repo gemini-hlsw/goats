@@ -1,0 +1,39 @@
+{% extends "tom_common/base.html" %}
+{% load static %}
+{% block content %}
+<div class="row g-3 justify-content-center">
+  <div class="col-12">
+    <h2>Astro Datalab and GOATS</h2>
+  </div>
+  <div class="col-12">
+    <p>
+      GOATS can integrate with your Astro Datalab account, allowing data products from
+      GOATS to be sent directly to your Astro Datalab storage.
+    </p>
+    <p>
+      To enable this, you need to link your Astro Datalab account by providing your
+      credentials. You can do this by visiting the following link:
+    </p>
+    <p>
+      <a href="{% url 'user-astro-datalab-login' pk=user.pk %}">
+        Link your Astro Datalab account
+      </a>
+    </p>
+    <p>
+      Once linked, after adding a Target, you can use the
+      <strong>"Manage Data"</strong> tab and click the <strong>"Actions"</strong>
+      button next to each data product to send files to Astro Datalab.
+    </p>
+  </div>
+  <hr>
+  <div class="col-8 text-center">
+    <p>Click the image to open the Astro Datalab portal.</p>
+    <a href="https://datalab.noirlab.edu/" target="_blank">
+      <img
+        src="{% static 'img/astro-datalab.png' %}"
+        class="img-fluid"
+        alt="Astro Datalab" />
+    </a>
+  </div>
+</div>
+{% endblock %}
