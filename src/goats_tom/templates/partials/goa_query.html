@@ -88,17 +88,19 @@
     <input type="hidden" name="facility" value="{{ object.facility }}">
     <div class="row">
       <div class="col text-center">
-        <button 
-          type="submit" 
-          class="btn btn-primary"
-          {% if object.status.lower != "observed" %} disabled {% endif %}
-        >
-          {% if object.status.lower != "observed" %}
-            Observation incomplete. Update status to enable.
-          {% else %}
+        {% if object.status.lower != "observed" %}
+          <a 
+            href="{% url 'targets:detail' pk=object.target.id %}?update_status=True"
+            title="Update status of observations for target"
+            class="btn btn-primary"
+          >
+            Observation incomplete. Click to update status.
+          </a>
+        {% else %}
+          <button type="submit" class="btn btn-primary">
             Submit
-          {% endif %}
-        </button>
+          </button>
+        {% endif %}
       </div>
     </div>
   </form>

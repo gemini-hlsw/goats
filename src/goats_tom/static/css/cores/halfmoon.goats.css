@@ -476,6 +476,11 @@ select.form-control[multiple] {
   overflow-y: auto;
 }
 
+.custom-tooltip {
+  overflow-y: auto;
+  max-height: 400px;
+}
+
 .goat-spinner {
   display: inline-block;
   animation: spin 2s linear infinite;

@@ -421,6 +421,7 @@ class RecipeReductionTemplate {
     infoButton.setAttribute("data-bs-placement", "top");
     infoButton.setAttribute("data-bs-html", "true");
     infoButton.setAttribute("data-bs-title", "Set Parameter Values");
+    infoButton.setAttribute("data-bs-custom-class", "custom-tooltip");
     infoButton.setAttribute(
       "data-bs-content",
       `

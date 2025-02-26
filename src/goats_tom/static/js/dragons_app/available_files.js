@@ -112,10 +112,12 @@ class AvailableFilesTemplate {
     infoButton.setAttribute("data-bs-placement", "top");
     infoButton.setAttribute("data-bs-html", "true");
     infoButton.setAttribute("data-bs-title", "Filtering Files");
+    infoButton.setAttribute("data-bs-custom-class", "custom-tooltip");
     infoButton.setAttribute(
       "data-bs-content",
       `
     <p>Filtering helps with the bookkeeping and creating lists of input files to feed to the reduction. Whatever files are displayed after filtering and checked will be used in the reduction process.</p>
+    <p>Use the <strong>astrodata descriptors</strong> as filtering keywords with desired values. To see available descriptors, click on the <strong>Header</strong> option under the <strong>View</strong> drop-down menu for any given file.</p>
     <p>Supported Logical Operators (case sensitive):</p>
     <ul>
       <li><code>and</code></li>
@@ -283,6 +285,7 @@ class AvailableFilesTemplate {
     infoButton.setAttribute("data-bs-toggle", "popover");
     infoButton.setAttribute("data-bs-placement", "top");
     infoButton.setAttribute("data-bs-html", "true");
+    infoButton.setAttribute("data-bs-custom-class", "custom-tooltip");
     infoButton.setAttribute("data-bs-title", "Access All Files for This Observation");
     infoButton.setAttribute(
       "data-bs-content",
