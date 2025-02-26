@@ -7,7 +7,7 @@ from astropy.coordinates import SkyCoord
 from tom_catalogs.harvester import AbstractHarvester
 from tom_targets.models import BaseTarget
 
-from goats_tom.tns_client import TNSClient
+from goats_tom.tns import TNSClient
 
 
 class TNSHarvester(AbstractHarvester):

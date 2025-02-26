@@ -1,0 +1,1 @@
+Refactored GitHub workflows to run on PR and merge to main.

@@ -1,9 +1,13 @@
 name: Run JS Tests
 on:
-  push:
+  pull_request:
     paths:
       - "src/goats_tom/static/js/**/*.js"
       - "js_tests/**/*.js"
+
+  push:
+    branches:
+      - main
 
 jobs:
   run_js_tests:

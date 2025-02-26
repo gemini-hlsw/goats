@@ -1,9 +1,13 @@
 name: Run HTMLHint
 
 on:
-  push:
+  pull_request:
     paths:
       - "src/goats_tom/templates/**/*.html"
+
+  push:
+    branches:
+      - main
 
 jobs:
   run_htmlhint:

@@ -17,7 +17,7 @@
           <th>Email</th>
           <th>Admin</th>
           <th>GOA Login</th>
-          <th>Astro Datalab Login</th>
+          <th>Astro Data Lab Login</th>
           <th>Gemini Keys</th>
           {% if request.user.is_superuser %}
           <th>Token</th>
@@ -41,7 +41,7 @@
             >
           </td>
           <td>
-            <a href="{% url 'user-astro-datalab-login' user.id %}" class="btn btn-primary"
+            <a href="{% url 'user-astro-data-lab-login' user.id %}" class="btn btn-primary"
               >Store</a
             >
           </td>

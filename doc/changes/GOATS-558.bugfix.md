@@ -1,0 +1,1 @@
+Fixed test slowdown bug: Resolved issue causing excessive test execution time when querying DRAGONS version.

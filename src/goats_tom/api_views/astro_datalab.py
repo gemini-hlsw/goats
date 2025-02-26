@@ -4,8 +4,6 @@ __all__ = ["AstroDatalabViewSet"]
 
 from django.contrib.auth.models import User
 from django.http import HttpRequest
-from dl import authClient as ac
-from dl import storeClient as sc
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, mixins
@@ -74,6 +72,10 @@ class AstroDatalabViewSet(GenericViewSet, mixins.CreateModelMixin):
         ValueError
             Raised if authentication fails or an error occurs during file upload.
         """
+        # Lazy import to avoid creating .datalab dir collision.
+        from dl import authClient as ac
+        from dl import storeClient as sc
+
         astro_datalab_login = user.astrodatalablogin
         token = ac.login(astro_datalab_login.username, astro_datalab_login.password)
         if not ac.isValidToken(token):

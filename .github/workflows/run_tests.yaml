@@ -1,10 +1,13 @@
 name: Run Tests
 
 on:
-  push:
+  pull_request:
     paths:
       - "src/**/*.py"
       - "tests/unit/**/*.py"
+  push:
+    branches:
+      - main
 
 jobs:
   run_tests:
@@ -60,4 +63,9 @@ jobs:
       - name: Run tests and calculate coverage
         run: |
           cd goats
-          pytest -r A -v -n auto --cov=src --cov-report=term --cov=tests --cov-branch
+          pytest -r A -v -n auto --cov=src --cov-report=xml --cov=tests --cov-branch
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

@@ -4,9 +4,9 @@
   <div class="col-12">
     <div class="alert alert-info" role="alert">
       You can <strong>view files in JS9</strong> or
-      <strong>send them to Astro DataLab</strong> using the "Actions" dropdown. To send
+      <strong>send them to Astro Data Lab</strong> using the "Actions" dropdown. To send
       files, make sure your
-      <a href="{% url 'user-list' %}" class="alert-link">Astro DataLab credentials</a>
+      <a href="{% url 'user-list' %}" class="alert-link">Astro Data Lab credentials</a>
       are set up.
     </div>
   </div>
@@ -67,7 +67,7 @@
                       type="button"
                       class="dropdown-item"
                       data-action="astroDatalab">
-                      Send to Astro Datalab
+                      Send to Astro Data Lab
                     </button>
                   </li>
                 </ul>
@@ -238,9 +238,9 @@
       });
       if (!response.ok || response.status !== 201) {
         const data = await response.json();
-        throw new Error(`Sending to Astro Datalab failed: ${data.detail}`);
+        throw new Error(`Sending to Astro Data Lab failed: ${data.detail}`);
       }
-      // Successfully sent to Astro DataLab.
+      // Successfully sent to Astro Data Lab.
       const data = await response.json();
       console.log("Success:", data);
     };

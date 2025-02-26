@@ -39,7 +39,7 @@ router.register(r"astrodatalab", api_views.AstroDatalabViewSet, basename="astrod
 # TODO: Make unified path formats.
 
 urlpatterns = [
-    path("astro-datalab/", views.AstroDatalabView.as_view(), name="astro-datalab"),
+    path("astro-data-lab/", views.AstroDatalabView.as_view(), name="astro-data-lab"),
     path("api/", include(router.urls)),
     path(
         "targets/<int:pk>/delete/",
@@ -83,9 +83,9 @@ urlpatterns = [
         name="user-goa-login",
     ),
     path(
-        "users/<int:pk>/astro_datalab/",
+        "users/<int:pk>/astro-data-lab/",
         views.AstroDatalabLoginView.as_view(),
-        name="user-astro-datalab-login",
+        name="user-astro-data-lab-login",
     ),
     path("goa_query/<int:pk>/", views.GOAQueryFormView.as_view(), name="goa_query"),
     path("api/ongoing-tasks/", views.ongoing_tasks, name="ongoing_tasks"),

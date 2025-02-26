@@ -13,11 +13,12 @@ from tom_targets.tests.factories import SiderealTargetFactory
 class TestDRAGONSRunViewSet(APITestCase):
     """Class to test the `DRAGONSRun` API View."""
 
-    def setUp(self):
-        self.factory = APIRequestFactory()
-        self.user = UserFactory()
-        self.list_view = DRAGONSRunsViewSet.as_view({"get": "list", "post": "create"})
-        self.detail_view = DRAGONSRunsViewSet.as_view(
+    @classmethod
+    def setUpTestData(cls):
+        cls.factory = APIRequestFactory()
+        cls.user = UserFactory()
+        cls.list_view = DRAGONSRunsViewSet.as_view({"get": "list", "post": "create"})
+        cls.detail_view = DRAGONSRunsViewSet.as_view(
             {"get": "retrieve", "delete": "destroy"},
         )
 

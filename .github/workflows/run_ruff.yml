@@ -1,8 +1,12 @@
 name: Run Ruff
 on:
-  push:
+  pull_request:
     paths:
       - "**/*.py"
+  push:
+    branches:
+      - main
+
 jobs:
   run_ruff:
     runs-on: ubuntu-latest

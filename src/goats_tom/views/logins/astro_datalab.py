@@ -6,22 +6,22 @@ from .base import BaseLoginView
 
 
 class AstroDatalabLoginView(BaseLoginView):
-    service_name = "Astro Datalab"
+    service_name = "Astro Data Lab"
     service_description = (
-        "Provide your Astro Datalab login to enable pushing GOATS data products "
-        "to your Astro Datalab account."
+        "Provide your Astro Data Lab login to enable pushing GOATS data products "
+        "to your Astro Data Lab account."
     )
     model_class = AstroDatalabLogin
 
     def perform_login_and_logout(self, username: str, password: str) -> bool:
-        """Perform Astro Datalab login and logout checks.
+        """Perform Astro Data Lab login and logout checks.
 
         Parameters
         ----------
         username : `str`
-            The Astro Datalab username.
+            The Astro Data Lab username.
         password : `str`
-            The Astro Datalab password.
+            The Astro Data Lab password.
 
         Returns
         -------

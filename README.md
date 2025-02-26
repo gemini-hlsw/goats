@@ -2,6 +2,7 @@
 
 [![Run Ruff](https://github.com/gemini-hlsw/goats/actions/workflows/run_ruff.yml/badge.svg?event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_ruff.yml)
 [![Run Tests](https://github.com/gemini-hlsw/goats/actions/workflows/run_tests.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_tests.yaml)
+[![Code Coverage](https://codecov.io/github/gemini-hlsw/goats/branch/main/graph/badge.svg?token=QXC18C4T93)](https://codecov.io/github/gemini-hlsw/goats)
 [![Run HTMLHint](https://github.com/gemini-hlsw/goats/actions/workflows/run_htmlhint.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_htmlhint.yaml)
 [![Run StyleLint](https://github.com/gemini-hlsw/goats/actions/workflows/run_stylelint.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_stylelint.yaml)
 [![Run JS Tests](https://github.com/gemini-hlsw/goats/actions/workflows/run_js_tests.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_js_tests.yaml)

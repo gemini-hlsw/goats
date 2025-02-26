@@ -1,0 +1,1 @@
+Added code coverage badge to README and refactored pull request template.

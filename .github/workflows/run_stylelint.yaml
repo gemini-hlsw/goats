@@ -1,9 +1,12 @@
 name: Run StyleLint
 
 on:
-  push:
+  pull_request:
     paths:
       - "src/**/*.css"
+  push:
+    branches:
+      - main
 
 jobs:
   run_stylelint:
