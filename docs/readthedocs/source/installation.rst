@@ -40,11 +40,11 @@ To install Miniforge, `download the appropriate installer for your system <https
 +--------------------------+--------------------------------------------------+
 | **Operating System**     | **Installation Command**                         |
 +==========================+==================================================+
-| **Linux**                | ``$ sh Miniforge3-Linux-x86_64.sh``            |
+| **Linux**                | ``$ sh Miniforge3-Linux-x86_64.sh``              |
 +--------------------------+--------------------------------------------------+
-| **macOS (Intel)**        | ``$ sh Miniforge3-MacOSX-x86_64.sh``           |
+| **macOS (Intel)**        | ``$ sh Miniforge3-MacOSX-x86_64.sh``             |
 +--------------------------+--------------------------------------------------+
-| **macOS (M1/M2 ARM)**    | ``$ sh Miniforge3-MacOSX-arm64.sh``            |
+| **macOS (M1/M2 ARM)**    | ``$ sh Miniforge3-MacOSX-arm64.sh``              |
 +--------------------------+--------------------------------------------------+
 | **Windows (WSL)**        | See :ref:`Windows with WSL <installing_wsl>`     |
 +--------------------------+--------------------------------------------------+
