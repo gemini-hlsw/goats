@@ -16,11 +16,27 @@
           <th>Name</th>
           <th>Email</th>
           <th>Admin</th>
-          <th>GOA Login</th>
-          <th>Astro Data Lab Login</th>
-          <th>Gemini Keys</th>
+          <th>
+            Credential Manager
+            <a
+              class="link-primary ms-1"
+              type="button"
+              tabindex="0"
+              data-bs-toggle="popover"
+              data-bs-placement="top"
+              data-bs-trigger="focus"
+              data-bs-html="true"
+              data-bs-title="Credential Manager"
+              data-bs-content='
+      <ul class="mb-0">
+       <li>Store and manage credentials for <strong>GOA, Astro Data Lab, Gemini OCS</strong>, and other linked services.</li>
+       <li>If an admin, generate authentication tokens for the browser extension.</li>
+       <li>Click <strong>"Manage"</strong> in the table to add, update, or retrieve credentials.</li>
+      </ul>'
+              ><i class="fa-solid fa-circle-info"></i
+            ></a>
+          </th>
           {% if request.user.is_superuser %}
-          <th>Token</th>
           <th>Edit</th>
           <th>Change Password</th>
           <th>Delete</th>
@@ -36,44 +52,60 @@
           <td>{{ user.email }}</td>
           <td>{% if user.is_superuser %} yes {% endif %}</td>
           <td>
-            <a href="{% url 'user-goa-login' user.id %}" class="btn btn-primary"
-              >Store</a
-            >
-          </td>
-          <td>
-            <a href="{% url 'user-astro-data-lab-login' user.id %}" class="btn btn-primary"
-              >Store</a
-            >
-          </td>
-          <td>
-            <a href="{% url 'manage-keys' user.id %}" class="btn btn-primary"
-              >Manage</a
-            >
+            <div class="dropdown">
+              <button
+                class="btn btn-secondary dropdown-toggle"
+                type="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false">
+                Manage
+              </button>
+              <ul class="dropdown-menu">
+                <li><h6 class="dropdown-header">Store</h6></li>
+                <li>
+                  <a href="{% url 'user-goa-login' user.id %}" class="dropdown-item"
+                    >GOA</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="{% url 'user-astro-data-lab-login' user.id %}"
+                    class="dropdown-item"
+                    >Astro Data Lab</a
+                  >
+                </li>
+                <li>
+                  <a href="{% url 'manage-keys' user.id %}" class="dropdown-item"
+                    >Gemini OCS</a
+                  >
+                </li>
+                {% if request.user.is_superuser %}
+                <li><hr class="dropdown-divider" /></li>
+                <li><h6 class="dropdown-header">Generate</h6></li>
+                <li>
+                  <a
+                    href="{% url 'user-generate-token' user.id %}"
+                    class="dropdown-item"
+                    >antares2goats</a
+                  >
+                </li>
+                {% endif %}
+              </ul>
+            </div>
           </td>
           {% if request.user.is_superuser %}
           <td>
-            <a
-              href="{% url 'user-generate-token' user.id %}"
-              class="btn btn-primary"
-              >Generate</a
-            >
-          </td>
-          <td>
-            <a href="{% url 'user-update' user.id %}" class="btn btn-primary"
-              >Edit</a
-            >
+            <a href="{% url 'user-update' user.id %}" class="btn btn-primary">Edit</a>
           </td>
           <td>
             <a
               href="{% url 'admin-user-change-password' user.id %}"
-              class="btn btn-primary"
+              class="btn btn-secondary"
               >Change</a
             >
           </td>
           <td>
-            <a href="{% url 'user-delete' user.id %}" class="btn btn-danger"
-              >Delete</a
-            >
+            <a href="{% url 'user-delete' user.id %}" class="btn btn-danger">Delete</a>
           </td>
           {% endif %}
         </tr>
@@ -82,3 +114,10 @@
     </table>
   </div>
 </div>
+<script>
+  // Initialize popovers.
+  const popoverTriggerList = document.querySelectorAll("[data-bs-toggle='popover']");
+  const popoverList = [...popoverTriggerList].map(
+    (popoverTriggerEl) => new bootstrap.Popover(popoverTriggerEl)
+  );
+</script>

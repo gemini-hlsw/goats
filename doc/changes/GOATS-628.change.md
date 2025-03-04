@@ -1,1 +1,0 @@
-iframe support for Astro Data Lab: Replaced static image link with an iframe to display the most recent version of the Astro Data Lab webpage. Added a failsafe text link for accessibility.

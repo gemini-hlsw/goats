@@ -1,3 +1,48 @@
+## GOATS 25.2.2 (2025-02-28)
+
+
+### New Features
+
+- Created GitHub Pages for project: Set up a GitHub Pages site for GOATS to host documentation and Conda packages. [[#GOATS-648](https://noirlab.atlassian.net/browse/GOATS-648)]
+- Added barebones content for GitHub Pages: Added initial HTML structure, Bootstrap styling, and essential links. [[#GOATS-649](https://noirlab.atlassian.net/browse/GOATS-649)]
+- Created an empty Conda channel: Prepared `gh-pages/conda/` for hosting Conda packages with `conda index`. [[#GOATS-650](https://noirlab.atlassian.net/browse/GOATS-650)]
+
+## GOATS 25.2.1 (2025-02-27)
+
+
+### New Features
+
+- Included tooltips to explain "Create Groupings" and "Use All Files for Observation ID" in the DRAGONS app. [[#GOATS-561](https://noirlab.atlassian.net/browse/GOATS-561)]
+- Add DRAGONS docs link: Linked to the DRAGONS documentation based on the installed version in the reduction app. Defaults to the base documentation if no version is found. [[#GOATS-562](https://noirlab.atlassian.net/browse/GOATS-562)]
+- Open browser on GOATS start: GOATS now opens in the default browser when launched. Users can specify a browser via CLI, and if none is given, the system default is used. [[#GOATS-587](https://noirlab.atlassian.net/browse/GOATS-587)]
+- Added model for encrypted Astro Datalab credentials. [[#GOATS-610](https://noirlab.atlassian.net/browse/GOATS-610)]
+- Extend user page: Added form to store and validate Astro Datalab credentials. Users receive feedback on whether their credentials are correct. [[#GOATS-611](https://noirlab.atlassian.net/browse/GOATS-611)]
+- Build UI for sending files: Implemented UI for sending data files to Astro Datalab in the "Manage Data" tab in the target view. Added a dropdown menu for actions. Placeholder made for async API calls. [[#GOATS-612](https://noirlab.atlassian.net/browse/GOATS-612)]
+- Added API backend for Astro Datalab: Allowed users to send data files to Astro Datalab with their credentials. [[#GOATS-613](https://noirlab.atlassian.net/browse/GOATS-613)]
+- Linked UI with backend to send files to Astro Datalab. Updated the interface to show a process indicator during file transfer and provide feedback on success or failure. [[#GOATS-623](https://noirlab.atlassian.net/browse/GOATS-623)]
+- Created Astro Datalab landing page: Added a new Astro Datalab page with an associated Django view. [[#GOATS-624](https://noirlab.atlassian.net/browse/GOATS-624)]
+- Added pytest code coverage reporting. [[#GOATS-626](https://noirlab.atlassian.net/browse/GOATS-626)]
+- Added code coverage badge to README and refactored pull request template. [[#GOATS-630](https://noirlab.atlassian.net/browse/GOATS-630)]
+- Migrated ReadTheDocs to main repo: Transferred documentation from the `goats-docs` repository to the GOATS main repository for centralized management. [[#GOATS-635](https://noirlab.atlassian.net/browse/GOATS-635)]
+
+
+### Changes
+
+- Disable GOA query for incomplete observations: Prevented users from submitting a GOA query if the observation status was not "Observed". Added a backend check to issue a warning if the restriction is bypassed. [[#GOATS-192](https://noirlab.atlassian.net/browse/GOATS-192)]
+- Added last modified timestamp: Processed files in the DRAGONS app now include a last modified timestamp. [[#GOATS-560](https://noirlab.atlassian.net/browse/GOATS-560)]
+- Improve target name handling: Long target names now scroll instead of breaking the layout. Edit and delete buttons are now in a separate div for better responsiveness. [[#GOATS-563](https://noirlab.atlassian.net/browse/GOATS-563)]
+- Updated dependencies: Upgraded to the latest tomtoolkit release, refactored pyproject.toml, and removed redundant code now included in tomtoolkit. [[#GOATS-596](https://noirlab.atlassian.net/browse/GOATS-596)]
+- Refactored test infrastructure: Separated tests and optimized execution. [[#GOATS-625](https://noirlab.atlassian.net/browse/GOATS-625)]
+- iframe support for Astro Data Lab: Replaced static image link with an iframe to display the most recent version of the Astro Data Lab webpage. Added a failsafe text link for accessibility. [[#GOATS-628](https://noirlab.atlassian.net/browse/GOATS-628)]
+- iframe support for ANTARES: Replaced static image link with an iframe to display the most recent version of the ANTARES webpage. Added a failsafe text link for accessibility. [[#GOATS-629](https://noirlab.atlassian.net/browse/GOATS-629)]
+- Refactored GitHub workflows to run on PR and merge to main. [[#GOATS-631](https://noirlab.atlassian.net/browse/GOATS-631)]
+
+
+### Bug Fixes
+
+- Fixed test slowdown bug: Resolved issue causing excessive test execution time when querying DRAGONS version. [[#GOATS-558](https://noirlab.atlassian.net/browse/GOATS-558)]
+- Corrected typo in Astro Data Lab name. [[#GOATS-627](https://noirlab.atlassian.net/browse/GOATS-627)]
+
 ## GOATS 25.1.1 (2025-01-30)
 
 

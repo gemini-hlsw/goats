@@ -1,1 +1,0 @@
-iframe support for ANTARES: Replaced static image link with an iframe to display the most recent version of the ANTARES webpage. Added a failsafe text link for accessibility.

@@ -1,1 +1,0 @@
-Add DRAGONS docs link: Linked to the DRAGONS documentation based on the installed version in the reduction app. Defaults to the base documentation if no version is found.

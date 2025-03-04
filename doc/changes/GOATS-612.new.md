@@ -1,1 +1,0 @@
-Build UI for sending files: Implemented UI for sending data files to Astro Datalab in the "Manage Data" tab in the target view. Added a dropdown menu for actions. Placeholder made for async API calls.

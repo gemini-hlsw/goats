@@ -1,1 +1,0 @@
-Corrected typo in Astro Data Lab name.

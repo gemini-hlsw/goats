@@ -1,5 +1,5 @@
 # 🐐 Gemini Observation and Analysis of Targets System (GOATS)
-
+![Docs Status](https://readthedocs.org/projects/goats/badge/?version=latest)
 [![Run Ruff](https://github.com/gemini-hlsw/goats/actions/workflows/run_ruff.yml/badge.svg?event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_ruff.yml)
 [![Run Tests](https://github.com/gemini-hlsw/goats/actions/workflows/run_tests.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_tests.yaml)
 [![Code Coverage](https://codecov.io/github/gemini-hlsw/goats/branch/main/graph/badge.svg?token=QXC18C4T93)](https://codecov.io/github/gemini-hlsw/goats)
@@ -12,10 +12,13 @@ This is an end-to-end integrated system for time-domain and multimesseneger astr
 Its objective is to simplify the TDAMM workflow for users by serving as a one-stop shop for all the follow-up needs. To this end, it will integrate the various TDAMM services of Gemini Observatory and the larger NOIRLab organization.
 
 <img
-  src="doc/graphics/goats_with_lab.jpg"
+  src="docs/graphics/goats_with_lab.jpg"
   alt="Schematic of GOATS"
   title="Ecosystem of GOATS"
   style="display: inline-block; margin: 0 auto; max-width: 400px">
+
+## Documentation
+For detailed information on installation, configuration, and usage, visit the **[GOATS documentation](https://goats.readthedocs.io/en/latest/)**.
 
 ## System Requirements
 - Python 3.10 or higher
@@ -162,3 +165,5 @@ $ echo never > /sys/kernel/mm/transparent_hugepage/enabled
 
 - [GOATS Confluence](https://noirlab.atlassian.net/wiki/spaces/GOATS/overview)
 - [GOATS Jira Board](https://noirlab.atlassian.net/jira/software/projects/GOATS/boards/57)
+- [GOATS Documentation](https://goats.readthedocs.io/en/latest/)
+

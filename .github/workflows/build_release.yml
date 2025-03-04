@@ -6,6 +6,10 @@ on:
       version:
         description: "Release version"
         required: true
+      branch:
+        description: "Branch to build from"
+        required: false
+        default: "main"
 
 jobs:
   release:
@@ -15,7 +19,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Ensure we have full history to manipulate tags.
+          fetch-depth: 0
+          ref: ${{ inputs.branch }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -31,7 +36,7 @@ jobs:
         run: |
           towncrier build --draft --version "${{ inputs.version }}" > draft_release_notes.md
 
-      - name: Generate release notes with Towncrier
+      - name: Generate final release notes with Towncrier
         run: |
           towncrier build --version "${{ inputs.version }}" --yes
 
@@ -45,11 +50,18 @@ jobs:
 
       - name: Commit updated changelog
         run: |
+          set -e
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGES.md pyproject.toml environment.yml
-          git commit -m "Update version to ${{ inputs.version }} and generate release notes."
-          git push origin main
+          git add pyproject.toml environment.yml
+
+          # Ensure CHANGES.md exists before adding it
+          if [ -f CHANGES.md ]; then
+            git add CHANGES.md
+          fi
+
+          git commit -m "Update version to ${{ inputs.version }} and generate release notes." || echo "No changes to commit."
+          git push origin ${{ inputs.branch }}
 
       - name: Create tag
         run: |

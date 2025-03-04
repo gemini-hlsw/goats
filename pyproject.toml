@@ -38,7 +38,7 @@ dependencies = [
     "dramatiq-abort>=1.1.0",
     "numpydoc>=1.7.0,<2",
 ]
-version = "25.1.1"
+version = "25.2.2"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
@@ -81,12 +81,12 @@ addopts = "-r A -v -n auto --cov=src --cov-report=term --cov=tests --cov-branch"
 version = ""
 package_dir = "goats"
 filename = "CHANGES.md"
-directory = "doc/changes"
+directory = "docs/changes"
 start_string = "<!-- towncrier release notes start -->\n"
 underlines = ["", "", ""]
 title_format = "## GOATS {version} ({project_date})"
 issue_format = "[[#{issue}](https://noirlab.atlassian.net/browse/{issue})]"
-template = "doc/changes/template.jinja"
+template = "docs/changes/template.jinja"
 [[tool.towncrier.type]]
 directory = "new"
 name = "New Features"
@@ -109,7 +109,7 @@ name = "Other"
 showcontent = true
 
 [tool.ruff]
-extend-exclude = ["src/goats_tom/migrations", "tests", "src/goats_tom/facilities/gemini.py", "src/goats_tom/tests/settings.py", "src/goats_tom/tests/urls.py"]
+extend-exclude = ["src/goats_tom/migrations", "tests", "src/goats_tom/facilities/gemini.py", "src/goats_tom/tests/settings.py", "src/goats_tom/tests/urls.py", "docs"]
 target-version = "py310"
 
 [tool.ruff.lint]

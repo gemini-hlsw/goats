@@ -30,7 +30,3 @@ dependencies:
 
   # For development, use clone the GOATS repo and "pip install -e ." or
   # for tests, install with "pip install -e '.[test]'".
-
-  # Uncomment the below lines to install from GitHub (requires repo access).
-  # - pip:
-  #   - git+https://github.com/gemini-hlsw/goats.git

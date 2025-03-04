@@ -1,1 +1,0 @@
-Disable GOA query for incomplete observations: Prevented users from submitting a GOA query if the observation status was not "Observed". Added a backend check to issue a warning if the restriction is bypassed.
