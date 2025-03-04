@@ -10,9 +10,7 @@ authors = [
     { name = "Dan Avner", email = "dan.avner@noirlab.edu" },
     { name = "Monika Soraisam", email = "monika.soraisam@noirlab.edu" },
 ]
-maintainers = [
-    { name = "GOATS Team", email = "goats@noirlab.edu" },
-]
+maintainers = [{ name = "GOATS Team", email = "goats@noirlab.edu" }]
 classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
@@ -56,8 +54,9 @@ test = [
     "pytest-asyncio",
     "factory_boy",
     "pytest-remotedata",
-    "ruff"
+    "ruff",
 ]
+docs = ["sphinx", "sphinx-rtd-theme", "sphinxcontrib-video", "sphinx-autobuild"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -109,7 +108,14 @@ name = "Other"
 showcontent = true
 
 [tool.ruff]
-extend-exclude = ["src/goats_tom/migrations", "tests", "src/goats_tom/facilities/gemini.py", "src/goats_tom/tests/settings.py", "src/goats_tom/tests/urls.py", "docs"]
+extend-exclude = [
+    "src/goats_tom/migrations",
+    "tests",
+    "src/goats_tom/facilities/gemini.py",
+    "src/goats_tom/tests/settings.py",
+    "src/goats_tom/tests/urls.py",
+    "docs",
+]
 target-version = "py310"
 
 [tool.ruff.lint]
@@ -125,4 +131,3 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
-

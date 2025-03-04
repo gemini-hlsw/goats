@@ -2,118 +2,165 @@
 
 .. _install:
 
+############
 Installation
-============
+############
 
-Upon beta release, GOATS will be distributed as a conda package. 
-
+GOATS is designed to be run **locally**. As of now, there are no plans for a dedicated central server hosting GOATS. All installations should be performed on your local machine following the steps outlined below.
 
 System Requirements
--------------------
+===================
+
 * Python 3.10 or higher
-* Conda 
+* Conda (Miniforge)
+* Supported Operating Systems:
 
-We recommend using **Miniforge** for conda. However, if you already have Miniconda or Anaconda installed, those will work as well.  
+  - Linux
+  - macOS (Intel & ARM)
+  - Windows with WSL (Windows Subsystem for Linux)
+* Supported Browsers:
 
-To install Miniforge, follow the instructions `here <https://conda-forge.org/download/>`_. Download the appropriate installer for your system, then open a terminal and run the following:
+  - Chrome
+  - Chromium-based browsers
+  - Firefox
 
-.. code-block:: console
+.. note::
 
-   $ bash Miniforge3-$(uname)-$(uname -m).sh
+   If you already have Anaconda or Miniconda installed, then you can go directly to the :ref:`Installing GOATS <installing_goats>` section below. 
+  
+   Otherwise we recommend installing Miniforge. Miniforge defaults to using the community-driven **Conda-Forge** repository, which provides more up-to-date and widely maintained packages. Additionally, Anaconda/Miniconda enforces licensing restrictions for commercial use. Miniforge does not have such restrictions, thus making it a more flexible and widely accepted alternative.
 
-(``$`` indicates the terminal prompt)
+.. _installing_miniforge:
 
-Replace `Miniforge3-$(uname)-$(uname -m).sh` with the actual file name you downloaded.  
+Installing Miniforge
+====================
+
+To install Miniforge, `download the appropriate installer for your system <https://conda-forge.org/download/>`_ and follow the instructions below.
+
+**Choose the correct installer for your system:**
+
++--------------------------+--------------------------------------------------+
+| **Operating System**     | **Installation Command**                         |
++==========================+==================================================+
+| **Linux**                | ``$ sh Miniforge3-Linux-x86_64.sh``              |
++--------------------------+--------------------------------------------------+
+| **macOS (Intel)**        | ``$ sh Miniforge3-MacOSX-x86_64.sh``             |
++--------------------------+--------------------------------------------------+
+| **macOS (M1/M2 ARM)**    | ``$ sh Miniforge3-MacOSX-arm64.sh``              |
++--------------------------+--------------------------------------------------+
+| **Windows (WSL)**        | See :ref:`Windows with WSL <installing_wsl>`     |
++--------------------------+--------------------------------------------------+
+
+After downloading the installer, open a terminal and run the command specific to your platform.
 
 We recommend **manual initialization of conda**. When prompted with:
 
-``Do you wish to update your shell profile to automatically initialize conda?``  
+``Do you wish to update your shell profile to automatically initialize conda?``
 
-answer **no**. After installation completes, run the following commands to manually initialize conda and verify the installation:
+answer **no**. After installation completes, manually initialize conda for your preferred shell:
 
 .. code-block:: console
 
-   $ ~/miniforge3/bin/conda init
+   $ ~/miniforge3/bin/conda init <shell>
+
+Replace ``<shell>`` with your shell of choice (e.g., ``bash``, ``zsh``, ``fish``).
+
+To verify the installation, run:
+
+.. code-block:: console
+
    $ which conda
 
-Ensure that `miniforge3` appears in the output of `which conda`.  
+Ensure that `miniforge3` appears in the output of `which conda`.
 
+.. _installing_goats:
 
+Installing GOATS
+================
 
-Workaround for ARM (M1/M2) Mac Users
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-If you’re using an Apple M1 or M2 system, follow these steps to ensure compatibility:  
+Follow the steps below to install GOATS across all supported platforms.
 
-1. Ensure `Rosetta 2` is installed to run Intel-based binaries. You can install it using:  
-
-   .. code-block:: console
-
-      $ softwareupdate --install-rosetta
-
-2. Install an x86 version of Miniforge.
-
-3. Use an x86 terminal for installing and running Intel-only packages like *DRAGONS*. To start an x86 terminal on ``zsh``, run:
+1. Create the GOATS conda environment:
 
    .. code-block:: console
 
-      $ arch -x86_64 zsh
+      $ conda create -n goats-env python=3.10 goats -c https://gemini-hlsw.github.io/goats/conda
+
+   .. note::
+      If the environment creation fails, it may be due to an outdated version of Conda. 
+      Upgrade to the latest version. If issues persist, consider reinstalling Conda by installing ``Miniforge`` as described :ref:`above <installing_miniforge>`.
+
+2. Activate the conda environment:
+
+   .. code-block:: console
+
+      $ conda activate goats-env
+
+3. Install and run GOATS:
+
+   .. code-block:: console
+
+      $ goats install
+      $ goats run
+
+   .. note::
+      For more details on the ``goats`` command, see :ref:`goats_cli`.
+
+   When executing ``goats install``, you will be prompted to create a username and password, which you will use to log into your GOATS interface.
+
+   The installation step will create a folder named **GOATS** in your current directory; you can specify a different parent directory by using the ``-d`` flag (see :ref:`goats_cli`).
+
+4. To close your GOATS interface, simply press ``Ctrl+C`` in the terminal.
+
+   .. note::
+      To open your GOATS interface the next time, execute:
+
+      .. code-block:: console
+
+         $ goats run -d /your/parent/directory/of/GOATS
+
+      within the conda environment you created for GOATS.
+
+5. When you are finished using GOATS, **deactivate the conda environment** by running:
+
+   .. code-block:: console
+
+      $ conda deactivate
 
 
-Switching Back to Default ARM Architecture
-------------------------------------------
+Platform-Specific Notes
+=======================
 
-Once you’re done with x86 tasks, you can switch back to macOS's default ARM architecture. Simply close the x86 terminal and open a new terminal window. The new terminal will default to ARM.
+.. _installing_wsl:
 
-To confirm your current architecture, run:
+Windows with WSL
+----------------
+
+GOATS **does not support native Windows installations** but can be run through **WSL (Windows Subsystem for Linux)**. To install WSL, `follow the official tutorial <https://learn.microsoft.com/en-us/windows/wsl/install>`_.
+
+Once WSL is installed, follow the Linux Miniforge installation instructions from :ref:`installing_miniforge` and proceed with :ref:`installing_goats`.
+
+.. _installing_macos_arm:
+
+Running GOATS on macOS (M1/M2 ARM)
+----------------------------------
+
+Currently, DRAGONS (one of the dependencies of GOATS) does not support macOS ARM architecture. To ensure compatibility, use the ARM version of Miniforge but include the ``--platform osx-64`` flag when creating the environment:
 
 .. code-block:: console
 
-   $ uname -m
+   $ conda create --platform osx-64 -n goats-env python=3.10 goats -c https://gemini-hlsw.github.io/goats/conda
 
-If the output is `arm64`, your terminal is running in ARM mode.
+This ensures that dependencies are installed in a way that maintains compatibility with required packages.
 
-Alternatively, if you want to switch back to ARM without closing the terminal, run:
-
-.. code-block:: console
-
-   $ arch -arm64 zsh
-
-This will start a new shell session in ARM mode.
-
-
-Install GOATS
--------------
-
-For alpha-testing GOATS, create a conda environment using the `environment.yaml` file included in the circulated email. 
-
-.. code-block:: console
-
-   $ conda env create -f environment.yml
-   
-.. note::
-   By the time of the beta release, GOATS will be available as a conda package and users will not need to work with a yaml file.   
-
-Activate the conda environment just created.
-
-.. code-block:: console
-
-   $ conda activate goats
-
-This environment contains the ``goats`` Command Line Interface (CLI), which you can use to spin up your own GOATS project/interface, as shown below. 
+Once the environment is created and activated, install and run GOATS normally:
 
 .. code-block:: console
 
    $ goats install
    $ goats run
 
-When executing ``goats install``, you will be prompted to create a username and password, which you will use to log into your GOATS interface. 
+Since the entire Conda environment is running under ``osx-64``, GOATS will always execute in ``x86`` mode automatically.
 
-The installation step will create a folder named **GOATS** in your current directory; you can specify a different parent directory by using the ``-d`` flag (see :ref:`goats_cli`). 
 
-To close your GOATS interface, simply press ``Ctrl+C`` in the terminal. 
-
-.. note::
-   To open your GOATS interface the next time, you will only need to execute ``goats run -d /your/parent/directory/of/GOATS`` in the terminal (within the conda environment you created for GOATS). 
-
-For more details on the CLI, see :ref:`goats_cli`.
 
