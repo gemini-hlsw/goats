@@ -3,7 +3,7 @@
 Download Gemini data
 --------------------
 
-Users can download Gemini data directly on the GOATS interface, without needing to visit the Gemini Observatory Archive (GOA) website. GOATS allows download of both public as well as proprietary data that a user has access to. To facilitate the latter, users will need to input their GOA credentials on the **Users** page accessible via the dropdown menu under the user name on GOATS. This needs to be done only once (see the video below). 
+Users can download Gemini data directly on the GOATS interface, without needing to visit the Gemini Observatory Archive (GOA) website. GOATS allows download of both public as well as proprietary data that a user has access to. To facilitate the latter, users will need to input their GOA credentials (see the :ref:`Managing Credential video <managing_credential>`). 
 
 GOATS supports asynchronous download of the data using modern software technologies such as Redis and Dramatiq for managing background tasks. Users can thus download data for multiple Gemini observations at a time and not wait for a download to complete to perform other operations on GOATS. 
 
@@ -27,3 +27,4 @@ The first mode of adding existing observation IDs is currently supported on GOAT
 .. rubric:: Footnotes
 
 .. [#f1] For Gemini GHOST data, the files will also be de-bundled automatically when downloading on GOATS, which will make it easier for users to handle the data.   
+
