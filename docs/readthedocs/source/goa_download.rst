@@ -26,5 +26,4 @@ The first mode of adding existing observation IDs is currently supported on GOAT
 
 .. rubric:: Footnotes
 
-.. [#f1] For Gemini GHOST data, the files will also be de-bundled automatically when downloading on GOATS, which will make it easier for users to handle the data.   
-
+.. [#f1] For Gemini GHOST data, the files will also be de-bundled automatically when downloading on GOATS, which will make it easier for users to handle the data.
