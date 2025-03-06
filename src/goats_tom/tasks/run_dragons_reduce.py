@@ -183,6 +183,12 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
         )
         raise
     finally:
+        # Remove handler so it can’t emit more log records.
+        # This would cause coroutines to be unawaited.
+        logger = logging.getLogger()
+        for h in logger.handlers[:]:
+            if isinstance(h, DRAGONSHandler):
+                logger.removeHandler(h)
         # Cleanup dynamically created module.
         if module_name in sys.modules:
             del sys.modules[module_name]
