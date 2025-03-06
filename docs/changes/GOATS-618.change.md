@@ -1,0 +1,1 @@
+Updated GOATS user documentation (along with the videos) to clarify where one can add their GOA credentials.
