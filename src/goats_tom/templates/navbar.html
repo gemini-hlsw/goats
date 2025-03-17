@@ -1,9 +1,11 @@
 {% load static bootstrap4 custom_filters %}
+
+
 <div class="navbar navbar-expand-md navbar-dark">
   <a class="navbar-brand" href="{% url 'home' %}">
     <img src="{% static 'img/goats-outline.png' %}" alt="Logo" height="48" class="d-inline-block align-text-top">
   </a>
-  <ul class="navbar-nav">
+  <ul class="navbar-nav me-4">
     <div class="btn-group" role="group">
       <a class="btn btn-secondary" href="https://github.com/gemini-hlsw/goats" target="_blank" title="GitHub"><i class="fa-brands fa-github"></i></a>
       <a class="btn btn-secondary" href="https://goats.readthedocs.io/en/latest/index.html" target="_blank" title="Documentation and help"><i class="fa-solid fa-book"></i></a>
@@ -12,13 +14,13 @@
       </button>
     </div>
   </ul>
-  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#goatsNavbar" aria-controls="goatsNavbar" aria-expanded="false" aria-label="Toggle navigation">
+  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-target="#goatsNavbar" aria-controls="goatsNavbar" aria-expanded="false" aria-label="Toggle navigation">
     <span class="navbar-toggler-icon"></span>
   </button>
   <div class="collapse navbar-collapse" id="goatsNavbar">
-    <ul class="navbar-nav me-auto">
+    <ul class="navbar-nav nav-pills me-auto">
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'alerts' %}active{% endif %}" data-toggle="dropdown">Brokers</a>
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'alerts' %}active{% endif %}" data-bs-toggle="dropdown">Brokers</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'alerts:create' %}?broker=ANTARES">ANTARES</a>
           <a class="dropdown-item" href="{% url 'alerts:create' %}?broker=ALeRCE">ALeRCE</a>
@@ -29,14 +31,14 @@
         </div>
       </li>
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'targets' %}active{% endif %}" data-toggle="dropdown">Targets</a>
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'targets' %}active{% endif %}" data-bs-toggle="dropdown">Targets</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'targets:list' %}">Targets</a>
           <a class="dropdown-item" href="{% url 'targets:targetgrouping' %}">Target Grouping</a>
         </div>
       </li>
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'observations' %}active{% endif %}" data-toggle="dropdown">Observations</a>
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'observations' %}active{% endif %}" data-bs-toggle="dropdown">Observations</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'tom_observations:list' %}">Observations</a>
           <a class="dropdown-item" href="{% url 'tom_observations:group-list' %}">Observation Groups</a>
@@ -51,9 +53,9 @@
         <a class="nav-link {% if request.resolver_match.url_name == 'astro-data-lab' %}active{% endif %}" href="{% url 'astro-data-lab' %}">Astro Data Lab</a>
       </li>
     </ul>
-    <ul class="navbar-nav">
+    <ul class="navbar-nav nav-underline">
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle" href="#" id="navbarDownloadLink" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name == 'recent_downloads' %}active{% endif %}" href="#" id="navbarDownloadLink" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           <span id="downloadBadge" class="badge badge-pill badge-primary d-none mt-0">0</span> Downloads
         </a>
         <div class="dropdown-menu dropdown-menu-right download-tasks-container" aria-labelledby="navbarDownloadDropdown">
@@ -63,7 +65,7 @@
       </li>
       {% if user.is_authenticated %}
       <li class="nav-item dropdown ">
-        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|starts_with:'user-' %}active{% endif %}" data-toggle="dropdown">
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|starts_with:'user-' %}active{% endif %}" data-bs-toggle="dropdown">
           {% if user.first_name or user.last_name %}
           {{ user.first_name }} {{ user.last_name }} ({{ user.username }})
           {% else %}
