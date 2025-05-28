@@ -1,0 +1,64 @@
+{% set name = "goats" %}
+{% set version = "25.3.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://github.com/gemini-hlsw/goats/archive/{{ version }}.tar.gz
+  sha256: 315eea5621b5942b9278facd285e9a11976237900602c7b3e28674f82dcdfa0b
+
+build:
+  entry_points:
+    - goats = goats_cli:cli
+  noarch: python
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+  number: 0
+
+requirements:
+  host:
+    - python >=3.10.0
+    - setuptools
+    - pip
+  run:
+    - python >=3.10.0
+    - astropy >=5.3.3,<7
+    - astro-datalab ==2.24.0
+    - astroquery ==0.4.7
+    - antares-client >=1.8.0
+    - tomtoolkit ==2.24.4
+    - click >=8.1.7,<9
+    - django-cors-headers >=4.3.0,<5
+    - django-cryptography >=1.1,<2
+    - channels >=4.0,<5
+    - channels_redis >=4.0.0,<5
+    - django >=4.2,<5
+    - djangorestframework >=3.14.0,<4
+    - dramatiq >=1.17.0
+    - django-dramatiq >=0.11.6
+    - dramatiq-abort >=1.1.0
+    - numpydoc >=1.7.0,<2
+    - dragons ==3.2.3
+    - python-confluent-kafka ==1.7.0  # Required for linking librdkafka in conda.
+    - librdkafka >=1.7.0  # Required while antares-client upgrades kafka.
+    - redis-server
+
+test:
+  imports:
+    - goats_tom
+  commands:
+    - pip check
+    - goats --help
+  requires:
+    - pip
+
+about:
+  summary: Gemini Observation and Analysis of Targets System.
+  license: BSD-3-Clause
+  license_file:
+    - LICENSE
+
+extra:
+  recipe-maintainers:
+    - davner
