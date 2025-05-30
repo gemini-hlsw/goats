@@ -19,9 +19,8 @@ classifiers = [
 ]
 requires-python = ">=3.10.0"
 dependencies = [
-    "astropy>=5.3.3,<7",
-    "astro-datalab==2.24.0",
-    "astroquery==0.4.7",
+    "astropy>=6.0,<7",
+    "astroquery==0.4.10",
     "tomtoolkit==2.23.1",
     "click>=8.1.7,<9",
     "django-cors-headers>=4.3.0,<5",
