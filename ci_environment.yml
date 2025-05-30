@@ -21,12 +21,9 @@ channels:
 
 dependencies:
   - dragons=3.2.3
-  - python-confluent-kafka=1.7.0  # Required for linking librdkafka in conda.
-  - librdkafka>=1.7.0  # Required while antares-client upgrades kafka.
   - pip
   - python>=3.10
   - redis-server
-  # - astro-datalab
 
   # For development, use clone the GOATS repo and "pip install -e ." or
   # for tests, install with "pip install -e '.[test]'".
