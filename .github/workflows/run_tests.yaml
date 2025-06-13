@@ -5,6 +5,8 @@ on:
     paths:
       - "src/**/*.py"
       - "tests/unit/**/*.py"
+      - "pyproject.toml"
+      - "uv.lock"
   push:
     branches:
       - main
