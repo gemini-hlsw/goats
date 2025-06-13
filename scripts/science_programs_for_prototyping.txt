@@ -19,3 +19,5 @@ GMOS longlsit classic - GN-2018B-Q-315-11
 GMOS longslit nod and shuffle - GN-2019B-Q-109-17, GN-2008B-Q-56-75 (these are from the DRAGONS tutorial examples)
 GHOST Standard Resolution -  GS-2024A-Q-414-13
 GHOST High Resolution -  GS-2024A-FT-107-2
+GNIRS longslit - GN-2021A-Q-315-15 (HD 179821), GN-2017B-Q-81-99 (HD 41335), GN-2017B-Q-85-216 (target37_metalpoorMdwarf),
+GN-2017A-Q-87-284 (SDSSJ162449.00+321702.0) -- these are from DRAGONS tutorial examples. Additional GN-2013A-Q-78-118 (MN 112), GN-2014A-Q-36-69 (MN 83)
