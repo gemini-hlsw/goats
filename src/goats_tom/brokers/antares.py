@@ -2,7 +2,6 @@ __all__ = ["ANTARESBrokerForm", "ANTARESBroker"]
 
 from typing import Any, Iterator
 
-import antares_client
 import marshmallow
 from astropy.time import Time, TimezoneInfo
 from crispy_forms.layout import HTML, Div, Fieldset, Layout
@@ -11,6 +10,8 @@ from django.forms.widgets import Textarea
 from django.templatetags.static import static
 from tom_alerts.alerts import GenericAlert, GenericBroker, GenericQueryForm
 from tom_targets.models import BaseTarget, Target, TargetName
+
+from ..antares_client import get_by_id, search
 
 ANTARES_BASE_URL = "https://antares.noirlab.edu"
 
@@ -28,8 +29,10 @@ class ANTARESBrokerForm(GenericQueryForm):
     query = forms.JSONField(
         required=False,
         label="Elastic Search query in JSON format",
-        widget=Textarea(attrs={"rows": 10}, ),
-        initial={"query":{}},
+        widget=Textarea(
+            attrs={"rows": 10},
+        ),
+        initial={"query": {}},
     )
 
     class Media:
@@ -127,7 +130,6 @@ class ANTARESBrokerForm(GenericQueryForm):
 
         """
         cleaned_data = super().clean()
-        print("CLEAN ", cleaned_data)
         if not cleaned_data.get("query"):
             raise forms.ValidationError("Invalid entry for Elastic Search query form.")
 
@@ -199,13 +201,13 @@ class ANTARESBroker(GenericBroker):
 
         if locusid:
             # Fetch alert by locus ID.
-            locus = antares_client.search.get_by_id(locusid)
+            locus = get_by_id(locusid)
             alerts.append(self.alert_to_dict(locus))
 
         elif query:
             # Set query parameter.
             # Initiate search with the given query.
-            loci = antares_client.search.search(query)
+            loci = search(query)
 
             while len(alerts) < max_alerts:
                 try:
@@ -261,7 +263,7 @@ class ANTARESBroker(GenericBroker):
         `GenericAlert`
             The corresponding GenericAlert object.
         """
-        url = f'{ANTARES_BASE_URL}/loci/{alert["locus_id"]}'
+        url = f"{ANTARES_BASE_URL}/loci/{alert['locus_id']}"
         timestamp = Time(
             alert["properties"].get("newest_alert_observation_time"),
             format="mjd",

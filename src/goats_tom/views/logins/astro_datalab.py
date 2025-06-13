@@ -1,5 +1,6 @@
 __all__ = ["AstroDatalabLoginView"]
 
+from goats_tom.astro_data_lab import AstroDataLabClient
 from goats_tom.models import AstroDatalabLogin
 
 from .base import BaseLoginView
@@ -28,10 +29,10 @@ class AstroDatalabLoginView(BaseLoginView):
         `bool`
             `True` if login was successful and logout executed, otherwise `False`.
         """
-        from dl import authClient as ac
-
-        token = ac.login(username, password)
-        if not ac.isValidToken(token):
-            return False
-        ac.logout(token)
+        with AstroDataLabClient(username=username, password=password) as client:
+            try:
+                client.login()
+                client.is_logged_in()
+            except Exception:
+                return False
         return True

@@ -1,11 +1,7 @@
 # 🐐 Gemini Observation and Analysis of Targets System (GOATS)
 ![Docs Status](https://readthedocs.org/projects/goats/badge/?version=latest)
-[![Run Ruff](https://github.com/gemini-hlsw/goats/actions/workflows/run_ruff.yml/badge.svg?event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_ruff.yml)
 [![Run Tests](https://github.com/gemini-hlsw/goats/actions/workflows/run_tests.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_tests.yaml)
 [![Code Coverage](https://codecov.io/github/gemini-hlsw/goats/branch/main/graph/badge.svg?token=QXC18C4T93)](https://codecov.io/github/gemini-hlsw/goats)
-[![Run HTMLHint](https://github.com/gemini-hlsw/goats/actions/workflows/run_htmlhint.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_htmlhint.yaml)
-[![Run StyleLint](https://github.com/gemini-hlsw/goats/actions/workflows/run_stylelint.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_stylelint.yaml)
-[![Run JS Tests](https://github.com/gemini-hlsw/goats/actions/workflows/run_js_tests.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_js_tests.yaml)
 
 This is an end-to-end integrated system for time-domain and multimesseneger astronomy (TDAMM) aimed towards Gemini follow-up observations.
 
@@ -21,7 +17,7 @@ Its objective is to simplify the TDAMM workflow for users by serving as a one-st
 For detailed information on installation, configuration, and usage, visit the **[GOATS documentation](https://goats.readthedocs.io/en/latest/)**.
 
 ## System Requirements
-- Python 3.10 or higher
+- Python 3.12 or higher
 - Intel Anaconda or Miniconda (works on M1 architecture) >= 4.12
 
 ### Workaround for ARM (M1/M2) Mac users:

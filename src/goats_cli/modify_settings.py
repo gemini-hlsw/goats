@@ -1,4 +1,5 @@
 __all__ = ["modify_settings"]
+
 from pathlib import Path
 
 from goats_cli.plugins import GOATSPlugin, Plugin

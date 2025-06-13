@@ -21,36 +21,11 @@ templates_path = ["_templates"]
 # The suffix of source filenames.
 source_suffix = ".rst"
 
-# The encoding of source files.
-#source_encoding = "utf-8-sig"
-
 # The master toctree document.
 master_doc = "index"
 
 # _static subdirectory to put videos 
 html_static_path = ["_static"]
-
-# html_theme = "alabaster"
-# html_sidebars = {
-#     "**": [
-#         "about.html",
-#         "searchfield.html",
-#         "navigation.html",
-#         "relations.html",
-#     ]
-# }
-# html_theme_options = {
-#     "logo": "GOATS_logo.png",
-#     "github_user"
-#     "logo_name": "false",
-#     "fixed_sidebar": "true",
-#     "description": "Time-domain astronomy made time efficient.",
-#     "github_button": "true",
-#     "github_repo": "goats",
-#     "github_user": "gemini-hlsw",
-#     "codecov_button": "true",
-#     "badge_branch": "main",
-# }
 html_theme = "sphinx_rtd_theme"
 html_theme_options = {"style_nav_header_background": "#343131"}
 html_logo = "images/GOATS_logo.png"

@@ -1,7 +1,7 @@
 """Tests the `ProcessManager` class."""
 import subprocess
 from unittest.mock import Mock, call, patch
-
+import signal
 import pytest
 from goats_cli.process_manager import ProcessManager
 
@@ -19,6 +19,7 @@ def mock_process():
     process.terminate = Mock()
     process.wait = Mock()
     process.kill = Mock()
+    process.pid = 1234
     return process
 
 
@@ -38,14 +39,34 @@ def test_stop_process_existing(manager, mock_process):
     mock_process.wait.assert_called_once_with(timeout=2)
 
 
-def test_stop_process_timeout(manager, mock_process):
-    """Test stopping a process that times out."""
+@patch("os.killpg")
+@patch("os.getpgid", return_value=9999)
+def test_stop_process_timeout(
+    mock_getpgid,
+    mock_killpg,
+    manager,
+    mock_process,
+):
+    """
+    Test stopping a process that times out, ensuring we call
+    killpg() to terminate all child processes.
+    """
     manager.add_process("test", mock_process)
-    mock_process.wait.side_effect = subprocess.TimeoutExpired(cmd="test", timeout=2)
-    assert manager.stop_process("test") is True
-    mock_process.terminate.assert_called_once()
-    mock_process.kill.assert_called_once()
 
+    # First .wait() call raises TimeoutExpired (triggering killpg),
+    # second call returns None (normal exit).
+    mock_process.wait.side_effect = [
+        subprocess.TimeoutExpired(cmd="test", timeout=2),
+        None
+    ]
+
+    result = manager.stop_process("test")
+    assert result is True
+
+    mock_process.terminate.assert_called_once()
+
+    # Confirm killpg was called with the fake PGID (9999) and the SIGKILL signal.
+    mock_killpg.assert_called_once_with(9999, signal.SIGKILL)
 
 def test_stop_process_non_existent(manager):
     """Test trying to stop a process that does not exist."""

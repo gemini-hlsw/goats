@@ -1,3 +1,53 @@
+## GOATS 25.6.0rc2 (2025-06-09)
+
+
+### New Features
+
+- Added `uv` for dependency management: Used `uv` to manage dependencies and generate lockfile for reproducible environments. [[#GOATS-101](https://noirlab.atlassian.net/browse/GOATS-101)]
+- Enabled automated updates: Configured Dependabot to create pull requests for dependency updates. [[#GOATS-680](https://noirlab.atlassian.net/browse/GOATS-680)]
+
+
+### Changes
+
+- Skip building documentation if no changes to `/docs/readthedocs` [[#GOATS-684](https://noirlab.atlassian.net/browse/GOATS-684)]
+
+
+### Other
+
+- Updated the GOATS workflow flowchart showing an additional step for adding existing Gemini observation and added a miscellaneous page for tips and tricks that users might find helpful. [[#GOATS-658](https://noirlab.atlassian.net/browse/GOATS-658)]
+
+## GOATS 25.6.0rc1 (2025-06-05)
+
+
+### New Features
+
+- Replaced Astro Data Lab client: Implemented internal class to remove dependency conflicts. [[#GOATS-668](https://noirlab.atlassian.net/browse/GOATS-668)]
+- Added nox testing for different python and dependency versions. [[#GOATS-670](https://noirlab.atlassian.net/browse/GOATS-670)]
+- Imported `antares-client` code: Added `antares-client` code directly into the repo to avoid dependency issues with `marshmallow` and `confluent-kafka`. [[#GOATS-672](https://noirlab.atlassian.net/browse/GOATS-672)]
+
+
+### Changes
+
+- Updated GOATS user documentation (along with the videos) to clarify where one can add their GOA credentials. [[#GOATS-618](https://noirlab.atlassian.net/browse/GOATS-618)]
+- Updated DRAGONS and dependencies: Updated to DRAGONS 4.0.0 and raised the required Python version to 3.12. Also updated other dependencies for compatibility. [[#GOATS-678](https://noirlab.atlassian.net/browse/GOATS-678)]
+
+## GOATS 25.3.0 (2025-03-30)
+
+
+### New Features
+
+- Ensured worker shutdown in Dramatiq: Added fallbacks to manage worker threads, ensuring they were terminated if graceful shutdown failed. This prevented orphaned or zombie workers. [[#GOATS-654](https://noirlab.atlassian.net/browse/GOATS-654)]
+- Shutdown return code and port checks for Redis: Added shutdown return code for Redis and enforced killing child workers if timeout occurs. Checked if ports are in use on startup, issuing an error and preventing startup if occupied. [[#GOATS-655](https://noirlab.atlassian.net/browse/GOATS-655)]
+- Shutdown return code and port checks for Django: Added shutdown return code for Django and enforced killing child workers if timeout occurs. Checked if ports are in use on startup, issuing an error and preventing startup if occupied. [[#GOATS-656](https://noirlab.atlassian.net/browse/GOATS-656)]
+- Shutdown return code Dramatiq: Added shutdown return code for Dramatiq and enforced killing child workers if timeout occurs. [[#GOATS-657](https://noirlab.atlassian.net/browse/GOATS-657)]
+- Cleanly shut down DRAGONS in worker threads: Removed leftover orphaned processes on GOATS shutdown using custom middleware. [[#GOATS-660](https://noirlab.atlassian.net/browse/GOATS-660)]
+- Check ETISubprocess before shutdown: Prevented redundant creation and destruction of singleton. [[#GOATS-665](https://noirlab.atlassian.net/browse/GOATS-665)]
+
+
+### Changes
+
+- Credential storage redesign: Improved how users store credentials and generate tokens for the browser extension. Added a popover explaining the credential manager in the user management page. [[#GOATS-632](https://noirlab.atlassian.net/browse/GOATS-632)]
+
 ## GOATS 25.2.2 (2025-02-28)
 
 

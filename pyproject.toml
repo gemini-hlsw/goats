@@ -10,35 +10,33 @@ authors = [
     { name = "Dan Avner", email = "dan.avner@noirlab.edu" },
     { name = "Monika Soraisam", email = "monika.soraisam@noirlab.edu" },
 ]
-maintainers = [
-    { name = "GOATS Team", email = "goats@noirlab.edu" },
-]
+maintainers = [{ name = "GOATS Team", email = "goats@noirlab.edu" }]
 classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
-requires-python = ">=3.10.0"
+requires-python = ">=3.12"
 dependencies = [
-    "astropy>=5.3.3,<7",
-    "astro-datalab==2.24.0",
-    "astroquery==0.4.7",
-    "antares-client>=1.8.0",
-    "tomtoolkit==2.23.1",
-    "click>=8.1.7,<9",
-    "django-cors-headers>=4.3.0,<5",
-    "django-cryptography>=1.1,<2",
+    "astropy>=6.0,<7",
+    "astroquery>=0.4.10",
+    "channels-redis>=4.2.1,<5",
     "channels[daphne]>=4.0,<5",
-    "channels_redis>=4.0.0,<5",
-    "django>=4,<5",
-    "djangorestframework>=3.14.0,<4",
-    "dramatiq[redis, watch]>=1.17.0",
-    "django-dramatiq>=0.11.6",
-    "dramatiq-abort>=1.1.0",
-    "numpydoc>=1.7.0,<2",
+    "click>=8.2.1,<9",
+    "django>=4.2.2,<5",
+    "django-cors-headers>=4.7.0,<5",
+    "django-cryptography>=1.1,<2",
+    "django-dramatiq>=0.13.0",
+    "djangorestframework>=3.16.0,<4",
+    "dramatiq-abort>=1.2.1",
+    "dramatiq[redis,watch]>=1.18.0,<2",
+    "marshmallow>=3.26.1,<4",
+    "marshmallow-jsonapi>=0.24.0",
+    "numpydoc>=1.8.0,<2",
+    "tomtoolkit>=2.24.5",
 ]
-version = "25.2.2"
+version = "25.6.0rc2"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
@@ -47,17 +45,26 @@ Repository = "https://github.com/gemini-hlsw/goats"
 Issues = "https://github.com/gemini-hlsw/goats/issues"
 Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 
-[project.optional-dependencies]
-test = [
-    "pytest",
-    "pytest-xdist",
-    "pytest-cov",
-    "pytest-django",
-    "pytest-asyncio",
-    "factory_boy",
-    "pytest-remotedata",
-    "ruff"
+[dependency-groups]
+dev = [
+    "factory-boy>=3.3.3",
+    "nox>=2025.5.1",
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.1.1",
+    "pytest-django>=4.11.1",
+    "pytest-mock>=3.14.1",
+    "pytest-remotedata>=0.4.1",
+    "pytest-xdist>=3.7.0",
+    "ruff>=0.11.13",
 ]
+docs = [
+    "sphinx>=8.2.3",
+    "sphinx-autobuild>=2024.10.3",
+    "sphinx-rtd-theme>=3.0.2",
+    "sphinxcontrib-video>=0.4.1",
+]
+notebook = ["ipykernel>=6.29.5"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -75,7 +82,7 @@ testpaths = ["tests/unit"]
 DJANGO_SETTINGS_MODULE = "goats_tom.tests.settings"
 norecursedirs = "tests/unit/goats_tom/ocs"
 asyncio_default_fixture_loop_scope = "session"
-addopts = "-r A -v -n auto --cov=src --cov-report=term --cov=tests --cov-branch"
+addopts = "-r A -v -n auto"
 
 [tool.towncrier]
 version = ""
@@ -109,8 +116,15 @@ name = "Other"
 showcontent = true
 
 [tool.ruff]
-extend-exclude = ["src/goats_tom/migrations", "tests", "src/goats_tom/facilities/gemini.py", "src/goats_tom/tests/settings.py", "src/goats_tom/tests/urls.py", "docs"]
-target-version = "py310"
+extend-exclude = [
+    "src/goats_tom/migrations",
+    "tests",
+    "src/goats_tom/facilities/gemini.py",
+    "src/goats_tom/tests/settings.py",
+    "src/goats_tom/tests/urls.py",
+    "docs",
+]
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ['E', 'F', 'W', 'A', 'PLC', 'PLE', 'PLW', 'I']
@@ -125,4 +139,3 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
-

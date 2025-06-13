@@ -5,88 +5,20 @@ import re
 import shutil
 import subprocess
 import time
-import webbrowser
 from pathlib import Path
-from typing import IO, Any
 
 import click
-import requests
-from click._compat import get_text_stderr
 
+import goats_cli.utils as utils
+from goats_cli.config import config
+from goats_cli.exceptions import GOATSClickException
 from goats_cli.modify_settings import modify_settings
 from goats_cli.process_manager import ProcessManager
-from goats_cli.utils import (
-    display_failed,
-    display_info,
-    display_message,
-    display_ok,
-    display_warning,
-)
-
-REDIS_HOST: str = "localhost"
-REDIS_PORT: int = 6379
-REDIS_ADDRPORT: str = f"{REDIS_HOST}:{REDIS_PORT}"
-REGEX_PATTERN = r"^(?:(?P<host>[^:]+):)?(?P<port>[0-9]+)$"
-DEFAULT_HOST: str = "localhost"
-DEFAULT_PORT: int = 8000
-DEFAULT_ADDRPORT: str = f"{DEFAULT_HOST}:{DEFAULT_PORT}"
-
-
-def parse_addrport(addrport: str) -> tuple[str, int]:
-    """Parses an address and port string into host and port components.
-
-    Parameters
-    ----------
-    addrport : `str`
-        The address and port string, e.g., "localhost:8000" or "8000".
-
-    Returns
-    -------
-    `tuple[str, int]`
-        A tuple of (host, port), where host is a string and port is an integer.
-
-    Raises
-    ------
-    ValueError
-        If the input does not match the expected format.
-    """
-    pattern = re.compile(REGEX_PATTERN)
-    match = pattern.match(addrport)
-    if not match:
-        raise ValueError(f"Invalid addrport format: '{addrport}'")
-
-    host = match.group("host") or DEFAULT_HOST
-    port = int(match.group("port"))
-    return host, port
-
-
-class GOATSClickException(click.ClickException):
-    """An extension of ClickException to show a goat emoji with the message."""
-
-    def show(self, file: IO[Any] | None = None) -> None:
-        """Display the error message prefixed with a goat emoji.
-
-        If a file object is passed, it writes the message to the file,
-        otherwise, it writes the message to standard error.
-
-        Parameters
-        ----------
-        file : `IO[Any] | None`, optional
-            The file object to write the message to, by default ``None``.
-
-        """
-        if file is None:
-            file = get_text_stderr()
-
-        click.echo(
-            click.style(f"🐐 Error: {self.format_message()}", fg="red", bold=True),
-            file=file,
-        )
 
 
 def validate_addrport(ctx, param, value):
     """Validate IP address and port."""
-    if not re.match(REGEX_PATTERN, value):
+    if not re.match(config.addrport_regex_pattern, value):
         raise click.BadParameter(
             "The address and port must be in format 'HOST:PORT' or 'PORT'.",
         )
@@ -137,7 +69,7 @@ def cli(ctx):
 )
 @click.option(
     "--redis-addrport",
-    default=REDIS_ADDRPORT,
+    default=config.redis_addrport,
     type=str,
     help=(
         "Specify the Redis server IP address and port number. "
@@ -221,7 +153,7 @@ def install(
         if media_dir:
             resolved_media_dir = media_dir.resolve()
             if resolved_media_dir.exists():
-                display_warning(
+                utils.display_warning(
                     "Media root directory already exists, proceeding but existing "
                     "data might conflict."
                 )
@@ -230,8 +162,8 @@ def install(
         subprocess.run(goats_setup_command, check=True)
 
         # Migrate the webpage.
-        display_message("Wrapping up:", show_goats_emoji=False)
-        display_info("Running final migrations... ")
+        utils.display_message("Wrapping up:", show_goats_emoji=False)
+        utils.display_info("Running final migrations... ")
         subprocess.run(
             [f"{manage_file}", "makemigrations"],
             stdout=subprocess.PIPE,
@@ -244,9 +176,9 @@ def install(
             stderr=subprocess.PIPE,
             check=True,
         )
-        display_ok()
+        utils.display_ok()
 
-        display_message("GOATS installed!", color="green")
+        utils.display_message("GOATS installed!", color="green")
 
     except subprocess.CalledProcessError as error:
         cmd_str = " ".join(error.cmd)
@@ -286,7 +218,7 @@ def install(
 )
 @click.option(
     "--addrport",
-    default=DEFAULT_ADDRPORT,
+    default=config.django_addrport,
     type=str,
     help=(
         "Specify the IP address and port number to serve GOATS. "
@@ -297,7 +229,7 @@ def install(
 )
 @click.option(
     "--redis-addrport",
-    default=REDIS_ADDRPORT,
+    default=config.redis_addrport,
     type=str,
     help=(
         "Specify the Redis server IP address and port number. "
@@ -355,22 +287,23 @@ def run(
         Raised if the 'manage.py' file for the project does not exist.
     GOATSClickException
         Raised if the 'subprocess' calls fail.
-
     """
-    display_message("Serving GOATS.\n")
-    display_message("Finding GOATS and Redis installation:", show_goats_emoji=False)
-    display_info("Verifying 'manage.py' exists for GOATS...")
+    utils.display_message("Serving GOATS.\n")
+    utils.display_message(
+        "Finding GOATS and Redis installation:", show_goats_emoji=True
+    )
+    utils.display_info("Verifying 'manage.py' exists for GOATS...")
     project_path = directory / project_name
     # Get the path for the 'manage.py' file.
     manage_file = project_path / "manage.py"
     if not manage_file.is_file():
-        display_failed()
+        utils.display_failed()
         raise GOATSClickException(
             f"The 'manage.py' file for the project '{project_name}' does not exist at"
             f" '{manage_file.absolute()}'."
         )
-    display_ok()
-    display_info("Verifying Redis installed...")
+    utils.display_ok()
+    utils.display_info("Verifying Redis installed...")
     try:
         subprocess.run(
             ["redis-server", "--version"],
@@ -378,19 +311,27 @@ def run(
             text=True,
             capture_output=True,
         )
-        display_ok()
+        utils.display_ok()
     except FileNotFoundError:
-        display_failed()
+        utils.display_failed()
         raise GOATSClickException(
             "An error occurred verifying Redis. Is Redis installed?",
         )
 
-    display_message(
+    utils.display_message("Checking for running instances of Redis and GOATS:")
+    time.sleep(2)
+    redis_host, redis_port = utils.parse_addrport(redis_addrport)
+    utils.check_port_not_in_use("Redis", redis_host, redis_port)
+
+    django_host, django_port = utils.parse_addrport(addrport)
+    utils.check_port_not_in_use("Django", django_host, django_port)
+
+    utils.display_message(
         "Starting Redis, GOATS and background workers:",
-        show_goats_emoji=False,
+        show_goats_emoji=True,
     )
-    display_message(
-        "---------------------------------------------",
+    utils.display_message(
+        "-----------------------------------------------",
         show_goats_emoji=False,
     )
     time.sleep(2)
@@ -413,14 +354,16 @@ def run(
         )
 
         # Open the browser.
-        host, port = parse_addrport(addrport)
-        url = f"http://{host}:{port}"
-        if wait_until_responsive(url):
+        url = f"http://{django_host}:{django_port}"
+        if utils.wait_until_responsive(url):
             # Build the url and open it.
-            open_browser(url, browser)
+            utils.open_browser(url, browser)
 
         while True:
             time.sleep(0.1)
+
+    except KeyboardInterrupt:
+        utils.display_warning("Caught Ctrl+C. Running shutdown procedure.")
 
     finally:
         process_manager.stop_all()
@@ -445,8 +388,8 @@ def start_redis_server(addrport: str, disable_rdb: bool = True) -> subprocess.Po
         Raised if issue starting Redis server.
 
     """
-    display_message("Starting redis database.")
-    pattern = re.compile(REGEX_PATTERN)
+    utils.display_message("Starting redis database.")
+    pattern = re.compile(config.addrport_regex_pattern)
     match = pattern.match(addrport)
     port = match.group("port")
     cmd = ["redis-server", "--port", f"{port}"]
@@ -485,7 +428,7 @@ def start_django_server(manage_file: Path, addrport: str) -> subprocess.Popen:
         Raised if issue starting Django server.
 
     """
-    display_message("Starting django server.")
+    utils.display_message("Starting django server.")
     try:
         django_process = subprocess.Popen(
             [f"{manage_file}", "runserver", addrport],
@@ -518,7 +461,7 @@ def start_background_workers(manage_file: Path, workers: int) -> subprocess.Pope
         Raised if issue starting background workers.
 
     """
-    display_message("Starting background workers.")
+    utils.display_message("Starting background workers.")
     try:
         background_workers_process = subprocess.Popen(
             [
@@ -539,67 +482,6 @@ def start_background_workers(manage_file: Path, workers: int) -> subprocess.Pope
             f"Exit status: {error.returncode}."
         )
     return background_workers_process
-
-
-def wait_until_responsive(
-    url: str, timeout: int = 30, retry_interval: float = 1.0
-) -> bool:
-    """Waits until the server responds with a valid HTTP status.
-
-    Parameters
-    ----------
-    url : `str`
-        The URL of the server to check.
-    timeout : `int`
-        Maximum time in seconds to wait for the server to respond.
-    retry_interval : `float`
-        Time in seconds to wait between retries (default: 1s).
-
-    Returns
-    -------
-    `bool`
-        `True` if the server is responsive, `False` if the timeout is reached.
-    """
-    start_time = time.time()
-    attempts = 0  # Track how many times we retry
-
-    while time.time() - start_time < timeout:
-        attempts += 1
-        try:
-            response = requests.get(url, timeout=5)
-
-            if response.status_code == 200:
-                return True
-        except Exception:
-            time.sleep(retry_interval)
-
-    display_warning(f"GOATS server did not respond after {attempts} attempts.")
-    display_warning(
-        f"Check if the server is running, then open your browser and go to: {url}"
-    )
-    return False
-
-
-def open_browser(url: str, browser_choice: str) -> None:
-    """Opens the specified browser or defaults to the system browser.
-
-    Parameters
-    ----------
-    url : `str`
-        The URL to open in the browser.
-    browser_choice : `str`
-        The browser choice.
-    """
-    display_message(f"Opening GOATS at {url} in {browser_choice} browser.")
-    try:
-        if browser_choice == "default":
-            webbrowser.open_new(url)
-        else:
-            browser = webbrowser.get(browser_choice)
-            browser.open_new(url)
-    except webbrowser.Error as e:
-        display_warning(f"Failed to open browser '{browser_choice}': {str(e)}.")
-        display_warning(f"Try opening a browser and navigate to: {url}")
 
 
 cli.add_command(install)

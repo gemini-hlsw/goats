@@ -2,7 +2,9 @@
 {% block title %}{{ service_name }} Login Information{% endblock %}
 {% block content %}
 <div class="mb-3">
-  <p class="h2">Manage {{ service_name }} Login</p>
+  <p class="h2">
+    Manage {% if service_name == "GOA" %}Gemini Observatory Archive (GOA){% else %}{{ service_name }}{% endif %} Login
+  </p>
   {% if service_description %}
   <p class="mb-3">
     {{ service_description }}

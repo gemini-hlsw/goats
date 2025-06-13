@@ -25,6 +25,10 @@ It serves as a Target and Observation Manager (TOM) that can be used out-of-the-
 
 The main components of GOATS are shown in :numref:`goats-schematic` above. It is primarily directed towards Gemini follow-up observations, while leveraging complementary services (see :ref:`below <building-blocks>`) for time-domain astronomy built by programs across the larger NOIRLab organization. 
 
+.. note::  
+   Even though GOATS is designed to increase the efficiency of time-domain/multi-messenger follow-up observations with Gemini, it can be used by any Gemini user interested in automation.   
+
+
 .. _building-blocks:
 
 Building blocks of GOATS
@@ -65,6 +69,8 @@ GOATS relies on the following components -
 
    appendices/goats_cli.rst
    appendices/goats_cli_troubleshoot.rst
+   appendices/misc.rst
+
 
 
 

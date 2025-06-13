@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, mixins
 from tom_dataproducts.models import DataProduct
 
+from goats_tom.astro_data_lab import AstroDataLabClient
 from goats_tom.serializers import AstroDatalabSerializer
 
 ASTRO_DATALAB_DIR = "vos://goats_data"
@@ -66,27 +67,20 @@ class AstroDatalabViewSet(GenericViewSet, mixins.CreateModelMixin):
             The authenticated user making the request.
         data_product : `DataProduct`
             The data product to be uploaded.
-
-        Raises
-        ------
-        ValueError
-            Raised if authentication fails or an error occurs during file upload.
         """
-        # Lazy import to avoid creating .datalab dir collision.
-        from dl import authClient as ac
-        from dl import storeClient as sc
+        credentials = user.astrodatalablogin
 
-        astro_datalab_login = user.astrodatalablogin
-        token = ac.login(astro_datalab_login.username, astro_datalab_login.password)
-        if not ac.isValidToken(token):
-            raise ValueError("Astro Datalab credentials are not valid.")
-        try:
-            # Create the directory, better to try then check and try as less API calls.
-            sc.mkdir(token, ASTRO_DATALAB_DIR)
-            # Put the file on Astro Datalab.
-            sc.put(token, to=ASTRO_DATALAB_DIR, fr=data_product.data.path)
-        finally:
+        with AstroDataLabClient(
+            username=credentials.username, password=credentials.password
+        ) as client:
+            client.login()
+            if not client.is_logged_in():
+                raise ValueError("Credentials/token are not valid.")
+
             try:
-                ac.logout(token)
-            except Exception:
+                # Create the directory, ignore issue if the directory already exists.
+                client.mkdir()
+            except FileExistsError:
                 pass
+
+            client.upload_file(data_product.data.path, overwrite=True)

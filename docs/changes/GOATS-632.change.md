@@ -1,1 +1,0 @@
-Credential storage redesign: Improved how users store credentials and generate tokens for the browser extension. Added a popover explaining the credential manager in the user management page.
