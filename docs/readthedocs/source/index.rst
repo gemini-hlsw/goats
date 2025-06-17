@@ -50,7 +50,6 @@ GOATS relies on the following components -
    installation.rst
    overview.rst
    functionalities.rst
-   team.rst
    acknowledgment.rst
    help.rst
 
@@ -62,11 +61,22 @@ GOATS relies on the following components -
    antares2goats/index.rst
 
 .. toctree::
+   :maxdepth: 1
+   :hidden:
+   :caption: Project Details
+
+   project_details/changelog.rst
+   project_details/team.rst
+
+.. toctree::
    :maxdepth: 3
    :hidden:
-   :caption: Developer Guide
+   :caption: Developer Guides
 
-   developer_guide/index.rst
+   developer_guide/environment.rst
+   developer_guide/development.rst
+   developer_guide/documentation.rst
+   developer_guide/deployment.rst
 
 .. toctree::
    :numbered:

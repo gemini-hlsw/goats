@@ -1,0 +1,1 @@
+Switch to `furo` theme for Read the Docs.

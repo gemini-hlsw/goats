@@ -56,6 +56,7 @@ dev = [
     "pytest-remotedata>=0.4.1",
     "pytest-xdist>=3.7.0",
     "ruff>=0.11.13",
+    "towncrier>=24.8.0",
 ]
 docs = [
     "furo>=2024.8.6",
@@ -87,13 +88,12 @@ addopts = "-r A -v -n auto"
 [tool.towncrier]
 version = ""
 package_dir = "goats"
-filename = "CHANGES.md"
+filename = "docs/readthedocs/source/project_details/changelog.rst"
+underlines = "=-^"
 directory = "docs/changes"
-start_string = "<!-- towncrier release notes start -->\n"
-underlines = ["", "", ""]
-title_format = "## GOATS {version} ({project_date})"
-issue_format = "[[#{issue}](https://noirlab.atlassian.net/browse/{issue})]"
-template = "docs/changes/template.jinja"
+start_string = ".. towncrier release notes start"
+title_format = "Version {version} ({project_date})"
+issue_format = "`PR #{issue} <https://github.com/gemini-hlsw/goats/pull/{issue}>`_"
 [[tool.towncrier.type]]
 directory = "new"
 name = "New Features"
@@ -113,6 +113,10 @@ showcontent = true
 [[tool.towncrier.type]]
 directory = "other"
 name = "Other"
+showcontent = true
+[[tool.towncrier.type]]
+directory = "doc"
+name = "Documentation"
 showcontent = true
 
 [tool.ruff]
