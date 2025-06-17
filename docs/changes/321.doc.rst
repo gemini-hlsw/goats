@@ -1,0 +1,1 @@
+Moved `changelog` to documentation: The `changelog` has been moved to be hosted on Read the Docs. Towncrier has been converted to format the `changelog` in `.rst`
