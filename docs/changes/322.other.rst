@@ -1,0 +1,1 @@
+Improved build time for unit tests on GitHub by using `uv`: Removed the dependency for `conda` and install `dragons` and `fits_storage` from their respective repos. This removes the need for `conda` and the bloated install.
