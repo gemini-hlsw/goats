@@ -13,62 +13,30 @@ on:
 
 jobs:
   run_tests:
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash -l {0}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.12"]
+        python-version:
+          - "3.12"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: goats
 
-      - name: Setup Miniforge
-        uses: conda-incubator/setup-miniconda@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          auto-update-conda: true
           python-version: ${{ matrix.python-version }}
-          miniforge-version: latest
-          activate-environment: goats-env
-          channels: conda-forge, http://astroconda.gemini.edu/public
-          channel-priority: strict
-          auto-activate-base: false
-          conda-remove-defaults: "true"
 
-      - name: Get date
-        id: get-date
-        run: echo "today=$(/bin/date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Cache conda env
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.CONDA }}/envs
-          key: conda-${{ runner.os }}--${{ runner.arch }}--${{
-            steps.get-date.outputs.today }}-${{
-            hashFiles('goats/ci_environment.yaml', 'goats/pyproject.toml') }}-${{
-            env.CACHE_NUMBER }}
-        env:
-          # Increase this value to reset cache if goats/ci_environment.yaml has not changed.
-          CACHE_NUMBER: 0
-        id: cache
-
-      - name: Update environment
-        run: |
-          conda env update -n goats-env -f goats/ci_environment.yaml
-          cd goats
-          uv pip install -v -e . --group dev
-        if: steps.cache.outputs.cache-hit != 'true'
+      - name: Install the project
+        run: uv sync --locked --dev --group github
 
       - name: Run tests and calculate coverage
         run: |
-          cd goats
-          pytest -r A -v -n auto --cov=src --cov-report=xml --cov=tests --cov-branch
+          uv run pytest -r A -v -n auto --cov=src --cov-report=xml --cov=tests --cov-branch
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
