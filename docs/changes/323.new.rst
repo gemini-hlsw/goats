@@ -1,0 +1,1 @@
+Added `--ci` flag to allow installing GOATS bypassing the user prompts for a CI pipeline.
