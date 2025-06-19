@@ -78,12 +78,16 @@ def cli(ctx):
     ),
     callback=validate_addrport,
 )
+@click.option(
+    "--ci", is_flag=True, help="Run install in non-interactive CI mode (no prompts)."
+)
 def install(
     project_name: str,
     directory: Path,
     overwrite: bool,
     media_dir: Path | None,
     redis_addrport: str,
+    ci: bool,
 ) -> None:
     """Installs GOATS with a specified or default name in a specified or
     default directory and configures Redis server.
@@ -101,6 +105,8 @@ def install(
         The path to save media files.
     redis_addrport : `str`
         The host and port Redis is served on.
+    ci : `bool`
+        Run install in non-interactive CI mode (no prompts).
 
     Raises
     ------
@@ -158,6 +164,9 @@ def install(
                     "data might conflict."
                 )
             goats_setup_command.extend(["--media-dir", f"{resolved_media_dir}"])
+
+        if ci:
+            goats_setup_command.append("--ci")
 
         subprocess.run(goats_setup_command, check=True)
 

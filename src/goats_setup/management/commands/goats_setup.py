@@ -1,5 +1,6 @@
 """Django command to install GOATS."""
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -14,7 +15,7 @@ from django.utils import timezone
 from packaging import version
 from tom_setup.management.commands.tom_setup import Command as TOMCommand
 
-PYTHON_VERSION: str = "3.10"
+PYTHON_VERSION: str = "3.12"
 REDIS_HOST: str = "localhost"
 REDIS_PORT: int = 6379
 REDIS_ADDRPORT: str = f"{REDIS_HOST}:{REDIS_PORT}"
@@ -29,8 +30,12 @@ class Command(TOMCommand):
 
     help = "🐐 GOATS setup wizard."
 
-    def welcome_banner(self) -> None:
+    def welcome_banner(self, ci: bool = False) -> None:
         """Displays a welcome banner."""
+        if ci:
+            self.stdout.write("🐐 Running GOATS for CI, skipping prompts.")
+            return
+
         welcome_text = (
             "🐐 Welcome to the GOATS setup wizard. This will assist you with your "
             "new GOATS project.\n"
@@ -81,6 +86,13 @@ class Command(TOMCommand):
                 "Examples: '6379', 'localhost:6379', '192.168.1.5:6379'. "
                 "Providing only a port number (e.g., '6379') binds to localhost."
             ),
+        )
+        # Argument to be used for CI.
+        parser.add_argument(
+            "--ci",
+            action="store_true",
+            default=False,
+            help="Run install in non-interactive CI mode (no prompts).",
         )
 
     def check_python(self) -> None:
@@ -137,10 +149,11 @@ class Command(TOMCommand):
 
     def handle(self, *args, **options) -> None:
         """Handles the setup process."""
+        ci = options.get("ci", False)
         self.context["CREATE_DATE"] = timezone.now()
         self.context["PROJECT_NAME"] = settings.BASE_DIR.name
         self.context["HINTS_ENABLED"] = False
-        self.welcome_banner()
+        self.welcome_banner(ci=ci)
         self.stdout.write(self.style.MIGRATE_HEADING("Initial setup:"))
         self.check_python()
         self.setup_redis(redis_addrport=options.get("redis_addrport"))
@@ -153,7 +166,7 @@ class Command(TOMCommand):
         self.generate_file("urls")
         self.generate_file("asgi")
         self.run_migrations()
-        self.create_pi()
+        self.create_pi(ci=ci)
         self.create_public_group()
         self.complete()
 
@@ -214,14 +227,35 @@ class Command(TOMCommand):
         """Gets the target type for the project."""
         self.context["TARGET_TYPE"] = "SIDEREAL"
 
-    def create_pi(self) -> None:
+    def create_pi(self, ci: bool = False) -> None:
         """Creates a Principal Investigator (PI) superuser."""
         self.stdout.write(
             self.style.MIGRATE_HEADING(
                 "Principal Investigator (PI) and public user creation:",
             )
         )
-        call_command("createsuperuser", verbosity=0)
+        if ci:
+            password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
+            if not password:
+                self.stdout.write(
+                    self.style.WARNING(
+                        "🐐 DJANGO_SUPERUSER_PASSWORD is not set; the superuser will "
+                        "not be able to log in until a password is manually set."
+                    )
+                )
+
+            call_command(
+                "createsuperuser",
+                verbosity=0,
+                username="goats",
+                email="goats@goats.com",
+                interactive=False,
+            )
+        else:
+            call_command(
+                "createsuperuser",
+                verbosity=0,
+            )
         self.status("  PI Superuser created... ")
         self.ok()
 
