@@ -84,7 +84,7 @@ Follow the steps below to install GOATS across all supported platforms.
 
    .. code-block:: console
 
-      $ conda create -n goats-env python=|python_min| goats -c https://gemini-hlsw.github.io/goats-infra/conda
+      $ conda create -n goats-env python=3.12 goats -c https://gemini-hlsw.github.io/goats-infra/conda
 
    .. note::
       If the environment creation fails, it may be due to an outdated version of Conda. 
@@ -149,7 +149,7 @@ Currently, DRAGONS (one of the dependencies of GOATS) does not support macOS ARM
 
 .. code-block:: console
 
-   $ conda create --platform osx-64 -n goats-env python=|python_min| goats -c https://gemini-hlsw.github.io/goats-infra/conda
+   $ conda create --platform osx-64 -n goats-env python=3.12 goats -c https://gemini-hlsw.github.io/goats-infra/conda
 
 This ensures that dependencies are installed in a way that maintains compatibility with required packages.
 

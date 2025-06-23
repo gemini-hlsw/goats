@@ -52,7 +52,6 @@ GOATS relies on the following components -
    functionalities.rst
    acknowledgment.rst
    help.rst
-   troubleshooting.rst
 
 .. toctree::
    :maxdepth: 3
