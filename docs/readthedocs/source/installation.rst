@@ -11,7 +11,7 @@ GOATS is designed to be run **locally**. As of now, there are no plans for a ded
 System Requirements
 ===================
 
-* Python 3.10 or higher
+* Python |python_min| or higher
 * Conda (Miniforge)
 * Supported Operating Systems:
 
@@ -84,7 +84,7 @@ Follow the steps below to install GOATS across all supported platforms.
 
    .. code-block:: console
 
-      $ conda create -n goats-env python=3.10 goats -c https://gemini-hlsw.github.io/goats/conda
+      $ conda create -n goats-env python=|python_min| goats -c https://gemini-hlsw.github.io/goats-infra/conda
 
    .. note::
       If the environment creation fails, it may be due to an outdated version of Conda. 
@@ -149,7 +149,7 @@ Currently, DRAGONS (one of the dependencies of GOATS) does not support macOS ARM
 
 .. code-block:: console
 
-   $ conda create --platform osx-64 -n goats-env python=3.10 goats -c https://gemini-hlsw.github.io/goats/conda
+   $ conda create --platform osx-64 -n goats-env python=|python_min| goats -c https://gemini-hlsw.github.io/goats-infra/conda
 
 This ensures that dependencies are installed in a way that maintains compatibility with required packages.
 

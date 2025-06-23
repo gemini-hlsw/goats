@@ -80,5 +80,5 @@ rst_epilog = """
 .. |GOA| replace:: :raw-html:`<a href="https://archive.gemini.edu/">Gemini Observatory Archive</a>`
 .. |Dlab| replace:: :raw-html:`<a href="https://datalab.noirlab.edu/">Astro Data Lab</a>`
 .. |GPP| replace:: :raw-html:`<a href="https://noirlab.edu/public/media/archives/presentations/pdf/presentation011.pdf">Gemini Program Platform</a>`
-
+.. |python_min| replace:: 3.12
 """
