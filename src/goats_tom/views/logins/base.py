@@ -1,4 +1,6 @@
 __all__ = ["BaseLoginView"]
+from typing import Any
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
@@ -9,14 +11,14 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 
-from goats_tom.forms import BaseLoginForm
+from goats_tom.forms import UsernamePasswordLoginForm
 
 
 class BaseLoginView(LoginRequiredMixin, FormView):
     """View to handle Login form."""
 
     template_name = "auth/login_form.html"
-    form_class = BaseLoginForm
+    form_class = UsernamePasswordLoginForm
     service_name = None
     service_description = None
     login_client = None
@@ -42,12 +44,12 @@ class BaseLoginView(LoginRequiredMixin, FormView):
         """
         return reverse_lazy("user-list")
 
-    def form_valid(self, form: BaseLoginForm) -> HttpResponse:
+    def form_valid(self, form: Any) -> HttpResponse:
         """Handle valid form submission.
 
         Parameters
         ----------
-        form : `AstroDatalabForm`
+        form : `Any`
             Valid form object.
 
         Returns
@@ -56,11 +58,14 @@ class BaseLoginView(LoginRequiredMixin, FormView):
             HTTP response.
         """
         user = get_object_or_404(User, pk=self.kwargs["pk"])
-        username = form.cleaned_data["username"]
-        password = form.cleaned_data["password"]
+        username = form.cleaned_data.get("username")
+        password = form.cleaned_data.get("password")
+        token = form.cleaned_data.get("token")
 
-        # Test logging in to GOA.
-        authenticated = self.perform_login_and_logout(username, password)
+        # Test logging in and logging out.
+        authenticated = self.perform_login_and_logout(
+            username=username, password=password, token=token
+        )
         if not authenticated:
             messages.error(
                 self.request,
@@ -73,30 +78,16 @@ class BaseLoginView(LoginRequiredMixin, FormView):
                 "successfully.",
             )
 
-        # Save or update credentials.
-        if self.model_class is not None:
-            self.model_class.objects.update_or_create(
-                user=user,
-                defaults={
-                    "username": username,
-                    "password": password,
-                },
-            )
-        else:
-            messages.warning(
-                self.request,
-                f"No model_class specified for {self.service_name}. Credentials not "
-                "stored.",
-            )
+        self.save_credentials(user, username=username, password=password, token=token)
 
         return super().form_valid(form)
 
-    def form_invalid(self, form: BaseLoginForm) -> HttpResponse:
+    def form_invalid(self, form: Any) -> HttpResponse:
         """Handle invalid form submission.
 
         Parameters
         ----------
-        form : `BaseLoginForm`
+        form : `Any`
             Invalid form object.
 
         Returns
@@ -110,16 +101,14 @@ class BaseLoginView(LoginRequiredMixin, FormView):
         )
         return super().form_invalid(form)
 
-    def perform_login_and_logout(self, username: str, password: str) -> bool:
+    def perform_login_and_logout(self, **kwargs: Any) -> bool:
         """Perform the actual login or credential check and logout for the service,
         override in subclass.
 
         Parameters
         ----------
-        username : `str`
-            The username to authenticate with.
-        password : `str`
-            The password to authenticate with.
+        **kwargs : `Any`
+            Arbitrary keyword arguments required for login.
 
         Returns
         -------
@@ -127,3 +116,29 @@ class BaseLoginView(LoginRequiredMixin, FormView):
             `True` if authentication succeeded, otherwise `False`.
         """
         return True
+
+    def save_credentials(self, user: User, **kwargs: Any) -> None:
+        """Save credentials to the appropriate model.
+
+        Parameters
+        ----------
+        user : `User`
+            The user to associate the credentials with.
+        **kwargs : `Any`
+            Credential data (e.g. username, password, token).
+        """
+        if self.model_class is not None:
+            self.model_class.objects.update_or_create(
+                user=user,
+                defaults={
+                    k: v
+                    for k, v in kwargs.items()
+                    if k in {"username", "password", "token"} and v is not None
+                },
+            )
+        else:
+            messages.warning(
+                self.request,
+                f"No model_class specified for {self.service_name}. Credentials not "
+                "stored.",
+            )

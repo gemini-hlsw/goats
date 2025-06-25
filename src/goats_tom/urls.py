@@ -87,6 +87,7 @@ urlpatterns = [
         views.AstroDatalabLoginView.as_view(),
         name="user-astro-data-lab-login",
     ),
+    path("users/<int:pk>/gpp/", views.GPPLoginView.as_view(), name="user-gpp-login"),
     path("goa_query/<int:pk>/", views.GOAQueryFormView.as_view(), name="goa_query"),
     path("api/ongoing-tasks/", views.ongoing_tasks, name="ongoing_tasks"),
     path("recent-downloads/", views.recent_downloads, name="recent_downloads"),

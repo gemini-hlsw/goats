@@ -1,7 +1,6 @@
 import factory
-from goats_tom.models import (
-    RecipesModule
-)
+
+from goats_tom.models import RecipesModule
 
 
 class RecipesModuleFactory(factory.django.DjangoModelFactory):

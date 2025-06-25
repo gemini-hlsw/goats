@@ -3,7 +3,15 @@
 {% block content %}
 <div class="mb-3">
   <p class="h2">
-    Manage {% if service_name == "GOA" %}Gemini Observatory Archive (GOA){% else %}{{ service_name }}{% endif %} Login
+    Manage
+    {% if service_name == "GOA" %}
+    Gemini Observatory Archive (GOA)
+    {% elif service_name == "GPP" %}
+      Gemini Program Platform (GPP)
+    {% else %}
+      {{ service_name }}
+    {% endif %}
+    Login
   </p>
   {% if service_description %}
   <p class="mb-3">
@@ -15,22 +23,34 @@
   </p>
 </div>
 <div class="alert alert-danger" role="alert">
-  <strong>Important:</strong> This information will be securely stored. Do not share your {{ service_name }} login credentials.
+  <strong>Important:</strong> This information will be securely stored. Do not share your {{ service_name }} credentials.
 </div>
 <hr />
 
 <form method="POST">
   {% csrf_token %}
+  {% if form.username %}
   <div class="mb-3">
-    {{ form.username.label_tag }} <br>
+    {{ form.username.label_tag }}<br>
     {{ form.username }}
   </div>
+  {% endif %}
+
+  {% if form.password %}
   <div class="mb-3">
-    {{ form.password.label_tag }} <br>
+    {{ form.password.label_tag }}<br>
     {{ form.password }}
   </div>
+  {% endif %}
 
-  <input type="submit" value="Save {{ service_name }} Login" class="btn btn-primary">
+  {% if form.token %}
+  <div class="mb-3">
+    {{ form.token.label_tag }}<br>
+    {{ form.token }}
+  </div>
+  {% endif %}
+
+  <input type="submit" value="Save {{ service_name }} Credentials" class="btn btn-primary">
 </form>
 
 {% endblock %}

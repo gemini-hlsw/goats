@@ -1,6 +1,7 @@
 from goats_tom.models import (
     AstroDatalabLogin,
 )
+
 from .base import BaseLoginFactory
 
 

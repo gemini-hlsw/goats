@@ -1,4 +1,5 @@
-from goats_tom.forms.base_login import BaseLoginForm
 from goats_tom.forms.goa_query import GOAQueryForm
+from goats_tom.forms.token_login import TokenLoginForm
+from goats_tom.forms.username_password_login import UsernamePasswordLoginForm
 
-__all__ = ["BaseLoginForm", "GOAQueryForm"]
+__all__ = ["UsernamePasswordLoginForm", "GOAQueryForm", "TokenLoginForm"]

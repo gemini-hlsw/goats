@@ -1,6 +1,7 @@
 from goats_tom.models import (
     GOALogin,
 )
+
 from .base import BaseLoginFactory
 
 

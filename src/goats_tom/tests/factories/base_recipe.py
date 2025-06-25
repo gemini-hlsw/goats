@@ -1,7 +1,9 @@
 import factory
+
 from goats_tom.models import (
     BaseRecipe,
 )
+
 from .recipes_module import RecipesModuleFactory
 
 

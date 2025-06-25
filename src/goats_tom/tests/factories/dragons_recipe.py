@@ -1,10 +1,12 @@
 import factory
 from django.utils import timezone
+
 from goats_tom.models import (
     DRAGONSRecipe,
 )
-from .dragons_run import DRAGONSRunFactory
+
 from .base_recipe import BaseRecipeFactory
+from .dragons_run import DRAGONSRunFactory
 
 
 class DRAGONSRecipeFactory(factory.django.DjangoModelFactory):

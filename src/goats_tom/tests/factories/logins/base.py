@@ -1,10 +1,18 @@
 import factory
+
 from ..user import UserFactory
 
 
 class BaseLoginFactory(factory.django.DjangoModelFactory):
     """Abstract factory for BaseLogin subclasses."""
+
     user = factory.SubFactory(UserFactory)
+
+    class Meta:
+        abstract = True
+
+
+class UsernamePasswordLoginFactory(BaseLoginFactory):
     username = factory.Faker("user_name")
     password = factory.Faker(
         "password",
@@ -14,6 +22,3 @@ class BaseLoginFactory(factory.django.DjangoModelFactory):
         upper_case=True,
         lower_case=True,
     )
-
-    class Meta:
-        abstract = True
