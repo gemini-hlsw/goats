@@ -90,40 +90,6 @@ urlpatterns = [
     path("goa_query/<int:pk>/", views.GOAQueryFormView.as_view(), name="goa_query"),
     path("api/ongoing-tasks/", views.ongoing_tasks, name="ongoing_tasks"),
     path("recent-downloads/", views.recent_downloads, name="recent_downloads"),
-    path(
-        "users/<int:pk>/manage-keys/",
-        views.ManageKeysView.as_view(),
-        name="manage-keys",
-    ),
-    path(
-        "users/<int:user_pk>/user-key/<int:pk>/delete/",
-        views.delete_key,
-        {"key_type": "user_key"},
-        name="delete-user-key",
-    ),
-    path(
-        "users/<int:user_pk>/program-key/<int:pk>/delete/",
-        views.delete_key,
-        {"key_type": "program_key"},
-        name="delete-program-key",
-    ),
-    path(
-        "users/<int:user_pk>/create-user-key/",
-        views.create_key,
-        {"key_type": "user_key"},
-        name="create-user-key",
-    ),
-    path(
-        "users/<int:user_pk>/create-program-key/",
-        views.create_key,
-        {"key_type": "program_key"},
-        name="create-program-key",
-    ),
-    path(
-        "users/<int:user_pk>/user-key/<int:pk>/activate/",
-        views.activate_user_key,
-        name="activate-user-key",
-    ),
     path("observations/<int:pk>/dragons/", views.DRAGONSView.as_view(), name="dragons"),
     path(
         "dataproducts/data/upload/",

@@ -7,19 +7,13 @@ from astropy.table import Table
 from django.test import TestCase
 from goats_tom.tests.factories import (
     DataProductFactory,
-    ProgramKeyFactory,
     ReducedDatumFactory,
-    UserFactory,
-    UserKeyFactory,
 )
 from goats_tom.utils import (
     build_json_response,
     create_name_reduction_map,
     custom_data_product_path,
     delete_associated_data_products,
-    get_key,
-    get_key_info,
-    has_key,
 )
 from rest_framework import status
 from tom_dataproducts.models import DataProduct, ReducedDatum
@@ -183,76 +177,3 @@ class TestCustomDataProductPath:
         expected_path = "target_name/none/none/image.fits"
         result = custom_data_product_path(mock_data_product, filename)
         assert result == expected_path
-
-
-@pytest.mark.django_db()
-class TestGetKey(TestCase):
-    """Test cases for the `get_key` utility function."""
-
-    def test_get_key_with_user_key(self):
-        """Test retrieving a UserKey when it exists and is active."""
-        user = UserFactory()
-        site = "GS"
-        user_key = UserKeyFactory(user=user, is_active=True, site=site)
-        assert get_key(user, site) == user_key
-
-    def test_get_key_with_program_key(self):
-        """Test retrieving a ProgramKey when it exists."""
-        user = UserFactory()
-        program_key = ProgramKeyFactory(user=user)
-        assert get_key(user, str(program_key.program_id)) == program_key
-
-    def test_get_key_no_key(self):
-        """Test retrieving a key when none exists for given ID."""
-        user = UserFactory()
-        assert get_key(user, "invalid_id") is None
-
-
-@pytest.mark.django_db()
-class TestHasKey:
-    """Test cases for the `has_key` utility function."""
-
-    def test_has_key_with_user_key(self):
-        """Test if `has_key` correctly identifies the presence of a UserKey."""
-        user = UserFactory()
-        site = "GN"
-        UserKeyFactory(user=user, is_active=True, site=site)
-        assert has_key(user, site) is True
-
-    def test_has_key_with_program_key(self):
-        """Test if `has_key` correctly identifies the presence of a
-        ProgramKey.
-        """
-        user = UserFactory()
-        program_key = ProgramKeyFactory(user=user)
-        assert has_key(user, str(program_key.program_id)) is True
-
-    def test_has_key_no_key(self):
-        """Test if `has_key` returns False when no key exists."""
-        user = UserFactory()
-        assert has_key(user, "invalid_id") is False
-
-
-@pytest.mark.django_db()
-class TestGetKeyInfo:
-    """Test cases for the `get_key_info` utility function."""
-
-    def test_get_key_info_with_user_key(self):
-        """Test retrieving key info for a UserKey."""
-        user = UserFactory()
-        site = "GN"
-        user_key = UserKeyFactory(user=user, is_active=True, site="GN")
-        expected_info = {"password": user_key.password, "email": user_key.email}
-        assert get_key_info(user, site) == expected_info
-
-    def test_get_key_info_with_program_key(self):
-        """Test retrieving key info for a ProgramKey."""
-        user = UserFactory()
-        program_key = ProgramKeyFactory(user=user)
-        expected_info = {"password": program_key.password}
-        assert get_key_info(user, str(program_key.program_id)) == expected_info
-
-    def test_get_key_info_no_key(self):
-        """Test retrieving key info when no key exists."""
-        user = UserFactory()
-        assert get_key_info(user, "invalid_id") == {}

@@ -13,7 +13,6 @@ from dateutil.parser import parse
 from django import forms
 from django.conf import settings
 from django.http import HttpRequest
-from requests.exceptions import HTTPError, ReadTimeout
 from tom_common.exceptions import ImproperCredentialsException
 from tom_dataproducts.models import DataProduct
 from tom_observations.facility import (
@@ -26,8 +25,6 @@ from tom_targets.models import Target
 
 from goats_tom.astroquery import Observations as GOA
 from goats_tom.ocs import GeminiID, OCSClient
-from goats_tom.utils import get_key_info
-from requests.exceptions import ConnectTimeout
 from bs4 import BeautifulSoup
 
 try:
@@ -515,27 +512,7 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
         return GEMObservationForm
 
     def submit_observation(self, observation_payload: list[dict[str, Any]]):
-        obsids = []
-        for payload in observation_payload:
-            # TODO: Remove after work to the OCS.
-            payload["email"] = "ocs@test.com"
-
-            # Get the correct key to use in the request.
-            # TODO: Add in retry with user key if these fail, need to
-            # investigate how gemini rejects.
-            key_info = get_key_info(self.user, identifier=payload["prog"])
-            payload.update(key_info)
-
-            response = make_request(
-                "POST",
-                PORTAL_URL[get_site(payload["prog"])] + "/too",
-                verify=False,
-                params=payload,
-            )
-            # Return just observation number
-            obsid = response.text.split("-")
-            obsids.append(obsid[-1])
-        return obsids
+        pass
 
     def validate_observation(self, observation_payload: dict) -> dict:
         """Validates the observation payload.

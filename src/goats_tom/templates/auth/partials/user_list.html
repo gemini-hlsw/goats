@@ -29,7 +29,7 @@
               data-bs-title="Credential Manager"
               data-bs-content='
       <ul class="mb-0">
-       <li>Store and manage credentials for <strong>GOA, Astro Data Lab, Gemini OCS</strong>, and other linked services.</li>
+       <li>Store and manage credentials for <strong>GOA, Astro Data Lab</strong>, and other linked services.</li>
        <li>If an admin, generate authentication tokens for the browser extension.</li>
        <li>Click <strong>"Manage"</strong> in the table to add, update, or retrieve credentials.</li>
       </ul>'
@@ -75,9 +75,6 @@
                   >
                 </li>
                 <li>
-                  <a href="{% url 'manage-keys' user.id %}" class="dropdown-item"
-                    >Gemini OCS</a
-                  >
                 </li>
                 {% if request.user.is_superuser %}
                 <li><hr class="dropdown-divider" /></li>
