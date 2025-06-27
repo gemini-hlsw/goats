@@ -19,6 +19,10 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.12"
 
     steps:
       - name: Checkout repository
@@ -27,39 +31,37 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.branch }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv and set the python version
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install towncrier
+          uv pip install towncrier
 
       - name: Generate draft release notes with Towncrier
         run: |
-          towncrier build --draft --version "${{ inputs.version }}" > draft_release_notes.md
+          uv run towncrier build --draft --version "${{ inputs.version }}" > draft_release_notes.md
 
       - name: Generate final release notes with Towncrier
         run: |
           if [[ "${{ inputs.prerelease }}" == "false" ]]; then
-            towncrier build --version "${{ inputs.version }}" --yes
+            uv run towncrier build --version "${{ inputs.version }}" --yes
           fi
 
-      - name: Update pyproject.toml with new version
-        run: |
-          sed -i '/^\[project\]/,/^version = / s/^version = ".*"$/version = "${{ inputs.version }}"/' pyproject.toml
+      - name: Update pyproject.toml and uv.lock with new version
+        run: uv version ${{ inputs.version}}
 
       - name: Commit updated changelog
         run: |
           set -e
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml uv.lock
           git add docs/readthedocs/source/project_details/changelog.rst
 
-          git commit -m "Update version to ${{ inputs.version }} and generate release notes." || echo "No changes to commit."
+          git commit -m "Update version to ${{ inputs.version }} and generate release notes."
           git push origin ${{ inputs.branch }}
 
       - name: Create tag
@@ -72,7 +74,7 @@ jobs:
         with:
           tag_name: ${{ inputs.version }}
           name: ${{ inputs.version }}
-          draft: true  # Set to true to create a draft release.
-          prerelease: "${{ inputs.prerelease }} == 'true' }}"
+          draft: true # Set to true to create a draft release.
+          prerelease: ${{ inputs.prerelease == 'true' }}
           body_path: draft_release_notes.md
           generate_release_notes: true
