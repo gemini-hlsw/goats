@@ -1,0 +1,1 @@
+Add saving GPP credentials with ``gpp_client``: Communication with GPP is now established in GOATS. Users can save and verify their credential in GOATS for future use.
