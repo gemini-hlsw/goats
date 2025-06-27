@@ -71,9 +71,7 @@ class GPPProgramViewSet(
         """
         program_id = kwargs["pk"]
 
-        # Check if GPP credentials have been added.
         if not hasattr(request.user, "gpplogin"):
-            # Return with the proper error
             raise PermissionDenied(
                 "GPP login credentials are not configured for this user."
             )

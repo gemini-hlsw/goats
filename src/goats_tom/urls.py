@@ -9,6 +9,9 @@ router.register(
     r"gpp/programs", api_views.GPPProgramViewSet, basename="gppprograms"
 )
 router.register(
+    r"gpp/observations", api_views.GPPObservationViewSet, basename="gppobservations"
+)
+router.register(
     r"reduceddatums", api_views.ReducedDatumViewSet, basename="reduceddatums"
 )
 router.register(r"dragonsruns", api_views.DRAGONSRunsViewSet, basename="dragonsruns")

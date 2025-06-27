@@ -14,7 +14,7 @@ class TestGPPProgramViewSet:
         self.list_view = GPPProgramViewSet.as_view({'get': 'list'})
         self.retrieve_view = GPPProgramViewSet.as_view({'get': 'retrieve'})
 
-        self.program_id = "GN-2025A-Q-101"
+        self.program_id = "p-230e"
         self.program_data = {"program_id": self.program_id, "title": "Test Program"}
         self.programs_url = "/api/gpp/programs/"
         self.program_detail_url = f"/api/gpp/programs/{self.program_id}/"
