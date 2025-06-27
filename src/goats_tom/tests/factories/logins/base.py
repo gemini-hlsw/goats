@@ -22,3 +22,14 @@ class UsernamePasswordLoginFactory(BaseLoginFactory):
         upper_case=True,
         lower_case=True,
     )
+
+
+class TokenLoginFactory(BaseLoginFactory):
+    token = factory.Faker(
+        "password",
+        length=24,
+        special_chars=True,
+        digits=True,
+        upper_case=True,
+        lower_case=True,
+    )

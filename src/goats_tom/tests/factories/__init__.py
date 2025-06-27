@@ -5,7 +5,7 @@ from .dragons_file import DRAGONSFileFactory
 from .dragons_recipe import DRAGONSRecipeFactory
 from .dragons_reduce import DRAGONSReduceFactory
 from .dragons_run import DRAGONSRunFactory
-from .logins import AstroDatalabLoginFactory, GOALoginFactory
+from .logins import AstroDatalabLoginFactory, GOALoginFactory, GPPLoginFactory
 from .recipes_module import RecipesModuleFactory
 from .reduceddatum import ReducedDatumFactory
 from .user import UserFactory
@@ -23,4 +23,5 @@ __all__ = [
     "RecipesModuleFactory",
     "ReducedDatumFactory",
     "UserFactory",
+    "GPPLoginFactory",
 ]

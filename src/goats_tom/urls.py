@@ -6,6 +6,9 @@ from . import api_views, views
 
 router = SharedAPIRootRouter()
 router.register(
+    r"gpp/programs", api_views.GPPProgramViewSet, basename="gppprograms"
+)
+router.register(
     r"reduceddatums", api_views.ReducedDatumViewSet, basename="reduceddatums"
 )
 router.register(r"dragonsruns", api_views.DRAGONSRunsViewSet, basename="dragonsruns")
