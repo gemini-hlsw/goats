@@ -1,0 +1,1 @@
+Added ``pre-commit`` and hooks to run formatters.
