@@ -1,0 +1,42 @@
+exclude: ^(tests/|src/gpp_client/api/|docs/|schema.graphql|LICENSE)
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: "v5.0.0"
+    hooks:
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-docstring-first
+      - id: check-case-conflict
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: debug-statements
+      - id: detect-private-key
+      - id: forbid-submodules
+      - id: no-commit-to-branch
+        args:
+          - --branch=main
+      - id: name-tests-test
+        args:
+          - --pytest-test-first
+      - id: pretty-format-json
+        args:
+          - --autofix
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "v0.12.1"
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/numpy/numpydoc
+    rev: "v1.8.0"
+    hooks:
+      - id: numpydoc-validation
+        exclude: ^(src/gpp_client/cli/|src/custom_plugins/|src/gpp_client/directors/|src/gpp_client/managers/group.py)
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.7.17
+    hooks:
+      - id: uv-lock
