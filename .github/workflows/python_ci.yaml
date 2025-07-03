@@ -1,25 +1,46 @@
-name: Run Tests
+name: Python CI
 
 on:
   pull_request:
     paths:
       - "src/**/*.py"
-      - "tests/unit/**/*.py"
+      - "tests/**/*.py"
       - "pyproject.toml"
       - "uv.lock"
-      - ".github/workflows/run_tests.yaml"
+      - ".github/workflows/python_ci.yaml"
   push:
     branches:
       - main
 
 jobs:
-  build:
+  lint:
+    name: Run linter
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run linter
+        uses: astral-sh/ruff-action@v3
+        with:
+          version-file: "pyproject.toml"
+
+  format:
+    name: Check format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check format
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: "format --check"
+          version-file: "pyproject.toml"
+
+  tests:
+    name: Run tests
+    needs: [lint, format]
+    runs-on: [ubuntu-latest]
     strategy:
       matrix:
-        python-version:
-          - "3.12"
-
+        python-version: ["3.12"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,3 +63,6 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Minimize uv cache
+        run: uv cache prune --ci

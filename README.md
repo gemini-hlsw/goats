@@ -1,7 +1,6 @@
 # 🐐 Gemini Observation and Analysis of Targets System (GOATS)
 
 ![Docs Status](https://readthedocs.org/projects/goats/badge/?version=latest)
-[![Run Tests](https://github.com/gemini-hlsw/goats/actions/workflows/run_tests.yaml/badge.svg?branch=main&event=push)](https://github.com/gemini-hlsw/goats/actions/workflows/run_tests.yaml)
 [![Code Coverage](https://codecov.io/github/gemini-hlsw/goats/branch/main/graph/badge.svg?token=QXC18C4T93)](https://codecov.io/github/gemini-hlsw/goats)
 
 ---
