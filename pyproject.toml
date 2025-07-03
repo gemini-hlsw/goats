@@ -30,7 +30,7 @@ dependencies = [
     "djangorestframework>=3.16.0,<4",
     "dramatiq-abort>=1.2.1",
     "dramatiq[redis,watch]>=1.18.0,<2",
-    "gpp-client>=25.6.2",
+    "gpp-client==25.7.0",
     "marshmallow>=3.26.1,<4",
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
@@ -48,7 +48,6 @@ Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 [dependency-groups]
 dev = [
     "factory-boy>=3.3.3",
-    "nox>=2025.5.1",
     "pytest>=8.4.0",
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=6.1.1",
@@ -56,7 +55,7 @@ dev = [
     "pytest-mock>=3.14.1",
     "pytest-remotedata>=0.4.1",
     "pytest-xdist>=3.7.0",
-    "ruff>=0.11.13",
+    "ruff>=0.12.2",
     "towncrier>=24.8.0",
 ]
 docs = [
