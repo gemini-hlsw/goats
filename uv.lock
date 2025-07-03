@@ -1231,7 +1231,7 @@ notebook = [{ name = "ipykernel", specifier = ">=6.29.5" }]
 
 [[package]]
 name = "gpp-client"
-version = "25.6.2"
+version = "25.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1242,9 +1242,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/f0/a41b1cc2ac7a137cac81ff9dba718c4090a27164c10e665dcc16b1d19f70/gpp_client-25.6.2.tar.gz", hash = "sha256:27568cf3cfa3d233c7920288af004f7a0a8f93eaad1f5fa2b8a4640429fdbc96", size = 88999, upload-time = "2025-06-30T23:26:54.132Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/70/41/85d1fd55215cb851e594ba43e42d29fe858e8b1d092be2221bd4d8bf42ba/gpp_client-25.7.0.tar.gz", hash = "sha256:5550d4d89c6646205b47d5f18ea93621966d89c53c81591dccbf0e0be8501988", size = 91450, upload-time = "2025-07-02T21:45:58.358Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d4/98/6dc2a91f6638c20e2c535b1d756fe2e56a0f00db621e71fb317c7e2b1d40/gpp_client-25.6.2-py3-none-any.whl", hash = "sha256:b969d9e6e7460aa42affe9dc5852475e2a6c5da1e3a2ead3963c7b7c229d5447", size = 107787, upload-time = "2025-06-30T23:26:52.93Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/21/612ed48720e451f906e613da66871898fd09037717e48ec9181438cc53f3/gpp_client-25.7.0-py3-none-any.whl", hash = "sha256:0ecd19a0bae795c552a4012ce58e6d7f7c85165ae4081c20ad155daac62e7797", size = 110089, upload-time = "2025-07-02T21:45:57.053Z" },
 ]
 
 [[package]]
