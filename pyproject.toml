@@ -152,3 +152,18 @@ docstring-code-line-length = "dynamic"
 [tool.uv.sources]
 dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.0.0" }
 fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.4.0" }
+
+[tool.numpydoc_validation]
+checks = [
+    "all",  # All except the rules listed below.
+    "SA01",  # See Also section.
+    "EX01",  # Example section.
+    "SS06",  # Summary can go into second line.
+    "GL08",  # Do not require docstring.
+    "ES01",  # No extended summary required.
+    "SS05",  # pydocstyle is better at finding infinitive verb.
+]
+exclude = [
+    '^__init__$',
+    '\._[a-zA-Z_]+$',  # Private methods.
+]

@@ -42,4 +42,3 @@ class TestDRAGONSRecipeFactory:
         assert (
             dragons_recipe.function_definition is None
         ), "Function definition should be None by default."
-

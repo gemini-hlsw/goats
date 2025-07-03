@@ -10,5 +10,5 @@ class RecipesModuleFactory(factory.django.DjangoModelFactory):
         model = RecipesModule
 
     name = factory.Faker("word")
-    version = factory.Faker("numerify", text='#.#.#')
+    version = factory.Faker("numerify", text="#.#.#")
     instrument = factory.Faker("word")

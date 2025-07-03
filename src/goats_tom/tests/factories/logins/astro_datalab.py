@@ -7,5 +7,6 @@ from .base import BaseLoginFactory
 
 class AstroDatalabLoginFactory(BaseLoginFactory):
     """Factory for AstroDatalabLogin."""
+
     class Meta:
         model = AstroDatalabLogin

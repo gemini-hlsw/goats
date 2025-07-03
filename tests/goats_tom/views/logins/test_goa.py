@@ -82,4 +82,3 @@ class TestGOALoginView(TestCase):
         self.assertTrue(any("Failed to save GOA login information" in str(msg) for msg in messages_list))
         # Ensure nothing was saved
         self.assertFalse(GOALogin.objects.filter(user=self.user).exists())
-

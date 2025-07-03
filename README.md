@@ -23,10 +23,12 @@ Its objective is to simplify the TDAMM workflow for users by serving as a one-st
 ---
 
 ### Requirements
+
 - `python=3.12`
 - `conda`
 
 ## Development Status
+
 🚧 The library is under development. Breaking changes will occur between releases.
 
 ## Installation
@@ -38,6 +40,7 @@ conda install -c https://gemini-hlsw.github.io/goats-infra/conda goats
 ```
 
 Then install GOATS by using the `cli`:
+
 ```console
 $ goats --help
 ```
@@ -59,4 +62,29 @@ While in development, please file requests or report bugs via our Jira board or 
 - [GOATS Documentation](https://goats.readthedocs.io/en/latest/)
 
 ## Development
+
 To install GOATS for development, testing, and contributions please follow: https://goats.readthedocs.io/en/latest/developer_guide/environment.html
+
+## Set Up `pre-commit`
+
+To install `pre-commit` using `uv`, run:
+
+```bash
+uv tool install pre-commit --with pre-commit-uv
+```
+
+You may be prompted to add `.local/bin` to your `PATH`, `uv` installs tools there by default.
+
+Next, install the hooks defined in `.pre-commit-config.yaml`:
+
+```bash
+pre-commit install
+```
+
+Once installed, `pre-commit` will automatically run the configured hooks each time you make a commit. This helps catch formatting issues, docstring violations, and other problems before code is committed.
+
+To manually run all `pre-commit` hooks on the entire codebase:
+
+```bash
+pre-commit run --all-files
+```

@@ -36,4 +36,3 @@ class TestDRAGONSRun:
                 observation_record=observation_record, run_id=run_id,
             )
             duplicate_run.full_clean()
-

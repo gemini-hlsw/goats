@@ -1,8 +1,4 @@
-# Licensed under a 3-clause BSD style license - see LICENSE.rst
-"""===========================================
-Gemini Observatory Archive (GOA) URL Helper
-===========================================
-
+"""
 Query public and proprietary data from GOA.
 """
 
@@ -44,13 +40,6 @@ def handle_coordinates(key, coordinates):
     return f"ra={coordinates.ra.deg}/dec={coordinates.dec.deg}"
 
 
-"""
-Dictionary of custom handlers by key.
-
-This dictionary will pass keyword/value pairs to the appropriate handler, if
-they are present. By default, the url will use "handle_keyword_arg" to
-add the key/value pair to the URL.
-"""
 handlers = {
     "radius": handle_radius,
     "coordinates": handle_coordinates,
@@ -89,7 +78,7 @@ class URLHelper:
 
     def get_login_url(self):
         """Wrapper for getting login URL."""
-        return f'{self.server}{self.ENDPOINTS["login"]}'
+        return f"{self.server}{self.ENDPOINTS['login']}"
 
     def get_summary_url(self, *args, **kwargs):
         """Wrapper for getting JSON summary URL."""
@@ -105,11 +94,11 @@ class URLHelper:
 
     def get_file_url(self, filename):
         """Wrapper for getting single file URL."""
-        return f'{self.server}{self.ENDPOINTS["file"]}/{filename}'
+        return f"{self.server}{self.ENDPOINTS['file']}/{filename}"
 
     def get_search_url(self, program_id):
         """Wrapper for getting the search URL for a program ID."""
-        return f'{self.server}{self.ENDPOINTS["search"]}/{program_id}'
+        return f"{self.server}{self.ENDPOINTS['search']}/{program_id}"
 
     def build_url(self, *args, endpoint=None, **kwargs):
         """Build a URL with the given args and kwargs as the query parameters.

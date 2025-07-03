@@ -16,7 +16,10 @@ class NotificationInstance:
 
     @classmethod
     def create_and_send(
-        cls, label: str = "", message: str = "", color: str = "primary",
+        cls,
+        label: str = "",
+        message: str = "",
+        color: str = "primary",
     ) -> None:
         """Creates and sends a notification.
 

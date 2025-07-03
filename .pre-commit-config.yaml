@@ -1,4 +1,4 @@
-exclude: ^(tests/|src/gpp_client/api/|docs/|schema.graphql|LICENSE)
+exclude: ^(docs/|js_tests/|src/goats_tom/static/|src/goats_tom/templates/|LICENSE)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: "v5.0.0"
@@ -19,6 +19,7 @@ repos:
       - id: name-tests-test
         args:
           - --pytest-test-first
+        exclude: ^(src/goats_tom/tests/|tests/data/)
       - id: pretty-format-json
         args:
           - --autofix
@@ -28,13 +29,15 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
+        exclude: ^(docs/|js_tests/|src/goats_tom/brokers/|src/goats_tom/migrations/)
       - id: ruff-format
+        exclude: ^(docs/|js_tests/|src/goats_tom/brokers/|src/goats_tom/migrations/)
 
-  - repo: https://github.com/numpy/numpydoc
-    rev: "v1.8.0"
-    hooks:
-      - id: numpydoc-validation
-        exclude: ^(src/gpp_client/cli/|src/custom_plugins/|src/gpp_client/directors/|src/gpp_client/managers/group.py)
+  # - repo: https://github.com/numpy/numpydoc
+  #   rev: "v1.8.0"
+  #   hooks:
+  #     - id: numpydoc-validation
+  #       exclude: ^(tests/)
 
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.7.17

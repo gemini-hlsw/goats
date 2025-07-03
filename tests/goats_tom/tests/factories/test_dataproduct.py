@@ -25,4 +25,3 @@ class TestDataProductFactory:
         with pytest.raises(ValidationError):
             invalid_data_product = DataProductFactory(data_product_type="invalid_type")
             invalid_data_product.full_clean()
-

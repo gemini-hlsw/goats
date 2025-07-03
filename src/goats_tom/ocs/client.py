@@ -92,7 +92,9 @@ class OCSClient:
         return f"{site_info['host']}:{site_info['port']}"
 
     def _send_request(
-        self, program_or_observation_id: str, method_name: str | None = None,
+        self,
+        program_or_observation_id: str,
+        method_name: str | None = None,
     ) -> dict[str, Any]:
         """Sends a request to the OCS server, handling both WDBA and ODB
         requests.
@@ -142,7 +144,9 @@ class OCSClient:
             return {"success": False, "error": str(e)}
 
     def get_program_summary(
-        self, program_or_observation_id: str, skip_parsing: bool | None = False,
+        self,
+        program_or_observation_id: str,
+        skip_parsing: bool | None = False,
     ) -> dict[str, Any]:
         """Fetches summary for a program ID.
 
@@ -169,7 +173,9 @@ class OCSClient:
         return response
 
     def get_observation_summary(
-        self, observation_id: str, skip_parsing: bool | None = False,
+        self,
+        observation_id: str,
+        skip_parsing: bool | None = False,
     ) -> dict[str, Any]:
         """Fetches summary for an observation ID.
 
@@ -211,7 +217,9 @@ class OCSClient:
         }
 
     def get_sequence(
-        self, observation_id: str, skip_parsing: bool | None = False,
+        self,
+        observation_id: str,
+        skip_parsing: bool | None = False,
     ) -> dict[str, Any]:
         """Fetches the sequence data for a given observation ID.
 
@@ -229,7 +237,8 @@ class OCSClient:
 
         """
         response = self._send_request(
-            observation_id, method_name=self.method_names["get_sequence"],
+            observation_id,
+            method_name=self.method_names["get_sequence"],
         )
         if not response["success"] or skip_parsing:
             return response
@@ -239,7 +248,9 @@ class OCSClient:
         return response
 
     def get_coordinates(
-        self, observation_id: str, skip_parsing: bool | None = False,
+        self,
+        observation_id: str,
+        skip_parsing: bool | None = False,
     ) -> dict[str, Any]:
         """Fetches the coordinates for a given observation ID.
 
@@ -257,7 +268,8 @@ class OCSClient:
 
         """
         response = self._send_request(
-            observation_id, method_name=self.method_names["get_coordinates"],
+            observation_id,
+            method_name=self.method_names["get_coordinates"],
         )
         if not response["success"] or skip_parsing:
             return response

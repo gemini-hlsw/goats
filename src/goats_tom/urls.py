@@ -5,9 +5,7 @@ from tom_common.api_router import SharedAPIRootRouter
 from . import api_views, views
 
 router = SharedAPIRootRouter()
-router.register(
-    r"gpp/programs", api_views.GPPProgramViewSet, basename="gppprograms"
-)
+router.register(r"gpp/programs", api_views.GPPProgramViewSet, basename="gppprograms")
 router.register(
     r"gpp/observations", api_views.GPPObservationViewSet, basename="gppobservations"
 )
