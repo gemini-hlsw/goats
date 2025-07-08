@@ -1,0 +1,82 @@
+{% extends 'tom_common/base.html' %}
+{% load bootstrap4 static crispy_forms_tags observation_extras targets_extras %} {% csrf_token%}
+{% block title %}Submit Observation{% endblock %}
+{% block additional_css %}
+<link rel="stylesheet" href="{% static 'tom_common/css/main.css' %}">
+<link rel="stylesheet" href="{% static 'tom_observations/css/main.css' %}">
+{% endblock %}
+{% block content %}
+{{ form|as_crispy_errors }}
+<h3>Submit an observation to {{ form.facility.value }} for <a href="{% url 'targets:detail' pk=target.id %}">{{target.name}}</a></h3>
+{% if facility_link %}
+    Please see the <a href="{{ facility_link }}" target="_blank">facility documentation</a> for more information.
+{% endif %}
+{% if missing_configurations %}
+    <div class="alert alert-danger">Some {{ form.facility.value }} Facility settings ({{ missing_configurations }}) are not configured.</div>
+{% endif %}
+{% if target.type == 'SIDEREAL' %}
+<div class="row">
+    <div class="col">
+    {% observation_plan target form.facility.value %}
+    </div>
+</div>
+{% else %}
+<hr>
+{% endif %}
+<div class="row">
+    <div class="col-md-6">
+      {% target_data target %}
+      <h4>Lunar Distance</h4>
+      {% moon_distance target width=None %}
+    </div>
+    <div class="col-md-6">
+      {% if form.facility.value == "GEM" %}
+      <ul class="nav nav-tabs" id="tabs">
+        <li class="nav-item">
+          <span class="nav-link active" aria-current="true">GPP</span>
+        </li>
+      </ul>
+      <div class="tab-content">
+        <div id="programObservationsContainer" class="mt-4"></div>
+      </div>
+      {% else %}
+      <ul class="nav nav-tabs" id="tabs">
+        {% for observation_type, observation_form in observation_type_choices %}
+          <li class="nav-item">
+            <span class="nav-link {% if observation_type == active or not active and forloop.first %}active{% endif %}" data-target="#{{ observation_type }}" data-toggle="tab">
+                {{ observation_type|display_obs_type }}
+            </span>
+          </li>
+        {% endfor %}
+        </ul>
+        <div class="tab-content observation-form">
+        {% for observation_type, observation_form in observation_type_choices %}
+          <div class="tab-pane {% if observation_type == active or not active and forloop.first %}active{% endif %}" id="{{ observation_type }}">
+          {% crispy observation_form %}
+          </div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+</div>
+{% endblock %} {% block javascript %} {{ block.super }}
+<script src="{% static 'js/utils.js' %}"></script>
+<script src="{% static 'js/dragons_app/api.js' %}"></script>
+<script src="{% static 'js/gpp.js' %}"></script>
+
+<script type="text/javascript">
+  class App {
+    constructor() {
+      window.api = new API("/api/", "{{ csrf_token }}")
+
+      this.gpp = new GPP(document.getElementById("programObservationsContainer"));
+      this.gpp.init()
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    new App();
+  });
+</script>
+
+{% endblock %}
