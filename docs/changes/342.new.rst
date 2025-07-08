@@ -1,0 +1,1 @@
+Extended frontend to display available programs from GPP: Users can now use GPP to fetch the available programs and display in a select widget on the Gemini submit observation page.
