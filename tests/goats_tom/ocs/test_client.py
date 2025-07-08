@@ -42,27 +42,28 @@ def program_id():
     return "GS-2023B-Q-102"
 
 
-def test_get_program_summary_with_observation_id(client, odb_xml, observation_id):
-    # Mock the _send_odb_request method to return the fixture data.
-    client._send_odb_request = lambda _: odb_xml
+def test_get_program_summary_with_observation_id(
+    client, odb_xml, observation_id, mocker
+):
+    mock_send = mocker.patch.object(client, "_send_request", return_value={"success": True, "raw_data": odb_xml})
 
     result = client.get_program_summary(observation_id)
+
+    mock_send.assert_called_once_with(observation_id)
     assert isinstance(result, dict)
     assert result["success"]
 
 
-def test_get_program_summary_with_program_id(client, odb_xml, program_id):
-    # Mock the _send_odb_request method to return the fixture data.
-    client._send_odb_request = lambda _: odb_xml
+def test_get_program_summary_with_program_id(client, odb_xml, program_id, mocker):
+    mock_send = mocker.patch.object(client, "_send_request", return_value={"success": True, "raw_data": odb_xml})
 
     result = client.get_program_summary(program_id)
     assert isinstance(result, dict)
     assert result["success"]
 
 
-def test_get_observation_summary(client, odb_xml, observation_id):
-    # Mock the _send_odb_request method to return the fixture data.
-    client._send_odb_request = lambda _: odb_xml
+def test_get_observation_summary(client, odb_xml, observation_id, mocker):
+    mock_send = mocker.patch.object(client, "_send_request", return_value={"success": True, "raw_data": odb_xml})
 
     result = client.get_observation_summary(observation_id)
     assert isinstance(result, dict)
