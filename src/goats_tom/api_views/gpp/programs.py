@@ -5,8 +5,7 @@ __all__ = ["GPPProgramViewSet"]
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from gpp_client import GPPClient
-from rest_framework import permissions
-from rest_framework.exceptions import PermissionDenied
+from rest_framework import permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, mixins
@@ -38,16 +37,20 @@ class GPPProgramViewSet(
             If the authenticated user has not configured GPP login credentials.
         """
         if not hasattr(request.user, "gpplogin"):
-            raise PermissionDenied(
-                "GPP login credentials are not configured for this user."
+            return Response(
+                {"detail": "GPP login credentials are not configured for this user."},
+                status=status.HTTP_403_FORBIDDEN,
             )
         credentials = request.user.gpplogin
 
         # Setup client to communicate with GPP.
-        client = GPPClient(url=settings.GPP_URL, token=credentials.token)
-        programs = async_to_sync(client.program.get_all)()
+        try:
+            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            programs = async_to_sync(client.program.get_all)()
 
-        return Response(programs)
+            return Response(programs)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request: Request, *args, **kwargs) -> Response:
         """Return details for a specific GPP program by program ID.
@@ -72,13 +75,17 @@ class GPPProgramViewSet(
         program_id = kwargs["pk"]
 
         if not hasattr(request.user, "gpplogin"):
-            raise PermissionDenied(
-                "GPP login credentials are not configured for this user."
+            return Response(
+                {"detail": "GPP login credentials are not configured for this user."},
+                status=status.HTTP_403_FORBIDDEN,
             )
         credentials = request.user.gpplogin
 
         # Setup client to communicate with GPP.
-        client = GPPClient(url=settings.GPP_URL, token=credentials.token)
-        program = async_to_sync(client.program.get_by_id)(program_id=program_id)
+        try:
+            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            program = async_to_sync(client.program.get_by_id)(program_id=program_id)
 
-        return Response(program)
+            return Response(program)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)

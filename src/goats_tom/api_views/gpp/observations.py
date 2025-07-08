@@ -5,8 +5,12 @@ __all__ = ["GPPObservationViewSet"]
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from gpp_client import GPPClient
-from rest_framework import permissions
-from rest_framework.exceptions import PermissionDenied
+from gpp_client.api.input_types import (
+    WhereObservation,
+    WhereOrderProgramId,
+    WhereProgram,
+)
+from rest_framework import permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, mixins
@@ -38,16 +42,26 @@ class GPPObservationViewSet(
             If the authenticated user has not configured GPP login credentials.
         """
         if not hasattr(request.user, "gpplogin"):
-            raise PermissionDenied(
-                "GPP login credentials are not configured for this user."
+            return Response(
+                {"detail": "GPP login credentials are not configured for this user."},
+                status=status.HTTP_403_FORBIDDEN,
             )
+
         credentials = request.user.gpplogin
 
-        # Setup client to communicate with GPP.
-        client = GPPClient(url=settings.GPP_URL, token=credentials.token)
-        observations = async_to_sync(client.observation.get_all)()
+        program_id = request.query_params.get("program_id")
 
-        return Response(observations)
+        try:
+            # Setup client to communicate with GPP.
+            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            if program_id is not None:
+                where = self._build_where(program_id)
+                observations = async_to_sync(client.observation.get_all)(where=where)
+            else:
+                observations = async_to_sync(client.observation.get_all)()
+            return Response(observations)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request: Request, *args, **kwargs) -> Response:
         """Return details for a specific GPP observation by observation ID.
@@ -72,15 +86,26 @@ class GPPObservationViewSet(
         observation_id = kwargs["pk"]
 
         if not hasattr(request.user, "gpplogin"):
-            raise PermissionDenied(
-                "GPP login credentials are not configured for this user."
+            return Response(
+                {"detail": "GPP login credentials are not configured for this user."},
+                status=status.HTTP_403_FORBIDDEN,
             )
         credentials = request.user.gpplogin
 
         # Setup client to communicate with GPP.
-        client = GPPClient(url=settings.GPP_URL, token=credentials.token)
-        observation = async_to_sync(client.observation.get_by_id)(
-            observation_id=observation_id
+        try:
+            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            observation = async_to_sync(client.observation.get_by_id)(
+                observation_id=observation_id
+            )
+            return Response(observation)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _build_where(self, program_id: str) -> WhereObservation:
+        """Build the filter to filter by program ID."""
+        where = WhereObservation(
+            program=WhereProgram(id=WhereOrderProgramId(eq=program_id))
         )
 
-        return Response(observation)
+        return where
