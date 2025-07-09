@@ -17,11 +17,18 @@ class GPPTemplate {
     const container = this.#createContainer();
     const row = Utils.createElement("div", ["row", "g-3"]);
 
-    const col1 = Utils.createElement("div", ["col-12"]);
-    col1.append(this.#createSelect("program", "Select A Program"));
+    const col1 = Utils.createElement("div", ["col-sm-6"]);
+    col1.append(
+      this.#createSelect("program", "Available Programs", "Choose a program...")
+    );
 
-    const col2 = Utils.createElement("div", ["col-12"]);
-    col2.append(this.#createSelect("observation", "TODO"));
+    const col2 = Utils.createElement("div", ["col-sm-6"]);
+    const observationSelect = this.#createSelect(
+      "observation",
+      "Available Observations",
+      "Choose an observation..."
+    );
+    col2.append(observationSelect);
 
     row.append(col1, col2);
     container.append(row);
@@ -37,7 +44,7 @@ class GPPTemplate {
   createSelectOption(data) {
     const option = Utils.createElement("option");
     option.value = data.id;
-    option.textContent = `${data.id} | ${data.name}`;
+    option.textContent = `${data.id} - ${data.name ?? data.title}`;
 
     return option;
   }
@@ -55,16 +62,27 @@ class GPPTemplate {
   /**
    * Generates a `<select>` populated with a hidden placeholder option.
    * @param {string} id  Prefix for the element ID.
+   * @param {string} labelText The text for the label.
    * @param {string} optionHint  Placeholder text.
    * @returns {!HTMLSelectElement}
    * @private
    */
-  #createSelect(id, optionHint) {
+  #createSelect(id, labelText, optionHint) {
+    const label = Utils.createElement("label", ["form-label"]);
+    label.htmlFor = `${id}Select`;
+    label.textContent = labelText;
     const select = Utils.createElement("select", ["form-select"]);
     select.id = `${id}Select`;
     select.innerHTML = `<option value="" selected hidden>${optionHint}</option>`;
 
-    return select;
+    if (id === "observation") {
+      select.disabled = true;
+    }
+
+    const wrapper = Utils.createElement("div");
+    wrapper.append(label, select);
+
+    return wrapper;
   }
 }
 
@@ -112,11 +130,11 @@ class GPPModel {
    * @returns {Promise<void>}
    */
   async fetchPrograms() {
+    this.clearPrograms();
     try {
       const response = await this.#api.get(this.#programsUrl);
 
       // Fill / refresh the Map.
-      this.clearPrograms();
       const programs = response.matches;
 
       for (const program of programs) {
@@ -127,29 +145,54 @@ class GPPModel {
     }
   }
 
-  // async fetchObservations() {
-  //   try {
-  //     const response = await this.#api.get(this.#observationsUrl);
+  /**
+   * Fetch all observations for the given program ID and refresh the cache.
+   * @async
+   * @param {string} programId  Program identifier (e.g. "GN-2025A-Q-101").
+   * @returns {Promise<void>}
+   */
+  async fetchObservations(programId) {
+    this.clearObservations();
+    try {
+      const response = await this.#api.get(
+        `${this.#observationsUrl}?program_id=${programId}`
+      );
 
-  //     // Fill / refresh the Map.
-  //     this.clearObservations();
-  //     const observations = response.matches;
+      // Fill / refresh the Map.
+      const observations = response.matches;
 
-  //     for (const observation of observations) {
-  //       this.#observations.set(observation.id, observation);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error fetching observations:", error);
-  //   }
-  // }
+      for (const observation of observations) {
+        this.#observations.set(observation.id, observation);
+      }
+    } catch (error) {
+      console.error("Error fetching observations:", error);
+    }
+  }
 
-  // getObservation(observationId) {
-  //   return this.#observations.get(observationId);
-  // }
+  /**
+   * Get an observation object that is already in the cache.
+   * @param {string} observationId
+   * @returns {Object|undefined}
+   */
+  getObservation(observationId) {
+    return this.#observations.get(observationId);
+  }
 
-  // get observationsList() {
-  //   return Array.from(this.#observations.values());
-  // }
+  /**
+   * All cached observations as an array.
+   * @type {!Array<!Object>}
+   */
+  get observationsList() {
+    return Array.from(this.#observations.values());
+  }
+
+  /**
+   * All cached observation IDs.
+   * @type {!Array<string>}
+   */
+  get observationsIds() {
+    return Array.from(this.#observations.keys());
+  }
 
   /**
    * Look up a single program by its ID.
@@ -175,10 +218,6 @@ class GPPModel {
   get programsIds() {
     return Array.from(this.#programs.keys());
   }
-
-  // get observationsIds() {
-  //   return Array.from(this.#observations.keys());
-  // }
 }
 
 /**
@@ -195,6 +234,12 @@ class GPPView {
   #programSelect;
   #observationSelect;
 
+  /**
+   * Construct the view, inject the template, and attach it to the DOM.
+   * @param {GPPTemplate} template
+   * @param {HTMLElement} parentElement
+   * @param {Object} options
+   */
   constructor(template, parentElement, options) {
     this.#template = template;
     this.#parentElement = parentElement;
@@ -221,10 +266,8 @@ class GPPView {
   }
 
   /**
-   * Replace all `<option>`s in the program `<select>` except the
-   * first “placeholder” one.
-   *
-   * @param {!Array<!Object>} programs  List of programs.
+   * Re-populate the program <select> after new data arrive.
+   * @param {!Array<!Object>} programs
    * @private
    */
   #updatePrograms(programs) {
@@ -240,6 +283,35 @@ class GPPView {
   }
 
   /**
+   * Re-populate the observation <select> after new data arrive.
+   * @param {!Array<!Object>} observations
+   * @private
+   */
+  #updateObservations(observations) {
+    // Reset except for the default.
+    this.#observationSelect.length = 1;
+
+    const frag = document.createDocumentFragment();
+    observations.forEach((o) => {
+      frag.appendChild(this.#template.createSelectOption(o));
+    });
+
+    this.#observationSelect.appendChild(frag);
+
+    this.#observationSelect.disabled = false;
+  }
+
+  /**
+   * Update other DOM bits that depend on the selected observation.
+   * (Placeholder for future work.)
+   * @param {!Object} observation
+   * @private
+   */
+  #updateObservation(observation) {
+    console.log("Called updating the observation information.");
+  }
+
+  /**
    * Render hook called by the controller.
    *
    * @param {String} viewCmd  Command string.
@@ -249,6 +321,16 @@ class GPPView {
     switch (viewCmd) {
       case "updatePrograms":
         this.#updatePrograms(parameter.programs);
+        break;
+      case "updateObservations":
+        this.#updateObservations(parameter.observations);
+        break;
+      case "updateObservation":
+        this.#updateObservation(parameter.observation);
+        break;
+      case "resetObservationSelect":
+        this.#observationSelect.length = 1;
+        this.#observationSelect.disabled = parameter.disabled;
         break;
     }
   }
@@ -263,12 +345,14 @@ class GPPView {
     switch (event) {
       case "selectProgram":
         Utils.on(this.#programSelect, "change", (e) => {
-          handler();
+          console.log("triggered program change.", e.target.value);
+          handler({ programId: e.target.value });
         });
         break;
       case "selectObservation":
         Utils.on(this.#observationSelect, "change", (e) => {
-          handler();
+          console.log("triggered observation change.", e.target.value);
+          handler({ observationId: e.target.value });
         });
         break;
     }
@@ -285,14 +369,24 @@ class GPPController {
   #model;
   #view;
 
+  /**
+   * Hook up model ↔ view wiring and register event callbacks.
+   * @param {GPPModel} model
+   * @param {GPPView}  view
+   * @param {Object}   options
+   */
   constructor(model, view, options) {
     this.#model = model;
     this.#view = view;
     this.#options = options;
 
     // Bind the callbacks.
-    this.#view.bindCallback("selectProgram", () => this.#selectProgram());
-    this.#view.bindCallback("selectObservation", () => this.#selectObservation());
+    this.#view.bindCallback("selectProgram", (item) =>
+      this.#selectProgram(item.programId)
+    );
+    this.#view.bindCallback("selectObservation", (item) =>
+      this.#selectObservation(item.observationId)
+    );
   }
 
   /**
@@ -310,16 +404,22 @@ class GPPController {
    * Fired when the user picks a program.
    * @private
    */
-  #selectProgram() {
-    console.log("Controller selected run.");
+  async #selectProgram(programId) {
+    this.#view.render("resetObservationSelect", { disabled: true });
+    await this.#model.fetchObservations(programId);
+    this.#view.render("updateObservations", {
+      observations: this.#model.observationsList,
+    });
   }
 
   /**
    * Fired when the user picks an observation.
    * @private
    */
-  #selectObservation() {
+  #selectObservation(observationId) {
     console.log("Controller selected observation.");
+    const observation = this.#model.getObservation(observationId);
+    this.#view.render("updateObservation", { observation });
   }
 }
 
@@ -343,6 +443,11 @@ class GPP {
   #view;
   #controller;
 
+  /**
+   * Bootstraps a complete GPP widget inside the given element.
+   * @param {HTMLElement} parentElement  Where the widget should be rendered.
+   * @param {Object=}     options        Optional config overrides.
+   */
   constructor(parentElement, options = {}) {
     this.#options = { ...GPP.#defaultOptions, ...options, api: window.api };
     this.#model = new GPPModel(this.#options);
