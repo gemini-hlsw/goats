@@ -34,7 +34,7 @@ dependencies = [
     "marshmallow>=3.26.1,<4",
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
-    "tomtoolkit>=2.24.5",
+    "tomtoolkit==2.25.0",
 ]
 version = "25.6.1"
 
