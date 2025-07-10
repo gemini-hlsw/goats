@@ -4,12 +4,7 @@ __all__ = ["GPPObservationViewSet"]
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
-from gpp_client import GPPClient
-from gpp_client.api.input_types import (
-    WhereObservation,
-    WhereOrderProgramId,
-    WhereProgram,
-)
+from gpp_client import GPPClient, GPPDirector
 from rest_framework import permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -54,9 +49,11 @@ class GPPObservationViewSet(
         try:
             # Setup client to communicate with GPP.
             client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            director = GPPDirector(client)
             if program_id is not None:
-                where = self._build_where(program_id)
-                observations = async_to_sync(client.observation.get_all)(where=where)
+                observations = async_to_sync(director.goats.observation.get_all)(
+                    program_id=program_id
+                )
             else:
                 observations = async_to_sync(client.observation.get_all)()
             return Response(observations)
@@ -83,6 +80,7 @@ class GPPObservationViewSet(
         KeyError
             If 'pk' (the observation ID) is not present in kwargs.
         """
+        # This is not in-use for right now but keeping it as a placeholder.
         observation_id = kwargs["pk"]
 
         if not hasattr(request.user, "gpplogin"):
@@ -101,11 +99,3 @@ class GPPObservationViewSet(
             return Response(observation)
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    def _build_where(self, program_id: str) -> WhereObservation:
-        """Build the filter to filter by program ID."""
-        where = WhereObservation(
-            program=WhereProgram(id=WhereOrderProgramId(eq=program_id))
-        )
-
-        return where
