@@ -1,0 +1,1 @@
+Updated ``gpp-client`` to use GOATS-specific queries to aggregate all necessary information for observations. 
