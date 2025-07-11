@@ -1,3 +1,16 @@
+const GMOS_LONGSLIT_CONFIG = {
+  id: "Observation ID",
+  instrument: "Instrument",
+  title: "Title",
+  constraint_set: "Constraints",
+  image_quality: "Image Quality",
+  cloud_extinction: "Cloud Extinction",
+  sky_background: "Sky Background",
+  water_vapor: "Water Vapor",
+  air_mass: "Airmass Range",
+  radial_velocity: "Radial Velocity",
+};
+
 /**
  * Creates DOM snippets for the GPP UI.
  * @class
@@ -34,6 +47,56 @@ class GPPTemplate {
     container.append(row);
 
     return container;
+  }
+
+  createObservationForm(observation) {
+    let form;
+    if (
+      ["GMOS_NORTH_LONG_SLIT", "GMOS_SOUTH_LONG_SLIT"].includes(
+        observation.observing_mode.mode
+      )
+    ) {
+      form = this._createGMOSLongslitForm(observation);
+    }
+
+    return form;
+  }
+
+  _createGMOSLongslitForm(observation) {
+    const form = Utils.createElement("form", ["row", "g-3"]);
+    form.append(
+      this._createFormField("instrument", observation.instrument),
+      this._createFormField("id", observation.id),
+      this._createFormField("title", observation.title)
+    );
+
+    return form;
+  }
+
+  _createFormField(key, value, unit = null, type = "text", colSize = "col-sm-6") {
+    const col = Utils.createElement("div", [colSize]);
+    const fieldId = `${key}Input`;
+    const label = Utils.createElement("label", ["form-label"]);
+    label.htmlFor = fieldId;
+    label.textContent = key;
+
+    const input = Utils.createElement("input", ["form-control"]);
+    input.id = fieldId;
+    input.type = type;
+    input.value = value;
+    input.disabled = true;
+
+    if (unit) {
+      const group = Utils.createElement("div", ["input-group"]);
+      const addon = Utils.createElement("span", ["input-group-text"]);
+
+      addon.textContent = unit;
+      group.append(input, addon);
+      col.append(label, group);
+    } else {
+      col.append(label, input);
+    }
+    return col;
   }
 
   /**
@@ -159,7 +222,8 @@ class GPPModel {
       );
 
       // Fill / refresh the Map.
-      const observations = response.matches;
+      // FIXME: Remove .observations after fix in gpp-client
+      const observations = response.observations.matches;
 
       for (const observation of observations) {
         this.#observations.set(observation.id, observation);
@@ -309,6 +373,9 @@ class GPPView {
    */
   #updateObservation(observation) {
     console.log("Called updating the observation information.");
+    console.log(observation);
+    const form = this.#template.createObservationForm(observation);
+    this.#container.append(form);
   }
 
   /**
@@ -400,6 +467,13 @@ class GPPController {
     this.#view.render("updatePrograms", { programs: this.#model.programsList });
   }
 
+  async test() {
+    await this.#model.fetchObservations("p-143");
+    this.#view.render("updateObservation", {
+      observation: this.#model.getObservation("o-145"),
+    });
+  }
+
   /**
    * Fired when the user picks a program.
    * @private
@@ -464,5 +538,9 @@ class GPP {
    */
   async init() {
     await this.#controller.init();
+  }
+
+  async test() {
+    await this.#controller.test();
   }
 }
