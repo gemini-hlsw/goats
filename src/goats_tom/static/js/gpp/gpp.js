@@ -15,25 +15,197 @@ class GPPTemplate {
    */
   create() {
     const container = this.#createContainer();
-    const row = Utils.createElement("div", ["row", "g-3"]);
+    const row = Utils.createElement("div", ["row", "g-3", "mb-3"]);
 
-    const col1 = Utils.createElement("div", ["col-sm-6"]);
-    col1.append(
-      this.#createSelect("program", "Available Programs", "Choose a program...")
-    );
+    const col1 = Utils.createElement("div", ["col-12"]);
+    const p = Utils.createElement("p", "mb-0");
+    p.textContent =
+      "Use the Gemini Program Platform (GPP) to browse active programs and their observations. Select a program to load its observations and autofill observation details.";
+    col1.append(p);
 
     const col2 = Utils.createElement("div", ["col-sm-6"]);
+    col2.append(
+      this.#createSelect("program", "Active Programs", "Choose a program...")
+    );
+
+    const col3 = Utils.createElement("div", ["col-sm-6"]);
     const observationSelect = this.#createSelect(
       "observation",
-      "Available Observations",
+      "Active Observations",
       "Choose an observation..."
     );
-    col2.append(observationSelect);
+    col3.append(observationSelect);
 
-    row.append(col1, col2);
-    container.append(row);
+    row.append(col1, col2, col3);
+
+    // Create form container.
+    const formContainer = Utils.createElement("div");
+    formContainer.id = "formContainer";
+    container.append(row, Utils.createElement("hr"), formContainer);
 
     return container;
+  }
+
+  /**
+   * Create a form for a selected observation using shared and mode-specific fields.
+   * @param {!Object} observation - Observation data to render.
+   * @returns {!HTMLFormElement} A completed form element.
+   */
+  createObservationForm(observation) {
+    const form = Utils.createElement("form", ["row", "g-3"]);
+    const sharedFields = [...SHARED_FIELDS];
+    const mode = observation.observingMode?.mode;
+    const instrumentFields = FIELD_CONFIGS[mode];
+
+    if (!instrumentFields) {
+      console.warn(
+        `Unsupported observing mode: "${mode}". No instrument-specific fields will be rendered.`
+      );
+    }
+
+    const allFields = [...sharedFields, ...(instrumentFields ?? [])];
+
+    allFields.forEach((meta) => {
+      // Create section header.
+      if (meta.section) {
+        form.append(this.#createFormHeader(meta.section));
+        return;
+      }
+      // Get value.
+      const raw = Utils.getByPath(observation, meta.path);
+      if (raw == null) {
+        return;
+      }
+
+      // Check if custom handler is attached.
+      if (meta.handler) {
+        const handler = this.#handlers[meta.handler];
+        if (typeof handler === "function") {
+          const elements = handler(meta, raw);
+          elements.forEach((el) => form.append(el));
+        } else {
+          console.warn(
+            `Handler "${meta.handler}" not found for field "${meta.id}". Skipping.`
+          );
+        }
+        return;
+      }
+
+      // Handle normal field
+      form.append(
+        this.#createFormField({
+          value: raw,
+          id: meta.id,
+          labelText: meta.labelText,
+          prefix: meta.prefix,
+          suffix: meta.suffix,
+          element: meta.element,
+          type: meta.type,
+          colSize: meta.colSize,
+        })
+      );
+    });
+
+    return form;
+  }
+
+  /**
+   * Create a section header element for form sections.
+   * @param {string} text - Header text content.
+   * @param {string} [level="h5"] - Heading level tag.
+   * @returns {!HTMLElement}
+   * @private
+   */
+  #createFormHeader(text, level = "h5") {
+    const h = Utils.createElement(level, ["mt-4", "mb-0"]);
+    h.textContent = text;
+    return h;
+  }
+
+  /**
+   * Wraps a form control with prefix/suffix in an input group if applicable.
+   * @param {!HTMLElement} control - The form element to wrap.
+   * @param {Object} options
+   * @param {string=} options.prefix - Optional prefix text.
+   * @param {string=} options.suffix - Optional suffix text.
+   * @returns {!HTMLElement}
+   * @private
+   */
+  #wrapWithGroup(control, { prefix, suffix }) {
+    if (!prefix && !suffix) return control;
+
+    const group = Utils.createElement("div", ["input-group"]);
+    if (prefix) {
+      const pre = Utils.createElement("span", ["input-group-text"]);
+      pre.textContent = prefix;
+      group.append(pre);
+    }
+    group.append(control);
+    if (suffix) {
+      const post = Utils.createElement("span", ["input-group-text"]);
+      post.textContent = suffix;
+      group.append(post);
+    }
+    return group;
+  }
+
+  /**
+   * Create a form field from metadata.
+   * @param {Object} options
+   * @param {*} options.value - Field value.
+   * @param {string} options.id - Field ID.
+   * @param {string=} options.labelText - Field label.
+   * @param {string=} options.prefix - Optional prefix.
+   * @param {string=} options.suffix - Optional suffix.
+   * @param {string=} options.element - Element type.
+   * @param {string=} options.type - Input type.
+   * @param {string=} options.colSize - Bootstrap column size.
+   * @returns {!HTMLElement}
+   * @private
+   */
+  #createFormField({
+    value,
+    id,
+    labelText = null,
+    prefix = null,
+    suffix = null,
+    element = "input",
+    type = "text",
+    colSize = "col-sm-6",
+  }) {
+    // Skip silently if value is undefined/null.
+    if (value == null || !id) {
+      return Utils.createElement("div");
+    }
+    const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
+    const col = Utils.createElement("div", [colSize]);
+    // Create label.
+    if (labelText) {
+      const label = Utils.createElement("label", ["form-label"]);
+      label.htmlFor = elementId;
+      label.textContent = labelText;
+      col.append(label);
+    }
+
+    // Create input.
+    let control;
+    if (element === "textarea") {
+      control = Utils.createElement("textarea", ["form-control"]);
+      control.rows = 3;
+    } else if (element === "input") {
+      control = Utils.createElement("input", ["form-control"]);
+      control.type = type;
+    } else {
+      console.error("Unsupported element:", element);
+      return col;
+    }
+    control.id = elementId;
+    control.value = value;
+    control.disabled = true;
+
+    // Wrap in input group if needed.
+    col.append(this.#wrapWithGroup(control, { prefix, suffix }));
+    return col;
   }
 
   /**
@@ -83,6 +255,39 @@ class GPPTemplate {
     wrapper.append(label, select);
 
     return wrapper;
+  }
+
+  /**
+   * Custom handlers for rendering advanced field types.
+   * @returns {Object<string, function(Object, *): HTMLElement[]>}
+   * @private
+   */
+  get #handlers() {
+    return {
+      handleBrightnessInputs: (meta, raw) => {
+        return raw.map(({ band, value, units }, idx) =>
+          this.#createFormField({
+            value,
+            id: `${meta.id}${idx}`,
+            prefix: band,
+            suffix: units,
+            type: meta.type,
+            colSize: meta.colSize,
+          })
+        );
+      },
+      handleSpatialOffsetsList: (meta, raw) => {
+        const values = raw.map((o) => o.arcseconds);
+        return [
+          this.#createFormField({
+            value: JSON.stringify(values),
+            id: meta.id,
+            labelText: meta.labelText,
+            suffix: meta.suffix,
+          }),
+        ];
+      },
+    };
   }
 }
 
@@ -233,6 +438,8 @@ class GPPView {
   #parentElement;
   #programSelect;
   #observationSelect;
+  #form;
+  #formContainer;
 
   /**
    * Construct the view, inject the template, and attach it to the DOM.
@@ -246,6 +453,7 @@ class GPPView {
     this.#options = options;
 
     this.#container = this.#create();
+    this.#formContainer = this.#container.querySelector(`#formContainer`);
     this.#parentElement.appendChild(this.#container);
 
     this.#programSelect = this.#container.querySelector(`#programSelect`);
@@ -308,12 +516,32 @@ class GPPView {
    * @private
    */
   #updateObservation(observation) {
-    console.log("Called updating the observation information.");
+    const form = this.#template.createObservationForm(observation);
+    this.#form = form;
+    this.#formContainer.append(form);
+  }
+
+  /**
+   * Clear the current observation form.
+   * @private
+   */
+  #clearObservationForm() {
+    this.#formContainer.innerHTML = "";
+    this.#form = null;
+  }
+
+  /**
+   * Clear and optionally disable the observation <select>.
+   * @param {boolean} [disabled=true]
+   * @private
+   */
+  #resetObservationSelect(disabled = true) {
+    this.#observationSelect.length = 1;
+    this.#observationSelect.disabled = disabled;
   }
 
   /**
    * Render hook called by the controller.
-   *
    * @param {String} viewCmd  Command string.
    * @param {{programs: !Array<!Object>}} parameter  Payload.
    */
@@ -329,15 +557,17 @@ class GPPView {
         this.#updateObservation(parameter.observation);
         break;
       case "resetObservationSelect":
-        this.#observationSelect.length = 1;
-        this.#observationSelect.disabled = parameter.disabled;
+        this.#clearObservationForm();
+        this.#resetObservationSelect(parameter.disabled);
+        break;
+      case "clearObservationForm":
+        this.#clearObservationForm();
         break;
     }
   }
 
   /**
    * Register controller callbacks for DOM events.
-   *
    * @param {String} event
    * @param {function()} handler
    */
@@ -345,13 +575,11 @@ class GPPView {
     switch (event) {
       case "selectProgram":
         Utils.on(this.#programSelect, "change", (e) => {
-          console.log("triggered program change.", e.target.value);
           handler({ programId: e.target.value });
         });
         break;
       case "selectObservation":
         Utils.on(this.#observationSelect, "change", (e) => {
-          console.log("triggered observation change.", e.target.value);
           handler({ observationId: e.target.value });
         });
         break;
@@ -361,7 +589,6 @@ class GPPView {
 
 /**
  * Controller layer: mediates between model and view.
- *
  * @class
  */
 class GPPController {
@@ -391,7 +618,6 @@ class GPPController {
 
   /**
    * First-time initialisation: fetch programs then ask view to render.
-   *
    * @async
    * @return {Promise<void>}
    */
@@ -417,7 +643,7 @@ class GPPController {
    * @private
    */
   #selectObservation(observationId) {
-    console.log("Controller selected observation.");
+    this.#view.render("clearObservationForm");
     const observation = this.#model.getObservation(observationId);
     this.#view.render("updateObservation", { observation });
   }

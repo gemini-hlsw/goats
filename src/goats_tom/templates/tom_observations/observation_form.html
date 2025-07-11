@@ -23,7 +23,7 @@
 {% else %}
 <hr>
 {% endif %}
-<div class="row">
+<div class="row g-3">
     <div class="col-md-6">
       {% target_data target %}
       <h4>Lunar Distance</h4>
@@ -33,7 +33,7 @@
       {% if form.facility.value == "GEM" %}
       <ul class="nav nav-tabs" id="tabs">
         <li class="nav-item">
-          <span class="nav-link active" aria-current="true">GPP</span>
+          <span class="nav-link active" aria-current="true">Gemini Program Platform</span>
         </li>
       </ul>
       <div class="tab-content">
@@ -59,24 +59,12 @@
       {% endif %}
     </div>
 </div>
-{% endblock %} {% block javascript %} {{ block.super }}
-<script src="{% static 'js/utils.js' %}"></script>
-<script src="{% static 'js/dragons_app/api.js' %}"></script>
-<script src="{% static 'js/gpp.js' %}"></script>
-
-<script type="text/javascript">
-  class App {
-    constructor() {
-      window.api = new API("/api/", "{{ csrf_token }}")
-
-      this.gpp = new GPP(document.getElementById("programObservationsContainer"));
-      this.gpp.init()
-    }
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    new App();
-  });
-</script>
-
+{% endblock %}
+{% block javascript %}
+{{ block.super }}
+<script src="{% static 'js/utils.js' %}" defer></script>
+<script src="{% static 'js/api.js' %}" defer></script>
+<script src="{% static 'js/gpp/fields.js' %}" defer></script>
+<script src="{% static 'js/gpp/gpp.js' %}" defer></script>
+<script src="{% static 'js/gpp/app.js' %}" defer></script>
 {% endblock %}

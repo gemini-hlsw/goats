@@ -32,7 +32,7 @@
 
     <title>GOATS</title>
   </head>
-  <body>
+  <body data-csrf-token="{{ csrf_token }}">
     <header class="shadow-sm">
       <div class="banner container-fluid py-1">{% include 'banner.html' %}</div>
       <nav class="container-fluid bg-light-subtle">{% include 'navbar.html' %}</nav>
