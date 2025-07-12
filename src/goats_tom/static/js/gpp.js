@@ -1,15 +1,82 @@
-const GMOS_LONGSLIT_CONFIG = {
-  id: "Observation ID",
-  instrument: "Instrument",
-  title: "Title",
-  constraint_set: "Constraints",
-  image_quality: "Image Quality",
-  cloud_extinction: "Cloud Extinction",
-  sky_background: "Sky Background",
-  water_vapor: "Water Vapor",
-  air_mass: "Airmass Range",
-  radial_velocity: "Radial Velocity",
-};
+/**
+ * GMOS-N Long-slit field map
+ * --------------------------
+ * section   : string        - render header
+ * id        : string        – required DOM id for the control
+ * path      : string        - dotted route to the value in the JSON
+ * labelText : string        - label text (default = last segment of path)
+ * element   : "input"|"textarea" (default "input")
+ * type      : any <input type=""> (default "text")
+ * prefix    : string        - input-group addon on the left
+ * suffix    : string        - input-group addon on the right
+ * colSize   : "col-"        - bootstrap col classes (default "col-sm-6")
+ * dynamic   : "brightness"  - treat path as array; build one field / entry
+ *
+ * Notes
+ * -----
+ * - If `path` resolves undefined or null it is skipped automatically.
+ */
+const GMOS_N_LONGSLIT_FIELDS = [
+  // Details section.
+  { section: "Details" },
+  { labelText: "Instrument", path: "instrument", id: "instrument" },
+  { labelText: "ID", path: "id", id: "id" },
+  { labelText: "Title", path: "title", id: "title" },
+  {
+    labelText: "Radial Velocity",
+    path: "target_environment.first_science_target.sidereal.radial_velocity.kilometers_per_second",
+    suffix: "km/s",
+    type: "number",
+    id: "radialVelocity",
+  },
+  {
+    labelText: "Position Angle",
+    path: "pos_angle_constraint.angle.degrees",
+    suffix: "deg",
+    type: "number",
+    id: "posAngle",
+  },
+  { labelText: "Science Band", path: "science_band" },
+  {
+    labelText: "Observer Notes",
+    path: "observer_notes",
+    element: "textarea",
+    colSize: "col-12",
+    id: "observerNotes",
+  },
+  // Brightnesses section.
+  { section: "Brightnesses" },
+  {
+    path: "target_environment.first_science_target.source_profile.point.band_normalized.brightnesses",
+    dynamic: "brightnesses",
+    id: "brightness",
+    colSize: "col-md-6",
+  },
+  // Constraint section.
+  { section: "Constraint Set" },
+  {
+    labelText: "Image Quality",
+    path: "constraint_set.image_quality",
+    id: "imageQuality",
+  },
+  {
+    labelText: "Cloud Extinction",
+    path: "constraint_set.cloud_extinction",
+    id: "cloudExtinction",
+  },
+  {
+    labelText: "Sky Background",
+    path: "constraint_set.sky_background",
+    id: "skyBackground",
+  },
+  { labelText: "Water Vapor", path: "constraint_set.water_vapor", id: "waterVapor" },
+];
+
+const getByPath = (obj, p) =>
+  p
+    .replace(/\[(\d+)]/g, ".$1")
+    .split(".")
+    .reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), obj);
 
 /**
  * Creates DOM snippets for the GPP UI.
@@ -28,7 +95,7 @@ class GPPTemplate {
    */
   create() {
     const container = this.#createContainer();
-    const row = Utils.createElement("div", ["row", "g-3"]);
+    const row = Utils.createElement("div", ["row", "g-3", "mb-3"]);
 
     const col1 = Utils.createElement("div", ["col-sm-6"]);
     col1.append(
@@ -44,7 +111,7 @@ class GPPTemplate {
     col2.append(observationSelect);
 
     row.append(col1, col2);
-    container.append(row);
+    container.append(row, Utils.createElement("hr"));
 
     return container;
   }
@@ -58,44 +125,128 @@ class GPPTemplate {
     ) {
       form = this._createGMOSLongslitForm(observation);
     }
-
     return form;
   }
 
   _createGMOSLongslitForm(observation) {
     const form = Utils.createElement("form", ["row", "g-3"]);
-    form.append(
-      this._createFormField("instrument", observation.instrument),
-      this._createFormField("id", observation.id),
-      this._createFormField("title", observation.title)
-    );
+
+    GMOS_N_LONGSLIT_FIELDS.forEach((meta) => {
+      // Create section header.
+      if (meta.section) {
+        form.append(this._createFormHeader(meta.section));
+        return;
+      }
+
+      // Get value.
+      const raw = getByPath(observation, meta.path);
+      if (raw == null) {
+        console.log("Could not find:", meta.path);
+        return;
+      }
+
+      // Handle brightness array.
+      if (meta.dynamic === "brightnesses") {
+        raw.forEach(({ band, value, units }, idx) => {
+          form.append(
+            this._createFormField({
+              value,
+              id: `${meta.id}${idx}`,
+              prefix: band,
+              suffix: units,
+              type: "number",
+              colSize: meta.colSize,
+            })
+          );
+        });
+        return;
+      }
+
+      // Handle normal field
+      form.append(
+        this._createFormField({
+          value: raw,
+          id: meta.id,
+          labelText: meta.labelText,
+          prefix: meta.prefix,
+          suffix: meta.suffix,
+          element: meta.element,
+          type: meta.type,
+          colSize: meta.colSize,
+        })
+      );
+    });
 
     return form;
   }
 
-  _createFormField(key, value, unit = null, type = "text", colSize = "col-sm-6") {
-    const col = Utils.createElement("div", [colSize]);
-    const fieldId = `${key}Input`;
-    const label = Utils.createElement("label", ["form-label"]);
-    label.htmlFor = fieldId;
-    label.textContent = key;
+  _createFormHeader(text, level = "h5") {
+    const h = Utils.createElement(level, ["mt-4", "mb-0"]);
+    h.textContent = text;
+    return h;
+  }
 
-    const input = Utils.createElement("input", ["form-control"]);
-    input.id = fieldId;
-    input.type = type;
-    input.value = value;
-    input.disabled = true;
+  _wrapWithGroup(control, { prefix, suffix }) {
+    if (!prefix && !suffix) return control;
 
-    if (unit) {
-      const group = Utils.createElement("div", ["input-group"]);
-      const addon = Utils.createElement("span", ["input-group-text"]);
-
-      addon.textContent = unit;
-      group.append(input, addon);
-      col.append(label, group);
-    } else {
-      col.append(label, input);
+    const group = Utils.createElement("div", ["input-group"]);
+    if (prefix) {
+      const pre = Utils.createElement("span", ["input-group-text"]);
+      pre.textContent = prefix;
+      group.append(pre);
     }
+    group.append(control);
+    if (suffix) {
+      const post = Utils.createElement("span", ["input-group-text"]);
+      post.textContent = suffix;
+      group.append(post);
+    }
+    return group;
+  }
+
+  _createFormField({
+    value,
+    id,
+    labelText = null,
+    prefix = null,
+    suffix = null,
+    element = "input",
+    type = "text",
+    colSize = "col-sm-6",
+  }) {
+    // Skip silently if value is undefined/null.
+    if (value == null || !id) {
+      console.log("Nothing to display:", value, id);
+      return Utils.createElement("div");
+    }
+    const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
+    const col = Utils.createElement("div", [colSize]);
+    // Create label.
+    if (labelText) {
+      const label = Utils.createElement("label", ["form-label"]);
+      label.htmlFor = elementId;
+      label.textContent = labelText;
+      col.append(label);
+    }
+
+    // Create input.
+    let control;
+    if (element === "textarea") {
+      control = Utils.createElement("textarea", ["form-control"]);
+      control.rows = 3;
+    } else if (element === "input") {
+      control = Utils.createElement("input", ["form-control"]);
+      control.type = type;
+    } else {
+      console.error("Unsupported element:", element);
+      return col;
+    }
+    control.id = elementId;
+    control.value = value;
+    control.disabled = true;
+
+    // Wrap in input group if needed.
+    col.append(this._wrapWithGroup(control, { prefix, suffix }));
     return col;
   }
 
@@ -372,8 +523,6 @@ class GPPView {
    * @private
    */
   #updateObservation(observation) {
-    console.log("Called updating the observation information.");
-    console.log(observation);
     const form = this.#template.createObservationForm(observation);
     this.#container.append(form);
   }
@@ -470,7 +619,7 @@ class GPPController {
   async test() {
     await this.#model.fetchObservations("p-143");
     this.#view.render("updateObservation", {
-      observation: this.#model.getObservation("o-145"),
+      observation: this.#model.getObservation("o-146"),
     });
   }
 
