@@ -36,12 +36,48 @@ class GPPTemplate {
     );
     col3.append(observationSelect);
 
+    // Create button toolbar.
+    const buttonToolbar = Utils.createElement("div", [
+      "d-flex",
+      "justify-content-between",
+    ]);
+    buttonToolbar.id = "buttonToolbar";
+    const left = Utils.createElement("div");
+    const right = Utils.createElement("div");
+
+    const actions = [
+      { id: "saveButton", color: "primary", label: "Save", parentElement: right },
+      {
+        id: "editButton",
+        color: "secondary",
+        label: "Edit",
+        parentElement: left,
+        classes: ["me-1"],
+      },
+      {
+        id: "editAndCreateNewButton",
+        color: "secondary",
+        label: "Edit and Create New Observation",
+        parentElement: left,
+      },
+    ];
+
+    actions.forEach(({ id, color, label, parentElement, classes = [] }) => {
+      const btn = Utils.createElement("button", ["btn", `btn-${color}`, ...classes]);
+      btn.textContent = label;
+      btn.disabled = true;
+      btn.id = id;
+      btn.type = "button";
+      parentElement.appendChild(btn);
+    });
+    buttonToolbar.append(left, right);
+
     row.append(col1, col2, col3);
 
     // Create form container.
     const formContainer = Utils.createElement("div");
     formContainer.id = "formContainer";
-    container.append(row, Utils.createElement("hr"), formContainer);
+    container.append(row, buttonToolbar, Utils.createElement("hr"), formContainer);
 
     return container;
   }
@@ -440,6 +476,10 @@ class GPPView {
   #observationSelect;
   #form;
   #formContainer;
+  #buttonToolbar;
+  #editButton;
+  #saveButton;
+  #editAndCreateNewButton;
 
   /**
    * Construct the view, inject the template, and attach it to the DOM.
@@ -458,6 +498,12 @@ class GPPView {
 
     this.#programSelect = this.#container.querySelector(`#programSelect`);
     this.#observationSelect = this.#container.querySelector(`#observationSelect`);
+    this.#buttonToolbar = this.#container.querySelector(`#buttonToolbar`);
+    this.#editButton = this.#buttonToolbar.querySelector("#editButton");
+    this.#saveButton = this.#buttonToolbar.querySelector("#saveButton");
+    this.#editAndCreateNewButton = this.#buttonToolbar.querySelector(
+      "#editAndCreateNewButton"
+    );
 
     // Bind the renders and callbacks.
     this.render = this.render.bind(this);
