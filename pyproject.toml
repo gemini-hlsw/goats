@@ -30,7 +30,7 @@ dependencies = [
     "djangorestframework>=3.16.0,<4",
     "dramatiq-abort>=1.2.1",
     "dramatiq[redis,watch]>=1.18.0,<2",
-    "gpp-client==25.7.2",
+    "gpp-client==25.7.5",
     "marshmallow>=3.26.1,<4",
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
