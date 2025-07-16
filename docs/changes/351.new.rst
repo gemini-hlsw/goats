@@ -1,0 +1,1 @@
+Extended GPP application to display selected observation data: Users can now browse the available programs and observations available.
