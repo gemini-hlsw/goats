@@ -21,7 +21,7 @@ requires-python = ">=3.12"
 dependencies = [
     "astropy>=6.0,<7",
     "astroquery>=0.4.10",
-    "channels-redis>=4.2.1,<5",
+    "channels-redis>=4.3.0,<5",
     "channels[daphne]>=4.0,<5",
     "click>=8.2.1,<9",
     "django>=4.2.23,<5",
