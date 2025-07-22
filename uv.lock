@@ -1147,7 +1147,7 @@ requires-dist = [
     { name = "marshmallow", specifier = ">=3.26.1,<4" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
-    { name = "tomtoolkit", specifier = "==2.25.0" },
+    { name = "tomtoolkit", specifier = "==2.25.2" },
 ]
 
 [package.metadata.requires-dev]
@@ -3078,7 +3078,7 @@ wheels = [
 
 [[package]]
 name = "tomtoolkit"
-version = "2.25.0"
+version = "2.25.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "astroplan" },
@@ -3086,6 +3086,7 @@ dependencies = [
     { name = "astroquery" },
     { name = "beautifulsoup4" },
     { name = "crispy-bootstrap4" },
+    { name = "cryptography" },
     { name = "django" },
     { name = "django-bootstrap4" },
     { name = "django-contrib-comments" },
@@ -3107,9 +3108,9 @@ dependencies = [
     { name = "requests" },
     { name = "specutils" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/24/950a42f2c303f420640e176b24e58a92295d01c85f1dba70ae0c416ebf8f/tomtoolkit-2.25.0.tar.gz", hash = "sha256:c8effdeee93941cfbbbdb38dcfa3b91d6556502987ed4a49310fff39561b17ef", size = 11575859, upload-time = "2025-07-08T23:09:18.391Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/02/3151fc9265a90c0021fc8fdc6b6661530d1a35e65c4d2d735f85761dde5a/tomtoolkit-2.25.2.tar.gz", hash = "sha256:b8df94427aa86d7f83d48ebcfccc7e802c26d5f21179651685c67240c1450164", size = 11573480, upload-time = "2025-07-21T19:12:30.227Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/85/bd/5252330093618c4f798c9fce30e85dfdda76763487b5ee55d3e7db548a3a/tomtoolkit-2.25.0-py3-none-any.whl", hash = "sha256:2ea807f1d71424d69bfc31530df656ed879983ec24a111b711f977edbc845188", size = 1411435, upload-time = "2025-07-08T23:09:16.73Z" },
+    { url = "https://files.pythonhosted.org/packages/78/bc/ed20690f55ec4e20cf60c433819a68f263e92d8d239864a022dc1305706e/tomtoolkit-2.25.2-py3-none-any.whl", hash = "sha256:b6dd09d1e6e02e250c56994361a68502de9acfd52b03380fe453d8290094997a", size = 1412197, upload-time = "2025-07-21T19:12:28.476Z" },
 ]
 
 [[package]]
