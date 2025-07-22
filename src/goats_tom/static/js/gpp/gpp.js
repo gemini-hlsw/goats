@@ -20,15 +20,15 @@ class GPPTemplate {
     const col1 = Utils.createElement("div", ["col-12"]);
     const p = Utils.createElement("p", "mb-0");
     p.textContent =
-      "Use the Gemini Program Platform (GPP) to browse active programs and their observations. Select a program to load its observations and autofill observation details.";
+      "Use the Gemini Program Platform (GPP) to browse your active programs and corresponding observations. Select a program to load its observations and autofill observation details. You can then either save the observation on GOATS without changes or edit the observation details and submit to Gemini. The latter will save the observation on GOATS automatically upon submission.";
     col1.append(p);
 
-    const col2 = Utils.createElement("div", ["col-sm-6"]);
+    const col2 = Utils.createElement("div", ["col-lg-6"]);
     col2.append(
       this.#createSelect("program", "Active Programs", "Choose a program...")
     );
 
-    const col3 = Utils.createElement("div", ["col-sm-6"]);
+    const col3 = Utils.createElement("div", ["col-lg-6"]);
     const observationSelect = this.#createSelect(
       "observation",
       "Active Observations",
@@ -109,15 +109,18 @@ class GPPTemplate {
       }
       // Get value.
       const raw = Utils.getByPath(observation, meta.path);
-      if (raw == null) {
-        return;
-      }
+      const shouldShow = meta.display || raw != null;
+      if (!shouldShow) return;
+
+      // Format raw if formatter or lookup is provided.
+      const lookedUp = meta.lookup ? meta.lookup[raw] ?? raw : raw;
+      const formatted = meta.formatter ? meta.formatter(lookedUp) : lookedUp;
 
       // Check if custom handler is attached.
       if (meta.handler) {
         const handler = this.#handlers[meta.handler];
         if (typeof handler === "function") {
-          const elements = handler(meta, raw);
+          const elements = handler(meta, formatted);
           elements.forEach((el) => form.append(el));
         } else {
           console.warn(
@@ -130,7 +133,10 @@ class GPPTemplate {
       // Handle normal field
       form.append(
         this.#createFormField({
-          value: raw,
+          value:
+            meta.type === "number" && formatted == null
+              ? ""
+              : formatted ?? "(No value)",
           id: meta.id,
           labelText: meta.labelText,
           prefix: meta.prefix,
@@ -207,12 +213,8 @@ class GPPTemplate {
     suffix = null,
     element = "input",
     type = "text",
-    colSize = "col-sm-6",
+    colSize = "col-md-6",
   }) {
-    // Skip silently if value is undefined/null.
-    if (value == null || !id) {
-      return Utils.createElement("div");
-    }
     const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
     const col = Utils.createElement("div", [colSize]);
     // Create label.
@@ -313,13 +315,41 @@ class GPPTemplate {
         );
       },
       handleSpatialOffsetsList: (meta, raw) => {
-        const values = raw.map((o) => o.arcseconds);
+        const values = raw.map((o) => o.arcseconds.toFixed(2));
         return [
           this.#createFormField({
-            value: JSON.stringify(values),
+            value: values.join(", "),
             id: meta.id,
             labelText: meta.labelText,
             suffix: meta.suffix,
+            colSize: meta.colSize,
+          }),
+        ];
+      },
+      handleWavelengthDithersList: (meta, raw) => {
+        const values = raw.map((o) => o.nanometers.toFixed(1));
+        return [
+          this.#createFormField({
+            value: values.join(", "),
+            id: meta.id,
+            labelText: meta.labelText,
+            suffix: meta.suffix,
+            colSize: meta.colSize,
+          }),
+        ];
+      },
+      handleExposureMode: (meta, raw) => {
+        const modeKey = Object.keys(raw).find((key) => raw[key] != null);
+        const modeLabels = {
+          signalToNoise: "Signal / Noise",
+          timeAndCount: "Time & Count",
+        };
+        const label = modeLabels[modeKey] ?? "(Unknown)";
+        return [
+          this.#createFormField({
+            value: label,
+            id: meta.id,
+            labelText: meta.labelText,
           }),
         ];
       },

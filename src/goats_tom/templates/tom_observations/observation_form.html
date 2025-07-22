@@ -15,55 +15,57 @@
     <div class="alert alert-danger">Some {{ form.facility.value }} Facility settings ({{ missing_configurations }}) are not configured.</div>
 {% endif %}
 {% if target.type == 'SIDEREAL' %}
-<div class="row">
-    <div class="col">
-    {% observation_plan target form.facility.value %}
-    </div>
+<div class="row g-3 mb-4">
+  <div class="col-lg-12">
+  {% observation_plan target form.facility.value %}
+  </div>
 </div>
 {% else %}
 <hr>
 {% endif %}
 <div class="row g-3">
-    <div class="col-md-6">
-      {% target_data target %}
-      <h4>Lunar Distance</h4>
-      {% moon_distance target width=None %}
+  <div class="col-md-6">
+    {% target_data target %}
+    <h4>Lunar Distance</h4>
+    {% moon_distance target width=None %}
+  </div>
+  <div class="col-md-6">
+    {% if form.facility.value == "GEM" %}
+    <ul class="nav nav-tabs" id="tabs">
+      <li class="nav-item">
+        <span class="nav-link active" aria-current="true">Gemini Program Platform</span>
+      </li>
+    </ul>
+    <div class="tab-content">
+      <div id="programObservationsContainer" class="mt-4"></div>
     </div>
-    <div class="col-md-6">
-      {% if form.facility.value == "GEM" %}
-      <ul class="nav nav-tabs" id="tabs">
+    {% else %}
+    <ul class="nav nav-tabs" id="tabs">
+      {% for observation_type, observation_form in observation_type_choices %}
         <li class="nav-item">
-          <span class="nav-link active" aria-current="true">Gemini Program Platform</span>
+          <span class="nav-link {% if observation_type == active or not active and forloop.first %}active{% endif %}" data-target="#{{ observation_type }}" data-toggle="tab">
+              {{ observation_type|display_obs_type }}
+          </span>
         </li>
+      {% endfor %}
       </ul>
-      <div class="tab-content">
-        <div id="programObservationsContainer" class="mt-4"></div>
-      </div>
-      {% else %}
-      <ul class="nav nav-tabs" id="tabs">
-        {% for observation_type, observation_form in observation_type_choices %}
-          <li class="nav-item">
-            <span class="nav-link {% if observation_type == active or not active and forloop.first %}active{% endif %}" data-target="#{{ observation_type }}" data-toggle="tab">
-                {{ observation_type|display_obs_type }}
-            </span>
-          </li>
-        {% endfor %}
-        </ul>
-        <div class="tab-content observation-form">
-        {% for observation_type, observation_form in observation_type_choices %}
-          <div class="tab-pane {% if observation_type == active or not active and forloop.first %}active{% endif %}" id="{{ observation_type }}">
-          {% crispy observation_form %}
-          </div>
-        {% endfor %}
+      <div class="tab-content observation-form">
+      {% for observation_type, observation_form in observation_type_choices %}
+        <div class="tab-pane {% if observation_type == active or not active and forloop.first %}active{% endif %}" id="{{ observation_type }}">
+        {% crispy observation_form %}
         </div>
-      {% endif %}
-    </div>
+      {% endfor %}
+      </div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
 {% block javascript %}
 {{ block.super }}
 <script src="{% static 'js/utils.js' %}" defer></script>
 <script src="{% static 'js/api.js' %}" defer></script>
+<script src="{% static 'js/gpp/lookups.js' %}" defer></script>
+<script src="{% static 'js/gpp/formatters.js' %}" defer></script>
 <script src="{% static 'js/gpp/fields.js' %}" defer></script>
 <script src="{% static 'js/gpp/gpp.js' %}" defer></script>
 <script src="{% static 'js/gpp/app.js' %}" defer></script>
