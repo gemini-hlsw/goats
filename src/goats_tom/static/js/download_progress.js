@@ -130,5 +130,3 @@ const fetchOngoingTasks = async () => {
 
 // Start the polling when the page loads
 // document.addEventListener("DOMContentLoaded", fetchOngoingTasks);
-
-export { updateDownloadProgress };

@@ -53,9 +53,10 @@
 
     {% block javascript %}
     <script src="{% static 'js/get_csrf_token.js' %}"></script>
-    <script type="module">
-      import { createAndShowToast } from "{% static 'js/toast_utils.js' %}";
-      import { updateDownloadProgress } from "{% static 'js/download_progress.js' %}";
+    <script src="{% static 'js/toast_manager.js' %}"></script>
+    <script src="{% static 'js/download_progress.js' %}"></script>
+    <script>
+      window.toast = new ToastManager(document.getElementById("toastContainer"));
 
       const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
       const wsUrl = `${wsProtocol}://${window.location.host}/ws/updates/`;
@@ -68,7 +69,7 @@
       webSocket.onmessage = function (event) {
         const data = JSON.parse(event.data);
         if (data.update === "notification") {
-          createAndShowToast(data);
+          window.toast.show(data);
         } else if (data.update == "download") {
           updateDownloadProgress(data);
         }

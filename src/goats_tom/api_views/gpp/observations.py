@@ -11,9 +11,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, mixins
 
 
-class GPPObservationViewSet(
-    GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin
-):
+class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
     serializer_class = None
     permission_classes = [permissions.IsAuthenticated]
     queryset = None

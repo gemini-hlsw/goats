@@ -18,7 +18,7 @@ class GPPTemplate {
     const row = Utils.createElement("div", ["row", "g-3", "mb-3"]);
 
     const col1 = Utils.createElement("div", ["col-12"]);
-    const p = Utils.createElement("p", "mb-0");
+    const p = Utils.createElement("p", ["mb-0", "fst-italic"]);
     p.textContent =
       "Use the Gemini Program Platform (GPP) to browse your active programs and corresponding observations. Select a program to load its observations and autofill observation details. You can then either save the observation on GOATS without changes or edit the observation details and submit to Gemini. The latter will save the observation on GOATS automatically upon submission.";
     col1.append(p);
@@ -281,13 +281,22 @@ class GPPTemplate {
     const label = Utils.createElement("label", ["form-label"]);
     label.htmlFor = `${id}Select`;
     label.textContent = labelText;
+
+    // Add inline spinner next to label.
+    const spinner = Utils.createElement("span", [
+      "spinner-border",
+      "spinner-border-sm",
+      "ms-2",
+    ]);
+    spinner.id = `${id}Loading`;
+    spinner.role = "status";
+    spinner.hidden = true;
+    label.appendChild(spinner);
+
     const select = Utils.createElement("select", ["form-select"]);
     select.id = `${id}Select`;
     select.innerHTML = `<option value="" selected hidden>${optionHint}</option>`;
-
-    if (id === "observation") {
-      select.disabled = true;
-    }
+    select.disabled = true;
 
     const wrapper = Utils.createElement("div");
     wrapper.append(label, select);
@@ -368,6 +377,7 @@ class GPPModel {
   #baseUrl = "gpp/";
   #programsUrl = `${this.#baseUrl}programs/`;
   #observationsUrl = `${this.#baseUrl}observations/`;
+  #pingUrl = `${this.#baseUrl}ping/`;
 
   // Data-storing maps.
   #observations = new Map();
@@ -392,6 +402,21 @@ class GPPModel {
   clear() {
     this.clearPrograms();
     this.clearObservations();
+  }
+
+  /**
+   * Checks if the GPP backend is reachable by issuing a GET request to the ping endpoint.
+   * @returns {Object} An object containing the HTTP status code and a human-readable detail
+   * message.
+   */
+  async isReachable() {
+    try {
+      const response = await this.#api.get(this.#pingUrl);
+      return { status: 200, detail: response.detail };
+    } catch (error) {
+      // Have to unpack the error still.
+      return error.json();
+    }
   }
 
   /**
@@ -510,6 +535,8 @@ class GPPView {
   #editButton;
   #saveButton;
   #editAndCreateNewButton;
+  #observationLoading;
+  #programLoading;
 
   /**
    * Construct the view, inject the template, and attach it to the DOM.
@@ -527,7 +554,9 @@ class GPPView {
     this.#parentElement.appendChild(this.#container);
 
     this.#programSelect = this.#container.querySelector(`#programSelect`);
+    this.#programLoading = this.#container.querySelector(`#programLoading`);
     this.#observationSelect = this.#container.querySelector(`#observationSelect`);
+    this.#observationLoading = this.#container.querySelector(`#observationLoading`);
     this.#buttonToolbar = this.#container.querySelector(`#buttonToolbar`);
     this.#editButton = this.#buttonToolbar.querySelector("#editButton");
     this.#saveButton = this.#buttonToolbar.querySelector("#saveButton");
@@ -581,8 +610,38 @@ class GPPView {
     });
 
     this.#observationSelect.appendChild(frag);
+  }
 
-    this.#observationSelect.disabled = false;
+  /**
+   * Displays a disabled message in the program <select> indicating that
+   * no programs are available for the user. Retains the default placeholder.
+   * @private
+   */
+  #showNoPrograms() {
+    this.#programSelect.length = 1;
+
+    const option = Utils.createElement("option");
+    option.value = "None";
+    option.textContent = "No programs available";
+    option.disabled = true;
+
+    this.#programSelect.appendChild(option);
+  }
+
+  /**
+   * Displays a disabled message in the observation <select> indicating that
+   * no observations exist for the selected program. Retains the default placeholder.
+   * @private
+   */
+  #showNoObservations() {
+    this.#observationSelect.length = 1;
+
+    const option = Utils.createElement("option");
+    option.value = "None";
+    option.textContent = "No observations available";
+    option.disabled = true;
+
+    this.#observationSelect.appendChild(option);
   }
 
   /**
@@ -607,13 +666,25 @@ class GPPView {
   }
 
   /**
-   * Clear and optionally disable the observation <select>.
-   * @param {boolean} [disabled=true]
+   * Show or hide the loading spinner next to the "Active Programs" label
+   * and enable or disable the program <select> element accordingly.
+   * @param {boolean} isLoading - Whether to show the spinner and disable the select.
    * @private
    */
-  #resetObservationSelect(disabled = true) {
-    this.#observationSelect.length = 1;
-    this.#observationSelect.disabled = disabled;
+  #toggleProgramsLoading(isLoading) {
+    this.#programSelect.disabled = isLoading;
+    this.#programLoading.hidden = !isLoading;
+  }
+
+  /**
+   * Show or hide the loading spinner next to the "Active Observations" label
+   * and enable or disable the observation <select> element accordingly.
+   * @param {boolean} isLoading - Whether to show the spinner and disable the select.
+   * @private
+   */
+  #toggleObservationsLoading(isLoading) {
+    this.#observationSelect.disabled = isLoading;
+    this.#observationLoading.hidden = !isLoading;
   }
 
   /**
@@ -632,12 +703,30 @@ class GPPView {
       case "updateObservation":
         this.#updateObservation(parameter.observation);
         break;
-      case "resetObservationSelect":
+      case "resetAndClearObservationSelect":
+        this.#observationSelect.length = 1;
         this.#clearObservationForm();
-        this.#resetObservationSelect(parameter.disabled);
         break;
       case "clearObservationForm":
         this.#clearObservationForm();
+        break;
+      case "programsLoading":
+        this.#toggleProgramsLoading(true);
+        break;
+      case "programsLoaded":
+        this.#toggleProgramsLoading(false);
+        break;
+      case "observationsLoading":
+        this.#toggleObservationsLoading(true);
+        break;
+      case "observationsLoaded":
+        this.#toggleObservationsLoading(false);
+        break;
+      case "showNoPrograms":
+        this.#showNoPrograms();
+        break;
+      case "showNoObservations":
+        this.#showNoObservations();
         break;
     }
   }
@@ -671,6 +760,7 @@ class GPPController {
   #options;
   #model;
   #view;
+  #toast;
 
   /**
    * Hook up model ↔ view wiring and register event callbacks.
@@ -682,6 +772,7 @@ class GPPController {
     this.#model = model;
     this.#view = view;
     this.#options = options;
+    this.#toast = options.toast;
 
     // Bind the callbacks.
     this.#view.bindCallback("selectProgram", (item) =>
@@ -693,13 +784,34 @@ class GPPController {
   }
 
   /**
-   * First-time initialisation: fetch programs then ask view to render.
+   * First-time initialization: fetch programs then ask view to render.
    * @async
    * @return {Promise<void>}
    */
   async init() {
+    const { status, detail } = await this.#model.isReachable();
+    if (status !== 200) {
+      // Build toast.
+      const notification = {
+        label: "GPP Communication Error",
+        message: detail ?? "Unknown error, please try again later.",
+        color: "danger",
+      };
+      this.#toast.show(notification);
+      // Exit and do nothing else.
+      return;
+    }
+    this.#view.render("programsLoading");
     await this.#model.fetchPrograms();
-    this.#view.render("updatePrograms", { programs: this.#model.programsList });
+
+    // Check if programs are available.
+    const programsList = this.#model.programsList;
+    if (programsList.length === 0) {
+      this.#view.render("showNoPrograms");
+    } else {
+      this.#view.render("updatePrograms", { programs: programsList });
+    }
+    this.#view.render("programsLoaded");
   }
 
   /**
@@ -707,11 +819,19 @@ class GPPController {
    * @private
    */
   async #selectProgram(programId) {
-    this.#view.render("resetObservationSelect", { disabled: true });
+    this.#view.render("observationsLoading");
+    this.#view.render("resetAndClearObservationSelect");
     await this.#model.fetchObservations(programId);
-    this.#view.render("updateObservations", {
-      observations: this.#model.observationsList,
-    });
+    // Check if observations are available.
+    const observationsList = this.#model.observationsList;
+    if (observationsList.length === 0) {
+      this.#view.render("showNoObservations");
+    } else {
+      this.#view.render("updateObservations", {
+        observations: this.#model.observationsList,
+      });
+    }
+    this.#view.render("observationsLoaded");
   }
 
   /**
@@ -751,7 +871,12 @@ class GPP {
    * @param {Object=}     options        Optional config overrides.
    */
   constructor(parentElement, options = {}) {
-    this.#options = { ...GPP.#defaultOptions, ...options, api: window.api };
+    this.#options = {
+      ...GPP.#defaultOptions,
+      ...options,
+      api: window.api,
+      toast: window.toast,
+    };
     this.#model = new GPPModel(this.#options);
     this.#template = new GPPTemplate(this.#options);
     this.#view = new GPPView(this.#template, parentElement, this.#options);

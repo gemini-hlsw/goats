@@ -5,6 +5,11 @@ __all__ = ["GPPProgramViewSet"]
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from gpp_client import GPPClient
+from gpp_client.api.enums import ProposalStatus
+from gpp_client.api.input_types import (
+    WhereEqProposalStatus,
+    WhereProgram,
+)
 from rest_framework import permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -46,7 +51,11 @@ class GPPProgramViewSet(
         # Setup client to communicate with GPP.
         try:
             client = GPPClient(url=settings.GPP_URL, token=credentials.token)
-            programs = async_to_sync(client.program.get_all)()
+            # Filter by accepted proposals.
+            where = WhereProgram(
+                proposal_status=WhereEqProposalStatus(eq=ProposalStatus.ACCEPTED)
+            )
+            programs = async_to_sync(client.program.get_all)(where=where)
 
             return Response(programs)
         except Exception as e:
