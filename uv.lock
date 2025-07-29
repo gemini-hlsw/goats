@@ -1139,7 +1139,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.2.1,<9" },
     { name = "django", specifier = ">=4.2.23,<5" },
     { name = "django-cors-headers", specifier = ">=4.7.0,<5" },
-    { name = "django-dramatiq", specifier = ">=0.13.0" },
+    { name = "django-dramatiq", specifier = ">=0.14.0" },
     { name = "djangorestframework", specifier = ">=3.16.0,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
