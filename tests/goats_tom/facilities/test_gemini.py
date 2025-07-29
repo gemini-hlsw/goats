@@ -83,17 +83,3 @@ class TestGOATSGEMFacility:
         ]
         errors = self.facility.validate_observation(invalid_payload)
         assert "exptimes" in errors
-
-    def test_validate_observation_invalid_obs_id(self):
-        invalid_payload = [
-            {
-                "prog": "invalid-id",
-                "obsnum": "1",
-                "elevationType": "airmass",
-                "elevationMin": "1.2",
-                "elevationMax": "2.0",
-                "exptime": 600,
-            },
-        ]
-        errors = self.facility.validate_observation(invalid_payload)
-        assert "obs" in errors

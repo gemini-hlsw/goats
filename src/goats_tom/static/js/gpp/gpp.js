@@ -46,7 +46,12 @@ class GPPTemplate {
     const right = Utils.createElement("div");
 
     const actions = [
-      { id: "saveButton", color: "primary", label: "Save", parentElement: right },
+      {
+        id: "saveButton",
+        color: "primary",
+        label: "Save",
+        parentElement: right,
+      },
       {
         id: "editButton",
         color: "secondary",
@@ -65,9 +70,9 @@ class GPPTemplate {
     actions.forEach(({ id, color, label, parentElement, classes = [] }) => {
       const btn = Utils.createElement("button", ["btn", `btn-${color}`, ...classes]);
       btn.textContent = label;
-      btn.disabled = true;
       btn.id = id;
       btn.type = "button";
+      btn.disabled = true;
       parentElement.appendChild(btn);
     });
     buttonToolbar.append(left, right);
@@ -373,24 +378,33 @@ class GPPTemplate {
 class GPPModel {
   #options;
   #api;
+  #userId;
+  #targetId;
+  #facility;
   // Url specific variables.
-  #baseUrl = "gpp/";
-  #programsUrl = `${this.#baseUrl}programs/`;
-  #observationsUrl = `${this.#baseUrl}observations/`;
-  #pingUrl = `${this.#baseUrl}ping/`;
+  #gppUrl = "gpp/";
+  #gppProgramsUrl = `${this.#gppUrl}programs/`;
+  #gppObservationsUrl = `${this.#gppUrl}observations/`;
+  #gppPingUrl = `${this.#gppUrl}ping/`;
+  #observationsUrl = `observations/`;
 
   // Data-storing maps.
   #observations = new Map();
   #programs = new Map();
+  #activeObservation;
 
   constructor(options) {
     this.#options = options;
     this.#api = this.#options.api;
+    this.#userId = this.#options.userId;
+    this.#facility = this.#options.facility;
+    this.#targetId = this.#options.targetId;
   }
 
-  /** Clears every cached observation. */
+  /** Clears every cached observation and active observation. */
   clearObservations() {
     this.#observations.clear();
+    this.#activeObservation = null;
   }
 
   /** Clears every cached program. */
@@ -411,11 +425,12 @@ class GPPModel {
    */
   async isReachable() {
     try {
-      const response = await this.#api.get(this.#pingUrl);
+      const response = await this.#api.get(this.#gppPingUrl);
       return { status: 200, detail: response.detail };
     } catch (error) {
       // Have to unpack the error still.
-      return error.json();
+      const data = await error.json();
+      return data;
     }
   }
 
@@ -428,7 +443,7 @@ class GPPModel {
   async fetchPrograms() {
     this.clearPrograms();
     try {
-      const response = await this.#api.get(this.#programsUrl);
+      const response = await this.#api.get(this.#gppProgramsUrl);
 
       // Fill / refresh the Map.
       const programs = response.matches;
@@ -442,6 +457,29 @@ class GPPModel {
   }
 
   /**
+   * Submits an observation to the backend API.
+   * @param {Object} observation The observation object to save.
+   * @returns {Promise<{status: number, data: Object}>} A response object with status code and response data.
+   */
+  async saveObservation(observation) {
+    // User isn't needed.
+    const data = {
+      target_id: this.#targetId,
+      facility: this.#facility,
+      // Need to pass in the instrument to select the correct form.
+      observation_type: observation.instrument,
+      observing_parameters: observation,
+    };
+    try {
+      const response = await this.#api.post(this.#observationsUrl, data);
+      return { status: 200, data: response };
+    } catch (error) {
+      const data = await error.json();
+      return { status: data.status, data: data };
+    }
+  }
+
+  /**
    * Fetch all observations for the given program ID and refresh the cache.
    * @async
    * @param {string} programId  Program identifier (e.g. "GN-2025A-Q-101").
@@ -451,7 +489,7 @@ class GPPModel {
     this.clearObservations();
     try {
       const response = await this.#api.get(
-        `${this.#observationsUrl}?program_id=${programId}`
+        `${this.#gppObservationsUrl}?program_id=${programId}`
       );
 
       // Fill / refresh the Map.
@@ -466,12 +504,23 @@ class GPPModel {
   }
 
   /**
-   * Get an observation object that is already in the cache.
+   * Get an observation object that is already in the cache. Also sets the active
+   * observation to track the last retrieved.
    * @param {string} observationId
    * @returns {Object|undefined}
    */
   getObservation(observationId) {
-    return this.#observations.get(observationId);
+    const obs = this.#observations.get(observationId);
+    this.#activeObservation = obs || null;
+    return obs;
+  }
+
+  /**
+   * The last retrieved observation from cache.
+   * @returns {Object|null}
+   */
+  get activeObservation() {
+    return this.#activeObservation;
   }
 
   /**
@@ -653,7 +702,7 @@ class GPPView {
   #updateObservation(observation) {
     const form = this.#template.createObservationForm(observation);
     this.#form = form;
-    this.#formContainer.append(form);
+    this.#formContainer.append(this.#form);
   }
 
   /**
@@ -688,9 +737,20 @@ class GPPView {
   }
 
   /**
+   * Enables or disables the main toolbar buttons.
+   * @param {boolean} disabled - Whether to disable or enable the buttons.
+   */
+  #toggleButtonToolbar(disabled) {
+    this.#saveButton.disabled = disabled;
+    // FIXME: Change the edit and edit and create new button later.
+    this.#editButton.disabled = true;
+    this.#editAndCreateNewButton.disabled = true;
+  }
+
+  /**
    * Render hook called by the controller.
    * @param {String} viewCmd  Command string.
-   * @param {{programs: !Array<!Object>}} parameter  Payload.
+   * @param {Object} parameter  Payload of parameters.
    */
   render(viewCmd, parameter) {
     switch (viewCmd) {
@@ -728,6 +788,9 @@ class GPPView {
       case "showNoObservations":
         this.#showNoObservations();
         break;
+      case "toggleButtonToolbar":
+        this.#toggleButtonToolbar(parameter.disabled);
+        break;
     }
   }
 
@@ -746,6 +809,11 @@ class GPPView {
       case "selectObservation":
         Utils.on(this.#observationSelect, "change", (e) => {
           handler({ observationId: e.target.value });
+        });
+        break;
+      case "saveObservation":
+        Utils.on(this.#saveButton, "click", (e) => {
+          handler();
         });
         break;
     }
@@ -781,6 +849,52 @@ class GPPController {
     this.#view.bindCallback("selectObservation", (item) =>
       this.#selectObservation(item.observationId)
     );
+    this.#view.bindCallback("saveObservation", () => this.#saveObservation());
+  }
+
+  /**
+   * Handles the process of saving an observation and displaying a toast notification
+   * based on the result. Shows a warning if the observation has no reference,
+   * a success toast if saved successfully, or an error toast with details if it fails.
+   * @private
+   * @returns {Promise<void>}
+   */
+  async #saveObservation() {
+    const observation = this.#model.activeObservation;
+
+    // Skip if no observation reference has been set aka null or undefined.
+    let notification = {};
+    if (observation?.reference?.label == null) {
+      notification = {
+        label: "Observation Not Saved",
+        message:
+          "Observation not saved, as no observation reference ID has been assigned.",
+        color: "warning",
+      };
+      this.#toast.show(notification);
+      return;
+    }
+
+    const response = await this.#model.saveObservation(observation);
+
+    if (response.status === 200) {
+      notification = {
+        label: "Observation Saved Successfully",
+        message: `Observation ID ${observation.reference.label} has been saved to GOATS.`,
+        color: "success",
+      };
+    } else {
+      // Gracefully extract and format error messages.
+      const errorMessages = Object.values(response.data).flat().join(" ");
+
+      notification = {
+        label: "Observation Not Saved",
+        message:
+          errorMessages || "An unknown error occurred while saving the observation.",
+        color: "danger",
+      };
+    }
+    this.#toast.show(notification);
   }
 
   /**
@@ -819,6 +933,7 @@ class GPPController {
    * @private
    */
   async #selectProgram(programId) {
+    this.#view.render("toggleButtonToolbar", { disabled: true });
     this.#view.render("observationsLoading");
     this.#view.render("resetAndClearObservationSelect");
     await this.#model.fetchObservations(programId);
@@ -842,6 +957,7 @@ class GPPController {
     this.#view.render("clearObservationForm");
     const observation = this.#model.getObservation(observationId);
     this.#view.render("updateObservation", { observation });
+    this.#view.render("toggleButtonToolbar", { disabled: false });
   }
 }
 
@@ -871,11 +987,15 @@ class GPP {
    * @param {Object=}     options        Optional config overrides.
    */
   constructor(parentElement, options = {}) {
+    const dataset = parentElement.dataset;
     this.#options = {
       ...GPP.#defaultOptions,
       ...options,
       api: window.api,
       toast: window.toast,
+      userId: dataset.userId,
+      facility: dataset.facility,
+      targetId: dataset.targetId,
     };
     this.#model = new GPPModel(this.#options);
     this.#template = new GPPTemplate(this.#options);

@@ -11,7 +11,7 @@ class App {
    */
   constructor(csrfToken) {
     window.api = new API("/api/", csrfToken);
-    this.gpp = new GPP(document.getElementById("programObservationsContainer"));
+    this.gpp = new GPP(document.getElementById("gppContainer"));
     this.gpp.init();
   }
 }
