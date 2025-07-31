@@ -13,6 +13,7 @@ from goats_tom.views.logins.gpp import GPPLoginView
 from goats_tom.views.observation_record_delete import ObservationRecordDeleteView
 from goats_tom.views.observation_record_detail import ObservationRecordDetailView
 from goats_tom.views.target_delete import TargetDeleteView
+from goats_tom.views.target_update import TargetUpdateView
 from goats_tom.views.tasks import ongoing_tasks
 from goats_tom.views.user_generate_token import UserGenerateTokenView
 
@@ -33,4 +34,5 @@ __all__ = [
     "AstroDatalabLoginView",
     "GPPLoginView",
     "AstroDatalabView",
+    "TargetUpdateView",
 ]

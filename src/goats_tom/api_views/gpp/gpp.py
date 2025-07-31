@@ -32,7 +32,7 @@ class GPPViewSet(viewsets.GenericViewSet):
         if not hasattr(request.user, "gpplogin"):
             return Response(
                 {"detail": "GPP login credentials are not configured for this user."},
-                status=status.HTTP_403_FORBIDDEN,
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         credentials = request.user.gpplogin

@@ -52,6 +52,11 @@ urlpatterns = [
         name="target-delete",
     ),
     path(
+        "targets/<int:pk>/update/",
+        views.TargetUpdateView.as_view(),
+        name="target-update",
+    ),
+    path(
         "alerts/query/<int:pk>/update-name",
         views.update_brokerquery_name,
         name="update-brokerquery-name",
