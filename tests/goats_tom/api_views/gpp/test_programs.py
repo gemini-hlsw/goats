@@ -43,7 +43,7 @@ class TestGPPProgramViewSet:
 
         response = self.list_view(request)
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["detail"] == "GPP login credentials are not configured for this user."
 
     def test_retrieve_program_success(self, mocker):
@@ -65,5 +65,5 @@ class TestGPPProgramViewSet:
 
         response = self.retrieve_view(request, pk=self.program_id)
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["detail"] == "GPP login credentials are not configured for this user."

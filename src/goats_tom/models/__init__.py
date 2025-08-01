@@ -5,7 +5,7 @@ from goats_tom.models.dragons_file import DRAGONSFile
 from goats_tom.models.dragons_recipe import DRAGONSRecipe
 from goats_tom.models.dragons_reduce import DRAGONSReduce
 from goats_tom.models.dragons_run import DRAGONSRun
-from goats_tom.models.logins import AstroDatalabLogin, GOALogin, GPPLogin
+from goats_tom.models.logins import AstroDatalabLogin, GOALogin, GPPLogin, LCOLogin
 from goats_tom.models.recipes_module import RecipesModule
 
 __all__ = [
@@ -20,4 +20,5 @@ __all__ = [
     "DataProductMetadata",
     "AstroDatalabLogin",
     "GPPLogin",
+    "LCOLogin",
 ]

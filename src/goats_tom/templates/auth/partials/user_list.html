@@ -82,6 +82,11 @@
                   >
                 </li>
                 <li>
+                  <a
+                    href="{% url 'user-lco-login' user.id %}"
+                    class="dropdown-item"
+                    >Las Cumbres Observatory</a
+                  >
                 </li>
                 {% if request.user.is_superuser %}
                 <li><hr class="dropdown-divider" /></li>

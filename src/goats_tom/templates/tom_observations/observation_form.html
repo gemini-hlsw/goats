@@ -62,6 +62,7 @@
 {% endblock %}
 {% block javascript %}
 {{ block.super }}
+{% if form.facility.value == "GEM" %}
 <script src="{% static 'js/utils.js' %}" defer></script>
 <script src="{% static 'js/api.js' %}" defer></script>
 <script src="{% static 'js/gpp/lookups.js' %}" defer></script>
@@ -69,4 +70,5 @@
 <script src="{% static 'js/gpp/fields.js' %}" defer></script>
 <script src="{% static 'js/gpp/gpp.js' %}" defer></script>
 <script src="{% static 'js/gpp/app.js' %}" defer></script>
+{% endif %}
 {% endblock %}

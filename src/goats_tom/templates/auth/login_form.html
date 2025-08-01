@@ -8,6 +8,8 @@
     Gemini Observatory Archive (GOA)
     {% elif service_name == "GPP" %}
       Gemini Program Platform (GPP)
+    {% elif service_name == "LCO" %}
+      Las Cumbres Observatory (LCO)
     {% else %}
       {{ service_name }}
     {% endif %}
@@ -15,7 +17,7 @@
   </p>
   {% if service_description %}
   <p class="mb-3">
-    {{ service_description }}
+    {{ service_description|safe }}
   </p>
   {% endif %}
   <p class="mb-0">

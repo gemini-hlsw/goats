@@ -43,7 +43,7 @@ class TestGPPObservationViewSet:
 
         response = self.list_view(request)
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["detail"] == "GPP login credentials are not configured for this user."
 
     def test_retrieve_observation_success(self, mocker):
@@ -65,5 +65,5 @@ class TestGPPObservationViewSet:
 
         response = self.retrieve_view(request, pk=self.observation_id)
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["detail"] == "GPP login credentials are not configured for this user."

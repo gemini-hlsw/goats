@@ -8,8 +8,12 @@ from goats_tom.views.delete_observation_dataproducts import (
 from goats_tom.views.downloads import recent_downloads
 from goats_tom.views.dragons import DRAGONSView
 from goats_tom.views.goa_query_form import GOAQueryFormView
-from goats_tom.views.logins import AstroDatalabLoginView, GOALoginView
-from goats_tom.views.logins.gpp import GPPLoginView
+from goats_tom.views.logins import (
+    AstroDatalabLoginView,
+    GOALoginView,
+    GPPLoginView,
+    LCOLoginView,
+)
 from goats_tom.views.observation_record_delete import ObservationRecordDeleteView
 from goats_tom.views.observation_record_detail import ObservationRecordDetailView
 from goats_tom.views.target_delete import TargetDeleteView
@@ -33,4 +37,5 @@ __all__ = [
     "AstroDatalabLoginView",
     "GPPLoginView",
     "AstroDatalabView",
+    "LCOLoginView",
 ]
