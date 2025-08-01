@@ -1,9 +1,0 @@
-{% for facility in facilities %}
-  <a href="{% url 'tom_observations:create' facility=facility %}?target_id={{ target.id }}" class="btn btn-outline-primary">
-    {% if facility == "LT" %}
-      BLANCO
-    {% else %}
-      {{ facility }}
-    {% endif %}
-  </a>
-{% endfor %}
