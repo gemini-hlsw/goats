@@ -26,8 +26,10 @@
   </div>
 </div>
 <hr class="mb-5" />
-{% render_goa_query_form %}
-{% render_launch_dragons %}
+{% if object.facility == "GEM" %}
+  {% render_goa_query_form %}
+  {% render_launch_dragons %}
+{% endif %}
 <div class="row justify-content-center">
   <div class="col-md-12">
     <h4>Saved Data Products</h4>
