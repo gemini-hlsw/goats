@@ -80,7 +80,7 @@ class UserAwareLCOSettings(UserTokenMixin, LCOSettings):
 
 class UserAwareSOARSettings(UserTokenMixin, SOARSettings):
     """
-    Settings wrapper that pulls API keys from ``user.soarlogin.token``.
+    Settings wrapper that pulls API keys from ``user.lcologin.token``.
     """
 
     credential_attr = "lcologin"
