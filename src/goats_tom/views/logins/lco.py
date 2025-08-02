@@ -2,6 +2,7 @@ __all__ = ["LCOLoginView"]
 
 from typing import Any
 
+import requests
 from django.conf import settings
 
 from goats_tom.forms import TokenLoginForm
@@ -21,7 +22,7 @@ class LCOLoginView(BaseLoginView):
     form_class = TokenLoginForm
 
     def perform_login_and_logout(self, **kwargs: Any) -> bool:
-        """Perform login check using a token.
+        """Perform check using a token.
 
         Parameters
         ----------
@@ -36,7 +37,13 @@ class LCOLoginView(BaseLoginView):
             `True` if the endpoint is reachable and the token is valid, `False`
             otherwise.
         """
-        _ = kwargs.get("token")
-        _ = settings.FACILITIES["LCO"]["portal_url"]
-        # FIXME: For now, just return True until we figure out a small test to login.
+        token = kwargs.get("token")
+        url = settings.FACILITIES.get("LCO").get("portal_url")
+        try:
+            response = requests.get(
+                f"{url}/api/proposals/", headers={"Authorization": f"Token {token}"}
+            )
+            response.raise_for_status()
+        except Exception:
+            return False
         return True
