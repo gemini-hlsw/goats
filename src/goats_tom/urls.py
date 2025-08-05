@@ -107,4 +107,10 @@ urlpatterns = [
         views.DataProductUploadView.as_view(),
         name="upload",
     ),
+    path(
+        "observations/template/<str:facility>/create/",
+        views.ObservationTemplateCreateView.as_view(),
+        name="template-create",
+    ),
+    path("targets/<int:pk>/", views.TargetDetailView.as_view(), name="detail"),
 ]
