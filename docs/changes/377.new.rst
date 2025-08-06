@@ -1,0 +1,1 @@
+Added support for the Transient Name Server (TNS), including a model to store credentials, a corresponding form and view, and a factory for testing. Updated login forms and extended the credential manager UI to support TNS. Also added `tom_tns` as a dependency and included tests for TNS integration.
