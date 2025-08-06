@@ -27,7 +27,7 @@ class TestTNSLoginView(TestCase):
 
         self.assertRedirects(response, reverse("user-list"))
         messages_list = list(response.context["messages"])
-        self.assertTrue(any("TNS login information verified" in str(msg) for msg in messages_list))
+        self.assertTrue(any("TNS login information saved." in str(msg) for msg in messages_list))
 
         login_obj = TNSLogin.objects.get(user=self.user)
         self.assertEqual(login_obj.token, "1234")
