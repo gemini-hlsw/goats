@@ -1,6 +1,7 @@
 from django.urls import include, path
 from tom_alerts.views import BrokerQueryListView
 from tom_common.api_router import SharedAPIRootRouter
+from tom_tns.urls import urlpatterns as tom_tns_urls
 
 from . import api_views, views
 
@@ -118,4 +119,5 @@ urlpatterns = [
         name="template-create",
     ),
     path("targets/<int:pk>/", views.TargetDetailView.as_view(), name="detail"),
+    path("tns/", include(tom_tns_urls)),
 ]
