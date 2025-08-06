@@ -88,6 +88,13 @@
                     >Las Cumbres Observatory</a
                   >
                 </li>
+                <li>
+                  <a
+                    href="{% url 'user-tns-login' user.id %}"
+                    class="dropdown-item"
+                    >Transient Name Server</a
+                  >
+                </li>
                 {% if request.user.is_superuser %}
                 <li><hr class="dropdown-divider" /></li>
                 <li><h6 class="dropdown-header">Generate</h6></li>

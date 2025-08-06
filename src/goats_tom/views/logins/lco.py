@@ -5,7 +5,7 @@ from typing import Any
 import requests
 from django.conf import settings
 
-from goats_tom.forms import TokenLoginForm
+from goats_tom.forms import LCOLoginForm
 from goats_tom.models import LCOLogin
 
 from .base import BaseLoginView
@@ -19,7 +19,7 @@ class LCOLoginView(BaseLoginView):
         "This is required to be able to trigger LCO or SOAR."
     )
     model_class = LCOLogin
-    form_class = TokenLoginForm
+    form_class = LCOLoginForm
 
     def perform_login_and_logout(self, **kwargs: Any) -> bool:
         """Perform check using a token.

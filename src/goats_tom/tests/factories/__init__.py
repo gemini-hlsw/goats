@@ -10,6 +10,7 @@ from .logins import (
     GOALoginFactory,
     GPPLoginFactory,
     LCOLoginFactory,
+    TNSLoginFactory,
 )
 from .recipes_module import RecipesModuleFactory
 from .reduceddatum import ReducedDatumFactory
@@ -30,4 +31,5 @@ __all__ = [
     "UserFactory",
     "GPPLoginFactory",
     "LCOLoginFactory",
+    "TNSLoginFactory",
 ]

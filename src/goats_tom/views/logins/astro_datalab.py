@@ -3,6 +3,7 @@ __all__ = ["AstroDatalabLoginView"]
 from typing import Any
 
 from goats_tom.astro_data_lab import AstroDataLabClient
+from goats_tom.forms import AstroDatalabLoginForm
 from goats_tom.models import AstroDatalabLogin
 
 from .base import BaseLoginView
@@ -15,6 +16,7 @@ class AstroDatalabLoginView(BaseLoginView):
         "to your Astro Data Lab account."
     )
     model_class = AstroDatalabLogin
+    form_class = AstroDatalabLoginForm
 
     def perform_login_and_logout(self, **kwargs: Any) -> bool:
         """Perform Astro Data Lab login and logout checks.

@@ -3,6 +3,7 @@ __all__ = ["GOALoginView"]
 from typing import Any
 
 from goats_tom.astroquery import Observations as GOA
+from goats_tom.forms import GOALoginForm
 from goats_tom.models import GOALogin
 
 from .base import BaseLoginView
@@ -15,6 +16,7 @@ class GOALoginView(BaseLoginView):
         "associated with your GOA account."
     )
     model_class = GOALogin
+    form_class = GOALoginForm
 
     def perform_login_and_logout(self, **kwargs: Any) -> bool:
         """Perform GOA login and logout checks.

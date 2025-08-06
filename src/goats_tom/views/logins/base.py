@@ -11,14 +11,12 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 
-from goats_tom.forms import UsernamePasswordLoginForm
-
 
 class BaseLoginView(LoginRequiredMixin, FormView):
     """View to handle Login form."""
 
     template_name = "auth/login_form.html"
-    form_class = UsernamePasswordLoginForm
+    form_class = None
     service_name = None
     service_description = None
     login_client = None
@@ -58,27 +56,33 @@ class BaseLoginView(LoginRequiredMixin, FormView):
             HTTP response.
         """
         user = get_object_or_404(User, pk=self.kwargs["pk"])
-        username = form.cleaned_data.get("username")
-        password = form.cleaned_data.get("password")
-        token = form.cleaned_data.get("token")
+        data = form.cleaned_data
 
         # Test logging in and logging out.
-        authenticated = self.perform_login_and_logout(
-            username=username, password=password, token=token
-        )
+        authenticated = self.perform_login_and_logout(**data)
         if not authenticated:
             messages.error(
                 self.request,
                 f"Failed to verify {self.service_name} credentials. Please try again.",
             )
         else:
-            messages.success(
-                self.request,
-                f"{self.service_name} login information verified and saved "
-                "successfully.",
-            )
+            if self.service_name == "TNS":
+                messages.success(
+                    self.request,
+                    "TNS login information saved. It cannot be automatically verified "
+                    "at this time. If you experience issues communicating with TNS, "
+                    "please double-check your credentials and try again.",
+                )
+            else:
+                messages.success(
+                    self.request,
+                    f"{self.service_name} login information verified and saved "
+                    "successfully.",
+                )
 
-        self.save_credentials(user, username=username, password=password, token=token)
+        obj = form.save(commit=False)
+        obj.user = user
+        obj.save()
 
         return super().form_valid(form)
 
@@ -116,29 +120,3 @@ class BaseLoginView(LoginRequiredMixin, FormView):
             `True` if authentication succeeded, otherwise `False`.
         """
         return True
-
-    def save_credentials(self, user: User, **kwargs: Any) -> None:
-        """Save credentials to the appropriate model.
-
-        Parameters
-        ----------
-        user : `User`
-            The user to associate the credentials with.
-        **kwargs : `Any`
-            Credential data (e.g. username, password, token).
-        """
-        if self.model_class is not None:
-            self.model_class.objects.update_or_create(
-                user=user,
-                defaults={
-                    k: v
-                    for k, v in kwargs.items()
-                    if k in {"username", "password", "token"} and v is not None
-                },
-            )
-        else:
-            messages.warning(
-                self.request,
-                f"No model_class specified for {self.service_name}. Credentials not "
-                "stored.",
-            )

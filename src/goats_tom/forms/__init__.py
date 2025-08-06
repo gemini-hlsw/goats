@@ -1,5 +1,17 @@
 from goats_tom.forms.goa_query import GOAQueryForm
-from goats_tom.forms.token_login import TokenLoginForm
-from goats_tom.forms.username_password_login import UsernamePasswordLoginForm
+from goats_tom.forms.logins import (
+    AstroDatalabLoginForm,
+    GOALoginForm,
+    GPPLoginForm,
+    LCOLoginForm,
+    TNSLoginForm,
+)
 
-__all__ = ["UsernamePasswordLoginForm", "GOAQueryForm", "TokenLoginForm"]
+__all__ = [
+    "GOAQueryForm",
+    "TNSLoginForm",
+    "AstroDatalabLoginForm",
+    "GOALoginForm",
+    "GPPLoginForm",
+    "LCOLoginForm",
+]

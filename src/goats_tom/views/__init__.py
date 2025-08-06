@@ -13,6 +13,7 @@ from goats_tom.views.logins import (
     GOALoginView,
     GPPLoginView,
     LCOLoginView,
+    TNSLoginView,
 )
 from goats_tom.views.observation_record_delete import ObservationRecordDeleteView
 from goats_tom.views.observation_record_detail import ObservationRecordDetailView
@@ -42,4 +43,5 @@ __all__ = [
     "LCOLoginView",
     "TargetDetailView",
     "ObservationTemplateCreateView",
+    "TNSLoginView",
 ]

@@ -8,12 +8,14 @@
     Gemini Observatory Archive (GOA)
     {% elif service_name == "GPP" %}
       Gemini Program Platform (GPP)
+    {% elif service_name == "TNS" %}
+      Transient Name Server (TNS)
     {% elif service_name == "LCO" %}
       Las Cumbres Observatory (LCO)
     {% else %}
       {{ service_name }}
     {% endif %}
-    Login
+    Credentials
   </p>
   {% if service_description %}
   <p class="mb-3">
@@ -31,27 +33,18 @@
 
 <form method="POST">
   {% csrf_token %}
-  {% if form.username %}
-  <div class="mb-3">
-    {{ form.username.label_tag }}<br>
-    {{ form.username }}
-  </div>
-  {% endif %}
-
-  {% if form.password %}
-  <div class="mb-3">
-    {{ form.password.label_tag }}<br>
-    {{ form.password }}
-  </div>
-  {% endif %}
-
-  {% if form.token %}
-  <div class="mb-3">
-    {{ form.token.label_tag }}<br>
-    {{ form.token }}
-  </div>
-  {% endif %}
-
+  {% for field in form %}
+    <div class="mb-3">
+      {{ field.label_tag }}<br>
+      {{ field }}
+      {% if field.help_text %}
+        <small class="form-text text-muted">{{ field.help_text }}</small>
+      {% endif %}
+      {% for error in field.errors %}
+        <div class="text-danger">{{ error }}</div>
+      {% endfor %}
+    </div>
+  {% endfor %}
   <input type="submit" value="Save {{ service_name }} Credentials" class="btn btn-primary">
 </form>
 

@@ -6,7 +6,7 @@ from asgiref.sync import async_to_sync
 from django.conf import settings
 from gpp_client import GPPClient
 
-from goats_tom.forms import TokenLoginForm
+from goats_tom.forms import GPPLoginForm
 from goats_tom.models import GPPLogin
 
 from .base import BaseLoginView
@@ -19,7 +19,7 @@ class GPPLoginView(BaseLoginView):
         "trigger ToOs and modify observations."
     )
     model_class = GPPLogin
-    form_class = TokenLoginForm
+    form_class = GPPLoginForm
 
     def perform_login_and_logout(self, **kwargs: Any) -> bool:
         """Perform GPP login check using a token.
