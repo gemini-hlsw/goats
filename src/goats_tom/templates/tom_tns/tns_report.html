@@ -1,0 +1,69 @@
+{% extends 'tom_common/base.html' %}
+{% load bootstrap4 tns_extras%}
+{% block title %}Report to TNS{% endblock %}
+{% block additional_css %} {% endblock %}
+{% block content %}
+<h1>Submit <a href="{% url 'targets:detail' pk=target.id %}" title="Back">{{ target.name }}</a> Information to the TNS</h1>
+{% if not tns_configured %}
+    <div class="alert alert-danger">
+    TNS Credentials have not been configured!
+    Navigate to <strong>Users</strong> in the navbar (under your username), then click <strong>Credential Manager</strong>, and select <strong>Transient Name Server</strong> to enter the required information and configure TNS.
+</div>
+{% else %}
+    {% if default_form == 'supernova' %}
+        <div class="alert alert-danger"> Warning: This target {{target.names}} may have already been reported to and classified with the TNS</div>
+    {% endif %}
+     <div class="col-md-8">
+        <ul class="nav nav-tabs" role="tablist" id="tabs">
+          <li class="nav-item">
+              {% if default_form == 'classify' %}
+                <a class="nav-link" id="report-tab" href="#report" role="tab" data-toggle="tab">Report {{ target.name }}</a>
+              {% else %}
+                <a class="nav-link active" id="report-tab" href="#report" role="tab" data-toggle="tab">Report {{ target.name }}</a>
+              {% endif %}
+          </li>
+          <li class="nav-item">
+              {% if default_form == 'classify' %}
+                <a class="nav-link active" id="classify-tab" href="#classify" role="tab" data-toggle="tab">Classify {{ target.name }} </a>
+              {% else %}
+                <a class="nav-link" id="classify-tab" href="#classify" role="tab" data-toggle="tab">Classify {{ target.name }} </a>
+              {% endif %}
+          </li>
+        </ul>
+     </div>
+
+    <div class="tab-content">
+        {% if default_form == 'classify' %}
+            <div class="tab-pane" id="report">
+                <div class="alert alert-danger"> Warning: This target {{target.names}} may have already been reported to the TNS</div>
+        {% else %}
+            <div class="tab-pane active" id="report">
+        {% endif %}
+            <div class="col-md-12">
+                <br/>
+                <h4>Report {{ target.name }} to the TNS</h4>
+                <hr/>
+                {% report_to_tns %}
+            </div>
+        </div>
+        {% if default_form == 'classify' %}
+            <div class="tab-pane active" id="classify">
+        {% else %}
+            <div class="tab-pane" id="classify">
+                {% if default_form != 'supernova' %}
+                    <div class="alert alert-danger"> Warning: This target {{target.names}} may not have been reported to the TNS yet</div>
+                {% endif %}
+        {% endif %}
+            <div class="col-md-12">
+                <br/>
+                <h4>Classify {{ target.name }} with the TNS</h4>
+                <hr/>
+                {% classify_with_tns %}
+            </div>
+        </div>
+    </div>
+{% endif %}
+<hr>
+<p><em>TOM Toolkit Module (<a href="https://github.com/TOMToolkit/tom_tns" target="_blank">tom_tns</a>) version {{ version }}</em></p>
+
+{% endblock %}

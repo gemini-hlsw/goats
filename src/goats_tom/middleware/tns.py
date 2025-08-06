@@ -69,7 +69,7 @@ class TNSCredentialsMiddleware(MiddlewareMixin):
             return self.get_response(request)
         token = None
         user = getattr(request, "user", None)
-        if user and hasattr(user, "tnslogin"):
+        if user and user.is_authenticated and hasattr(user, "tnslogin"):
             login = user.tnslogin
             token = current_tns_creds.set(
                 build_payload(
