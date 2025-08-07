@@ -88,7 +88,7 @@ testpaths = ["tests"]
 DJANGO_SETTINGS_MODULE = "goats_tom.tests.settings"
 norecursedirs = "tests/unit/goats_tom/ocs"
 asyncio_default_fixture_loop_scope = "session"
-addopts = "-r A -v -n auto"
+# addopts = "-r A -v -n auto"
 
 [tool.towncrier]
 version = ""

@@ -456,7 +456,6 @@ class ObservationsClass(QueryWithLogin):
 
         """
         url = self.url_helper.get_summary_url(*args, **kwargs)
-        print("in here")
         response = self._request(
             method="GET",
             url=url,
@@ -464,7 +463,6 @@ class ObservationsClass(QueryWithLogin):
             timeout=conf.GOA_TIMEOUT,
             cache=False,
         )
-        print(response.text)
 
         js = response.json()
         return _gemini_json_to_table(js)
