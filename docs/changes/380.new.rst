@@ -1,0 +1,1 @@
+Add endpoint to fetch existing observations around target from GOA. This will be used by the frontend so users can easily add observations for a target for Gemini.
