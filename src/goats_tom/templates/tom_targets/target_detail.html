@@ -110,6 +110,7 @@
   </div>
   <div class="tab-pane" id="observations">
     {% existing_observation_form object %}
+    <div id="goaExistingObservationsContainer" data-target-id="{{ object.id }}" data-add-existing-url="{% url 'tom_observations:add-existing' %}"></div>
     <h4>Observations</h4>
     <a
       href="{% url 'targets:detail' pk=target.id %}?update_status=True"
@@ -550,4 +551,7 @@
     });
   });
 </script>
+<script src="{% static 'js/api.js' %}" defer></script>
+<script src="{% static 'js/goa.js' %}" defer></script>
+
 {% endblock %}
