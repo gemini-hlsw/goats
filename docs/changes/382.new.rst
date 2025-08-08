@@ -1,0 +1,1 @@
+Added a widget to fetch existing observations from the Gemini Observatory Archive (GOA) near a target's coordinates and link them to the target.
