@@ -32,7 +32,7 @@ There are two ways to select and store targets on the GOATS interface. Each stor
 
 As can be seen in the videos, the dedicated page of a given target has multiple tabs for various operations: 
 
-- **Observe** for triggering follow-up of this target on telescope facilities, in particular Gemini 
+- **Observe** for triggering follow-up of this target on telescope facilities, in particular Gemini, LCO and SOAR 
 - **Observations** for listing triggered observations as well as to add any other past observations of the target   
 - **Manage Data** for listing data from all observations of the target as well as uploading additional data files
 - **Manage Groups** for listing the group(s) that the target belongs to, if the user has grouped it with other targets 

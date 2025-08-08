@@ -36,7 +36,7 @@ Building blocks of GOATS
 GOATS relies on the following components - 
 
 * |ANTARES| : NOIRLab's alert broker for target selection.
-* |TOMToolkit| : Software for building and customizing TOMs developed by the Las Cumbres Observatory. 
+* |TOMToolkit| : Software for building and customizing TOMs developed by the Las Cumbres Observatory (LCO). 
 * |GPP| : Upgraded Observatory Control System of Gemini, which will facilitate Gemini triggering and observations. 
 * |GOA| : Gemini data archive.
 * |DRAGONS| : Gemini data reduction software.
@@ -52,6 +52,18 @@ GOATS relies on the following components -
    functionalities.rst
    acknowledgment.rst
    help.rst
+
+.. toctree::
+   :numbered:
+   :maxdepth: 1
+   :hidden:
+   :caption: Appendices
+
+   appendices/goats_cli.rst
+   appendices/trigger_aeon.rst
+   appendices/tns.rst
+   appendices/goats_cli_troubleshoot.rst
+   appendices/misc.rst
 
 .. toctree::
    :maxdepth: 3
@@ -78,15 +90,7 @@ GOATS relies on the following components -
    developer_guide/documentation.rst
    developer_guide/deployment.rst
 
-.. toctree::
-   :numbered:
-   :maxdepth: 1
-   :hidden:
-   :caption: Appendices
 
-   appendices/goats_cli.rst
-   appendices/goats_cli_troubleshoot.rst
-   appendices/misc.rst
 
 
 
