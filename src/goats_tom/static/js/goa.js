@@ -61,7 +61,7 @@ class GOAWidget {
     const tip = document.createElement("p");
     tip.classList.add("mb-1");
     tip.textContent =
-      "Search the Gemini Observatory Archive (GOA) for observations near this target's coordinates.";
+      "Search the Gemini Observatory Archive (GOA) for observations near this target's coordinates (15 arcsec search radius).";
 
     const group = document.createElement("div");
     group.classList.add("input-group");
