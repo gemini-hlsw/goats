@@ -1,0 +1,1 @@
+Created ``Dependabot`` groups to reduce number of PRs when updating dependencies.
