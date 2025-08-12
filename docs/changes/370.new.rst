@@ -1,1 +1,0 @@
-Added ``alpine.js`` and ``htmx.js`` to match ``tomtoolkit`` requirements, which resolved issue with Alias and Tag blocks when creating a target.

@@ -1,1 +1,0 @@
-Patched ``tom-tns`` to use per-user credentials when interacting with TNS by using middleware.

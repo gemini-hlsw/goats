@@ -3,6 +3,32 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 25.8.0 (2025-08-12)
+===========================
+
+New Features
+------------
+
+- Added a credential-management page for Las Cumbres Observatory (LCO) and SOAR that lets each user save their personal portal API token in the web interface. Observation submissions and whereever the api key is used now draw from the logged-in user's stored key, falling back to the project-wide key in settings.FACILITIES when necessary. The update introduces a dedicated model, view, template, and navigation link in the user settings, plus accompanying tests, and modifies the LCO and SOAR facility classes so they retrieve the key on a per-user basis. (`PR #369 <https://github.com/gemini-hlsw/goats/pull/369>`_)
+- Added ``alpine.js`` and ``htmx.js`` to match ``tomtoolkit`` requirements, which resolved issue with Alias and Tag blocks when creating a target. (`PR #370 <https://github.com/gemini-hlsw/goats/pull/370>`_)
+- Added validation for LCO token when saved. (`PR #374 <https://github.com/gemini-hlsw/goats/pull/374>`_)
+- Added support for the Transient Name Server (TNS), including a model to store credentials, a corresponding form and view, and a factory for testing. Updated login forms and extended the credential manager UI to support TNS. Also added `tom_tns` as a dependency and included tests for TNS integration. (`PR #377 <https://github.com/gemini-hlsw/goats/pull/377>`_)
+- Patched ``tom-tns`` to use per-user credentials when interacting with TNS by using middleware. (`PR #378 <https://github.com/gemini-hlsw/goats/pull/378>`_)
+- Added tests for TNS middleware and updated message for unconfigured TNS credentials. (`PR #379 <https://github.com/gemini-hlsw/goats/pull/379>`_)
+- Add endpoint to fetch existing observations around target from GOA. This will be used by the frontend so users can easily add observations for a target for Gemini. (`PR #380 <https://github.com/gemini-hlsw/goats/pull/380>`_)
+- Added a widget to fetch existing observations from the Gemini Observatory Archive (GOA) near a target's coordinates and link them to the target. (`PR #382 <https://github.com/gemini-hlsw/goats/pull/382>`_)
+- Created ``Dependabot`` groups to reduce number of PRs when updating dependencies. (`PR #388 <https://github.com/gemini-hlsw/goats/pull/388>`_)
+
+
+Changes
+-------
+
+- Removed confusing wording about how to import targets from barebones ``tomtoolkit`` library. (`PR #371 <https://github.com/gemini-hlsw/goats/pull/371>`_)
+- Removed support for LT, aka BLANCO, telescope from GOATS. This will be enabled when GOATS fully supports this telescope in the future. (`PR #372 <https://github.com/gemini-hlsw/goats/pull/372>`_)
+- Changed the visibility of downloading from GOA and reducing data with DRAGONS for observations not associated with Gemini. (`PR #373 <https://github.com/gemini-hlsw/goats/pull/373>`_)
+- Fixed url link in the release workflow to point to the correct changelog url in the documentation. (`PR #390 <https://github.com/gemini-hlsw/goats/pull/390>`_)
+
+
 Version 25.7.0 (2025-07-29)
 ===========================
 

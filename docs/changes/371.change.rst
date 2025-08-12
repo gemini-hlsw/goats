@@ -1,1 +1,0 @@
-Removed confusing wording about how to import targets from barebones ``tomtoolkit`` library.

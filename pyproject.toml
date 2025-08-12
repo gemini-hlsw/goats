@@ -27,17 +27,17 @@ dependencies = [
     "django>=4.2.23,<5",
     "django-cors-headers>=4.7.0,<5",
     "django-dramatiq>=0.14.0",
-    "djangorestframework>=3.16.0,<4",
+    "djangorestframework>=3.16.1,<4",
     "dramatiq-abort>=1.2.1",
     "dramatiq[redis,watch]>=1.18.0,<2",
-    "gpp-client==25.7.8",
+    "gpp-client==25.8.2",
     "marshmallow>=3.26.1,<4",
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
     "tom-tns>=0.3.1",
     "tomtoolkit==2.25.2",
 ]
-version = "25.7.0"
+version = "25.8.0"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
@@ -50,12 +50,12 @@ Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 dev = [
     "factory-boy>=3.3.3",
     "pytest>=8.4.1",
-    "pytest-asyncio>=1.0.0",
+    "pytest-asyncio>=1.1.0",
     "pytest-cov>=6.2.1",
     "pytest-django>=4.11.1",
     "pytest-mock>=3.14.1",
     "pytest-remotedata>=0.4.1",
-    "pytest-xdist>=3.7.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.12.8",
     "towncrier>=24.8.0",
 ]

@@ -1,1 +1,0 @@
-Changed the visibility of downloading from GOA and reducing data with DRAGONS for observations not associated with Gemini.

@@ -1,1 +1,0 @@
-Removed support for LT, aka BLANCO, telescope from GOATS. This will be enabled when GOATS fully supports this telescope in the future.
