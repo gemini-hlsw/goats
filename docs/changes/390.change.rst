@@ -1,0 +1,1 @@
+Fixed url link in the release workflow to point to the correct changelog url in the documentation.
