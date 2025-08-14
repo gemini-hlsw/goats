@@ -243,6 +243,24 @@ footer {
   overflow: hidden auto;
 }
 
+[data-bs-core="goats"]:not([data-bs-theme="dark"]) .img-container {
+  width: 100%;
+  height: 100%;
+  background-image: url("../../img/landing-light.png");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+[data-bs-core="goats"][data-bs-theme="dark"] .img-container {
+  width: 100%;
+  height: 100%;
+  background-image: url("../../img/landing-dark.png");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 [data-bs-core="goats"]:not([data-bs-theme="dark"]) .banner {
   background-color: var(--gemini);
 }
