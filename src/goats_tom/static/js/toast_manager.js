@@ -4,15 +4,25 @@
 class ToastManager {
   /**
    * Create a ToastManager.
-   * @param {HTMLElement|string} container - A DOM element or ID of the container where toasts will be appended.
+   * @param {HTMLElement|string} container - A DOM element or ID of the container where toasts will
+   * be appended.
+   * @param {Object} [options] - Default behavior options.
+   * @param {number} [options.delay=6000] - Default delay in ms.
+   * @param {boolean} [options.autohide=true] - Default auto-hide behavior.
    */
-  constructor(container = "toastContainer") {
+  constructor(container = "toastContainer", options = {}) {
     this.container =
       typeof container === "string" ? document.getElementById(container) : container;
 
     if (!this.container) {
       throw new Error("Toast container not found.");
     }
+
+    this.options = {
+      delay: 6000,
+      autohide: true,
+      ...options,
+    };
   }
 
   /**
@@ -21,12 +31,16 @@ class ToastManager {
    * @param {string} notification.label - Short heading for the toast.
    * @param {string} notification.message - Main body content of the toast.
    * @param {string} notification.color - One of "info", "success", "warning", or "danger".
-   * @param {number} [delay=6000] - Time in ms before toast auto-hides.
+   * @param {Object} [options] - Toast behavior options.
+   * @param {number} [options.delay] - Delay override.
+   * @param {boolean} [options.autohide] - Autohide override.
    */
-  show(notification, delay = 6000) {
+  show(notification, options = {}) {
     const toastEl = this.#create(notification);
     this.container.appendChild(toastEl);
-    const toast = new bootstrap.Toast(toastEl, { autohide: true, delay });
+
+    const toastOptions = { ...this.options, ...options };
+    const toast = new bootstrap.Toast(toastEl, toastOptions);
     toast.show();
   }
 
@@ -84,7 +98,7 @@ class ToastManager {
 
     const text = document.createElement("p");
     text.classList.add("mb-0");
-    text.textContent = message;
+    text.innerHTML = message;
     body.appendChild(text);
 
     toast.appendChild(header);

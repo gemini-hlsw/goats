@@ -9,7 +9,7 @@
   <div class="collapse navbar-collapse" id="goatsNavbar">
     <ul class="navbar-nav me-auto">
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'alerts' %}active fw-bold{% endif %}" title="Search and import targets from brokers." data-toggle="dropdown">Brokers</a>
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'alerts' %}active fw-bold{% endif %}" title="Search and import targets from brokers" data-toggle="dropdown">Brokers</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'alerts:create' %}?broker=ANTARES">ANTARES</a>
           <a class="dropdown-item" href="{% url 'alerts:create' %}?broker=ALeRCE">ALeRCE</a>
@@ -27,7 +27,7 @@
         </div>
       </li>
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/observations' %}active fw-bold{% endif %}" title="Manage observations, templates, and facility status" data-toggle="dropdown">Observations</a>
+        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/observations' %}active fw-bold{% endif %}" title="Manage observations and view facility status" data-toggle="dropdown">Observations</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'tom_observations:list' %}">Observations</a>
           <a class="dropdown-item" href="{% url 'tom_observations:group-list' %}">Observation Groups</a>
@@ -36,10 +36,10 @@
         </div>
       </li>
       <li class="nav-item">
-        <a class="nav-link {% if request.resolver_match.namespace == 'dataproducts' %}active fw-bold{% endif %}" title="View and manage data products for observations" href="{% url 'tom_dataproducts:list' %}">Data</a>
+        <a class="nav-link {% if request.resolver_match.namespace == 'dataproducts' %}active fw-bold{% endif %}" title="View and manage data products of all observations" href="{% url 'tom_dataproducts:list' %}">Data</a>
       </li>
       <li class="nav-item">
-        <a class="nav-link {% if request.resolver_match.url_name == 'astro-data-lab' %}active fw-bold{% endif %}" title="Link your credentials and send data to Astro Data Lab" href="{% url 'astro-data-lab' %}">Astro Data Lab</a>
+        <a class="nav-link {% if request.resolver_match.url_name == 'astro-data-lab' %}active fw-bold{% endif %}" title="Open Astro Data Lab science platform" href="{% url 'astro-data-lab' %}">Astro Data Lab</a>
       </li>
       <li class="nav-item">
         <a class="nav-link" target="_blank" title="Open Gemini Explore" href="https://explore.gemini.edu/">Gemini Explore</a>
