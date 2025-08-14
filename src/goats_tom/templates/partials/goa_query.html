@@ -1,6 +1,13 @@
 <div class="mb-5">
   <h4 class="text-center">Retrieve data from the Gemini Observatory Archive (GOA)</h4>
   <p class="text-center"><em>This functionality is available once the observation complete, i.e., the status is updated to 'Observed'</em></p>
+  {% if object.url %}
+  <div class="row g-3 justify-content-center">
+    <div class="col-12 text-center mb-3">
+      <a class="btn btn-outline-primary" href="{{ object.url }}" target="_blank">View at Archive »</a>
+    </div>
+  </div>
+  {% endif %}
   {% if messages %}
   <ul class="messages">
       {% for message in messages %}

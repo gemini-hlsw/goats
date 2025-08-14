@@ -18,7 +18,7 @@
     {% endif %}
     {% if object.url %}
     <p class="my-auto pb-3">
-      <a class="btn btn-outline-primary" href="{{ object.url }}" target="_blank">View at Observatory »</a>
+      <a class="btn btn-outline-primary {% if object.facility == 'GEM' %}disabled{% endif %}" href="{{ object.url }}" target="_blank">View at Observatory »</a>
     </p>
     {% endif %}
     <p class="my-auto"><strong>Created:</strong> {{ object.created }} <strong>Modified:</strong> {{ object.modified }}</p>
