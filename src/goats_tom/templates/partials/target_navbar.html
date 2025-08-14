@@ -1,12 +1,13 @@
 <!-- Navigation tabs with hardcoded active class for 'Observations' tab -->
 <!-- This is due to needed this on a page missing the context for rest of tabs. -->
+<!-- It was requested to remove the hardcoded active for now with alpha feedback. -->
 <ul class="nav nav-tabs" role="tablist">
   <li class="nav-item">
     <a class="nav-link" href="{% url 'tom_targets:detail' pk=target.id %}?tab=observe">Observe</a>
   </li>
   <li class="nav-item">
     <!-- The 'active' is hardcoded for this specific case. -->
-    <a class="nav-link active" href="{% url 'tom_targets:detail' pk=target.id %}?tab=observations">Observations</a>
+    <a class="nav-link" href="{% url 'tom_targets:detail' pk=target.id %}?tab=observations">Observations</a>
   </li>
   <li class="nav-item">
     <a class="nav-link" href="{% url 'tom_targets:detail' pk=target.id %}?tab=manage-data">Manage Data</a>

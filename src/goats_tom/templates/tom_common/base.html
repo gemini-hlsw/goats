@@ -43,9 +43,7 @@
       <nav class="container-fluid bg-light-subtle">{% include 'navbar.html' %}</nav>
     </header>
 
-    <main
-      role="main"
-      class="{% if request.path == '/' %}container-fluid img-container{% else %}container{% endif %} pt-5 pb-5">
+    <main role="main" class="container pt-5">
       {% bootstrap_messages %} {% block content %}{% endblock %}
       <div
         id="toastContainer"

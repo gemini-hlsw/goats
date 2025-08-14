@@ -47,9 +47,9 @@
     const toggleButton = document.getElementById("colorThemeToggle");
     // Set the toggle button's innerHTML based on the current theme.
     if (theme === "dark") {
-      toggleButton.innerHTML = '<i class="fa-solid fa-sun"></i>';
+      toggleButton.innerHTML = '<i class="fa-solid fa-sun"></i><span class="d-md-none ms-2">Theme</span>';
     } else {
-      toggleButton.innerHTML = '<i class="fa-solid fa-moon"></i>';
+      toggleButton.innerHTML = '<i class="fa-solid fa-moon"></i><span class="d-md-none ms-2">Theme</span>';
     }
   };
 
@@ -68,7 +68,8 @@
     updateThemeIcon(getStoredTheme());
 
     // Add click event listener to the theme toggle button.
-    document.getElementById("colorThemeToggle").addEventListener("click", () => {
+    document.getElementById("colorThemeToggle").addEventListener("click", (e) => {
+      e.preventDefault();
       const currentTheme = getStoredTheme();
       const newTheme = currentTheme === "dark" ? "light" : "dark";
       // Update the theme and the icon on toggle.
