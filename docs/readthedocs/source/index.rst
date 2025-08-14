@@ -60,8 +60,8 @@ GOATS relies on the following components -
    :caption: Appendices
 
    appendices/goats_cli.rst
-   appendices/trigger_aeon.rst
    appendices/tns.rst
+   appendices/trigger_aeon.rst
    appendices/goats_cli_troubleshoot.rst
    appendices/misc.rst
 

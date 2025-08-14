@@ -31,7 +31,7 @@ The typical workflow for Gemini observations is presented in the chart below. Cl
 
 .. note::
 
-   There are two additional features in GOATS worth highlighting. First, it can also be used to trigger LCO and SOAR as well as retrieve the observation data from the LCO archive (see :ref:`trigger_aeon`). Second, users will be able to report discovery and/or classification of the transient to the Transient Name Server (`TNS <https://www.wis-tns.org/>`_; see :ref:`tns`) via GOATS.
+   There are two additional features in GOATS worth highlighting. First, it can also be used to trigger LCO and SOAR as well as retrieve the observation data from the LCO archive (see :ref:`trigger_aeon`). Second, users will be able to report discovery and/or classification of the transient to the `Transient Name Server <https://www.wis-tns.org/>`_ (see :ref:`tns`) via GOATS.
 
 
 .. toctree::
