@@ -16,7 +16,7 @@ Once GPP becomes ready to support target-of-opportunity (ToO) observations, user
 The video below highlights how users can interact with GPP (in its current state of development) using GOATS.  
 
 .. _gpp-video:
-.. video:: _static/gpp.mp4
+.. video:: _static/GPP.mp4
    :alt: Integration of the Gemini Program Platform into GOATS 
    :muted:
    :width: 80%
