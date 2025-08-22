@@ -3,10 +3,10 @@
 Add existing observation
 ------------------------
 
-Users can add a past/existing Gemini observation of a target on GOATS to create a dedicated page for the given observation ID. 
+Users can add any existing Gemini observation of a target on GOATS to create a dedicated page for the given observation ID. For observations whose data have already been ingested into the Gemini Observatory Archive, GOATS can automatically fetch the IDs from the archive so users don't need to remember them.  
 
 .. note::  
-   For Gemini observations, make sure that the ID you are adding is the *observation ID* and **not** the *program ID*. Then, click the ``Update Observation Status`` button to retrieve the status of the observation from the Gemini Observing Database. 
+   If you are manually adding the ID for a Gemini observation, make sure that it is the *observation ID* and **not** the *program ID*. Then, click the ``Update Observation Status`` button to retrieve the status of the observation from the Gemini Observing Database. 
 
    If one would rather have the data for a given Gemini program ID, follow the instructions in :ref:`gem_program_ID`.
 

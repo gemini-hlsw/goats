@@ -3,7 +3,7 @@
 Interfacing with Transient Name Server
 ======================================
 
-GOATS also supports communication with the `Transient Name Server <https://www.wis-tns.org/>`_ (TNS) by using the `tom-tns <https://github.com/TOMToolkit/tom_tns>`_ plugin, which is maintained by LCO. Users can therefore submit transient discovery and/or classification report to TNS directly from the GOATS interface (see the video below). 
+GOATS also supports communication with the `Transient Name Server <https://www.wis-tns.org/>`_ (TNS) by using the `tom-tns <https://github.com/TOMToolkit/tom_tns>`_ plugin, which is maintained by LCO. Users can thus submit transient discovery and/or classification report to TNS directly from the GOATS interface (see the video below). 
 
 .. note::  
 
@@ -14,3 +14,4 @@ GOATS also supports communication with the `Transient Name Server <https://www.w
    :alt: Reporting transient discovery to TNS from GOATS 
    :muted:
    :width: 80%
+

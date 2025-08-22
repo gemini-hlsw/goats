@@ -8,3 +8,8 @@ The TOM Toolkit base library already includes support for triggering LCO and SOA
 
 See the video below for how one can use GOATS for LCO and SOAR observations.
 
+.. _aeon-video:
+.. video:: ../_static/lco_soar.mp4
+   :alt: Support for LCO and SOAR on GOATS
+   :muted:
+   :width: 80%
