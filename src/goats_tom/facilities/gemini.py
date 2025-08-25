@@ -7,20 +7,17 @@ from typing import Any
 
 import requests
 from astropy import units as u
-from django.conf import settings
 from django.http import HttpRequest
 from tom_dataproducts.models import DataProduct
 from tom_observations.facility import (
     BaseRoboticObservationFacility,
     BaseRoboticObservationForm,
-    get_service_class,
 )
 from django import forms
 from tom_observations.models import ObservationRecord
-from tom_targets.models import Target
 
 from goats_tom.astroquery import Observations as GOA
-from goats_tom.ocs import GeminiID, OCSClient
+from goats_tom.ocs import OCSClient
 from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
@@ -258,8 +255,21 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
 
         See lco.py for a concrete implementation example.
         """
-        def fetch_shutter(url: str, timeout: int = 5) -> str:
-            """Fetch the 'shutter' status from a Gemini schedule page."""
+        def fetch_shutter_from_json(url: str, timeout: int = 5) -> str:
+            """Fetch 'open' status from the Gemini South JSON endpoint."""
+            try:
+                response = requests.get(url, timeout=timeout)
+                response.raise_for_status()
+                data = response.json()
+                status = data.get("open")
+                if status is not None:
+                    return status.strip('"')
+                return "NO STATUS FOUND"
+            except Exception:
+                return "ERROR FETCHING STATUS"
+
+        def fetch_shutter_from_html(url: str, timeout: int = 5) -> str:
+            """Fetch the 'shutter' status from a Gemini North schedule page."""
             try:
                 with requests.get(url, timeout=timeout) as resp:
                     resp.raise_for_status()
@@ -270,12 +280,12 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
                 return "ERROR FETCHING STATUS"
 
         north_url = "https://www.gemini.edu/sciops/schedules/obsStatus/GN_Instrument.html"
-        south_url = "https://www.gemini.edu/sciops/schedules/obsStatus/GS_Instrument.html"
+        south_url = "https://www.gemini.edu/sciops/schedules/obsStatus/too_GS.json"
         cpo_telescope_status = [
-            {"code": "Gemini South", "status": fetch_shutter(south_url)}
+            {"code": "Gemini South", "status": fetch_shutter_from_json(south_url)}
         ]
         mko_telescope_status = [
-            {"code": "Gemini North", "status": fetch_shutter(north_url)}
+            {"code": "Gemini North", "status": fetch_shutter_from_html(north_url)}
         ]
         sites_status = [
             {"code": "cpo", "telescopes": cpo_telescope_status},
