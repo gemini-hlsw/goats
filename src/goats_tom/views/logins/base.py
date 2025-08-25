@@ -80,9 +80,11 @@ class BaseLoginView(LoginRequiredMixin, FormView):
                     "successfully.",
                 )
 
-        obj = form.save(commit=False)
-        obj.user = user
-        obj.save()
+        # Update or create credentials.
+        self.model_class.objects.update_or_create(
+            user=user,
+            defaults=data,
+        )
 
         return super().form_valid(form)
 
