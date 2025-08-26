@@ -49,19 +49,23 @@ class DataProductUploadView(BaseDataProductUploadView):
                         )
                 successful_uploads.append(str(dp))
             except InvalidFileFormatException as iffe:
+                dp_name = str(dp)
                 ReducedDatum.objects.filter(data_product=dp).delete()
+                dp.data.delete(save=False)
                 dp.delete()
                 messages.error(
                     self.request,
-                    f"File format invalid for file {str(dp)} -- error was {iffe}",
+                    f"File format invalid for file {dp_name} -- error was {iffe}",
                 )
             except Exception as e:
+                dp_name = str(dp)
                 ReducedDatum.objects.filter(data_product=dp).delete()
+                dp.data.delete(save=False)
                 dp.delete()
                 messages.error(
                     self.request,
                     (
-                        f"There was a problem processing your file: {str(dp)} -- Error:"
+                        f"There was a problem processing your file: {dp_name} -- Error:"
                         f" {e}"
                     ),
                 )
