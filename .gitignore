@@ -278,3 +278,5 @@ coverage
 
 # Formatting ruff
 .ruff_cache
+
+.vscode

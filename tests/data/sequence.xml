@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE sequence PUBLIC "-//Gemini Observatory//DTD for OT Science Program Sequence//EN" "Seq.dtd">
+
+<sequence version="0.1">
+  <step name="step 1">
+    <system name="instrument">
+      <param name="exposureTime" value="200.0"/>
+      <param name="instrument" value="Visitor Instrument"/>
+      <param name="name" value="IGRINS"/>
+      <param name="observingWavelength" value="2.1"/>
+      <param name="posAngle" value="90.0"/>
+      <param name="version" value="2009A-1"/>
+      <param name="wavelength" value="2.1"/>
+    </system>
+    <system name="observe">
+      <param name="class" value="science"/>
+      <param name="dataLabel" value="GS-2023B-Q-102-3-001"/>
+      <param name="exposureTime" value="200.0"/>
+      <param name="headerVisibility" value="PUBLIC"/>
+      <param name="object" value="cl* NGC 2539 mmu 502"/>
+      <param name="observeType" value="OBJECT"/>
+      <param name="proprietaryMonths" value="12"/>
+      <param name="sciBand" value="1"/>
+      <param name="status" value="ready"/>
+    </system>
+    <system name="ocs">
+      <paramset name="obsConditions">
+        <param name="CloudCover" value="80"/>
+        <param name="ImageQuality" value="85"/>
+        <param name="SkyBackground" value="100"/>
+        <param name="WaterVapor" value="100"/>
+      </paramset>
+      <param name="observationId" value="GS-2023B-Q-102-3"/>
+      <param name="programId" value="GS-2023B-Q-102"/>
+    </system>
+    <system name="telescope">
+      <param name="guideWithPWFS1" value="park"/>
+      <param name="guideWithPWFS2" value="guide"/>
+      <param name="p" value="0.0"/>
+      <paramset name="position(Base)">
+        <param name="name" value="cl* NGC 2539 mmu 502"/>
+      </paramset>
+      <param name="q" value="1.25"/>
+      <param name="version" value="2009B-1"/>
+    </system>
+  </step>
+  <step name="step 2">
+    <system name="observe">
+      <param name="dataLabel" value="GS-2023B-Q-102-3-002"/>
+    </system>
+    <system name="telescope">
+      <param name="q" value="-1.25"/>
+    </system>
+  </step>
+  <step name="step 3">
+    <system name="observe">
+      <param name="dataLabel" value="GS-2023B-Q-102-3-003"/>
+    </system>
+  </step>
+  <step name="step 4">
+    <system name="observe">
+      <param name="dataLabel" value="GS-2023B-Q-102-3-004"/>
+    </system>
+    <system name="telescope">
+      <param name="q" value="1.25"/>
+    </system>
+  </step>
+</sequence>

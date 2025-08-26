@@ -11,7 +11,7 @@ GOATS is designed to be run **locally**. As of now, there are no plans for a ded
 System Requirements
 ===================
 
-* Python 3.10 or higher
+* Python |python_min| or higher
 * Conda (Miniforge)
 * Supported Operating Systems:
 
@@ -84,11 +84,14 @@ Follow the steps below to install GOATS across all supported platforms.
 
    .. code-block:: console
 
-      $ conda create -n goats-env python=3.10 goats -c https://gemini-hlsw.github.io/goats/conda
+      $ conda create -n goats-env python=3.12 goats -c https://gemini-hlsw.github.io/goats-infra/conda
 
    .. note::
       If the environment creation fails, it may be due to an outdated version of Conda. 
-      Upgrade to the latest version. If issues persist, consider reinstalling Conda by installing ``Miniforge`` as described :ref:`above <installing_miniforge>`.
+      Upgrade to the latest version. If issues persist, consider reinstalling Conda via ``Miniforge`` as described :ref:`above <installing_miniforge>`.
+      
+      Refer :ref:`here <platform_specific_notes>` for macOS with Apple silicon chips and systems with Windows. 
+   
 
 2. Activate the conda environment:
 
@@ -106,9 +109,9 @@ Follow the steps below to install GOATS across all supported platforms.
    .. note::
       For more details on the ``goats`` command, see :ref:`goats_cli`.
 
-   When executing ``goats install``, you will be prompted to create a username and password, which you will use to log into your GOATS interface.
+   When executing ``goats install``, you will be prompted to create a username and password, which you will use to log into your GOATS interface. This interface (see :ref:`overview`) will automatically launch in your default web browser when issuing ``goats run``.
 
-   The installation step will create a folder named **GOATS** in your current directory; you can specify a different parent directory by using the ``-d`` flag (see :ref:`goats_cli`).
+   The installation step will create a folder named **GOATS** in your current directory. This is the parent directory of your GOATS interface; you can specify a different parent directory by using the ``-d`` flag (see :ref:`goats_cli`).
 
 4. To close your GOATS interface, simply press ``Ctrl+C`` in the terminal.
 
@@ -127,6 +130,7 @@ Follow the steps below to install GOATS across all supported platforms.
 
       $ conda deactivate
 
+.. _platform_specific_notes:
 
 Platform-Specific Notes
 =======================
@@ -149,7 +153,7 @@ Currently, DRAGONS (one of the dependencies of GOATS) does not support macOS ARM
 
 .. code-block:: console
 
-   $ conda create --platform osx-64 -n goats-env python=3.10 goats -c https://gemini-hlsw.github.io/goats/conda
+   $ conda create --platform osx-64 -n goats-env python=3.12 goats -c https://gemini-hlsw.github.io/goats-infra/conda
 
 This ensures that dependencies are installed in a way that maintains compatibility with required packages.
 

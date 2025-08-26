@@ -153,4 +153,3 @@ class GOAQueryForm(forms.Form):
 
         cleaned_data["query_params"] = query_params
         self.cleaned_data = cleaned_data
-

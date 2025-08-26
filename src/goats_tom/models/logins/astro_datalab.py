@@ -1,8 +1,9 @@
 __all__ = ["AstroDatalabLogin"]
 
-from .base import BaseLogin
+from .base import UsernamePasswordLogin
 
 
-class AstroDatalabLogin(BaseLogin):
-    """Extends `_BaseLogin` to store Astro Datalab user credentials."""
+class AstroDatalabLogin(UsernamePasswordLogin):
+    """Extends `UsernamePasswordLogin` to store Astro Datalab user credentials."""
+
     pass

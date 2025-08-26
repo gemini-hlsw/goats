@@ -2,7 +2,9 @@ import factory
 from django.utils import timezone
 from tom_dataproducts.models import ReducedDatum
 from tom_targets.tests.factories import SiderealTargetFactory
+
 from .dataproduct import DataProductFactory
+
 
 class ReducedDatumFactory(factory.django.DjangoModelFactory):
     class Meta:

@@ -11,6 +11,7 @@ DATA_PRODUCT_TYPE_CHOICES = list(settings.DATA_PRODUCT_TYPES.keys())
 
 class RunProcessorSerializer(serializers.Serializer):
     """Serializer for validating data required to run a data processor."""
+
     data_product = serializers.PrimaryKeyRelatedField(
         queryset=DataProduct.objects.all(),
         required=True,

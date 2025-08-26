@@ -29,10 +29,15 @@
     {% bootstrap_javascript jquery='True' %}
     <script src="{% static 'js/toggle_mode.js' %}"></script>
     <script src="{% static 'bootstrap5/bootstrap.bundle.min.js' %}"></script>
+    <!-- htmx.min.js was downloaded manually and added to the project. see https://htmx.org/docs/#download-a-copy -->
+    <script src="{% static 'tom_common/js/htmx.min.js' %}" defer></script>
+    <!-- Loading AlpineJS from a CDN For now, todo solution for 3rd party static assets. -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
 
     <title>GOATS</title>
   </head>
-  <body>
+  <body data-csrf-token="{{ csrf_token }}">
     <header class="shadow-sm">
       <div class="banner container-fluid py-1">{% include 'banner.html' %}</div>
       <nav class="container-fluid bg-light-subtle">{% include 'navbar.html' %}</nav>
@@ -53,9 +58,10 @@
 
     {% block javascript %}
     <script src="{% static 'js/get_csrf_token.js' %}"></script>
-    <script type="module">
-      import { createAndShowToast } from "{% static 'js/toast_utils.js' %}";
-      import { updateDownloadProgress } from "{% static 'js/download_progress.js' %}";
+    <script src="{% static 'js/toast_manager.js' %}"></script>
+    <script src="{% static 'js/download_progress.js' %}"></script>
+    <script>
+      window.toast = new ToastManager(document.getElementById("toastContainer"));
 
       const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
       const wsUrl = `${wsProtocol}://${window.location.host}/ws/updates/`;
@@ -68,7 +74,7 @@
       webSocket.onmessage = function (event) {
         const data = JSON.parse(event.data);
         if (data.update === "notification") {
-          createAndShowToast(data);
+          window.toast.show(data);
         } else if (data.update == "download") {
           updateDownloadProgress(data);
         }

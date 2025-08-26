@@ -100,7 +100,7 @@ class AvailableFilesTemplate {
     const input = Utils.createElement("input", ["form-control"]);
     input.id = id;
     input.setAttribute("type", "text");
-    input.setAttribute("placeholder", "exposure_time > 10 and airmass == 1");
+    input.setAttribute("placeholder", `exposure_time > 10 and ut_date < "YYYY-MM-DD"`);
     input.name = "filter_expression";
 
     // Create information popover button with an icon for filter expressions.

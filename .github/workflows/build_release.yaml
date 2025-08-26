@@ -4,63 +4,54 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version"
+        description: "Release version (e.g., 25.6.0). Do not include a leading 'v' or unnecessary zero padding."
         required: true
       branch:
         description: "Branch to build from"
         required: false
         default: "main"
+      prerelease:
+        description: "Is this a pre-release (e.g. rc1, beta)?"
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.12"
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ inputs.branch }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install towncrier
-
-      - name: Generate draft release notes with Towncrier
-        run: |
-          towncrier build --draft --version "${{ inputs.version }}" > draft_release_notes.md
+        run: pip install towncrier uv
 
       - name: Generate final release notes with Towncrier
         run: |
-          towncrier build --version "${{ inputs.version }}" --yes
+          if [[ "${{ inputs.prerelease }}" == "false" ]]; then
+            towncrier build --version "${{ inputs.version }}" --yes
+          fi
 
-      - name: Update pyproject.toml with new version
-        run: |
-          sed -i '/^\[project\]/,/^version = / s/^version = ".*"$/version = "${{ inputs.version }}"/' pyproject.toml
-
-      - name: Update environment.yaml with new tag
-        run: |
-          sed -i 's|git+https://github.com/gemini-hlsw/goats.git@.*|git+https://github.com/gemini-hlsw/goats.git@${{ inputs.version }}|' environment.yaml
+      - name: Update pyproject.toml and uv.lock with new version
+        run: uv version ${{ inputs.version}}
 
       - name: Commit updated changelog
         run: |
           set -e
           git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml environment.yaml
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml uv.lock
+          git add docs/readthedocs/source/project_details/changelog.rst
 
-          # Ensure CHANGES.md exists before adding it
-          if [ -f CHANGES.md ]; then
-            git add CHANGES.md
-          fi
-
-          git commit -m "Update version to ${{ inputs.version }} and generate release notes." || echo "No changes to commit."
+          git commit -m "Update version to ${{ inputs.version }} and generate release notes."
           git push origin ${{ inputs.branch }}
 
       - name: Create tag
@@ -71,8 +62,10 @@ jobs:
       - name: Create GitHub release and upload artifacts
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.version }}
-          name: ${{ inputs.version }}
-          draft: true  # Set to true to create a draft release.
-          prerelease: false
-          body_path: draft_release_notes.md
+          tag_name: "${{ inputs.version }}"
+          name: "${{ inputs.version }}"
+          draft: true # Set to true to create a draft release.
+          prerelease: ${{ inputs.prerelease == 'true' }}
+          body: |
+            See https://goats.readthedocs.io/en/v${{ inputs.version }}/project_details/changelog.html
+          generate_release_notes: true

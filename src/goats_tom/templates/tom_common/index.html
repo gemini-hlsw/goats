@@ -3,3 +3,27 @@
 {% block title %}Home{% endblock %}
 {% block content %}
 {% endblock %}
+{% block javascript %}
+{{ block.super }}
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const message = `
+    Manage your credentials <a href="./users/">here</a> to access your proprietary data and communicate with the various integrated services:
+    <ul class="mb-0 mt-2">
+      <li>Gemini Observatory Archive</li>
+      <li>Gemini Program Platform</li>
+      <li>Astro Data Lab</li>
+      <li>Transient Name Server</li>
+      <li>Las Cumbres Observatory</li>
+      <li><code>antares2goats</code> browser extension</li>
+    </ul>
+    `
+    const label = "Add Service Credentials"
+    const color = "info"
+    const notification = {message, label, color}
+    const options = {autohide: false}
+    window.toast.show(notification, options)
+  }
+)
+</script>
+{% endblock %}

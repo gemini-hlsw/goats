@@ -15,7 +15,6 @@ import tarfile
 import tempfile
 import time
 from datetime import date
-from multiprocessing import Pool
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +27,6 @@ from astroquery import log
 from astroquery.query import QueryWithLogin
 from astroquery.utils.class_or_instance import class_or_instance
 from gempy.utils import logutils
-from gevent.threadpool import ThreadPool
 from recipe_system import cal_service
 from recipe_system.reduction.coreReduce import Reduce
 
@@ -458,7 +456,6 @@ class ObservationsClass(QueryWithLogin):
 
         """
         url = self.url_helper.get_summary_url(*args, **kwargs)
-        print("in here")
         response = self._request(
             method="GET",
             url=url,
@@ -466,7 +463,6 @@ class ObservationsClass(QueryWithLogin):
             timeout=conf.GOA_TIMEOUT,
             cache=False,
         )
-        print(response.text)
 
         js = response.json()
         return _gemini_json_to_table(js)
@@ -721,7 +717,6 @@ class ObservationsClass(QueryWithLogin):
 
         """
         last_update_time = time.time()
-        parallize = False
         # Convert destination folder.
         dest_folder = Path(dest_folder).expanduser()
         url = self.url_helper.get_tar_file_url(*query_args, **query_kwargs)
@@ -801,11 +796,8 @@ class ObservationsClass(QueryWithLogin):
                     for filename in download_info["downloaded_files"]
                 ]
 
-                if parallize:
-                    self._gevent_decompress_bz2_parallel(file_paths)
-                else:
-                    for f in file_paths:
-                        self._decompress_bz2(f)
+                for f in file_paths:
+                    self._decompress_bz2(f)
 
                 # Update file names in download_info.
                 download_info["downloaded_files"] = [
@@ -878,12 +870,8 @@ class ObservationsClass(QueryWithLogin):
                 if file_path.is_file()
             ]
 
-            if parallize:
-                # Use gevent to move files in parallel.
-                self._gevent_move_files_parallel(move_file_paths)
-            else:
-                for move_file_path in move_file_paths:
-                    self._move_file(move_file_path)
+            for move_file_path in move_file_paths:
+                self._move_file(move_file_path)
 
         return download_info
 
@@ -958,19 +946,6 @@ class ObservationsClass(QueryWithLogin):
 
         return download_info
 
-    def _decompress_bz2_parallel(self, file_paths: list[Path]) -> None:
-        """Parallize decompressing files.
-
-        Parameters
-        ----------
-        file_paths : list[Paths]
-            List of file paths to decompress.
-
-        """
-        # TODO: Make n cores a configuration.
-        with Pool() as pool:
-            pool.map(self._decompress_bz2, file_paths)
-
     def _decompress_bz2(self, file_path: Path) -> None:
         """Decompress a .bz2 file and write to the same filename.
 
@@ -992,34 +967,6 @@ class ObservationsClass(QueryWithLogin):
                 out_file.write(chunk)
 
         file_path.unlink()
-
-    def _gevent_decompress_bz2_parallel(self, file_paths: list[Path]) -> None:
-        """Parallelize decompressing files compatible with "gevent" and "huey".
-
-        Parameters
-        ----------
-        file_paths : `list[Paths]`
-            List of file paths to decompress.
-
-        """
-        # TODO: Make gevent threads a configuration.
-        pool = ThreadPool(10)
-        pool.map(self._decompress_bz2, file_paths)
-        pool.join()
-
-    def _gevent_move_files_parallel(self, file_paths: list[tuple[Path, Path]]) -> None:
-        """Parallelize moving files using gevent's pool.map.
-
-        Parameters
-        ----------
-        file_paths : `list[tuple[Path, Path]]`
-            List of tuples containing source and destination paths for files
-            to be moved.
-
-        """
-        pool = ThreadPool(10)
-        pool.map(self._move_file, file_paths)
-        pool.join()
 
     def _move_file(self, src_dest_paths: tuple[Path, Path]) -> None:
         """Move a file from source to destination.

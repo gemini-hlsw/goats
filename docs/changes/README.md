@@ -4,11 +4,10 @@ In our project, we use `towncrier` to generate change logs for each release. Cha
 
 ## Creating News Fragments
 
-News fragments are succinct files that describe a change in the project. They are written in markdown (`.md`).
+News fragments are succinct files that describe a change in the project. They are written in rst (`.rst`).
 
 When writing news fragments, remember to keep them concise and reader-oriented.
   - Group related fragments: Use the ID of ticket to create a news fragment, and update it as necessary.
-  - Prioritize user impact: Bug fixes and minor improvements to the code that were not previously released do not require news fragments, however, if in development prior to release, documenting these changes are fine.
   - Start with a descriptive title: This helps readers quickly understand the purpose of the update. Jira ticket title is often a good summary of the change or feature being introduced.
   - Use active voice and past tense: For example, use words like "added," "improved," "fixed," "enhanced," or "optimized" to convey the action taken.
   - Keep it brief and focused: News fragments should be concise and to the point. Focus on the most important details of the change and omit technical details.
@@ -17,16 +16,16 @@ When writing news fragments, remember to keep them concise and reader-oriented.
 
 Here are the steps to create a news fragment:
 
-1. Name your file using the following pattern: `<GOATS-N>.<TYPE>.md`.
-  - Replace `<GOATS-N>` with the ID of the corresponding ticket on our JIRA board
-    - For instance, `GOATS-22`.
+1. Name your file using the following pattern: `<N>.<TYPE>.rst`.
+  - Replace `<N>` with the pull request number. This means you must have a PR open before writing the towncrier entry.
   - Substitute `<TYPE>` with one of the following change types:
     - `new`: for introducing new features.
     - `bugfix`: for fixing bugs.
     - `change`: for changes to the behavior in released code.
     - `perf`: for performance enhancement changes.
-    - `other`: for all other changes or additions (tests, docs, infrastructure).
-  - For instance, a correctly named file might look like `GOATS-22.other.md`.
+    - `doc`: for documentation changes or additions.
+    - `other`: for all other changes or additions.
+  - For instance, a correctly named file might look like `22.other.rst`.
 
 2. Save the file to `doc/changes`.
 
@@ -42,7 +41,7 @@ Before finalizing the change log, you can preview how your contributions will ap
 
 Once you're ready to finalize the change log:
 
-1. Execute `towncrier build` in your terminal. This command will create or update the `CHANGES.md` file.
+1. Execute `towncrier build` in your terminal. This command will create or update the `changelog.rst` file.
 
    - If the change log has already been updated for the same version, you will encounter a `ValueError` message indicating that newsfiles for this version already exist.
 

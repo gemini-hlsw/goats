@@ -1,10 +1,16 @@
 from django.urls import include, path
 from tom_alerts.views import BrokerQueryListView
 from tom_common.api_router import SharedAPIRootRouter
+from tom_tns.urls import urlpatterns as tom_tns_urls
 
 from . import api_views, views
 
 router = SharedAPIRootRouter()
+router.register(r"gpp", api_views.GPPViewSet, basename="gpp")
+router.register(r"gpp/programs", api_views.GPPProgramViewSet, basename="gppprograms")
+router.register(
+    r"gpp/observations", api_views.GPPObservationViewSet, basename="gppobservations"
+)
 router.register(
     r"reduceddatums", api_views.ReducedDatumViewSet, basename="reduceddatums"
 )
@@ -34,6 +40,7 @@ router.register(r"runprocessor", api_views.RunProcessorViewSet, basename="runpro
 router.register(
     r"antares2goats", api_views.Antares2GoatsViewSet, basename="antares2goats"
 )
+router.register(r"targets", api_views.TargetViewSet, basename="targets")
 router.register(r"astrodatalab", api_views.AstroDatalabViewSet, basename="astrodatalab")
 # TODO: Add app_name and update paths and URL lookups.
 # TODO: Make unified path formats.
@@ -87,47 +94,31 @@ urlpatterns = [
         views.AstroDatalabLoginView.as_view(),
         name="user-astro-data-lab-login",
     ),
+    path(
+        "users/<int:pk>/lco/",
+        views.LCOLoginView.as_view(),
+        name="user-lco-login",
+    ),
+    path(
+        "users/<int:pk>/tns/",
+        views.TNSLoginView.as_view(),
+        name="user-tns-login",
+    ),
+    path("users/<int:pk>/gpp/", views.GPPLoginView.as_view(), name="user-gpp-login"),
     path("goa_query/<int:pk>/", views.GOAQueryFormView.as_view(), name="goa_query"),
     path("api/ongoing-tasks/", views.ongoing_tasks, name="ongoing_tasks"),
     path("recent-downloads/", views.recent_downloads, name="recent_downloads"),
-    path(
-        "users/<int:pk>/manage-keys/",
-        views.ManageKeysView.as_view(),
-        name="manage-keys",
-    ),
-    path(
-        "users/<int:user_pk>/user-key/<int:pk>/delete/",
-        views.delete_key,
-        {"key_type": "user_key"},
-        name="delete-user-key",
-    ),
-    path(
-        "users/<int:user_pk>/program-key/<int:pk>/delete/",
-        views.delete_key,
-        {"key_type": "program_key"},
-        name="delete-program-key",
-    ),
-    path(
-        "users/<int:user_pk>/create-user-key/",
-        views.create_key,
-        {"key_type": "user_key"},
-        name="create-user-key",
-    ),
-    path(
-        "users/<int:user_pk>/create-program-key/",
-        views.create_key,
-        {"key_type": "program_key"},
-        name="create-program-key",
-    ),
-    path(
-        "users/<int:user_pk>/user-key/<int:pk>/activate/",
-        views.activate_user_key,
-        name="activate-user-key",
-    ),
     path("observations/<int:pk>/dragons/", views.DRAGONSView.as_view(), name="dragons"),
     path(
         "dataproducts/data/upload/",
         views.DataProductUploadView.as_view(),
         name="upload",
     ),
+    path(
+        "observations/template/<str:facility>/create/",
+        views.ObservationTemplateCreateView.as_view(),
+        name="template-create",
+    ),
+    path("targets/<int:pk>/", views.TargetDetailView.as_view(), name="detail"),
+    path("tns/", include(tom_tns_urls)),
 ]

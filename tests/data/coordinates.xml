@@ -1,0 +1,85 @@
+<tcc_tcs_config_file>
+  <paramset name="cl* NGC 2539 mmu 502" type="field">
+    <param name="programid" value="GS-2023B-Q-102"/>
+    <param name="observationid" value="GS-2023B-Q-102-3"/>
+    <param name="wavelength" value="2.1"/>
+    <paramset name="2.1" type="wavelength">
+      <param name="wavel" value="2.1"/>
+    </paramset>
+    <param name="guideGroup" value=""/>
+    <param name="posAngle" value="90"/>
+    <paramset name="90" type="posAngle">
+      <param name="ipa" value="90"/>
+      <param name="cosys" value="FK5/J2000"/>
+    </paramset>
+    <paramset name="guideConfig">
+      <param name="guideWith" value="P2"/>
+    </paramset>
+    <paramset name="cl* NGC 2539 mmu 502" type="hmsdegTarget">
+      <param name="objName" value="cl* NGC 2539 mmu 502"/>
+      <param name="brightness" value=""/>
+      <param name="tag" value="Base"/>
+      <param name="system" value="J2000"/>
+      <param name="c1" value="08:11:27.667"/>
+      <param name="c2" value="-12:41:06.83"/>
+      <paramset name="properMotion">
+        <param name="pm1" value="-2.396"/>
+        <param name="pm2" value="-0.516"/>
+        <param name="epoch" value="2000.0"/>
+        <param name="pmunits" value="mas/year"/>
+        <param name="rv" value="0.0"/>
+        <param name="parallax" value="0.0"/>
+      </paramset>
+      <paramset name="magnitudes">
+        <param name="B" value="11.690"/>
+        <param name="V" value="10.860"/>
+        <param name="J" value="9.319"/>
+        <param name="H" value="8.820"/>
+        <param name="K" value="8.727"/>
+      </paramset>
+    </paramset>
+    <paramset name="Base" type="targetgroup">
+      <param name="default" value="cl* NGC 2539 mmu 502"/>
+      <param name="targets" value="cl* NGC 2539 mmu 502"/>
+    </paramset>
+    <paramset name="Gaia DR2 5727490900996264192" type="hmsdegTarget">
+      <param name="objName" value="Gaia DR2 5727490900996264192"/>
+      <param name="brightness" value=""/>
+      <param name="tag" value="PWFS2"/>
+      <param name="system" value="J2000"/>
+      <param name="c1" value="08:11:25.680"/>
+      <param name="c2" value="-12:47:49.90"/>
+      <paramset name="properMotion">
+        <param name="pm1" value="-2.3937479519601768"/>
+        <param name="pm2" value="-0.7888179084525192"/>
+        <param name="epoch" value="2015.5"/>
+        <param name="pmunits" value="mas/year"/>
+        <param name="rv" value="0.0"/>
+        <param name="parallax" value="0.0"/>
+      </paramset>
+      <paramset name="magnitudes">
+        <param name="V" value="10.932"/>
+        <param name="R" value="10.791"/>
+        <param name="I" value="10.650"/>
+        <param name="r" value="10.950"/>
+        <param name="i" value="10.998"/>
+        <param name="g" value="10.929"/>
+        <param name="K" value="10.439"/>
+        <param name="H" value="10.451"/>
+        <param name="J" value="10.483"/>
+      </paramset>
+    </paramset>
+    <paramset name="PWFS2" type="targetgroup">
+      <param name="default" value="Gaia DR2 5727490900996264192"/>
+      <param name="targets" value="Gaia DR2 5727490900996264192"/>
+    </paramset>
+  </paramset>
+  <paramset name="IGRINS Observation with ABBA" type="tcs_configuration">
+    <param name="field" value="cl* NGC 2539 mmu 502"/>
+    <param name="slewOptions" value="Normal"/>
+    <param name="pointOrig" value="igrins"/>
+    <param name="instrument" value="IGRINS"/>
+    <param name="chop" value="NoChop"/>
+    <param name="gaos" value="No AO"/>
+  </paramset>
+</tcc_tcs_config_file>

@@ -104,6 +104,13 @@ class Utils {
       .replace(/'/g, "&#039;");
   }
 
+  static getByPath(obj, p) {
+    return p
+      .replace(/\[(\d+)]/g, ".$1")
+      .split(".")
+      .reduce((o, k) => (o && o[k] !== undefined ? o[k] : undefined), obj);
+  }
+
   /**
    * Formats a snake_case string into a human-readable title format with spaces and capitalization.
    * Also converts "Id" to all uppercase.

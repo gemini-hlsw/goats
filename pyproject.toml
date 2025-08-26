@@ -21,22 +21,23 @@ requires-python = ">=3.12"
 dependencies = [
     "astropy>=6.0,<7",
     "astroquery>=0.4.10",
-    "channels-redis>=4.2.1,<5",
+    "channels-redis>=4.3.0,<5",
     "channels[daphne]>=4.0,<5",
     "click>=8.2.1,<9",
-    "django>=4.2.2,<5",
+    "django>=4.2.23,<5",
     "django-cors-headers>=4.7.0,<5",
-    "django-cryptography>=1.1,<2",
-    "django-dramatiq>=0.13.0",
-    "djangorestframework>=3.16.0,<4",
+    "django-dramatiq>=0.14.0",
+    "djangorestframework>=3.16.1,<4",
     "dramatiq-abort>=1.2.1",
     "dramatiq[redis,watch]>=1.18.0,<2",
+    "gpp-client==25.8.2",
     "marshmallow>=3.26.1,<4",
     "marshmallow-jsonapi>=0.24.0",
-    "numpydoc>=1.8.0,<2",
-    "tomtoolkit>=2.24.5",
+    "numpydoc>=1.9.0,<2",
+    "tom-tns>=0.3.1",
+    "tomtoolkit==2.25.2",
 ]
-version = "25.6.0rc2"
+version = "25.8.0"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
@@ -48,23 +49,30 @@ Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 [dependency-groups]
 dev = [
     "factory-boy>=3.3.3",
-    "nox>=2025.5.1",
-    "pytest>=8.4.0",
-    "pytest-asyncio>=1.0.0",
-    "pytest-cov>=6.1.1",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.1.0",
+    "pytest-cov>=6.2.1",
     "pytest-django>=4.11.1",
     "pytest-mock>=3.14.1",
     "pytest-remotedata>=0.4.1",
-    "pytest-xdist>=3.7.0",
-    "ruff>=0.11.13",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.12.8",
+    "towncrier>=24.8.0",
 ]
 docs = [
+    "furo>=2025.7.19",
     "sphinx>=8.2.3",
     "sphinx-autobuild>=2024.10.3",
     "sphinx-rtd-theme>=3.0.2",
     "sphinxcontrib-video>=0.4.1",
 ]
-notebook = ["ipykernel>=6.29.5"]
+github = [
+    "dragons",
+    "fits-storage",
+]
+notebook = [
+    "ipykernel>=6.30.1",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -78,7 +86,7 @@ goats = "goats_cli:cli"
 "goats_setup.templates" = ["**/*.tmpl"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/unit"]
+testpaths = ["tests"]
 DJANGO_SETTINGS_MODULE = "goats_tom.tests.settings"
 norecursedirs = "tests/unit/goats_tom/ocs"
 asyncio_default_fixture_loop_scope = "session"
@@ -87,13 +95,12 @@ addopts = "-r A -v -n auto"
 [tool.towncrier]
 version = ""
 package_dir = "goats"
-filename = "CHANGES.md"
+filename = "docs/readthedocs/source/project_details/changelog.rst"
+underlines = "=-^"
 directory = "docs/changes"
-start_string = "<!-- towncrier release notes start -->\n"
-underlines = ["", "", ""]
-title_format = "## GOATS {version} ({project_date})"
-issue_format = "[[#{issue}](https://noirlab.atlassian.net/browse/{issue})]"
-template = "docs/changes/template.jinja"
+start_string = ".. towncrier release notes start"
+title_format = "Version {version} ({project_date})"
+issue_format = "`PR #{issue} <https://github.com/gemini-hlsw/goats/pull/{issue}>`_"
 [[tool.towncrier.type]]
 directory = "new"
 name = "New Features"
@@ -114,15 +121,19 @@ showcontent = true
 directory = "other"
 name = "Other"
 showcontent = true
+[[tool.towncrier.type]]
+directory = "doc"
+name = "Documentation"
+showcontent = true
 
 [tool.ruff]
 extend-exclude = [
     "src/goats_tom/migrations",
-    "tests",
     "src/goats_tom/facilities/gemini.py",
     "src/goats_tom/tests/settings.py",
     "src/goats_tom/tests/urls.py",
-    "docs",
+    "docs/",
+    "tests/"
 ]
 target-version = "py312"
 
@@ -139,3 +150,22 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
+
+[tool.uv.sources]
+dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.0.0" }
+fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.4.0" }
+
+[tool.numpydoc_validation]
+checks = [
+    "all",  # All except the rules listed below.
+    "SA01",  # See Also section.
+    "EX01",  # Example section.
+    "SS06",  # Summary can go into second line.
+    "GL08",  # Do not require docstring.
+    "ES01",  # No extended summary required.
+    "SS05",  # pydocstyle is better at finding infinitive verb.
+]
+exclude = [
+    '^__init__$',
+    '\._[a-zA-Z_]+$',  # Private methods.
+]

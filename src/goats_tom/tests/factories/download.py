@@ -1,8 +1,10 @@
 import factory
 from django.utils import timezone
+
 from goats_tom.models import (
     Download,
 )
+
 from .user import UserFactory
 
 

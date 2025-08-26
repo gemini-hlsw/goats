@@ -1,0 +1,236 @@
+<queryResult>
+<programs>
+<program>
+<semester>2023B</semester>
+<title>Chemical Abundances Of Open Clusters From High-Resolution Infrared Spectra</title>
+<reference>GS-2023B-Q-102</reference>
+<active>Yes</active>
+<completed>No</completed>
+<investigators>
+<investigator pi="true">
+<name>Nacizo Holanda</name>
+<email>nacizoholanda@on.br</email>
+</investigator>
+<investigator pi="false">
+<name>Claudio Bastos Pereira</name>
+<email>claudio@on.br</email>
+</investigator>
+<investigator pi="false">
+<name>Orlando Katime Santrich</name>
+<email>ojkatime@gmail.com</email>
+</investigator>
+<investigator pi="false">
+<name>Tiago Flaulhabe</name>
+<email>xaviergomes09@gmail.com</email>
+</investigator>
+<investigator pi="false">
+<name>Selma Junqueira</name>
+<email>selma@on.br</email>
+</investigator>
+<investigator pi="false">
+<name>Natalia A Drake</name>
+<email>natalia.drake.2008@gmail.com</email>
+</investigator>
+</investigators>
+<notifyPi>Yes</notifyPi>
+<rollover>No</rollover>
+<abstrakt>Open clusters are gravitationally bound groups of stars that are located at the same distance with similar initial chemical compositions. They are useful for tracing Galactic chemical properties. Spectroscopy techniques provide impressive abundance results for various chemical species and have broad applications for studying stellar populations, the chemical history of the Galaxy, and nuances of stellar evolution. This project aims to redefine the abundances of 13 chemical species and 6 new ones (S, F, P, K, Sc, and Yb) for 10 red giant stars in the open cluster NGC 2539 using near-infrared high-resolution spectra. The IGRINS attached to the 8.1 m Gemini-South telescope with a resolving power of R = 45000, which covers the H- and K-bands, will be used for this purpose. Spectral synthesis, equivalent width and line-depth ratio (LDR) methods will be adopted for spectral analysis. The spectral synthesis will be implemented to determine all chemical abundances, while the equivalent width and LDR methods will be used to redetermine the effective temperature and surface gravity and improve the reliability of the method used to analyze stars. In addition, the study will contribute to improving the methodology for analyzing open clusters by providing information on the physical properties, chemical abundances, and isotopic ratios (12C/13C, 16O/17O, and 16O/18O), which are important indicators of the nucleosynthesis and mixing in the interiors of stars and fundamental to understanding the formation of chemically peculiar stars. Furthermore, the team hopes to determine chemical abundances for species previously neglected due to instrumental limitations and analytical difficulties. </abstrakt>
+<scienceBand>1</scienceBand>
+<supportPartner>Brazil</supportPartner>
+<partners>
+<partner>
+<name>Brazil</name>
+<hoursAllocated>3.7222222222222223</hoursAllocated>
+</partner>
+</partners>
+<ngoEmail>gmace@astro.as.utexas.edu</ngoEmail>
+<contactScientistEmail>regis.cartier@noirlab.edu, monika.soraisam@noirlab.edu</contactScientistEmail>
+<tooStatus>Standard</tooStatus>
+<thesis>Yes</thesis>
+<allocatedTime>13400000</allocatedTime>
+<remainingTime>4930969</remainingTime>
+<observations>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-3</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-4</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-5</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-6</id>
+<status>Inactive</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-7</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-8</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-9</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-10</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-11</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-12</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-13</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-14</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-15</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-16</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-17</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-18</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-19</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-20</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Observation with ABBA</name>
+<obsClass>Science</obsClass>
+<id>GS-2023B-Q-102-21</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+<observation>
+<name>IGRINS Partner Calibration with ABBA</name>
+<obsClass>Nighttime Partner Calibration</obsClass>
+<id>GS-2023B-Q-102-22</id>
+<status>Observed</status>
+<tooPriority>Standard</tooPriority>
+<instrument>Visitor Instrument</instrument>
+<ao>None</ao>
+</observation>
+</observations>
+</program>
+</programs>
+</queryResult>

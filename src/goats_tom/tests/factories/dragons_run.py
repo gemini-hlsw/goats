@@ -1,8 +1,9 @@
 import factory
+from tom_observations.tests.factories import ObservingRecordFactory
+
 from goats_tom.models import (
     DRAGONSRun,
 )
-from tom_observations.tests.factories import ObservingRecordFactory
 
 
 class DRAGONSRunFactory(factory.django.DjangoModelFactory):

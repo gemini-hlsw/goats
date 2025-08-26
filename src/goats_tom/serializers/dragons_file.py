@@ -32,7 +32,7 @@ class DRAGONSFileSerializer(serializers.ModelSerializer):
             "observation_id",
             "observation_type",
             "object_name",
-            "observation_class"
+            "observation_class",
         ]
 
 
@@ -54,7 +54,6 @@ class DRAGONSFileFilterSerializer(serializers.Serializer):
         default=False,
         help_text="Use a tolerance for filtering numeric values.",
     )
-
 
     def to_internal_value(self, data):
         new_data = data.copy()

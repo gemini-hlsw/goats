@@ -36,7 +36,8 @@ class UpdatesConsumer(WebsocketConsumer):
 
         """
         async_to_sync(self.channel_layer.group_discard)(
-            self.group_name, self.channel_name,
+            self.group_name,
+            self.channel_name,
         )
 
     def notification_message(self, event: dict) -> None:

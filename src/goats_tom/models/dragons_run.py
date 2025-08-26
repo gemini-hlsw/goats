@@ -440,7 +440,7 @@ class DRAGONSRun(models.Model):
                         "product_id": product_id,
                         "url": dp.data.url,
                         # Match same format as above.
-                        "last_modified": dp.modified.strftime("%Y-%m-%d %H:%M:%S")
+                        "last_modified": dp.modified.strftime("%Y-%m-%d %H:%M:%S"),
                     }
                 )
 

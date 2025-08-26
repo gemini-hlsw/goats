@@ -26,3 +26,5 @@ The movie below shows a quick demonstration of DRAGONS reduction on GOATS.
    :alt: DRAGONS data reduction on GOATS 
    :muted:
    :width: 80%
+
+

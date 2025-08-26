@@ -80,9 +80,7 @@ class DRAGONSRecipesViewSet(
                     if key not in pointer:
                         pointer[key] = {}
                     if item[key] not in pointer[key]:
-                        pointer[key][item[key]] = (
-                            {} if i < len(group_by) - 1 else []
-                        )
+                        pointer[key][item[key]] = {} if i < len(group_by) - 1 else []
                     pointer = pointer[key][item[key]]
 
                 # Append file info at the deepest level

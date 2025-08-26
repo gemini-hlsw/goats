@@ -523,3 +523,6 @@ select.form-control[multiple] {
 }
 /* stylelint-enable */
 
+.pointer {
+  cursor: pointer;
+}
