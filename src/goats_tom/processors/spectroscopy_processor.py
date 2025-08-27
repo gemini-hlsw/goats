@@ -37,6 +37,19 @@ class SpectroscopyProcessor(BaseSpectroscopyProcessor):
         """
         # Get flux and primary header using fits.getdata.
         flux, primary_header = fits.getdata(dataproduct.data.path, header=True)
+        dim = len(flux.shape)
+        if dim == 3:
+            flux = flux[0, 0, :]
+        elif flux.shape[0] == 2:
+            flux = flux[0, :]
+        if primary_header["CUNIT1"] == "deg":
+            # Loop through header keywords.
+            for key, value in primary_header.items():
+                if "WAT" in key and value is not None:
+                    if "label=Wavelength units=" in value:
+                        primary_header["CUNIT1"] = value.split("units=")[-1].strip()
+                        break
+
         wcs = WCS(header=primary_header, naxis=1)
 
         # Get the flux unit and convert to astropy unit.
