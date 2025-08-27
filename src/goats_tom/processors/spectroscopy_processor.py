@@ -37,6 +37,11 @@ class SpectroscopyProcessor(BaseSpectroscopyProcessor):
         """
         # Get flux and primary header using fits.getdata.
         flux, primary_header = fits.getdata(dataproduct.data.path, header=True)
+
+        naxis = primary_header.get("NAXIS")
+        if naxis is not None and naxis == 2:
+            raise ValueError("Cannot plot FITS image data (NAXIS=2).")
+
         dim = len(flux.shape)
         if dim == 3:
             flux = flux[0, 0, :]
