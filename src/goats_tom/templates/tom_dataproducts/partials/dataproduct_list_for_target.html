@@ -40,7 +40,6 @@
             <td><span class="btn btn-secondary active featured">Featured</span></td>
             {% endif %} -->
             <td>
-              {% if 'fits' in product.get_file_name or product.data_product_type == 'fits_file' %}
               <div class="dropdown">
                 <button
                   class="btn btn-secondary dropdown-toggle"
@@ -57,11 +56,13 @@
                   class="dropdown-menu"
                   data-url="{{ product.data.url }}"
                   data-id="{{ product.id }}">
+                  {% if 'fits' in product.get_file_name or product.data_product_type == 'fits_file' %}
                   <li>
                     <button type="button" class="dropdown-item" data-action="js9">
                       View with JS9
                     </button>
                   </li>
+                  {% endif %}
                   <li>
                     <button
                       type="button"
@@ -72,7 +73,6 @@
                   </li>
                 </ul>
               </div>
-              {% endif %}
             </td>
             <td>
               <a href="{{ product.data.url }}" target="_blank"

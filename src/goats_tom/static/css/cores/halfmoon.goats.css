@@ -121,6 +121,12 @@
 }
 
 [data-bs-core="goats"][data-bs-theme="dark"] {
+  /* stylelint-disable */
+  /* Border button secondary */
+  --bs-border-color-light-dark: hsl(var(--bs-sable-hue), var(--bs-sable-saturation), 27%);
+  --bs-action-border-color:var(--bs-border-color-light-dark);
+  /* stylelint-enable */
+
   /* Color */
 
   --bs-body-color-hsl: var(--bs-color-hue), var(--bs-color-saturation), 90%;

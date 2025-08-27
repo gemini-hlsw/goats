@@ -4,6 +4,7 @@ __all__ = ["GEMObservationForm", "GOATSGEMFacility"]
 
 import logging
 from typing import Any
+from datetime import datetime, timezone
 
 import requests
 from astropy import units as u
@@ -306,13 +307,37 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
             "This facility has not implemented cancel observation.",
         )
 
-    def get_date_obs_from_fits_header(self, header):
-        date_obs = header.get("DATE-OBS")  # Observation date
-        time_obs = header.get("TIME-OBS")  # Observation time
+    def get_date_obs_from_fits_header(self, header: Any) -> str:
+        """
+        Extract the observation datetime from a FITS header. Combines the ``DATE-OBS``
+        and ``TIME-OBS`` fields if both are present. If only ``DATE-OBS`` is provided,
+        returns the date alone. If ``DATE-OBS`` is missing, returns the current UTC
+        date and time and logs a warning.
 
-        if date_obs and time_obs:
-            # Combine date and time
-            return f"{date_obs} {time_obs}"
+        Parameters
+        ----------
+        header : Any
+            FITS header dictionary containing metadata.
+
+        Returns
+        -------
+        str
+            - ``"YYYY-MM-DD HH:MM:SS"`` if both date and time are present.
+            - ``"YYYY-MM-DD"`` if only the date is present.
+            - Current UTC datetime (``"YYYY-MM-DD HH:MM:SS"``) if no date is available.
+        """
+        date_obs = header.get("DATE-OBS")
+        time_obs = header.get("TIME-OBS")
+
+        if not date_obs:
+            now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            logger.warning(
+                "DATE-OBS keyword not found in FITS header. Using current UTC time "
+                "instead."
+            )
+            return now_utc
+
+        return f"{date_obs} {time_obs}" if time_obs else date_obs
 
     def all_data_products(
         self,

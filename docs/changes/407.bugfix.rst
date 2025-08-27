@@ -1,0 +1,1 @@
+Enabled the ``Actions`` button for all uploaded files. Disabled ``JS9`` button for non-FITS files.
