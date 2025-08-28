@@ -1,1 +1,0 @@
-Fixed issue plotting IRAF-reduced multi-extension FITS file.

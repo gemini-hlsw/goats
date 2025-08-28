@@ -256,7 +256,7 @@
         x: wavelength,
         y: flux,
         mode: "lines",
-        name: new Date(timestamp).toLocaleString(),
+        name: new Date(timestamp).toISOString(),
       };
 
       Plotly.addTraces(plotId, trace);

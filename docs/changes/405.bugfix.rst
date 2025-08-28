@@ -1,1 +1,0 @@
-Fixed issue plotting GHOST data. Resolved parsing ``DATE-OBS`` and ``TIME-OBS`` header keywords from FITS files. Now cleanly handle missing keywords from Gemini FITS files.

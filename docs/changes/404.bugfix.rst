@@ -1,1 +1,0 @@
-Fixed issue uploading spectrum for Gemini facility. Users before couldn't upload spectrum for Gemini. The issue has been resolved. The correct units are now used and orphaned files are now cleaned up if errors are occured when uploading.

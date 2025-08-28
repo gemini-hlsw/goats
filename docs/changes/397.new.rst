@@ -1,1 +1,0 @@
-Added "View at Archive" button for viewing observations at ``GOA``. Added disabled button for eventually link for viewing observations at ``Gemini Explore``.

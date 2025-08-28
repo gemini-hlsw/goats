@@ -1,1 +1,0 @@
-Bumped the contrast of the border in dark mode around buttons and form inputs to make it easier for users on the GOATS UI.

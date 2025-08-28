@@ -1,1 +1,0 @@
-Improved the GOATS interface based on user feedback. Updated the navbar layout and styling, added tooltip titles to navbar items, removed the hardcoded active class from the Observations tab view, clarified wording for adding existing observations, added a landing page card for credential setup, updated the CSS library to 2.0.2, and refined the URL resolver for the active tab.

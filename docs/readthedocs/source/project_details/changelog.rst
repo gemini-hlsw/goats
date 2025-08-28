@@ -3,6 +3,43 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 25.8.1 (2025-08-28)
+===========================
+
+New Features
+------------
+
+- Improved the GOATS interface based on user feedback. Updated the navbar layout and styling, added tooltip titles to navbar items, removed the hardcoded active class from the Observations tab view, clarified wording for adding existing observations, added a landing page card for credential setup, updated the CSS library to 2.0.2, and refined the URL resolver for the active tab. (`PR #395 <https://github.com/gemini-hlsw/goats/pull/395>`_)
+- Added "View at Archive" button for viewing observations at ``GOA``. Added disabled button for eventually link for viewing observations at ``Gemini Explore``. (`PR #397 <https://github.com/gemini-hlsw/goats/pull/397>`_)
+
+
+Changes
+-------
+
+- Reverted changes from alpha feedback. Added toast on landing page directing users to credential page. Extened toast manager to modify options per toast. (`PR #396 <https://github.com/gemini-hlsw/goats/pull/396>`_)
+- Updated title on target detail page to help users understand managing groups better. (`PR #402 <https://github.com/gemini-hlsw/goats/pull/402>`_)
+- Bumped the contrast of the border in dark mode around buttons and form inputs to make it easier for users on the GOATS UI. (`PR #409 <https://github.com/gemini-hlsw/goats/pull/409>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed issue when updating credentials. (`PR #401 <https://github.com/gemini-hlsw/goats/pull/401>`_)
+- Fixed issue fetching Gemini South shutter status. The Gemini South shutter status is updated from a JSON payload using javascript. Scraping the HTML is not a viable solution and we must instead grab the information from the JSON endpoint. (`PR #403 <https://github.com/gemini-hlsw/goats/pull/403>`_)
+- Fixed issue uploading spectrum for Gemini facility. Users before couldn't upload spectrum for Gemini. The issue has been resolved. The correct units are now used and orphaned files are now cleaned up if errors are occured when uploading. (`PR #404 <https://github.com/gemini-hlsw/goats/pull/404>`_)
+- Fixed issue plotting GHOST data. Resolved parsing ``DATE-OBS`` and ``TIME-OBS`` header keywords from FITS files. Now cleanly handle missing keywords from Gemini FITS files. (`PR #405 <https://github.com/gemini-hlsw/goats/pull/405>`_)
+- Fixed issue plotting IRAF-reduced multi-extension FITS file. (`PR #406 <https://github.com/gemini-hlsw/goats/pull/406>`_)
+- Enabled the ``Actions`` button for all uploaded files. Disabled ``JS9`` button for non-FITS files. (`PR #407 <https://github.com/gemini-hlsw/goats/pull/407>`_)
+- Added check to restrict plotting of FITS images. (`PR #408 <https://github.com/gemini-hlsw/goats/pull/408>`_)
+- Fixed how the timestamp is displayed when plotting the spectrum. (`PR #410 <https://github.com/gemini-hlsw/goats/pull/410>`_)
+
+
+Documentation
+-------------
+
+- Updated user documentation at various places for beta release. (`PR #400 <https://github.com/gemini-hlsw/goats/pull/400>`_)
+
+
 Version 25.8.0 (2025-08-12)
 ===========================
 

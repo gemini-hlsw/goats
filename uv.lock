@@ -1227,7 +1227,7 @@ wheels = [
 
 [[package]]
 name = "goats"
-version = "25.8.0"
+version = "25.8.1"
 source = { editable = "." }
 dependencies = [
     { name = "astropy" },
