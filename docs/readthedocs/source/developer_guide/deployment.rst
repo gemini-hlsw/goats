@@ -63,41 +63,24 @@ Building Conda Packages
 2. Select the **Conda Build** workflow.
 3. Click **Run Workflow** and wait for the job to finish.
 
-After completion, two artifacts will be available:
+Publish to Custom Conda Channel
+-------------------------------
 
-- ``Linux--X64.zip``
-- ``macOS--X64.zip``
-
-Download and unzip both files.
-
-4. Copy the ``.conda`` packages to the correct folders in your local GOATS repo:
-
-   .. code-block:: bash
-
-      cp Linux--X64/linux-64/*.conda goats/docs/gh_pages/conda/linux-64/
-      cp macOS--X64/osx-64/*.conda goats/docs/gh_pages/conda/osx-64/
-
-5. Rebuild the Conda channel index:
-
-   .. code-block:: bash
-
-      conda index docs/gh_pages/conda --channeldata
-
-6. Commit and push the updated channel data:
-
-   .. code-block:: bash
-
-      git add docs/gh_pages/conda
-      git commit -m "Add Conda packages for VERSION."
-      git push origin BRANCH_NAME
-
-7. Merge your pull request. GitHub Pages will automatically deploy the updated Conda channel.
-
-Installing the Release
-----------------------
-
-Once the package is deployed, install it using:
+After the Conda Build workflow completes, a pull request will be created automatically on ``goats-infra`` with the title:
 
 .. code-block:: bash
 
-   conda install -c https://gemini-hlsw.github.io/goats/conda goats
+   Publish goats-VERSION to Conda.
+
+1.	Review the pull request and ensure the build artifacts and metadata look correct.
+2.	Once you're satisfied, approve and merge the PR into the main branch.
+3.	After merging, GitHub Pages will automatically deploy the updated Conda channel.
+
+Confirming the Package Availability
+-----------------------------------
+
+Run the following command to ensure the package has been published successfully:
+
+.. code-block:: bash
+
+   conda search -c https://gemini-hlsw.github.io/goats-infra/conda goats
