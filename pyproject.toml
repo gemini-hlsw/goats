@@ -63,6 +63,7 @@ docs = [
     "furo>=2025.7.19",
     "sphinx>=8.2.3",
     "sphinx-autobuild>=2024.10.3",
+    "sphinx-copybutton>=0.5.2",
     "sphinx-rtd-theme>=3.0.2",
     "sphinxcontrib-video>=0.4.1",
 ]
