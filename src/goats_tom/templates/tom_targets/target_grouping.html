@@ -1,0 +1,47 @@
+{% extends 'tom_common/base.html' %}
+{% load bootstrap4 %}
+{% block title %}Target Groups{% endblock %}
+{% block content %}
+<h1>Target Groupings</h1>
+<div class="row">
+    <div class="col-md-10">
+        <p>
+            <a href="{% url 'targets:create-group' %}" class="btn btn-primary">Create New Grouping</a>
+        </p>
+    </div>
+</div>
+{% bootstrap_pagination page_obj extra=request.GET.urlencode %}
+<form action="{% url 'targets:list' %}" method="GET">
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Group</th>
+        <th>Total Targets</th>
+        {% if sharing %}
+          <th>Share</th>
+        {% endif %}
+        <th>Delete</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for group in object_list %}
+      <tr>
+        <td><button type="submit" class="btn btn-link" name="targetlist__name" value="{{group.id}}" title="View Group">{{ group.name }}</button></td>
+        <td valign="middle">{{ group.targets.count }}</td>
+        {% if sharing %}
+          <td>
+            <a href="{% url 'targets:share-group' group.id%}" title="Share Group" class="btn btn-info">Share</a>
+          </td>
+        {% endif %}
+        <td><a href="{% url 'targets:delete-group' group.id%}" title="Delete Group" class="btn btn-danger">Delete</a></td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="3">No groups yet</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</form>
+{% bootstrap_pagination page_obj extra=request.GET.urlencode %}
+{% endblock %}
