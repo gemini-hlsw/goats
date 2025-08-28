@@ -1,0 +1,1 @@
+Updated deployment guide about PRs on ``goats-infra``.
