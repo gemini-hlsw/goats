@@ -87,6 +87,7 @@ Follow the steps below to install GOATS across all supported platforms.
       conda config --add channels conda-forge
       conda config --add channels http://astroconda.gemini.edu/public
       conda config --add channels https://gemini-hlsw.github.io/goats-infra/conda
+      conda config --set channel_priority strict
 
    .. note::
       The ``goats-infra`` channel must be highest priority to ensure GOATS and related packages
