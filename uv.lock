@@ -1296,7 +1296,7 @@ requires-dist = [
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
     { name = "tom-tns", specifier = ">=0.3.1" },
-    { name = "tomtoolkit", specifier = "==2.25.2" },
+    { name = "tomtoolkit", specifier = "==2.26.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -3374,7 +3374,7 @@ wheels = [
 
 [[package]]
 name = "tomtoolkit"
-version = "2.25.2"
+version = "2.26.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "astroplan" },
@@ -3404,9 +3404,9 @@ dependencies = [
     { name = "requests" },
     { name = "specutils" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dd/02/3151fc9265a90c0021fc8fdc6b6661530d1a35e65c4d2d735f85761dde5a/tomtoolkit-2.25.2.tar.gz", hash = "sha256:b8df94427aa86d7f83d48ebcfccc7e802c26d5f21179651685c67240c1450164", size = 11573480, upload-time = "2025-07-21T19:12:30.227Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fa/df/598ef967a256934739ab52857d359421a04027d3b9726750938e1b0e057b/tomtoolkit-2.26.0.tar.gz", hash = "sha256:10e762865b647b7adc13c474f758df85c08d0bf686a2fe0e8b7c5e9bde0c5095", size = 11577814, upload-time = "2025-08-15T00:09:35.998Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/bc/ed20690f55ec4e20cf60c433819a68f263e92d8d239864a022dc1305706e/tomtoolkit-2.25.2-py3-none-any.whl", hash = "sha256:b6dd09d1e6e02e250c56994361a68502de9acfd52b03380fe453d8290094997a", size = 1412197, upload-time = "2025-07-21T19:12:28.476Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/fc/1bfa838ca88f1821bc3d42d951459f2f7dd4ff3136dcbfdcc49d9f7156a4/tomtoolkit-2.26.0-py3-none-any.whl", hash = "sha256:56ffbe3e2a99431a230ff6da60223ff866290daabeaca92ed462473d77f44e54", size = 1414805, upload-time = "2025-08-15T00:09:33.084Z" },
 ]
 
 [[package]]
