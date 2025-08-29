@@ -1,1 +1,1 @@
-Added auto-documentation for the command line interface so it stays up-to-date. Updated the conda installation instructions to include adding the correct channels.
+Updated the conda installation instructions to include adding the correct channels.
