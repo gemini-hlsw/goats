@@ -12,7 +12,7 @@ Edit ``/ect/sysctl.conf`` as root:
 
 .. code-block:: console
 
-    $ nano /etc/sysctl.conf
+    nano /etc/sysctl.conf
 
 Add the configuration to the file:
 
@@ -24,7 +24,7 @@ Save and exit. Then apply the configuration:
 
 .. code-block:: console
 
-    $ sudo sysctl -p
+    sudo sysctl -p
 
 For more information on memory overcommitment and its implications, see the `jemalloc issue tracker <https://github.com/jemalloc/jemalloc/issues/1328>`_.
 
@@ -37,4 +37,4 @@ Issue the command as root:
 
 .. code-block:: console
 
-    $ echo never > /sys/kernel/mm/transparent_hugepage/enabled
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled

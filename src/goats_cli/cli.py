@@ -31,7 +31,7 @@ def cli(ctx):
     """Gemini Observation and Analysis of Targets System (GOATS).
 
     You can run each subcommand with its own options and arguments. For
-    details on a specific command, type 'goats COMMAND --help'.
+    details on a specific command, type ``goats COMMAND --help``.
     """
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
@@ -58,7 +58,7 @@ def cli(ctx):
 @click.option(
     "--overwrite",
     is_flag=True,
-    help="Overwrite the existing project, if it exists. Default is False.",
+    help="Overwrite the existing project, if it exists. Default is ``False``.",
 )
 @click.option(
     "-m",
@@ -73,8 +73,8 @@ def cli(ctx):
     type=str,
     help=(
         "Specify the Redis server IP address and port number. "
-        "Examples: '6379', 'localhost:6379', '192.168.1.5:6379'. "
-        "Providing only a port number (e.g., '6379') binds to localhost."
+        "Examples: ``6379``, ``localhost:6379``, ``192.168.1.5:6379``. "
+        "Providing only a port number (e.g., ``6379``) binds to ``localhost``."
     ),
     callback=validate_addrport,
 )
@@ -231,8 +231,8 @@ def install(
     type=str,
     help=(
         "Specify the IP address and port number to serve GOATS. "
-        "Examples: '8000', '0.0.0.0:8000', '192.168.1.5:8000'. "
-        "Providing only a port number (e.g., '8000') binds to 127.0.0.1."
+        "Examples: ``8000``, ``0.0.0.0:8000``, ``192.168.1.5:8000``. "
+        "Providing only a port number (e.g., ``8000``) binds to ``127.0.0.1``."
     ),
     callback=validate_addrport,
 )
@@ -242,8 +242,8 @@ def install(
     type=str,
     help=(
         "Specify the Redis server IP address and port number. "
-        "Examples: '6379', 'localhost:6379', '192.168.1.5:6379'. "
-        "Providing only a port number (e.g., '6379') binds to localhost."
+        "Examples: ``6379``, ``localhost:6379``, ``192.168.1.5:6379``. "
+        "Providing only a port number (e.g., ``6379``) binds to ``localhost``."
     ),
     callback=validate_addrport,
 )

@@ -17,6 +17,7 @@ extensions = [
     "sphinxcontrib.video",
     "sphinx.ext.graphviz",
     "sphinx_copybutton",
+    "sphinx_click",
 ]
 
 graphviz_output_format = "svg"
