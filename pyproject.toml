@@ -56,8 +56,8 @@ dev = [
     "pytest-mock>=3.14.1",
     "pytest-remotedata>=0.4.1",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.12.8",
-    "towncrier>=24.8.0",
+    "ruff>=0.12.11",
+    "towncrier>=25.8.0",
 ]
 docs = [
     "furo>=2025.7.19",

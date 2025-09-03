@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.12"
 
 [[package]]
@@ -1309,8 +1309,8 @@ dev = [
     { name = "pytest-mock", specifier = ">=3.14.1" },
     { name = "pytest-remotedata", specifier = ">=0.4.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
-    { name = "ruff", specifier = ">=0.12.8" },
-    { name = "towncrier", specifier = ">=24.8.0" },
+    { name = "ruff", specifier = ">=0.12.11" },
+    { name = "towncrier", specifier = ">=25.8.0" },
 ]
 docs = [
     { name = "furo", specifier = ">=2025.7.19" },
