@@ -87,12 +87,13 @@ Follow the steps below to install GOATS across all supported platforms.
       conda config --add channels conda-forge
       conda config --add channels http://astroconda.gemini.edu/public
       conda config --add channels https://gemini-hlsw.github.io/goats-infra/conda
-      conda config --set channel_priority strict
+      conda config --set channel_priority flexible
 
    .. note::
-      The ``goats-infra`` channel must be highest priority to ensure GOATS and related packages
-      are installed correctly. ``astroconda.gemini`` is required for the ``dragons`` dependency.
-      Most other packages come from ``conda-forge``.
+      We recommend ``channel_priority: flexible`` for now to avoid incompatibilities caused by 
+      packages in lower-priority channels. ``goats-infra`` should still be listed last so that it 
+      takes precedence. ``astroconda.gemini`` is required for the ``dragons`` dependency, while 
+      most other packages are resolved from ``conda-forge``.
 
 2. Create the GOATS conda environment:
 
