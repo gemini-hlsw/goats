@@ -1,54 +1,64 @@
 Environment Setup
 =================
 
-This page describes how to install the GOATS package and set up its development environment using Conda and ``uv``.
+GOATS must be installed using **both Conda and uv**. Some dependencies, like ``redis-server`` and ``dragons``, are only available on Conda, while Python packages are managed using `uv <https://docs.astral.sh/uv/>`_.
 
 Requirements
 ------------
 
-- Miniforge for Conda (preferred): https://conda-forge.org/download/
+- Conda (Miniforge recommended)
+- `uv <https://docs.astral.sh/uv/>`_
+- Python 3.12 (managed by Conda)
 - Git
 
-Installation Instructions
--------------------------
 
-1. **Clone the repository**:
+Installing Miniforge
+--------------------
 
-   .. code-block:: bash
+To install Miniforge, `download the appropriate installer for your system <https://conda-forge.org/download/>`_ and follow the instructions :ref:`Installing Miniforge <installing_miniforge>`.
 
-      git clone https://github.com/gemini-hlsw/goats.git
-      cd goats
+Set Up the Conda Environment
+----------------------------
 
-2. **Create the Conda environment**:
+GOATS provides a pre-configured environment file: ``ci_environment.yaml``.
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      conda env create -f ci_environment.yaml -n goats-env
-      conda activate goats-env
+   git clone https://github.com/gemini-hlsw/goats.git
+   cd goats
 
-   .. note::
+   # For Intel/macOS/Linux.
+   conda env create -f ci_environment.yaml
 
-      On Apple Silicon systems (e.g., M1, M2), the ``--platform osx-64`` flag is required to ensure compatibility with packages that do not support ``arm64``.
+   # For Apple Silicon (M1/M2), use the x86_64 platform.
+   conda env create -f ci_environment.yaml --platform osx-64
 
-3. **Install the Python dependencies**:
+Activate the environment:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      uv pip install -e . --group dev --group notebook --group docs
+   conda activate goats-dev
 
-   This installs the package in editable mode and includes development, notebook, and documentation dependencies.
+Install GOATS Using ``uv``
+--------------------------
 
-   To install only a subset of the dependencies, omit the groups that are not required:
+Once the Conda environment is active, use ``uv`` to install Python packages in editable mode.
 
-   .. code-block:: bash
+Install all development, notebook, and documentation dependencies:
 
-      uv pip install -e . --group dev
+.. code-block:: bash
 
-You're now ready to develop and run the GOATS application locally.
+   uv pip install -e . --group dev --group notebook --group docs
 
-Additional Notes
-----------------
+Or, if you only need core dependencies:
 
-- The ``ci_environment.yaml`` file defines a stable environment using only ``conda-forge`` packages.
-- ``uv`` is installed as part of the environment and is used to manage Python dependencies.
-- Dependency groups are defined under ``[dependency-groups]`` in ``pyproject.toml``.
+.. code-block:: bash
+
+   uv pip install -e . --group dev
+
+This installs:
+
+- The GOATS package in development mode (changes reflect instantly).
+- Python development tools like pytest, Ruff, Sphinx, etc..
+- Optional support for Jupyter notebooks.
+- Optional documentation libaries for building documentation locally.

@@ -10,7 +10,7 @@
 #   conda env create -f ci_environment.yaml --platform osx-64
 #
 # Then activate the created environment:
-#   conda activate goats
+#   conda activate goats-dev
 #
 # After activation, install the project with:
 #   uv pip install -e . --group dev notebook
@@ -18,7 +18,7 @@
 # Or you can omit the additional groups if not needed:
 #   uv pip install -e .
 
-name: goats
+name: goats-dev
 
 channels:
   - conda-forge
@@ -30,4 +30,4 @@ dependencies:
   - pip>=25.1.1
   - python=3.12
   - redis-server>=7.2.8
-  - uv>=0.7.11
+  - uv>=0.8.15
