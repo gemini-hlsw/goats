@@ -4,6 +4,7 @@ on:
     paths:
       - "src/goats_tom/static/js/**/*.js"
       - "js_tests/**/*.js"
+      - ".github/workflows/run_js_tests.yaml"
 
   push:
     branches:

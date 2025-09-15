@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "src/**/*.css"
+      - ".github/workflows/run_stylelint.yaml"
+
   push:
     branches:
       - main

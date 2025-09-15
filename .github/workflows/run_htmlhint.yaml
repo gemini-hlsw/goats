@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "src/goats_tom/templates/**/*.html"
+      - ".github/workflows/run_htmlhint.yaml"
 
   push:
     branches:
