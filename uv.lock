@@ -1302,14 +1302,14 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "factory-boy", specifier = ">=3.3.3" },
-    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-asyncio", specifier = ">=1.1.0" },
-    { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "pytest-cov", specifier = ">=6.3.0" },
     { name = "pytest-django", specifier = ">=4.11.1" },
-    { name = "pytest-mock", specifier = ">=3.14.1" },
+    { name = "pytest-mock", specifier = ">=3.15.0" },
     { name = "pytest-remotedata", specifier = ">=0.4.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
-    { name = "ruff", specifier = ">=0.12.11" },
+    { name = "ruff", specifier = ">=0.12.12" },
     { name = "towncrier", specifier = ">=25.8.0" },
 ]
 docs = [
