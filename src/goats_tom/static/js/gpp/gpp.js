@@ -1,3 +1,4 @@
+const ENABLE_CREATE_NEW_OBSERVATION = false;
 /**
  * Creates DOM snippets for the GPP UI.
  * @class
@@ -60,9 +61,9 @@ class GPPTemplate {
         classes: ["me-1"],
       },
       {
-        id: "editAndCreateNewButton",
+        id: "createNewButton",
         color: "secondary",
-        label: "Edit and Create New Observation",
+        label: "Create New Observation",
         parentElement: left,
       },
     ];
@@ -72,7 +73,8 @@ class GPPTemplate {
       btn.textContent = label;
       btn.id = id;
       btn.type = "button";
-      btn.disabled = true;
+      // FIXME: Flag for the new button.
+      btn.disabled = id === "createNewButton" ? !ENABLE_CREATE_NEW_OBSERVATION : false;
       parentElement.appendChild(btn);
     });
     buttonToolbar.append(left, right);
@@ -87,12 +89,77 @@ class GPPTemplate {
     return container;
   }
 
+  createCreateNewObservation() {
+    const form = Utils.createElement("form", ["row", "g-3"]);
+    // Set the fields to build in details sections.
+    const fields = [
+      { section: "Details" },
+      {
+        labelText: "Science Band",
+        id: "scienceBand",
+      },
+      {
+        labelText: "Radial Velocity",
+        suffix: "km/s",
+        type: "number",
+        id: "radialVelocity",
+      },
+      {
+        labelText: "Parallax",
+        suffix: "mas",
+        type: "number",
+        id: "parallax",
+      },
+      {
+        labelText: "\u03BC RA",
+        suffix: "mas/year",
+        type: "number",
+        id: "uRa",
+      },
+      {
+        labelText: "\u03BC Dec",
+        suffix: "mas/year",
+        type: "number",
+        id: "uDec",
+      },
+      {
+        labelText: "Observer Notes",
+        element: "textarea",
+        colSize: "col-12",
+        id: "observerNotes",
+      },
+    ];
+    // Build the fields and attach to the form in a details section.
+    fields.forEach((meta) => {
+      if (meta.section) {
+        form.append(this.#createFormHeader(meta.section));
+        return;
+      }
+
+      form.append(
+        this.#createFormField({
+          value: "",
+          id: meta.id,
+          labelText: meta.labelText,
+          prefix: meta.prefix,
+          suffix: meta.suffix,
+          element: meta.element,
+          type: meta.type,
+          colSize: meta.colSize,
+          disabled: false,
+        })
+      );
+    });
+
+    return form;
+  }
+
   /**
    * Create a form for a selected observation using shared and mode-specific fields.
    * @param {!Object} observation - Observation data to render.
    * @returns {!HTMLFormElement} A completed form element.
    */
-  createObservationForm(observation) {
+  createSaveObservationForm(observation) {
     const form = Utils.createElement("form", ["row", "g-3"]);
     const sharedFields = [...SHARED_FIELDS];
     const mode = observation.observingMode?.mode;
@@ -149,6 +216,7 @@ class GPPTemplate {
           element: meta.element,
           type: meta.type,
           colSize: meta.colSize,
+          disabled: true,
         })
       );
     });
@@ -199,26 +267,28 @@ class GPPTemplate {
   /**
    * Create a form field from metadata.
    * @param {Object} options
-   * @param {*} options.value - Field value.
    * @param {string} options.id - Field ID.
+   * @param {*} options.value - Field value.
    * @param {string=} options.labelText - Field label.
    * @param {string=} options.prefix - Optional prefix.
    * @param {string=} options.suffix - Optional suffix.
    * @param {string=} options.element - Element type.
    * @param {string=} options.type - Input type.
    * @param {string=} options.colSize - Bootstrap column size.
+   * @param {boolean=} options.disabled - Whether the input should be disabled.
    * @returns {!HTMLElement}
    * @private
    */
   #createFormField({
-    value,
     id,
+    value = "",
     labelText = null,
     prefix = null,
     suffix = null,
     element = "input",
     type = "text",
     colSize = "col-md-6",
+    disabled = true,
   }) {
     const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
     const col = Utils.createElement("div", [colSize]);
@@ -244,7 +314,7 @@ class GPPTemplate {
     }
     control.id = elementId;
     control.value = value;
-    control.disabled = true;
+    control.disabled = disabled;
 
     // Wrap in input group if needed.
     col.append(this.#wrapWithGroup(control, { prefix, suffix }));
@@ -325,6 +395,7 @@ class GPPTemplate {
             suffix: units,
             type: meta.type,
             colSize: meta.colSize,
+            disabled: true,
           })
         );
       },
@@ -337,6 +408,7 @@ class GPPTemplate {
             labelText: meta.labelText,
             suffix: meta.suffix,
             colSize: meta.colSize,
+            disabled: true,
           }),
         ];
       },
@@ -349,6 +421,7 @@ class GPPTemplate {
             labelText: meta.labelText,
             suffix: meta.suffix,
             colSize: meta.colSize,
+            disabled: true,
           }),
         ];
       },
@@ -364,6 +437,7 @@ class GPPTemplate {
             value: label,
             id: meta.id,
             labelText: meta.labelText,
+            disabled: true,
           }),
         ];
       },
@@ -583,7 +657,7 @@ class GPPView {
   #buttonToolbar;
   #editButton;
   #saveButton;
-  #editAndCreateNewButton;
+  #createNewButton;
   #observationLoading;
   #programLoading;
 
@@ -609,9 +683,7 @@ class GPPView {
     this.#buttonToolbar = this.#container.querySelector(`#buttonToolbar`);
     this.#editButton = this.#buttonToolbar.querySelector("#editButton");
     this.#saveButton = this.#buttonToolbar.querySelector("#saveButton");
-    this.#editAndCreateNewButton = this.#buttonToolbar.querySelector(
-      "#editAndCreateNewButton"
-    );
+    this.#createNewButton = this.#buttonToolbar.querySelector("#createNewButton");
 
     // Bind the renders and callbacks.
     this.render = this.render.bind(this);
@@ -695,12 +767,11 @@ class GPPView {
 
   /**
    * Update other DOM bits that depend on the selected observation.
-   * (Placeholder for future work.)
    * @param {!Object} observation
    * @private
    */
   #updateObservation(observation) {
-    const form = this.#template.createObservationForm(observation);
+    const form = this.#template.createSaveObservationForm(observation);
     this.#form = form;
     this.#formContainer.append(this.#form);
   }
@@ -744,7 +815,13 @@ class GPPView {
     this.#saveButton.disabled = disabled;
     // FIXME: Change the edit and edit and create new button later.
     this.#editButton.disabled = true;
-    this.#editAndCreateNewButton.disabled = true;
+    // this.#createNewButton.disabled = true;
+  }
+
+  #showCreateNewObservation() {
+    const form = this.#template.createCreateNewObservation();
+    this.#form = form;
+    this.#formContainer.append(this.#form);
   }
 
   /**
@@ -791,6 +868,9 @@ class GPPView {
       case "toggleButtonToolbar":
         this.#toggleButtonToolbar(parameter.disabled);
         break;
+      case "showCreateNewObservation":
+        this.#showCreateNewObservation();
+        break;
     }
   }
 
@@ -813,6 +893,11 @@ class GPPView {
         break;
       case "saveObservation":
         Utils.on(this.#saveButton, "click", (e) => {
+          handler();
+        });
+        break;
+      case "createNewObservation":
+        Utils.on(this.#createNewButton, "click", (e) => {
           handler();
         });
         break;
@@ -850,6 +935,14 @@ class GPPController {
       this.#selectObservation(item.observationId)
     );
     this.#view.bindCallback("saveObservation", () => this.#saveObservation());
+    this.#view.bindCallback("createNewObservation", (item) =>
+      this.#createNewObservation()
+    );
+  }
+
+  #createNewObservation() {
+    this.#view.render("clearObservationForm");
+    this.#view.render("showCreateNewObservation");
   }
 
   /**
