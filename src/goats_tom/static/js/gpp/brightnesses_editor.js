@@ -39,8 +39,8 @@ class BrightnessesEditor {
   }
 
   /**
-   * Create and return a new input group row.
-   * @returns {HTMLElement} The created input group container.
+   * Create and return a new input group.
+   * @returns {HTMLElement} The created input group.
    * @private
    */
   #createInputGroup() {
