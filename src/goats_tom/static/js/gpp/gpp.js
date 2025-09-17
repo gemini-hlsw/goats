@@ -74,7 +74,7 @@ class GPPTemplate {
       btn.id = id;
       btn.type = "button";
       // FIXME: Flag for the new button.
-      btn.disabled = id === "createNewButton" ? !ENABLE_CREATE_NEW_OBSERVATION : false;
+      btn.disabled = !(id === "createNewButton" && ENABLE_CREATE_NEW_OBSERVATION);
       parentElement.appendChild(btn);
     });
     buttonToolbar.append(left, right);
@@ -150,6 +150,12 @@ class GPPTemplate {
         })
       );
     });
+
+    // Build the brightnesses section.
+    form.append(this.#createFormHeader("Brightnesses"));
+    const div = Utils.createElement("div");
+    new BrightnessesEditor(div);
+    form.append(div);
 
     return form;
   }
