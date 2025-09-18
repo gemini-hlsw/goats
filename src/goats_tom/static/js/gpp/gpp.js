@@ -90,7 +90,8 @@ class GPPTemplate {
   }
 
   createCreateNewObservation() {
-    const form = Utils.createElement("form", ["row", "g-3"]);
+    const form = Utils.createElement("form");
+    const row = Utils.createElement("div", ["row", "g-3", "mb-3"]);
     // Set the fields to build in details sections.
     const fields = [
       { section: "Details" },
@@ -129,14 +130,14 @@ class GPPTemplate {
         id: "observerNotes",
       },
     ];
-    // Build the fields and attach to the form in a details section.
+    // Build the fields and attach to the row in a details section.
     fields.forEach((meta) => {
       if (meta.section) {
-        form.append(this.#createFormHeader(meta.section));
+        row.append(this.#createFormHeader(meta.section));
         return;
       }
 
-      form.append(
+      row.append(
         this.#createFormField({
           value: "",
           id: meta.id,
@@ -150,10 +151,16 @@ class GPPTemplate {
         })
       );
     });
+    form.append(row);
+
+    // Build the source profile.
+    const sourceProfileDiv = Utils.createElement("div");
+    new SourceProfileEditor(sourceProfileDiv);
+    form.append(sourceProfileDiv);
 
     // Build the brightnesses section.
     form.append(this.#createFormHeader("Brightnesses"));
-    const div = Utils.createElement("div");
+    const div = Utils.createElement("div", "mt-3");
     new BrightnessesEditor(div);
     form.append(div);
 
