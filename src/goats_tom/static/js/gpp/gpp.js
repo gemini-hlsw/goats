@@ -91,9 +91,8 @@ class GPPTemplate {
 
   createCreateNewObservation() {
     const form = Utils.createElement("form");
-    const row = Utils.createElement("div", ["row", "g-3", "mb-3"]);
     // Set the fields to build in details sections.
-    const fields = [
+    const firstFields = [
       { section: "Details" },
       {
         labelText: "Science Band",
@@ -130,28 +129,93 @@ class GPPTemplate {
         id: "observerNotes",
       },
     ];
+    const secondFields = [
+      { section: "Constraints" },
+      {
+        labelText: "Image Quality",
+        element: "select",
+        id: "imageQuality",
+        options: [
+          "< 0.10 arcsec",
+          "< 0.20 arcsec",
+          "< 0.30 arcsec",
+          "< 0.40 arcsec",
+          "< 0.60 arcsec",
+          "< 0.80 arcsec",
+          "< 1.00 arcsec",
+          "< 1.50 arcsec",
+          "< 2.00 arcsec",
+        ],
+      },
+      {
+        labelText: "Cloud Extinction",
+        element: "select",
+        id: "cloudExtinction",
+        options: [
+          "0.00 mag",
+          "< 0.10 mag",
+          "< 0.30 mag",
+          "< 0.50 mag",
+          "< 1.00 mag",
+          "< 2.00 mag",
+          "< 3.00 mag",
+        ],
+      },
+      {
+        labelText: "Water Vapor",
+        element: "select",
+        id: "waterVapor",
+        options: ["Very Dry", "Dry", "Median", "Wet"],
+      },
+      {
+        labelText: "Sky Background",
+        element: "select",
+        id: "skyBackground",
+        options: ["Darkest", "Dark", "Gray", "Bright"],
+      },
+      {
+        labelText: "Elevation Range",
+        element: "select",
+        id: "elevationRange",
+        options: ["Hour Angle", "Air Mass"],
+      },
+      {
+        labelText: "Hour Angle Minimum",
+        element: "input",
+        id: "haMinimum",
+        suffix: "hours",
+        value: -5.0,
+        type: "number",
+      },
+      {
+        labelText: "Hour Angle Maximum",
+        element: "input",
+        id: "haMaximum",
+        suffix: "hours",
+        value: 5.0,
+        type: "number",
+      },
+      {
+        labelText: "Air Mass Minimum",
+        element: "input",
+        id: "airMassMinimum",
+        visible: false,
+        value: 1.0,
+        type: "number",
+      },
+      {
+        labelText: "Air Mass Maximum",
+        element: "input",
+        id: "airMassMaximum",
+        visible: false,
+        value: 2.0,
+        type: "number",
+      },
+    ];
     // Build the fields and attach to the row in a details section.
-    fields.forEach((meta) => {
-      if (meta.section) {
-        row.append(this.#createFormHeader(meta.section));
-        return;
-      }
-
-      row.append(
-        this.#createFormField({
-          value: "",
-          id: meta.id,
-          labelText: meta.labelText,
-          prefix: meta.prefix,
-          suffix: meta.suffix,
-          element: meta.element,
-          type: meta.type,
-          colSize: meta.colSize,
-          disabled: false,
-        })
-      );
-    });
-    form.append(row);
+    const firstRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
+    this.#appendFieldsToRow(firstRow, firstFields);
+    form.append(firstRow);
 
     // Build the source profile.
     const sourceProfileDiv = Utils.createElement("div");
@@ -164,7 +228,70 @@ class GPPTemplate {
     new BrightnessesEditor(div);
     form.append(div);
 
+    const secondRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
+    this.#appendFieldsToRow(secondRow, secondFields);
+    form.append(secondRow);
+
+    // Attach the event listener for elevation range changes. Didn't deem it big enough
+    // to require its own application like source profile or brightnesses.
+    this.#attachElevationRangeListener(form);
+
     return form;
+  }
+
+  /**
+   * Append form fields to a Bootstrap row element using metadata definitions.
+   * This method supports both regular form fields and section headers.
+   *
+   * @param {!HTMLElement} row - The Bootstrap row element to which fields will be appended.
+   * @param {!Array<Object>} fields - List of field metadata objects.
+   * @private
+   */
+  #appendFieldsToRow(row, fields) {
+    fields.forEach((meta) => {
+      if (meta.section) {
+        row.append(this.#createFormHeader(meta.section));
+      } else {
+        row.append(
+          this.#createFormField({
+            value: meta.value,
+            id: meta.id,
+            labelText: meta.labelText,
+            prefix: meta.prefix,
+            suffix: meta.suffix,
+            element: meta.element,
+            type: meta.type,
+            colSize: meta.colSize,
+            disabled: false,
+            options: meta.options,
+            visible: meta.visible,
+          })
+        );
+      }
+    });
+  }
+
+  /**
+   * Attach event listener to the elevation range select field to toggle visibility.
+   * @param {HTMLFormElement} form - The form containing elevation fields.
+   * @private
+   */
+  #attachElevationRangeListener(form) {
+    const select = form.querySelector("#elevationRangeSelect");
+    const haMinCol = form.querySelector("#haMinimumInput")?.closest(".col-md-6");
+    const haMaxCol = form.querySelector("#haMaximumInput")?.closest(".col-md-6");
+    const amMinCol = form.querySelector("#airMassMinimumInput")?.closest(".col-md-6");
+    const amMaxCol = form.querySelector("#airMassMaximumInput")?.closest(".col-md-6");
+
+    if (!select || !haMinCol || !haMaxCol || !amMinCol || !amMaxCol) return;
+
+    Utils.on(select, "change", (e) => {
+      const isHA = e.target.value === "Hour Angle";
+      haMinCol.classList.toggle("d-none", !isHA);
+      haMaxCol.classList.toggle("d-none", !isHA);
+      amMinCol.classList.toggle("d-none", isHA);
+      amMaxCol.classList.toggle("d-none", isHA);
+    });
   }
 
   /**
@@ -230,6 +357,8 @@ class GPPTemplate {
           type: meta.type,
           colSize: meta.colSize,
           disabled: true,
+          options: meta.options,
+          visible: meta.visible,
         })
       );
     });
@@ -279,16 +408,19 @@ class GPPTemplate {
 
   /**
    * Create a form field from metadata.
-   * @param {Object} options
-   * @param {string} options.id - Field ID.
-   * @param {*} options.value - Field value.
-   * @param {string=} options.labelText - Field label.
-   * @param {string=} options.prefix - Optional prefix.
-   * @param {string=} options.suffix - Optional suffix.
-   * @param {string=} options.element - Element type.
-   * @param {string=} options.type - Input type.
-   * @param {string=} options.colSize - Bootstrap column size.
-   * @param {boolean=} options.disabled - Whether the input should be disabled.
+   * @param {Object} field - Field configuration metadata.
+   * @param {string} field.id - Field ID.
+   * @param {*} field.value - Initial field value.
+   * @param {string=} field.labelText - Field label.
+   * @param {string=} field.prefix - Optional prefix text.
+   * @param {string=} field.suffix - Optional suffix text.
+   * @param {string=} field.element - Element type: input, textarea, or select.
+   * @param {string=} field.type - Input type (e.g., "number", "text").
+   * @param {string=} field.colSize - Bootstrap column class.
+   * @param {boolean=} field.disabled - Whether the field is disabled.
+   * @param {boolean=} field.visible - Whether the field is visible or not.
+   * @param {Array<string|{labelText: string, value: string}>=} field.options - Options for a
+   * select element.
    * @returns {!HTMLElement}
    * @private
    */
@@ -302,9 +434,12 @@ class GPPTemplate {
     type = "text",
     colSize = "col-md-6",
     disabled = true,
+    visible = true,
+    options = [],
   }) {
     const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
     const col = Utils.createElement("div", [colSize]);
+
     // Create label.
     if (labelText) {
       const label = Utils.createElement("label", ["form-label"]);
@@ -313,23 +448,47 @@ class GPPTemplate {
       col.append(label);
     }
 
-    // Create input.
+    // Create form control.
     let control;
     if (element === "textarea") {
       control = Utils.createElement("textarea", ["form-control"]);
       control.rows = 3;
+      control.value = value;
     } else if (element === "input") {
       control = Utils.createElement("input", ["form-control"]);
       control.type = type;
+      control.value = value;
+    } else if (element === "select") {
+      control = Utils.createElement("select", ["form-select"]);
+      options.forEach((opt) => {
+        const optionEl = Utils.createElement("option");
+        // Handle if option passed in is just a list of strings.
+        if (typeof opt === "string") {
+          optionEl.value = opt;
+          optionEl.textContent = opt;
+        } else {
+          // User passed in JSON object {value: "", labelText: ""}
+          optionEl.value = opt.value;
+          optionEl.textContent = opt.label;
+        }
+        if (optionEl.value === value) {
+          optionEl.selected = true;
+        }
+        control.appendChild(optionEl);
+      });
     } else {
       console.error("Unsupported element:", element);
       return col;
     }
+
     control.id = elementId;
-    control.value = value;
     control.disabled = disabled;
 
-    // Wrap in input group if needed.
+    if (!visible) {
+      col.classList.add("d-none");
+    }
+
+    // Wrap and append.
     col.append(this.#wrapWithGroup(control, { prefix, suffix }));
     return col;
   }
@@ -409,6 +568,7 @@ class GPPTemplate {
             type: meta.type,
             colSize: meta.colSize,
             disabled: true,
+            visible: meta.visible,
           })
         );
       },
@@ -422,6 +582,7 @@ class GPPTemplate {
             suffix: meta.suffix,
             colSize: meta.colSize,
             disabled: true,
+            visible: meta.visible,
           }),
         ];
       },
@@ -435,6 +596,7 @@ class GPPTemplate {
             suffix: meta.suffix,
             colSize: meta.colSize,
             disabled: true,
+            visible: meta.visible,
           }),
         ];
       },
@@ -451,6 +613,7 @@ class GPPTemplate {
             id: meta.id,
             labelText: meta.labelText,
             disabled: true,
+            visible: meta.visible,
           }),
         ];
       },
