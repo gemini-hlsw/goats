@@ -1,0 +1,1 @@
+Developed approved config dropdown UI for users when creating new observation with GPP in GOATS.
