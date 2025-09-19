@@ -95,8 +95,10 @@ class GPPTemplate {
     const firstFields = [
       { section: "Details" },
       {
-        labelText: "Science Band",
-        id: "scienceBand",
+        labelText: "State",
+        element: "select",
+        options: ["Ready", "Defined", "Inative"],
+        id: "state",
       },
       {
         labelText: "Radial Velocity",
@@ -211,6 +213,15 @@ class GPPTemplate {
         value: 2.0,
         type: "number",
       },
+      { section: "Configuration" },
+      {
+        labelText: "",
+        element: "select",
+        id: "instrumentConfiguration",
+        options: ["Loading..."],
+        disabled: true,
+        colSize: "col-12",
+      },
     ];
     // Build the fields and attach to the row in a details section.
     const firstRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
@@ -235,6 +246,14 @@ class GPPTemplate {
     // Attach the event listener for elevation range changes. Didn't deem it big enough
     // to require its own application like source profile or brightnesses.
     this.#attachElevationRangeListener(form);
+
+    const btn = Utils.createElement("button", ["btn", "btn-primary", "mt-4"]);
+    btn.textContent = "Create And Save";
+    btn.id = "createAndSaveObservationButton";
+    btn.type = "button";
+    btn.dataset.action = "createAndSaveObservation";
+
+    form.append(btn);
 
     return form;
   }
@@ -262,7 +281,7 @@ class GPPTemplate {
             element: meta.element,
             type: meta.type,
             colSize: meta.colSize,
-            disabled: false,
+            disabled: meta.disabled,
             options: meta.options,
             visible: meta.visible,
           })
@@ -277,6 +296,7 @@ class GPPTemplate {
    * @private
    */
   #attachElevationRangeListener(form) {
+    // TODO: This could be moved to delegation if deemed so.
     const select = form.querySelector("#elevationRangeSelect");
     const haMinCol = form.querySelector("#haMinimumInput")?.closest(".col-md-6");
     const haMaxCol = form.querySelector("#haMaximumInput")?.closest(".col-md-6");
@@ -433,7 +453,7 @@ class GPPTemplate {
     element = "input",
     type = "text",
     colSize = "col-md-6",
-    disabled = true,
+    disabled = false,
     visible = true,
     options = [],
   }) {
@@ -1056,6 +1076,7 @@ class GPPView {
    * @param {function()} handler
    */
   bindCallback(event, handler) {
+    const selector = `[data-action="${event}"]`;
     switch (event) {
       case "selectProgram":
         Utils.on(this.#programSelect, "change", (e) => {
@@ -1074,6 +1095,13 @@ class GPPView {
         break;
       case "createNewObservation":
         Utils.on(this.#createNewButton, "click", (e) => {
+          handler();
+        });
+        break;
+      case "createAndSaveObservation":
+        console.log("hi");
+        Utils.delegate(this.#formContainer, selector, "click", (e) => {
+          e.preventDefault();
           handler();
         });
         break;
@@ -1114,11 +1142,18 @@ class GPPController {
     this.#view.bindCallback("createNewObservation", (item) =>
       this.#createNewObservation()
     );
+    this.#view.bindCallback("createAndSaveObservation", () =>
+      this.#createAndSaveObservation()
+    );
   }
 
   #createNewObservation() {
     this.#view.render("clearObservationForm");
     this.#view.render("showCreateNewObservation");
+  }
+
+  #createAndSaveObservation() {
+    console.log("Controller got the create and save");
   }
 
   /**
@@ -1232,13 +1267,6 @@ class GPPController {
 
 /**
  * Application for interacting with the GPP.
- *
- * Usage:
- * ```js
- * const widget = new GPP(document.getElementById('placeholder'));
- * await widget.init();
- * ```
- *
  * @class
  */
 class GPP {
