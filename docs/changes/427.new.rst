@@ -1,0 +1,1 @@
+Developed constraints UI for users when creating new observation with GPP in GOATS.
