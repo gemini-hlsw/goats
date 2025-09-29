@@ -50,13 +50,13 @@ Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 dev = [
     "factory-boy>=3.3.3",
     "pytest>=8.4.2",
-    "pytest-asyncio>=1.1.0",
-    "pytest-cov>=6.3.0",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
     "pytest-django>=4.11.1",
-    "pytest-mock>=3.15.0",
+    "pytest-mock>=3.15.1",
     "pytest-remotedata>=0.4.1",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.12.12",
+    "ruff>=0.13.1",
     "towncrier>=25.8.0",
 ]
 docs = [
