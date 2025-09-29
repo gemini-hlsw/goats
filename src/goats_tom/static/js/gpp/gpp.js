@@ -24,69 +24,98 @@ class GPPTemplate {
       "Use the Gemini Program Platform (GPP) to browse your active programs and corresponding observations. Select a program to load its observations and autofill observation details. You can then either save the observation on GOATS without changes or edit the observation details and submit to Gemini. The latter will save the observation on GOATS automatically upon submission.";
     col1.append(p);
 
-    const col2 = Utils.createElement("div", ["col-lg-6"]);
+    const col2 = Utils.createElement("div", ["col-12"]);
     col2.append(
       this.#createSelect("program", "Active Programs", "Choose a program...")
     );
 
     const col3 = Utils.createElement("div", ["col-lg-6"]);
+    const col4 = Utils.createElement("div", ["col-lg-6"]);
+
+    // Build the row containers for the observations and toos.
+    const obsRow = Utils.createElement("div", ["row", "g-3"]);
+    const tooRow = Utils.createElement("div", ["row", "g-3"]);
+
+    // Build obs col.
+    const obsCol = Utils.createElement("div", ["col-12"]);
     const observationSelect = this.#createSelect(
       "observation",
       "Active Observations",
       "Choose an observation..."
     );
-    col3.append(observationSelect);
-
-    // Create button toolbar.
-    const buttonToolbar = Utils.createElement("div", [
-      "d-flex",
-      "justify-content-between",
-    ]);
-    buttonToolbar.id = "buttonToolbar";
-    const left = Utils.createElement("div");
-    const right = Utils.createElement("div");
-
-    const actions = [
-      {
-        id: "saveButton",
-        color: "primary",
-        label: "Save",
-        parentElement: right,
-      },
+    obsCol.append(observationSelect);
+    // Build the buttons.
+    const obsActions = [
       {
         id: "editButton",
         color: "secondary",
         label: "Edit",
-        parentElement: left,
-        classes: ["me-1"],
+        classes: ["me-2"],
       },
+      {
+        id: "saveButton",
+        color: "secondary",
+        label: "Save",
+      },
+    ];
+    const obsButtonToolbar = this.#createButtons(obsActions, "obsButtonToolbar");
+    obsRow.append(obsCol, obsButtonToolbar);
+
+    // Build the ToO col.
+    const tooCol = Utils.createElement("div", ["col-12"]);
+    const tooSelect = this.#createSelect(
+      "too",
+      "Approved ToO Configurations",
+      "Choose a ToO configuration..."
+    );
+    tooCol.append(tooSelect);
+
+    // Build the buttons.
+    const tooActions = [
       {
         id: "createNewButton",
         color: "secondary",
         label: "Create New Observation",
-        parentElement: left,
       },
     ];
+    const tooButtonToolbar = this.#createButtons(tooActions, "tooButtonToolbar");
+    tooRow.append(tooCol, tooButtonToolbar);
 
-    actions.forEach(({ id, color, label, parentElement, classes = [] }) => {
-      const btn = Utils.createElement("button", ["btn", `btn-${color}`, ...classes]);
-      btn.textContent = label;
-      btn.id = id;
-      btn.type = "button";
-      // FIXME: Flag for the new button.
-      btn.disabled = !(id === "createNewButton" && ENABLE_CREATE_NEW_OBSERVATION);
-      parentElement.appendChild(btn);
-    });
-    buttonToolbar.append(left, right);
+    // Append to the main col container.
+    col3.append(obsRow);
+    col4.append(tooRow);
 
-    row.append(col1, col2, col3);
+    row.append(col1, col2, col3, col4);
 
     // Create form container.
     const formContainer = Utils.createElement("div");
     formContainer.id = "formContainer";
-    container.append(row, buttonToolbar, Utils.createElement("hr"), formContainer);
+    container.append(row, Utils.createElement("hr"), formContainer);
 
     return container;
+  }
+
+  /**
+   * Creates a toolbar containing one or more buttons.
+   * @private
+   * @param actions - Array of action definitions. Each defines one button to render.
+   * @param {string} toolbarId - ID to assign to the toolbar container element.
+   * @returns {!HTMLDivElement} The toolbar element containing the generated buttons.
+   */
+  #createButtons(actions, toolbarId) {
+    const toolbar = Utils.createElement("div", "col-12");
+    toolbar.id = toolbarId;
+
+    actions.forEach(({ id, color, label, classes = [] }) => {
+      const btn = Utils.createElement("button", ["btn", `btn-${color}`, ...classes]);
+      btn.textContent = label;
+      btn.id = id;
+      btn.type = "button";
+      btn.disabled = !ENABLE_CREATE_NEW_OBSERVATION;
+      toolbar.appendChild(btn);
+    });
+
+    return toolbar;
   }
 
   createCreateNewObservation() {
@@ -850,7 +879,8 @@ class GPPView {
   #observationSelect;
   #form;
   #formContainer;
-  #buttonToolbar;
+  #obsButtonToolbar;
+  #tooButtonToolbar;
   #editButton;
   #saveButton;
   #createNewButton;
@@ -876,10 +906,11 @@ class GPPView {
     this.#programLoading = this.#container.querySelector(`#programLoading`);
     this.#observationSelect = this.#container.querySelector(`#observationSelect`);
     this.#observationLoading = this.#container.querySelector(`#observationLoading`);
-    this.#buttonToolbar = this.#container.querySelector(`#buttonToolbar`);
-    this.#editButton = this.#buttonToolbar.querySelector("#editButton");
-    this.#saveButton = this.#buttonToolbar.querySelector("#saveButton");
-    this.#createNewButton = this.#buttonToolbar.querySelector("#createNewButton");
+    this.#obsButtonToolbar = this.#container.querySelector(`#obsButtonToolbar`);
+    this.#tooButtonToolbar = this.#container.querySelector(`#tooButtonToolbar`);
+    this.#editButton = this.#obsButtonToolbar.querySelector("#editButton");
+    this.#saveButton = this.#obsButtonToolbar.querySelector("#saveButton");
+    this.#createNewButton = this.#tooButtonToolbar.querySelector("#createNewButton");
 
     // Bind the renders and callbacks.
     this.render = this.render.bind(this);
