@@ -60,7 +60,7 @@ dev = [
     "towncrier>=25.8.0",
 ]
 docs = [
-    "furo>=2025.7.19",
+    "furo>=2025.9.25",
     "sphinx>=8.2.3",
     "sphinx-autobuild>=2025.8.25",
     "sphinx-copybutton>=0.5.2",
