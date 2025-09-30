@@ -21,71 +21,12 @@ class GPPTemplate {
     const col1 = Utils.createElement("div", ["col-12"]);
     const p = Utils.createElement("p", ["mb-0", "fst-italic"]);
     p.textContent =
-      "Use the Gemini Program Platform (GPP) to browse your active programs and corresponding observations. Select a program to load its observations and autofill observation details. You can then either save the observation on GOATS without changes or edit the observation details and submit to Gemini. The latter will save the observation on GOATS automatically upon submission.";
+      "Use the Gemini Program Platform (GPP) to browse your active programs and corresponding observations. Select a program to load its observations and autofill observation details. You can then save the observation on GOATS without changes,  update the observation details and resubmit, or create a new observation for a ToO. Any updates or new observations are saved on GOATS automatically upon submission.";
     col1.append(p);
 
-    const col2 = Utils.createElement("div", ["col-12"]);
-    col2.append(
-      this.#createSelect("program", "Active Programs", "Choose a program...")
-    );
-
-    const col3 = Utils.createElement("div", ["col-lg-6"]);
-    const col4 = Utils.createElement("div", ["col-lg-6"]);
-
-    // Build the row containers for the observations and toos.
-    const obsRow = Utils.createElement("div", ["row", "g-3"]);
-    const tooRow = Utils.createElement("div", ["row", "g-3"]);
-
-    // Build obs col.
-    const obsCol = Utils.createElement("div", ["col-12"]);
-    const observationSelect = this.#createSelect(
-      "observation",
-      "Active Observations",
-      "Choose an observation..."
-    );
-    obsCol.append(observationSelect);
-    // Build the buttons.
-    const obsActions = [
-      {
-        id: "editButton",
-        color: "secondary",
-        label: "Edit",
-        classes: ["me-2"],
-      },
-      {
-        id: "saveButton",
-        color: "secondary",
-        label: "Save",
-      },
-    ];
-    const obsButtonToolbar = this.#createButtons(obsActions, "obsButtonToolbar");
-    obsRow.append(obsCol, obsButtonToolbar);
-
-    // Build the ToO col.
-    const tooCol = Utils.createElement("div", ["col-12"]);
-    const tooSelect = this.#createSelect(
-      "too",
-      "Approved ToO Configurations",
-      "Choose a ToO configuration..."
-    );
-    tooCol.append(tooSelect);
-
-    // Build the buttons.
-    const tooActions = [
-      {
-        id: "createNewButton",
-        color: "secondary",
-        label: "Create New Observation",
-      },
-    ];
-    const tooButtonToolbar = this.#createButtons(tooActions, "tooButtonToolbar");
-    tooRow.append(tooCol, tooButtonToolbar);
-
-    // Append to the main col container.
-    col3.append(obsRow);
-    col4.append(tooRow);
-
-    row.append(col1, col2, col3, col4);
+    const div = Utils.createElement("div");
+    div.id = "programObservationsPanelContainer";
+    row.append(col1, div);
 
     // Create form container.
     const formContainer = Utils.createElement("div");
@@ -93,29 +34,6 @@ class GPPTemplate {
     container.append(row, Utils.createElement("hr"), formContainer);
 
     return container;
-  }
-
-  /**
-   * Creates a toolbar containing one or more buttons.
-   * @private
-   * @param actions - Array of action definitions. Each defines one button to render.
-   * @param {string} toolbarId - ID to assign to the toolbar container element.
-   * @returns {!HTMLDivElement} The toolbar element containing the generated buttons.
-   */
-  #createButtons(actions, toolbarId) {
-    const toolbar = Utils.createElement("div", "col-12");
-    toolbar.id = toolbarId;
-
-    actions.forEach(({ id, color, label, classes = [] }) => {
-      const btn = Utils.createElement("button", ["btn", `btn-${color}`, ...classes]);
-      btn.textContent = label;
-      btn.id = id;
-      btn.type = "button";
-      btn.disabled = !ENABLE_CREATE_NEW_OBSERVATION;
-      toolbar.appendChild(btn);
-    });
-
-    return toolbar;
   }
 
   createCreateNewObservation() {
@@ -688,7 +606,8 @@ class GPPModel {
   #observationsUrl = `observations/`;
 
   // Data-storing maps.
-  #observations = new Map();
+  #normalObservations = new Map();
+  #tooObservations = new Map();
   #programs = new Map();
   #activeObservation;
 
@@ -702,7 +621,8 @@ class GPPModel {
 
   /** Clears every cached observation and active observation. */
   clearObservations() {
-    this.#observations.clear();
+    this.#normalObservations.clear();
+    this.#tooObservations.clear();
     this.#activeObservation = null;
   }
 
@@ -760,6 +680,7 @@ class GPPModel {
    * @param {Object} observation The observation object to save.
    * @returns {Promise<{status: number, data: Object}>} A response object with status code and response data.
    */
+  // FIXME: Update the right way
   async saveObservation(observation) {
     // User isn't needed.
     const data = {
@@ -786,30 +707,57 @@ class GPPModel {
    */
   async fetchObservations(programId) {
     this.clearObservations();
+
     try {
-      const response = await this.#api.get(
+      const { matches, hasMore } = await this.#api.get(
         `${this.#gppObservationsUrl}?program_id=${programId}`
       );
 
-      // Fill / refresh the Map.
-      const observations = response.matches;
+      const tooResults = matches?.too?.results ?? [];
+      const normalResults = matches?.normal?.results ?? [];
 
-      for (const observation of observations) {
-        this.#observations.set(observation.id, observation);
-      }
+      // Helper to bulk-fill a map from results.
+      const fillMap = (map, results) => {
+        for (const obs of results) {
+          map.set(obs.id, obs);
+        }
+      };
+
+      fillMap(this.#tooObservations, tooResults);
+      fillMap(this.#normalObservations, normalResults);
     } catch (error) {
       console.error("Error fetching observations:", error);
     }
   }
 
+  get tooObservationsCount() {
+    return this.#tooObservations.size;
+  }
+
+  get normalObservationsCount() {
+    return this.#normalObservations.size;
+  }
+
   /**
-   * Get an observation object that is already in the cache. Also sets the active
+   * Get a too observation object that is already in the cache. Also sets the active
    * observation to track the last retrieved.
    * @param {string} observationId
    * @returns {Object|undefined}
    */
-  getObservation(observationId) {
-    const obs = this.#observations.get(observationId);
+  getTooObservation(observationId) {
+    const obs = this.#tooObservations.get(observationId);
+    this.#activeObservation = obs || null;
+    return obs;
+  }
+
+  /**
+   * Get a normal observation object that is already in the cache. Also sets the active
+   * observation to track the last retrieved.
+   * @param {string} observationId
+   * @returns {Object|undefined}
+   */
+  getNormalObservation(observationId) {
+    const obs = this.#normalObservations.get(observationId);
     this.#activeObservation = obs || null;
     return obs;
   }
@@ -823,19 +771,35 @@ class GPPModel {
   }
 
   /**
-   * All cached observations as an array.
+   * All cached too observations as an array.
    * @type {!Array<!Object>}
    */
-  get observationsList() {
-    return Array.from(this.#observations.values());
+  get tooObservationsList() {
+    return Array.from(this.#tooObservations.values());
   }
 
   /**
-   * All cached observation IDs.
+   * All cached too observation IDs.
    * @type {!Array<string>}
    */
-  get observationsIds() {
-    return Array.from(this.#observations.keys());
+  get tooObservationsIds() {
+    return Array.from(this.#tooObservations.keys());
+  }
+
+  /**
+   * All cached normal observations as an array.
+   * @type {!Array<!Object>}
+   */
+  get normalObservationsList() {
+    return Array.from(this.#normalObservations.values());
+  }
+
+  /**
+   * All cached normal observation IDs.
+   * @type {!Array<string>}
+   */
+  get normalObservationsIds() {
+    return Array.from(this.#normalObservations.keys());
   }
 
   /**
@@ -875,17 +839,9 @@ class GPPView {
   #template;
   #container;
   #parentElement;
-  #programSelect;
-  #observationSelect;
   #form;
   #formContainer;
-  #obsButtonToolbar;
-  #tooButtonToolbar;
-  #editButton;
-  #saveButton;
-  #createNewButton;
-  #observationLoading;
-  #programLoading;
+  #poPanel; // ProgramObservationsPanel instance.
 
   /**
    * Construct the view, inject the template, and attach it to the DOM.
@@ -902,15 +858,10 @@ class GPPView {
     this.#formContainer = this.#container.querySelector(`#formContainer`);
     this.#parentElement.appendChild(this.#container);
 
-    this.#programSelect = this.#container.querySelector(`#programSelect`);
-    this.#programLoading = this.#container.querySelector(`#programLoading`);
-    this.#observationSelect = this.#container.querySelector(`#observationSelect`);
-    this.#observationLoading = this.#container.querySelector(`#observationLoading`);
-    this.#obsButtonToolbar = this.#container.querySelector(`#obsButtonToolbar`);
-    this.#tooButtonToolbar = this.#container.querySelector(`#tooButtonToolbar`);
-    this.#editButton = this.#obsButtonToolbar.querySelector("#editButton");
-    this.#saveButton = this.#obsButtonToolbar.querySelector("#saveButton");
-    this.#createNewButton = this.#tooButtonToolbar.querySelector("#createNewButton");
+    this.#poPanel = new ProgramObservationsPanel(
+      this.#container.querySelector(`#programObservationsPanelContainer`),
+      { debug: false }
+    );
 
     // Bind the renders and callbacks.
     this.render = this.render.bind(this);
@@ -924,72 +875,6 @@ class GPPView {
    */
   #create() {
     return this.#template.create();
-  }
-
-  /**
-   * Re-populate the program <select> after new data arrive.
-   * @param {!Array<!Object>} programs
-   * @private
-   */
-  #updatePrograms(programs) {
-    // Reset except for the default.
-    this.#programSelect.length = 1;
-
-    const frag = document.createDocumentFragment();
-    programs.forEach((p) => {
-      frag.appendChild(this.#template.createSelectOption(p));
-    });
-
-    this.#programSelect.appendChild(frag);
-  }
-
-  /**
-   * Re-populate the observation <select> after new data arrive.
-   * @param {!Array<!Object>} observations
-   * @private
-   */
-  #updateObservations(observations) {
-    // Reset except for the default.
-    this.#observationSelect.length = 1;
-
-    const frag = document.createDocumentFragment();
-    observations.forEach((o) => {
-      frag.appendChild(this.#template.createSelectOption(o));
-    });
-
-    this.#observationSelect.appendChild(frag);
-  }
-
-  /**
-   * Displays a disabled message in the program <select> indicating that
-   * no programs are available for the user. Retains the default placeholder.
-   * @private
-   */
-  #showNoPrograms() {
-    this.#programSelect.length = 1;
-
-    const option = Utils.createElement("option");
-    option.value = "None";
-    option.textContent = "No programs available";
-    option.disabled = true;
-
-    this.#programSelect.appendChild(option);
-  }
-
-  /**
-   * Displays a disabled message in the observation <select> indicating that
-   * no observations exist for the selected program. Retains the default placeholder.
-   * @private
-   */
-  #showNoObservations() {
-    this.#observationSelect.length = 1;
-
-    const option = Utils.createElement("option");
-    option.value = "None";
-    option.textContent = "No observations available";
-    option.disabled = true;
-
-    this.#observationSelect.appendChild(option);
   }
 
   /**
@@ -1012,39 +897,6 @@ class GPPView {
     this.#form = null;
   }
 
-  /**
-   * Show or hide the loading spinner next to the "Active Programs" label
-   * and enable or disable the program <select> element accordingly.
-   * @param {boolean} isLoading - Whether to show the spinner and disable the select.
-   * @private
-   */
-  #toggleProgramsLoading(isLoading) {
-    this.#programSelect.disabled = isLoading;
-    this.#programLoading.hidden = !isLoading;
-  }
-
-  /**
-   * Show or hide the loading spinner next to the "Active Observations" label
-   * and enable or disable the observation <select> element accordingly.
-   * @param {boolean} isLoading - Whether to show the spinner and disable the select.
-   * @private
-   */
-  #toggleObservationsLoading(isLoading) {
-    this.#observationSelect.disabled = isLoading;
-    this.#observationLoading.hidden = !isLoading;
-  }
-
-  /**
-   * Enables or disables the main toolbar buttons.
-   * @param {boolean} disabled - Whether to disable or enable the buttons.
-   */
-  #toggleButtonToolbar(disabled) {
-    this.#saveButton.disabled = disabled;
-    // FIXME: Change the edit and edit and create new button later.
-    this.#editButton.disabled = true;
-    // this.#createNewButton.disabled = true;
-  }
-
   #showCreateNewObservation() {
     const form = this.#template.createCreateNewObservation();
     this.#form = form;
@@ -1058,45 +910,58 @@ class GPPView {
    */
   render(viewCmd, parameter) {
     switch (viewCmd) {
+      // Program renders.
       case "updatePrograms":
-        this.#updatePrograms(parameter.programs);
-        break;
-      case "updateObservations":
-        this.#updateObservations(parameter.observations);
-        break;
-      case "updateObservation":
-        this.#updateObservation(parameter.observation);
-        break;
-      case "resetAndClearObservationSelect":
-        this.#observationSelect.length = 1;
-        this.#clearObservationForm();
-        break;
-      case "clearObservationForm":
-        this.#clearObservationForm();
+        this.#poPanel.updatePrograms(parameter.programs);
         break;
       case "programsLoading":
-        this.#toggleProgramsLoading(true);
+        this.#poPanel.toggleProgramsLoading(true);
         break;
       case "programsLoaded":
-        this.#toggleProgramsLoading(false);
+        this.#poPanel.toggleProgramsLoading(false);
         break;
-      case "observationsLoading":
-        this.#toggleObservationsLoading(true);
+
+      // Normal observation renders.
+      case "updateNormalObservations":
+        this.#poPanel.updateNormalObservations(parameter.observations);
         break;
-      case "observationsLoaded":
-        this.#toggleObservationsLoading(false);
+      case "resetNormalObservations":
+        this.#poPanel.clearNormalSelect();
+        this.#clearObservationForm();
         break;
-      case "showNoPrograms":
-        this.#showNoPrograms();
+      case "normalObservationsLoading":
+        this.#poPanel.toggleNormalLoading(true);
         break;
-      case "showNoObservations":
-        this.#showNoObservations();
+      case "normalObservationsLoaded":
+        this.#poPanel.toggleNormalLoading(false);
         break;
-      case "toggleButtonToolbar":
-        this.#toggleButtonToolbar(parameter.disabled);
+
+      // ToO observation renders.
+      case "updateTooObservations":
+        this.#poPanel.updateTooObservations(parameter.observations);
         break;
       case "showCreateNewObservation":
         this.#showCreateNewObservation();
+        break;
+      case "resetTooObservations":
+        this.#poPanel.clearTooSelect();
+        this.#clearObservationForm();
+        break;
+      case "tooObservationsLoading":
+        this.#poPanel.toggleTooLoading(true);
+        break;
+      case "tooObservationsLoaded":
+        this.#poPanel.toggleTooLoading(false);
+        break;
+
+      // Form renders.
+      case "clearObservationForm":
+        this.#clearObservationForm();
+        break;
+
+      // Misc. renders.
+      case "updateObservation":
+        this.#updateObservation(parameter.observation);
         break;
     }
   }
@@ -1110,27 +975,30 @@ class GPPView {
     const selector = `[data-action="${event}"]`;
     switch (event) {
       case "selectProgram":
-        Utils.on(this.#programSelect, "change", (e) => {
-          handler({ programId: e.target.value });
-        });
+        console.log("binded program select");
+        this.#poPanel.onProgramSelect((id) => handler({ programId: id }));
         break;
-      case "selectObservation":
-        Utils.on(this.#observationSelect, "change", (e) => {
-          handler({ observationId: e.target.value });
-        });
+      case "selectNormalObservation":
+        console.log("binded normal select");
+        this.#poPanel.onNormalSelect((id) => handler({ observationId: id }));
+        break;
+      case "selectTooObservation":
+        console.log("binded too select");
+        this.#poPanel.onTooSelect((id) => handler({ observationId: id }));
+        break;
+      case "editObservation":
+        console.log("binded edit observation");
+        this.#poPanel.onEdit(handler);
         break;
       case "saveObservation":
-        Utils.on(this.#saveButton, "click", (e) => {
-          handler();
-        });
+        console.log("binded save observation");
+        this.#poPanel.onSave(handler);
         break;
       case "createNewObservation":
-        Utils.on(this.#createNewButton, "click", (e) => {
-          handler();
-        });
+        console.log("binded create new observation");
+        this.#poPanel.onCreateNew(handler);
         break;
       case "createAndSaveObservation":
-        console.log("hi");
         Utils.delegate(this.#formContainer, selector, "click", (e) => {
           e.preventDefault();
           handler();
@@ -1163,6 +1031,15 @@ class GPPController {
     this.#toast = options.toast;
 
     // Bind the callbacks.
+    this.#view.bindCallback("selectNormalObservation", (item) =>
+      console.log("Controller got the normal observation.")
+    );
+    this.#view.bindCallback("selectTooObservation", (item) =>
+      console.log("Controller got the too observation.")
+    );
+    this.#view.bindCallback("editObservation", () =>
+      console.log("Controller got the edit observation.")
+    );
     this.#view.bindCallback("selectProgram", (item) =>
       this.#selectProgram(item.programId)
     );
@@ -1255,33 +1132,36 @@ class GPPController {
 
     // Check if programs are available.
     const programsList = this.#model.programsList;
-    if (programsList.length === 0) {
-      this.#view.render("showNoPrograms");
-    } else {
-      this.#view.render("updatePrograms", { programs: programsList });
-    }
+    this.#view.render("updatePrograms", { programs: programsList });
     this.#view.render("programsLoaded");
   }
 
   /**
    * Fired when the user picks a program.
    * @private
+   * FIXME: Update this.
    */
   async #selectProgram(programId) {
     this.#view.render("toggleButtonToolbar", { disabled: true });
-    this.#view.render("observationsLoading");
-    this.#view.render("resetAndClearObservationSelect");
+
+    // Reset and show loading.
+    this.#view.render("resetNormalObservations");
+    this.#view.render("resetTooObservations");
+    this.#view.render("normalObservationsLoading");
+    this.#view.render("tooObservationsLoading");
+
     await this.#model.fetchObservations(programId);
-    // Check if observations are available.
-    const observationsList = this.#model.observationsList;
-    if (observationsList.length === 0) {
-      this.#view.render("showNoObservations");
-    } else {
-      this.#view.render("updateObservations", {
-        observations: this.#model.observationsList,
-      });
-    }
-    this.#view.render("observationsLoaded");
+
+    // Update both lists in one go.
+    this.#view.render("updateNormalObservations", {
+      observations: this.#model.normalObservationsList,
+    });
+    this.#view.render("updateTooObservations", {
+      observations: this.#model.tooObservationsList,
+    });
+
+    this.#view.render("normalObservationsLoaded");
+    this.#view.render("tooObservationsLoaded");
   }
 
   /**
