@@ -1,0 +1,1 @@
+Modified GPP API response to separate ToO and normal observations into different lists. This will support upcoming UI changes for ToO handling in the GOATS GPP interface.
