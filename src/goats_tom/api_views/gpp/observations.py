@@ -41,7 +41,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             )
 
         credentials = request.user.gpplogin
-
         program_id = request.query_params.get("program_id")
 
         try:
@@ -49,14 +48,52 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             client = GPPClient(url=settings.GPP_URL, token=credentials.token)
             director = GPPDirector(client)
             if program_id is not None:
-                observations = async_to_sync(director.goats.observation.get_all)(
+                payload = async_to_sync(director.goats.observation.get_all)(
                     program_id=program_id
                 )
+                # Filter the observations into too and normal categories.
+                matches = payload.get("matches", [])
+                too_obs = [o for o in matches if self.is_too(o)]
+                normal_obs = [o for o in matches if not self.is_too(o)]
+
+                # Build the custom payload response.
+                return Response(
+                    {
+                        "matches": {
+                            "too": {"count": len(too_obs), "results": too_obs},
+                            "normal": {"count": len(normal_obs), "results": normal_obs},
+                        },
+                        "hasMore": payload.get("hasMore", False),
+                    }
+                )
             else:
-                observations = async_to_sync(client.observation.get_all)()
-            return Response(observations)
+                payload = async_to_sync(client.observation.get_all)()
+                return Response(payload)
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def is_too(self, obs: dict) -> bool:
+        """Return whether the observation is a Target of Opportunity (ToO).
+
+        Parameters
+        ----------
+        obs : dict
+            The observation payload returned from GPP. This may or may not
+            contain the ``targetEnvironment`` and ``asterism`` keys.
+
+        Returns
+        -------
+        bool
+            ``True`` if the observation is a ToO (opportunity present), ``False``
+            otherwise.
+        """
+        # Need to handle case where any of this data could be missing.
+        # This fails silently and returns False if anything is missing.
+        target_env = obs.get("targetEnvironment") or {}
+        asterisms = target_env.get("asterism") or []
+        if not asterisms:
+            return False
+        return bool(asterisms[0].get("opportunity"))
 
     def retrieve(self, request: Request, *args, **kwargs) -> Response:
         """Return details for a specific GPP observation by observation ID.

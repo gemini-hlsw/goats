@@ -11,6 +11,7 @@ from goats_tom.api_views import GPPObservationViewSet
 class TestGPPObservationViewSet:
     def setup_method(self):
         self.factory = APIRequestFactory()
+        self.viewset = GPPObservationViewSet()
         self.list_view = GPPObservationViewSet.as_view({'get': 'list'})
         self.retrieve_view = GPPObservationViewSet.as_view({'get': 'retrieve'})
 
@@ -67,3 +68,43 @@ class TestGPPObservationViewSet:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["detail"] == "GPP login credentials are not configured for this user."
+
+    def test_too_observation(self):
+        obs = {
+            "targetEnvironment": {
+                "asterism": [
+                    {"id": "t-1", "opportunity": {"__typename": "Opportunity"}}
+                ]
+            }
+        }
+        assert self.viewset.is_too(obs) is True
+
+    def test_normal_observation_opportunity_none(self):
+        obs = {
+            "targetEnvironment": {
+                "asterism": [
+                    {"id": "t-2", "opportunity": None}
+                ]
+            }
+        }
+        assert self.viewset.is_too(obs) is False
+
+    def test_empty_asterism_list(self):
+        obs = {"targetEnvironment": {"asterism": []}}
+        assert self.viewset.is_too(obs) is False
+
+    def test_missing_asterism_key(self):
+        obs = {"targetEnvironment": {}}
+        assert self.viewset.is_too(obs) is False
+
+    def test_asterism_none(self):
+        obs = {"targetEnvironment": {"asterism": None}}
+        assert self.viewset.is_too(obs) is False
+
+    def test_missing_target_environment(self):
+        obs = {}
+        assert self.viewset.is_too(obs) is False
+
+    def test_target_environment_none(self):
+        obs = {"targetEnvironment": None}
+        assert self.viewset.is_too(obs) is False
