@@ -1,0 +1,1 @@
+Support approved ToO configurations in GPP application with new dropdown options. This sets up the frontend to handle ToO observation creation wtih GPP in the near future.
