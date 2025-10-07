@@ -281,34 +281,6 @@ const GMOS_NORTH_LONG_SLIT_FIELDS = [
     handler: "handleExposureMode",
   },
   {
-    labelText: "\u03BB for S/N",
-    path: "scienceRequirements.exposureTimeMode.signalToNoise.at.nanometers",
-    id: "wavelengthForSn",
-    suffix: "nm",
-  },
-  {
-    labelText: "S/N",
-    path: "scienceRequirements.exposureTimeMode.signalToNoise.value",
-    id: "sn",
-  },
-  {
-    labelText: "\u03BB for Time & Count",
-    path: "scienceRequirements.exposureTimeMode.timeAndCount.at.nanometers",
-    id: "wavelengthForTimeAndCount",
-    suffix: "nm",
-  },
-  {
-    labelText: "Exposure Time",
-    path: "scienceRequirements.exposureTimeMode.timeAndCount.time.seconds",
-    id: "exposureTime",
-    suffix: "seconds",
-  },
-  {
-    labelText: "Exposure Count",
-    path: "scienceRequirements.exposureTimeMode.timeAndCount.count",
-    id: "exposureCount",
-  },
-  {
     labelText: "X Binning",
     path: "observingMode.gmosNorthLongSlit.xBin",
     id: "xBin",
@@ -400,34 +372,6 @@ const GMOS_SOUTH_LONG_SLIT_FIELDS = [
     path: "scienceRequirements.exposureTimeMode",
     id: "exposureMode",
     handler: "handleExposureMode",
-  },
-  {
-    labelText: "\u03BB for S/N",
-    path: "scienceRequirements.exposureTimeMode.signalToNoise.at.nanometers",
-    id: "wavelengthForSn",
-    suffix: "nm",
-  },
-  {
-    labelText: "S/N",
-    path: "scienceRequirements.exposureTimeMode.signalToNoise.value",
-    id: "sn",
-  },
-  {
-    labelText: "\u03BB for Time & Count",
-    path: "scienceRequirements.exposureTimeMode.timeAndCount.at.nanometers",
-    id: "wavelengthForTimeAndCount",
-    suffix: "nm",
-  },
-  {
-    labelText: "Exposure Time",
-    path: "scienceRequirements.exposureTimeMode.timeAndCount.time.seconds",
-    id: "exposureTime",
-    suffix: "seconds",
-  },
-  {
-    labelText: "Number of Exposures",
-    path: "scienceRequirements.exposureTimeMode.timeAndCount.count",
-    id: "numberOfExposures",
   },
   {
     labelText: "X Binning",

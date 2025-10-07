@@ -27,6 +27,15 @@ class ObservationForm {
 
     // Register special handlers like brightness, sourceProfile etc.
     this.#handlers = {
+      handleExposureMode: (meta, raw) => {
+        console.log("here");
+        const div = Utils.createElement("div", "mt-3");
+        new ExposureModeEditor(div, {
+          data: raw ?? {},
+          readOnly: this.#readOnly,
+        });
+        return [div];
+      },
       handleElevationRange: (meta, raw) => {
         const div = Utils.createElement("div", "mt-3");
         new ElevationRangeEditor(div, {
@@ -58,20 +67,6 @@ class ObservationForm {
       handleWavelengthDithersList: (meta, raw) => {
         const values = raw?.map((o) => o.nanometers.toFixed(1)) ?? [];
         return [this.#createFormField({ ...meta, value: values.join(", ") })];
-      },
-      handleExposureMode: (meta, raw) => {
-        if (!raw) return [];
-        const modeKey = Object.keys(raw).find((key) => raw[key] != null);
-        const modeLabels = {
-          signalToNoise: "Signal / Noise",
-          timeAndCount: "Time & Count",
-        };
-        return [
-          this.#createFormField({
-            ...meta,
-            value: modeLabels[modeKey] ?? "(Unknown)",
-          }),
-        ];
       },
     };
 
