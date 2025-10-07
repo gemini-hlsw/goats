@@ -449,8 +449,8 @@ class GPPView {
       case "selectTooObservation":
         this.#poPanel.onTooSelect((id) => handler({ observationId: id }));
         break;
-      case "editObservation":
-        this.#poPanel.onEdit(handler);
+      case "updateObservation":
+        this.#poPanel.onUpdate(handler);
         break;
       case "saveObservation":
         this.#poPanel.onSave(handler);
@@ -500,8 +500,8 @@ class GPPController {
     this.#view.bindCallback("selectNormalObservation", (item) => {
       this.#selectNormalObservation(item.observationId);
     });
-    this.#view.bindCallback("editObservation", () => {
-      console.log("Controller got the edit observation.");
+    this.#view.bindCallback("updateObservation", () => {
+      console.log("Controller got the update observation.");
     });
     this.#view.bindCallback("saveObservation", () => this.#saveObservation());
 

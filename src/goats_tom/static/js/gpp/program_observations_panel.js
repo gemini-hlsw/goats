@@ -19,7 +19,7 @@ class ProgramObservationsPanel {
   #normalSelect;
   #normalSpinner;
   #obsToolbar;
-  #editButton;
+  #updateButton;
   #saveButton;
 
   #tooSelect;
@@ -47,7 +47,7 @@ class ProgramObservationsPanel {
     this.#normalSelect = this.#container.querySelector("#normalObservationSelect");
     this.#normalSpinner = this.#container.querySelector("#normalObservationLoading");
     this.#obsToolbar = this.#container.querySelector("#obsButtonToolbar");
-    this.#editButton = this.#obsToolbar.querySelector("#editButton");
+    this.#updateButton = this.#obsToolbar.querySelector("#updateButton");
     this.#saveButton = this.#obsToolbar.querySelector("#saveButton");
 
     this.#tooSelect = this.#container.querySelector("#tooObservationSelect");
@@ -179,7 +179,7 @@ class ProgramObservationsPanel {
    * @param {boolean} disabled
    */
   toggleNormalButtons(disabled) {
-    this.#editButton.disabled = disabled;
+    this.#updateButton.disabled = disabled;
     this.#saveButton.disabled = disabled;
     if (this.#debug)
       console.log("[ProgramObservationsPanel] Normal buttons disabled:", disabled);
@@ -285,12 +285,12 @@ class ProgramObservationsPanel {
   }
 
   /**
-   * Attach a handler for the "Edit" button.
+   * Attach a handler for the "Update" button.
    * @param {function():void} handler
    */
-  onEdit(handler) {
-    this.#editButton.addEventListener("click", () => {
-      if (this.#debug) console.log("[ProgramObservationsPanel] Edit clicked");
+  onUpdate(handler) {
+    this.#updateButton.addEventListener("click", () => {
+      if (this.#debug) console.log("[ProgramObservationsPanel] Update clicked");
       handler();
     });
   }
@@ -332,7 +332,7 @@ class ProgramObservationsPanel {
         "Choose an observation..."
       ),
       this.#createToolbar("obsButtonToolbar", [
-        { id: "editButton", label: "Edit", color: "primary", classes: ["me-2"] },
+        { id: "updateButton", label: "Update On GPP & Save", color: "primary", classes: ["me-2"] },
         { id: "saveButton", label: "Save", color: "primary" },
       ])
     );
@@ -345,7 +345,7 @@ class ProgramObservationsPanel {
         "Choose a ToO configuration..."
       ),
       this.#createToolbar("tooButtonToolbar", [
-        { id: "createNewButton", label: "Create New Observation", color: "primary" },
+        { id: "createNewButton", label: "Create On GPP & Save", color: "primary" },
       ])
     );
 
