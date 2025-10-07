@@ -1,0 +1,1 @@
+Refactored the observation form UI to use a structured `ObservationForm` class and modular editors for elevation range, source profiles, and brightness inputs. Field-level control for read-only and mode-based visibility is now supported.
