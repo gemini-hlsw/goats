@@ -1,0 +1,1 @@
+Reworded "Edit" to "Update On GPP & Save" to clarify the actions performed by the GPP interface on GOATS.
