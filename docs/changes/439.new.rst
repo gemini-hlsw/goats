@@ -1,0 +1,1 @@
+Added support for the "Position Angle Constraint" input. The angle input is now only shown for relevant modes (e.g., Allow 180° Flip, Average Parallactic).
