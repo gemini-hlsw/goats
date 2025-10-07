@@ -1,4 +1,3 @@
-const ENABLE_CREATE_NEW_OBSERVATION = false;
 /**
  * Creates DOM snippets for the GPP UI.
  * @class
@@ -30,447 +29,10 @@ class GPPTemplate {
 
     // Create form container.
     const formContainer = Utils.createElement("div");
-    formContainer.id = "formContainer";
+    formContainer.id = "observationFormContainer";
     container.append(row, Utils.createElement("hr"), formContainer);
 
     return container;
-  }
-
-  createCreateNewObservation() {
-    const form = Utils.createElement("form");
-    // Set the fields to build in details sections.
-    const firstFields = [
-      { section: "Details" },
-      {
-        labelText: "State",
-        element: "select",
-        options: ["Ready", "Defined", "Inative"],
-        id: "state",
-      },
-      {
-        labelText: "Radial Velocity",
-        suffix: "km/s",
-        type: "number",
-        id: "radialVelocity",
-      },
-      {
-        labelText: "Parallax",
-        suffix: "mas",
-        type: "number",
-        id: "parallax",
-      },
-      {
-        labelText: "\u03BC RA",
-        suffix: "mas/year",
-        type: "number",
-        id: "uRa",
-      },
-      {
-        labelText: "\u03BC Dec",
-        suffix: "mas/year",
-        type: "number",
-        id: "uDec",
-      },
-      {
-        labelText: "Observer Notes",
-        element: "textarea",
-        colSize: "col-12",
-        id: "observerNotes",
-      },
-    ];
-    const secondFields = [
-      { section: "Constraints" },
-      {
-        labelText: "Image Quality",
-        element: "select",
-        id: "imageQuality",
-        options: [
-          "< 0.10 arcsec",
-          "< 0.20 arcsec",
-          "< 0.30 arcsec",
-          "< 0.40 arcsec",
-          "< 0.60 arcsec",
-          "< 0.80 arcsec",
-          "< 1.00 arcsec",
-          "< 1.50 arcsec",
-          "< 2.00 arcsec",
-        ],
-      },
-      {
-        labelText: "Cloud Extinction",
-        element: "select",
-        id: "cloudExtinction",
-        options: [
-          "0.00 mag",
-          "< 0.10 mag",
-          "< 0.30 mag",
-          "< 0.50 mag",
-          "< 1.00 mag",
-          "< 2.00 mag",
-          "< 3.00 mag",
-        ],
-      },
-      {
-        labelText: "Water Vapor",
-        element: "select",
-        id: "waterVapor",
-        options: ["Very Dry", "Dry", "Median", "Wet"],
-      },
-      {
-        labelText: "Sky Background",
-        element: "select",
-        id: "skyBackground",
-        options: ["Darkest", "Dark", "Gray", "Bright"],
-      },
-      {
-        labelText: "Elevation Range",
-        element: "select",
-        id: "elevationRange",
-        options: ["Hour Angle", "Air Mass"],
-      },
-      {
-        labelText: "Hour Angle Minimum",
-        element: "input",
-        id: "haMinimum",
-        suffix: "hours",
-        value: -5.0,
-        type: "number",
-      },
-      {
-        labelText: "Hour Angle Maximum",
-        element: "input",
-        id: "haMaximum",
-        suffix: "hours",
-        value: 5.0,
-        type: "number",
-      },
-      {
-        labelText: "Air Mass Minimum",
-        element: "input",
-        id: "airMassMinimum",
-        visible: false,
-        value: 1.0,
-        type: "number",
-      },
-      {
-        labelText: "Air Mass Maximum",
-        element: "input",
-        id: "airMassMaximum",
-        visible: false,
-        value: 2.0,
-        type: "number",
-      },
-      { section: "Configuration" },
-      {
-        labelText: "",
-        element: "select",
-        id: "instrumentConfiguration",
-        options: ["Loading..."],
-        disabled: true,
-        colSize: "col-12",
-      },
-    ];
-    // Build the fields and attach to the row in a details section.
-    const firstRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
-    this.#appendFieldsToRow(firstRow, firstFields);
-    form.append(firstRow);
-
-    // Build the source profile.
-    const sourceProfileDiv = Utils.createElement("div");
-    new SourceProfileEditor(sourceProfileDiv);
-    form.append(sourceProfileDiv);
-
-    // Build the brightnesses section.
-    form.append(this.#createFormHeader("Brightnesses"));
-    const div = Utils.createElement("div", "mt-3");
-    new BrightnessesEditor(div);
-    form.append(div);
-
-    const secondRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
-    this.#appendFieldsToRow(secondRow, secondFields);
-    form.append(secondRow);
-
-    // Attach the event listener for elevation range changes. Didn't deem it big enough
-    // to require its own application like source profile or brightnesses.
-    this.#attachElevationRangeListener(form);
-
-    const btn = Utils.createElement("button", ["btn", "btn-primary", "mt-4"]);
-    btn.textContent = "Create And Save";
-    btn.id = "createAndSaveObservationButton";
-    btn.type = "button";
-    btn.dataset.action = "createAndSaveObservation";
-
-    form.append(btn);
-
-    return form;
-  }
-
-  /**
-   * Append form fields to a Bootstrap row element using metadata definitions.
-   * This method supports both regular form fields and section headers.
-   *
-   * @param {!HTMLElement} row - The Bootstrap row element to which fields will be appended.
-   * @param {!Array<Object>} fields - List of field metadata objects.
-   * @private
-   */
-  #appendFieldsToRow(row, fields) {
-    fields.forEach((meta) => {
-      if (meta.section) {
-        row.append(this.#createFormHeader(meta.section));
-      } else {
-        row.append(
-          this.#createFormField({
-            value: meta.value,
-            id: meta.id,
-            labelText: meta.labelText,
-            prefix: meta.prefix,
-            suffix: meta.suffix,
-            element: meta.element,
-            type: meta.type,
-            colSize: meta.colSize,
-            disabled: meta.disabled,
-            options: meta.options,
-            visible: meta.visible,
-          })
-        );
-      }
-    });
-  }
-
-  /**
-   * Attach event listener to the elevation range select field to toggle visibility.
-   * @param {HTMLFormElement} form - The form containing elevation fields.
-   * @private
-   */
-  #attachElevationRangeListener(form) {
-    // TODO: This could be moved to delegation if deemed so.
-    const select = form.querySelector("#elevationRangeSelect");
-    const haMinCol = form.querySelector("#haMinimumInput")?.closest(".col-md-6");
-    const haMaxCol = form.querySelector("#haMaximumInput")?.closest(".col-md-6");
-    const amMinCol = form.querySelector("#airMassMinimumInput")?.closest(".col-md-6");
-    const amMaxCol = form.querySelector("#airMassMaximumInput")?.closest(".col-md-6");
-
-    if (!select || !haMinCol || !haMaxCol || !amMinCol || !amMaxCol) return;
-
-    Utils.on(select, "change", (e) => {
-      const isHA = e.target.value === "Hour Angle";
-      haMinCol.classList.toggle("d-none", !isHA);
-      haMaxCol.classList.toggle("d-none", !isHA);
-      amMinCol.classList.toggle("d-none", isHA);
-      amMaxCol.classList.toggle("d-none", isHA);
-    });
-  }
-
-  /**
-   * Create a form for a selected observation using shared and mode-specific fields.
-   * @param {!Object} observation - Observation data to render.
-   * @returns {!HTMLFormElement} A completed form element.
-   */
-  createSaveObservationForm(observation) {
-    const form = Utils.createElement("form", ["row", "g-3"]);
-    const sharedFields = [...SHARED_FIELDS];
-    const mode = observation.observingMode?.mode;
-    const instrumentFields = FIELD_CONFIGS[mode];
-
-    if (!instrumentFields) {
-      console.warn(
-        `Unsupported observing mode: "${mode}". No instrument-specific fields will be rendered.`
-      );
-    }
-
-    const allFields = [...sharedFields, ...(instrumentFields ?? [])];
-
-    allFields.forEach((meta) => {
-      // Create section header.
-      if (meta.section) {
-        form.append(this.#createFormHeader(meta.section));
-        return;
-      }
-      // Get value.
-      const raw = Utils.getByPath(observation, meta.path);
-      const shouldShow = meta.display || raw != null;
-      if (!shouldShow) return;
-
-      // Format raw if formatter or lookup is provided.
-      const lookedUp = meta.lookup ? meta.lookup[raw] ?? raw : raw;
-      const formatted = meta.formatter ? meta.formatter(lookedUp) : lookedUp;
-
-      // Check if custom handler is attached.
-      if (meta.handler) {
-        const handler = this.#handlers[meta.handler];
-        if (typeof handler === "function") {
-          const elements = handler(meta, formatted);
-          elements.forEach((el) => form.append(el));
-        } else {
-          console.warn(
-            `Handler "${meta.handler}" not found for field "${meta.id}". Skipping.`
-          );
-        }
-        return;
-      }
-
-      // Handle normal field
-      form.append(
-        this.#createFormField({
-          value:
-            meta.type === "number" && formatted == null
-              ? ""
-              : formatted ?? "(No value)",
-          id: meta.id,
-          labelText: meta.labelText,
-          prefix: meta.prefix,
-          suffix: meta.suffix,
-          element: meta.element,
-          type: meta.type,
-          colSize: meta.colSize,
-          disabled: true,
-          options: meta.options,
-          visible: meta.visible,
-        })
-      );
-    });
-
-    return form;
-  }
-
-  /**
-   * Create a section header element for form sections.
-   * @param {string} text - Header text content.
-   * @param {string} [level="h5"] - Heading level tag.
-   * @returns {!HTMLElement}
-   * @private
-   */
-  #createFormHeader(text, level = "h5") {
-    const h = Utils.createElement(level, ["mt-4", "mb-0"]);
-    h.textContent = text;
-    return h;
-  }
-
-  /**
-   * Wraps a form control with prefix/suffix in an input group if applicable.
-   * @param {!HTMLElement} control - The form element to wrap.
-   * @param {Object} options
-   * @param {string=} options.prefix - Optional prefix text.
-   * @param {string=} options.suffix - Optional suffix text.
-   * @returns {!HTMLElement}
-   * @private
-   */
-  #wrapWithGroup(control, { prefix, suffix }) {
-    if (!prefix && !suffix) return control;
-
-    const group = Utils.createElement("div", ["input-group"]);
-    if (prefix) {
-      const pre = Utils.createElement("span", ["input-group-text"]);
-      pre.textContent = prefix;
-      group.append(pre);
-    }
-    group.append(control);
-    if (suffix) {
-      const post = Utils.createElement("span", ["input-group-text"]);
-      post.textContent = suffix;
-      group.append(post);
-    }
-    return group;
-  }
-
-  /**
-   * Create a form field from metadata.
-   * @param {Object} field - Field configuration metadata.
-   * @param {string} field.id - Field ID.
-   * @param {*} field.value - Initial field value.
-   * @param {string=} field.labelText - Field label.
-   * @param {string=} field.prefix - Optional prefix text.
-   * @param {string=} field.suffix - Optional suffix text.
-   * @param {string=} field.element - Element type: input, textarea, or select.
-   * @param {string=} field.type - Input type (e.g., "number", "text").
-   * @param {string=} field.colSize - Bootstrap column class.
-   * @param {boolean=} field.disabled - Whether the field is disabled.
-   * @param {boolean=} field.visible - Whether the field is visible or not.
-   * @param {Array<string|{labelText: string, value: string}>=} field.options - Options for a
-   * select element.
-   * @returns {!HTMLElement}
-   * @private
-   */
-  #createFormField({
-    id,
-    value = "",
-    labelText = null,
-    prefix = null,
-    suffix = null,
-    element = "input",
-    type = "text",
-    colSize = "col-md-6",
-    disabled = false,
-    visible = true,
-    options = [],
-  }) {
-    const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
-    const col = Utils.createElement("div", [colSize]);
-
-    // Create label.
-    if (labelText) {
-      const label = Utils.createElement("label", ["form-label"]);
-      label.htmlFor = elementId;
-      label.textContent = labelText;
-      col.append(label);
-    }
-
-    // Create form control.
-    let control;
-    if (element === "textarea") {
-      control = Utils.createElement("textarea", ["form-control"]);
-      control.rows = 3;
-      control.value = value;
-    } else if (element === "input") {
-      control = Utils.createElement("input", ["form-control"]);
-      control.type = type;
-      control.value = value;
-    } else if (element === "select") {
-      control = Utils.createElement("select", ["form-select"]);
-      options.forEach((opt) => {
-        const optionEl = Utils.createElement("option");
-        // Handle if option passed in is just a list of strings.
-        if (typeof opt === "string") {
-          optionEl.value = opt;
-          optionEl.textContent = opt;
-        } else {
-          // User passed in JSON object {value: "", labelText: ""}
-          optionEl.value = opt.value;
-          optionEl.textContent = opt.label;
-        }
-        if (optionEl.value === value) {
-          optionEl.selected = true;
-        }
-        control.appendChild(optionEl);
-      });
-    } else {
-      console.error("Unsupported element:", element);
-      return col;
-    }
-
-    control.id = elementId;
-    control.disabled = disabled;
-
-    if (!visible) {
-      col.classList.add("d-none");
-    }
-
-    // Wrap and append.
-    col.append(this.#wrapWithGroup(control, { prefix, suffix }));
-    return col;
-  }
-
-  /**
-   * Create an `<option>` element for a `<select>`.
-   * @param {{id:string,name:string}} data Program or observation metadata.
-   * @returns {!HTMLOptionElement}
-   */
-  createSelectOption(data) {
-    const option = Utils.createElement("option");
-    option.value = data.id;
-    option.textContent = `${data.id} - ${data.name ?? data.title}`;
-
-    return option;
   }
 
   /**
@@ -481,110 +43,6 @@ class GPPTemplate {
   #createContainer() {
     const container = Utils.createElement("div");
     return container;
-  }
-
-  /**
-   * Generates a `<select>` populated with a hidden placeholder option.
-   * @param {string} id  Prefix for the element ID.
-   * @param {string} labelText The text for the label.
-   * @param {string} optionHint  Placeholder text.
-   * @returns {!HTMLSelectElement}
-   * @private
-   */
-  #createSelect(id, labelText, optionHint) {
-    const label = Utils.createElement("label", ["form-label"]);
-    label.htmlFor = `${id}Select`;
-    label.textContent = labelText;
-
-    // Add inline spinner next to label.
-    const spinner = Utils.createElement("span", [
-      "spinner-border",
-      "spinner-border-sm",
-      "ms-2",
-    ]);
-    spinner.id = `${id}Loading`;
-    spinner.role = "status";
-    spinner.hidden = true;
-    label.appendChild(spinner);
-
-    const select = Utils.createElement("select", ["form-select"]);
-    select.id = `${id}Select`;
-    select.innerHTML = `<option value="" selected hidden>${optionHint}</option>`;
-    select.disabled = true;
-
-    const wrapper = Utils.createElement("div");
-    wrapper.append(label, select);
-
-    return wrapper;
-  }
-
-  /**
-   * Custom handlers for rendering advanced field types.
-   * @returns {Object<string, function(Object, *): HTMLElement[]>}
-   * @private
-   */
-  get #handlers() {
-    return {
-      handleBrightnessInputs: (meta, raw) => {
-        return raw.map(({ band, value, units }, idx) =>
-          this.#createFormField({
-            value,
-            id: `${meta.id}${idx}`,
-            prefix: band,
-            suffix: units,
-            type: meta.type,
-            colSize: meta.colSize,
-            disabled: true,
-            visible: meta.visible,
-          })
-        );
-      },
-      handleSpatialOffsetsList: (meta, raw) => {
-        const values = raw.map((o) => o.arcseconds.toFixed(2));
-        return [
-          this.#createFormField({
-            value: values.join(", "),
-            id: meta.id,
-            labelText: meta.labelText,
-            suffix: meta.suffix,
-            colSize: meta.colSize,
-            disabled: true,
-            visible: meta.visible,
-          }),
-        ];
-      },
-      handleWavelengthDithersList: (meta, raw) => {
-        const values = raw.map((o) => o.nanometers.toFixed(1));
-        return [
-          this.#createFormField({
-            value: values.join(", "),
-            id: meta.id,
-            labelText: meta.labelText,
-            suffix: meta.suffix,
-            colSize: meta.colSize,
-            disabled: true,
-            visible: meta.visible,
-          }),
-        ];
-      },
-      handleExposureMode: (meta, raw) => {
-        const modeKey = Object.keys(raw).find((key) => raw[key] != null);
-        const modeLabels = {
-          signalToNoise: "Signal / Noise",
-          timeAndCount: "Time & Count",
-        };
-        const label = modeLabels[modeKey] ?? "(Unknown)";
-        return [
-          this.#createFormField({
-            value: label,
-            id: meta.id,
-            labelText: meta.labelText,
-            disabled: true,
-            visible: meta.visible,
-          }),
-        ];
-      },
-    };
   }
 }
 
@@ -839,7 +297,7 @@ class GPPView {
   #template;
   #container;
   #parentElement;
-  #form;
+  #form = null;
   #formContainer;
   #poPanel; // ProgramObservationsPanel instance.
 
@@ -855,7 +313,7 @@ class GPPView {
     this.#options = options;
 
     this.#container = this.#create();
-    this.#formContainer = this.#container.querySelector(`#formContainer`);
+    this.#formContainer = this.#container.querySelector(`#observationFormContainer`);
     this.#parentElement.appendChild(this.#container);
 
     this.#poPanel = new ProgramObservationsPanel(
@@ -877,15 +335,20 @@ class GPPView {
     return this.#template.create();
   }
 
-  /**
-   * Update other DOM bits that depend on the selected observation.
-   * @param {!Object} observation
-   * @private
-   */
-  #updateObservation(observation) {
-    const form = this.#template.createSaveObservationForm(observation);
-    this.#form = form;
-    this.#formContainer.append(this.#form);
+  #updateNormalObservation(observation) {
+    this.#form = new ObservationForm(this.#formContainer, {
+      observation: observation,
+      mode: "normal",
+      readOnly: false,
+    });
+  }
+
+  #updateTooObservation(observation) {
+    this.#form = new ObservationForm(this.#formContainer, {
+      observation: observation,
+      mode: "too",
+      readOnly: false,
+    });
   }
 
   /**
@@ -898,9 +361,11 @@ class GPPView {
   }
 
   #showCreateNewObservation() {
-    const form = this.#template.createCreateNewObservation();
-    this.#form = form;
-    this.#formContainer.append(this.#form);
+    this.#form = new ObservationForm(this.#formContainer, {
+      observation: observation,
+      mode: "too",
+      readOnly: false,
+    });
   }
 
   /**
@@ -935,6 +400,9 @@ class GPPView {
       case "normalObservationsLoaded":
         this.#poPanel.toggleNormalLoading(false);
         break;
+      case "updateNormalObservation":
+        this.#updateNormalObservation(parameter.observation);
+        break;
 
       // ToO observation renders.
       case "updateTooObservations":
@@ -953,15 +421,13 @@ class GPPView {
       case "tooObservationsLoaded":
         this.#poPanel.toggleTooLoading(false);
         break;
+      case "updateTooObservation":
+        this.#updateTooObservation(parameter.observation);
+        break;
 
       // Form renders.
       case "clearObservationForm":
         this.#clearObservationForm();
-        break;
-
-      // Misc. renders.
-      case "updateObservation":
-        this.#updateObservation(parameter.observation);
         break;
     }
   }
@@ -975,27 +441,21 @@ class GPPView {
     const selector = `[data-action="${event}"]`;
     switch (event) {
       case "selectProgram":
-        console.log("binded program select");
         this.#poPanel.onProgramSelect((id) => handler({ programId: id }));
         break;
       case "selectNormalObservation":
-        console.log("binded normal select");
         this.#poPanel.onNormalSelect((id) => handler({ observationId: id }));
         break;
       case "selectTooObservation":
-        console.log("binded too select");
         this.#poPanel.onTooSelect((id) => handler({ observationId: id }));
         break;
       case "editObservation":
-        console.log("binded edit observation");
         this.#poPanel.onEdit(handler);
         break;
       case "saveObservation":
-        console.log("binded save observation");
         this.#poPanel.onSave(handler);
         break;
       case "createNewObservation":
-        console.log("binded create new observation");
         this.#poPanel.onCreateNew(handler);
         break;
       case "createAndSaveObservation":
@@ -1031,22 +491,26 @@ class GPPController {
     this.#toast = options.toast;
 
     // Bind the callbacks.
-    this.#view.bindCallback("selectNormalObservation", (item) =>
-      console.log("Controller got the normal observation.")
-    );
-    this.#view.bindCallback("selectTooObservation", (item) =>
-      console.log("Controller got the too observation.")
-    );
-    this.#view.bindCallback("editObservation", () =>
-      console.log("Controller got the edit observation.")
-    );
+    // Program callbacks.
     this.#view.bindCallback("selectProgram", (item) =>
       this.#selectProgram(item.programId)
     );
-    this.#view.bindCallback("selectObservation", (item) =>
-      this.#selectObservation(item.observationId)
-    );
+
+    // Normal observation callbacks.
+    this.#view.bindCallback("selectNormalObservation", (item) => {
+      this.#selectNormalObservation(item.observationId);
+    });
+    this.#view.bindCallback("editObservation", () => {
+      console.log("Controller got the edit observation.");
+    });
     this.#view.bindCallback("saveObservation", () => this.#saveObservation());
+
+    // ToO observation callbacks.
+    this.#view.bindCallback("selectTooObservation", (item) => {
+      this.#selectTooObservation(item.observationId);
+    });
+    // FIXME:
+    // Which one below do I keep in callbacks?
     this.#view.bindCallback("createNewObservation", (item) =>
       this.#createNewObservation()
     );
@@ -1054,12 +518,10 @@ class GPPController {
       this.#createAndSaveObservation()
     );
   }
-
   #createNewObservation() {
     this.#view.render("clearObservationForm");
     this.#view.render("showCreateNewObservation");
   }
-
   #createAndSaveObservation() {
     console.log("Controller got the create and save");
   }
@@ -1142,8 +604,6 @@ class GPPController {
    * FIXME: Update this.
    */
   async #selectProgram(programId) {
-    this.#view.render("toggleButtonToolbar", { disabled: true });
-
     // Reset and show loading.
     this.#view.render("resetNormalObservations");
     this.#view.render("resetTooObservations");
@@ -1164,15 +624,16 @@ class GPPController {
     this.#view.render("tooObservationsLoaded");
   }
 
-  /**
-   * Fired when the user picks an observation.
-   * @private
-   */
-  #selectObservation(observationId) {
+  #selectNormalObservation(observationId) {
     this.#view.render("clearObservationForm");
-    const observation = this.#model.getObservation(observationId);
-    this.#view.render("updateObservation", { observation });
-    this.#view.render("toggleButtonToolbar", { disabled: false });
+    const observation = this.#model.getNormalObservation(observationId);
+    this.#view.render("updateNormalObservation", { observation });
+  }
+
+  #selectTooObservation(observationId) {
+    this.#view.render("clearObservationForm");
+    const observation = this.#model.getTooObservation(observationId);
+    this.#view.render("updateTooObservation", { observation });
   }
 }
 

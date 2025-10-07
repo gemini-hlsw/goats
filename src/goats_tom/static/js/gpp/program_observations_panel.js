@@ -332,8 +332,8 @@ class ProgramObservationsPanel {
         "Choose an observation..."
       ),
       this.#createToolbar("obsButtonToolbar", [
-        { id: "editButton", label: "Edit", color: "secondary", classes: ["me-2"] },
-        { id: "saveButton", label: "Save", color: "secondary" },
+        { id: "editButton", label: "Edit", color: "primary", classes: ["me-2"] },
+        { id: "saveButton", label: "Save", color: "primary" },
       ])
     );
 
@@ -345,7 +345,7 @@ class ProgramObservationsPanel {
         "Choose a ToO configuration..."
       ),
       this.#createToolbar("tooButtonToolbar", [
-        { id: "createNewButton", label: "Create New Observation", color: "secondary" },
+        { id: "createNewButton", label: "Create New Observation", color: "primary" },
       ])
     );
 

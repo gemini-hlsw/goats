@@ -1,49 +1,96 @@
 /**
- * Fields map
- * ----------
- * section   : string        - render header
- * id        : string        – required DOM id for the control
- * path      : string        - dotted route to the value in the JSON
- * labelText : string        - label text (default = last segment of path)
- * element   : "input"|"textarea" (default "input")
- * type      : any <input type=""> (default "text")
- * prefix    : string        - input-group addon on the left
- * suffix    : string        - input-group addon on the right
- * colSize   : "col-"        - bootstrap col classes (default "col-lg-6")
- * handler   : function      - handler to call on the data
- * lookup    : object        - dictionary map to convert machine value to human-readable label
- * formatter : function      - function to format the looked-up value before display
- * display   : boolean       - force the field to render even if the value is null or undefined
+ * Field Metadata Schema
+ * ---------------------
+ * Each field definition supports the following properties:
  *
- * Notes
- * -----
- * - If `path` resolves undefined or null it is skipped automatically.
+ * Core Attributes:
+ * ----------------
+ * section     : string
+ *     Section header under which this field will be rendered.
+ *
+ * id          : string (required)
+ *     Unique DOM ID for the input control.
+ *
+ * path        : string
+ *     Dot-separated path to the field in the JSON data.
+ *
+ * labelText   : string (optional)
+ *     Custom label text (defaults to the last segment of `path`).
+ *
+ * element     : "input" | "textarea" | "select" (default: "input")
+ *     HTML element type to use.
+ *
+ * options     : array (optional)
+ *    For select elements, the list of options to display.
+ *
+ * type        : string (default: "text")
+ *     Input type attribute (e.g., "number", "text", etc.).
+ *
+ * Input Decorations:
+ * ------------------
+ * prefix      : string (optional)
+ *     Adds a Bootstrap input-group prefix before the input.
+ *
+ * suffix      : string (optional)
+ *     Adds a Bootstrap input-group suffix after the input.
+ *
+ * colSize     : string (default: "col-lg-6")
+ *     Bootstrap grid column class for layout.
+ *
+ * Behavior and Display:
+ * ---------------------
+ * handler     : function(data: object): void (optional)
+ *     Called when input changes to handle custom behavior.
+ *
+ * lookup      : object (optional)
+ *     Mapping of machine value → display label.
+ *
+ * formatter   : function(value: any): string (optional)
+ *     Formats the displayed value (used with `lookup`).
+ *
+ * showIfMode  : "normal" | "too" | "both" (default: "both")
+ *     Determines visibility based on observation mode.
+ *
+ * readOnly    : boolean (default: false)
+ *     Whether the input is disabled (applies to "normal" mode only).
  */
 const SHARED_FIELDS = [
   // Details section.
   { section: "Details" },
-  { labelText: "ID", path: "id", id: "id", display: true, colSize: "col-lg-6" },
+  {
+    labelText: "ID",
+    path: "id",
+    id: "id",
+    colSize: "col-lg-6",
+    showIfMode: "normal",
+    readOnly: true,
+  },
   {
     labelText: "Reference",
     path: "reference.label",
     id: "reference",
-    display: true,
     colSize: "col-lg-6",
+    showIfMode: "normal",
+    readOnly: true,
   },
   {
     labelText: "State",
     path: "execution.executionState",
     id: "executionState",
-    display: true,
     colSize: "col-lg-6",
     formatter: Formatters.titleCaseFromUnderscore,
+    showIfMode: "both",
+    readOnly: true,
+    options: ["Ready", "Defined", "Inative"],
+    element: "select",
   },
   {
     labelText: "Title",
     path: "title",
     id: "title",
-    display: true,
     colSize: "col-lg-6",
+    showIfMode: "normal",
+    readOnly: true,
   },
   {
     labelText: "Radial Velocity",
@@ -51,6 +98,7 @@ const SHARED_FIELDS = [
     suffix: "km/s",
     type: "number",
     id: "radialVelocity",
+    showIfMode: "both",
   },
   {
     labelText: "Parallax",
@@ -58,6 +106,7 @@ const SHARED_FIELDS = [
     suffix: "mas",
     type: "number",
     id: "parallax",
+    showIfMode: "both",
   },
   {
     labelText: "\u03BC RA",
@@ -65,6 +114,7 @@ const SHARED_FIELDS = [
     suffix: "mas/year",
     type: "number",
     id: "uRa",
+    showIfMode: "both",
   },
   {
     labelText: "\u03BC Dec",
@@ -72,24 +122,33 @@ const SHARED_FIELDS = [
     suffix: "mas/year",
     type: "number",
     id: "uDec",
+    showIfMode: "both",
   },
-  { labelText: "Science Band", path: "scienceBand" },
+  {
+    labelText: "Science Band",
+    path: "scienceBand",
+    colSize: "col-lg-6",
+    showIfMode: "both",
+    readOnly: true,
+  },
   {
     labelText: "Observer Notes",
     path: "observerNotes",
     element: "textarea",
     colSize: "col-12",
     id: "observerNotes",
-    display: true,
+    showIfMode: "both",
+  },
+  // Source profile section.
+  {
+    path: "targetEnvironment.firstScienceTarget.sourceProfile.point.bandNormalized.sed",
+    handler: "handleSourceProfile",
   },
   // Brightnesses section.
   { section: "Brightnesses" },
   {
     path: "targetEnvironment.firstScienceTarget.sourceProfile.point.bandNormalized.brightnesses",
     handler: "handleBrightnessInputs",
-    id: "brightness",
-    type: "number",
-    colSize: "col-xxl-6",
   },
   // Constraint section.
   { section: "Constraint Set" },
@@ -98,34 +157,59 @@ const SHARED_FIELDS = [
     path: "constraintSet.imageQuality",
     id: "imageQuality",
     lookup: Lookups.imageQuality,
+    element: "select",
+    options: [
+      "< 0.10 arcsec",
+      "< 0.20 arcsec",
+      "< 0.30 arcsec",
+      "< 0.40 arcsec",
+      "< 0.60 arcsec",
+      "< 0.80 arcsec",
+      "< 1.00 arcsec",
+      "< 1.50 arcsec",
+      "< 2.00 arcsec",
+    ],
+    showIfMode: "both",
   },
   {
     labelText: "Cloud Extinction",
     path: "constraintSet.cloudExtinction",
     id: "cloudExtinction",
     lookup: Lookups.cloudExtinction,
+    options: [
+      "0.00 mag",
+      "< 0.10 mag",
+      "< 0.30 mag",
+      "< 0.50 mag",
+      "< 1.00 mag",
+      "< 2.00 mag",
+      "< 3.00 mag",
+    ],
+    element: "select",
+    showIfMode: "both",
   },
   {
     labelText: "Sky Background",
     path: "constraintSet.skyBackground",
     id: "skyBackground",
     formatter: Formatters.capitalizeFirstLetter,
+    options: ["Darkest", "Dark", "Gray", "Bright"],
+    element: "select",
+    showIfMode: "both",
   },
   {
     labelText: "Water Vapor",
     path: "constraintSet.waterVapor",
     id: "waterVapor",
     formatter: Formatters.titleCaseFromUnderscore,
+    options: ["Very Dry", "Dry", "Median", "Wet"],
+    element: "select",
+    showIfMode: "both",
   },
   {
-    labelText: "Airmass Min",
-    path: "constraintSet.elevationRange.airMass.min",
-    id: "airmassMin",
-  },
-  {
-    labelText: "Airmass Max",
-    path: "constraintSet.elevationRange.airMass.max",
-    id: "airmassMax",
+    path: "constraintSet.elevationRange",
+    showIfMode: "both",
+    handler: "handleElevationRange",
   },
 ];
 
