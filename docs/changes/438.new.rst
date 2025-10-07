@@ -1,0 +1,1 @@
+Added a new Exposure Mode editor widget that supports both "Signal / Noise" and "Time & Count" configurations for the GPP application.
