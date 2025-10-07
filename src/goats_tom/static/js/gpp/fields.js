@@ -211,10 +211,26 @@ const SHARED_FIELDS = [
     showIfMode: "both",
     handler: "handleElevationRange",
   },
+  { section: "Configuration" },
+  {
+    labelText: "Position Angle",
+    id: "posAngleConstraint",
+    path: "posAngleConstraint",
+    handler: "handlePosAngleConstraint",
+    options: [
+      { labelText: "Fixed", value: "FIXED" },
+      { labelText: "Allow 180° Flip", value: "ALLOW_180_FLIP" },
+      { labelText: "Average Parallactic", value: "AVERAGE_PARALLACTIC" },
+      { labelText: "Parallactic Override", value: "PARALLACTIC_OVERRIDE" },
+      { labelText: "Unconstrained", value: "UNCONSTRAINED" },
+    ],
+    element: "select",
+    value: "FIXED",
+    suffix: "°E of N",
+  },
 ];
 
 const GMOS_NORTH_LONG_SLIT_FIELDS = [
-  { section: "Configuration" },
   {
     labelText: "Instrument",
     path: "instrument",
@@ -252,7 +268,7 @@ const GMOS_NORTH_LONG_SLIT_FIELDS = [
   },
   {
     labelText: "\u03BB Dithers",
-    path: "observingMode.gmosSouthLongSlit.wavelengthDithers",
+    path: "observingMode.gmosNorthLongSlit.wavelengthDithers",
     id: "wavelengthDithers",
     suffix: "nm",
     handler: "handleWavelengthDithersList",
@@ -307,7 +323,6 @@ const GMOS_NORTH_LONG_SLIT_FIELDS = [
 ];
 
 const GMOS_SOUTH_LONG_SLIT_FIELDS = [
-  { section: "Configuration" },
   {
     labelText: "Instrument",
     path: "instrument",

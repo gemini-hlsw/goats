@@ -27,8 +27,55 @@ class ObservationForm {
 
     // Register special handlers like brightness, sourceProfile etc.
     this.#handlers = {
+      handlePosAngleConstraint: (meta, raw) => {
+        // Need to wrap to preserve layout and match rest.
+        const wrapper = Utils.createElement("div", "mt-3");
+        const div = Utils.createElement("div", ["row", "g-3"]);
+        // Mode dropdown.
+        const modeField = this.#createFormField({
+          id: `${meta.id}Mode`,
+          labelText: "Position Angle Mode",
+          element: meta.element,
+          options: meta.options,
+          value: raw?.mode ?? meta.value,
+          readOnly: this.#readOnly,
+        });
+
+        // Show angle input only for certain modes.
+        const showAngle = [
+          "ALLOW_180_FLIP",
+          "AVERAGE_PARALLACTIC",
+          "PARALLACTIC_OVERRIDE",
+        ].includes(raw?.mode);
+
+        const angleField = this.#createFormField({
+          id: `${meta.id}_angle`,
+          labelText: "Position Angle",
+          type: "number",
+          suffix: meta.suffix,
+          value: raw?.angle?.degrees ?? "",
+          readOnly: this.#readOnly,
+          colSize: "col-md-6",
+        });
+
+        if (!showAngle) angleField.classList.add("d-none");
+
+        // Add event listener to toggle angle field.
+        modeField.querySelector("select")?.addEventListener("change", (e) => {
+          const selected = e.target.value;
+          const needsAngle = [
+            "ALLOW_180_FLIP",
+            "AVERAGE_PARALLACTIC",
+            "PARALLACTIC_OVERRIDE",
+          ].includes(selected);
+          angleField.classList.toggle("d-none", !needsAngle);
+        });
+
+        div.append(modeField, angleField);
+        wrapper.appendChild(div);
+        return [wrapper];
+      },
       handleExposureMode: (meta, raw) => {
-        console.log("here");
         const div = Utils.createElement("div", "mt-3");
         new ExposureModeEditor(div, {
           data: raw ?? {},
