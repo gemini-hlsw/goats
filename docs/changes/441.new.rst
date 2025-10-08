@@ -1,0 +1,2 @@
+Added a new `--version` flag to the `goats` CLI to display the installed version.
+
