@@ -1,0 +1,1 @@
+Added to the UI right ascension and declination in the GPP interface for observations that have that data available.
