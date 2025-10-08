@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import time
+from importlib.metadata import version
 from pathlib import Path
 
 import click
@@ -26,6 +27,7 @@ def validate_addrport(ctx, param, value):
 
 
 @click.group(invoke_without_command=True)
+@click.version_option(version=version("goats"))
 @click.pass_context
 def cli(ctx):
     """Gemini Observation and Analysis of Targets System (GOATS).
