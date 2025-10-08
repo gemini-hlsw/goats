@@ -1,0 +1,1 @@
+Exposed `GOATS_VERSION` in the template context to display the installed version in the footer.
