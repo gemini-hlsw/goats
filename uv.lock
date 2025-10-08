@@ -1323,7 +1323,7 @@ requires-dist = [
     { name = "djangorestframework", specifier = ">=3.16.1,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
-    { name = "gpp-client", specifier = "==25.9.0" },
+    { name = "gpp-client", specifier = "==25.10.0" },
     { name = "marshmallow", specifier = ">=3.26.1,<4" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
@@ -1360,7 +1360,7 @@ notebook = [{ name = "ipykernel", specifier = ">=6.30.1" }]
 
 [[package]]
 name = "gpp-client"
-version = "25.9.0"
+version = "25.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1372,9 +1372,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/dd/4a/d3389b690e3afeffc731c6631f099295bd186053c87a9760058a0077bcb9/gpp_client-25.9.0.tar.gz", hash = "sha256:3d7d7e8cbecdb13e99bfa12d46d35bfa5c4eaaf642bd2abd07b46199b637d25e", size = 102718, upload-time = "2025-09-30T17:14:23.642Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/1e/88ad878e4f5b9d4c2c6db4982f3e63c19ed757a0ea061103fe144577e78d/gpp_client-25.10.0.tar.gz", hash = "sha256:2d27eec3d849a1aab16adda6454d00c21d75422e6f31579c7bd81113ce76780a", size = 102846, upload-time = "2025-10-08T19:05:41.546Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/c0/41a749410361ac296693bdc6f8857c761c4e091c0c124406e86161d1b999/gpp_client-25.9.0-py3-none-any.whl", hash = "sha256:d4522fc041408f3eca23d9821dd717101c05a62c8f4802058ec1fa32d116ff91", size = 126717, upload-time = "2025-09-30T17:14:22.228Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/40/1951d0f296c5f8275851c39266dc0063bf6767529e4e07df65062cd21aaf/gpp_client-25.10.0-py3-none-any.whl", hash = "sha256:16e41c69cb60805c79bdb1e5bd197065865bf02a4d4cbed715a8163b0adea48c", size = 126807, upload-time = "2025-10-08T19:05:40.132Z" },
 ]
 
 [[package]]
@@ -3532,7 +3532,7 @@ wheels = [
 
 [[package]]
 name = "typer"
-version = "0.16.0"
+version = "0.19.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -3540,9 +3540,9 @@ dependencies = [
     { name = "shellingham" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c5/8c/7d682431efca5fd290017663ea4588bf6f2c6aad085c7f108c5dbc316e70/typer-0.16.0.tar.gz", hash = "sha256:af377ffaee1dbe37ae9440cb4e8f11686ea5ce4e9bae01b84ae7c63b87f1dd3b", size = 102625, upload-time = "2025-05-26T14:30:31.824Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/21/ca/950278884e2ca20547ff3eb109478c6baf6b8cf219318e6bc4f666fad8e8/typer-0.19.2.tar.gz", hash = "sha256:9ad824308ded0ad06cc716434705f691d4ee0bfd0fb081839d2e426860e7fdca", size = 104755, upload-time = "2025-09-23T09:47:48.256Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/42/3efaf858001d2c2913de7f354563e3a3a2f0decae3efe98427125a8f441e/typer-0.16.0-py3-none-any.whl", hash = "sha256:1f79bed11d4d02d4310e3c1b7ba594183bcedb0ac73b27a9e5f28f6fb5b98855", size = 46317, upload-time = "2025-05-26T14:30:30.523Z" },
+    { url = "https://files.pythonhosted.org/packages/00/22/35617eee79080a5d071d0f14ad698d325ee6b3bf824fc0467c03b30e7fa8/typer-0.19.2-py3-none-any.whl", hash = "sha256:755e7e19670ffad8283db353267cb81ef252f595aa6834a0d1ca9312d9326cb9", size = 46748, upload-time = "2025-09-23T09:47:46.777Z" },
 ]
 
 [[package]]
