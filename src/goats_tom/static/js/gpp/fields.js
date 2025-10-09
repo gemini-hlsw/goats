@@ -51,8 +51,8 @@
  * showIfMode  : "normal" | "too" | "both" (default: "both")
  *     Determines visibility based on observation mode.
  *
- * readOnly    : boolean (default: false)
- *     Whether the input is disabled (applies to "normal" mode only).
+ * readOnly    : "normal" | "too" | "both" (optional)
+ *     Whether the input is disabled (if omitted, then not read-only).
  */
 const SHARED_FIELDS = [
   // Details section.
@@ -63,7 +63,7 @@ const SHARED_FIELDS = [
     id: "id",
     colSize: "col-lg-6",
     showIfMode: "normal",
-    readOnly: true,
+    readOnly: "normal",
   },
   {
     labelText: "Reference",
@@ -71,14 +71,14 @@ const SHARED_FIELDS = [
     id: "reference",
     colSize: "col-lg-6",
     showIfMode: "normal",
-    readOnly: true,
+    readOnly: "normal",
   },
   {
     labelText: "Right Ascension",
     path: "targetEnvironment.firstScienceTarget.sidereal.ra.hms",
     id: "rightAscension",
     showIfMode: "normal",
-    readOnly: true,
+    readOnly: "normal",
     suffix: "hms",
     colSize: "col-lg-6",
   },
@@ -87,7 +87,7 @@ const SHARED_FIELDS = [
     path: "targetEnvironment.firstScienceTarget.sidereal.dec.dms",
     id: "declination",
     showIfMode: "normal",
-    readOnly: true,
+    readOnly: "normal",
     suffix: "dms",
     colSize: "col-lg-6",
   },
@@ -98,7 +98,7 @@ const SHARED_FIELDS = [
     colSize: "col-lg-6",
     formatter: Formatters.titleCaseFromUnderscore,
     showIfMode: "both",
-    readOnly: true,
+    readOnly: "normal",
     options: ["Ready", "Defined", "Inative"],
     element: "select",
   },
@@ -108,7 +108,7 @@ const SHARED_FIELDS = [
     id: "title",
     colSize: "col-lg-6",
     showIfMode: "normal",
-    readOnly: true,
+    readOnly: "normal",
   },
   {
     labelText: "Radial Velocity",
@@ -116,7 +116,6 @@ const SHARED_FIELDS = [
     suffix: "km/s",
     type: "number",
     id: "radialVelocity",
-    showIfMode: "both",
   },
   {
     labelText: "Parallax",
@@ -124,7 +123,6 @@ const SHARED_FIELDS = [
     suffix: "mas",
     type: "number",
     id: "parallax",
-    showIfMode: "both",
   },
   {
     labelText: "\u03BC Right Ascension",
@@ -132,7 +130,6 @@ const SHARED_FIELDS = [
     suffix: "mas/year",
     type: "number",
     id: "uRa",
-    showIfMode: "both",
     colSize: "col-lg-6",
   },
   {
@@ -141,15 +138,13 @@ const SHARED_FIELDS = [
     suffix: "mas/year",
     type: "number",
     id: "uDec",
-    showIfMode: "both",
     colSize: "col-lg-6",
   },
   {
     labelText: "Science Band",
     path: "scienceBand",
     colSize: "col-lg-6",
-    showIfMode: "both",
-    readOnly: true,
+    readOnly: "too",
   },
   {
     labelText: "Observer Notes",
@@ -157,7 +152,6 @@ const SHARED_FIELDS = [
     element: "textarea",
     colSize: "col-12",
     id: "observerNotes",
-    showIfMode: "both",
   },
   // Source profile section.
   {
@@ -189,7 +183,6 @@ const SHARED_FIELDS = [
       "< 1.50 arcsec",
       "< 2.00 arcsec",
     ],
-    showIfMode: "both",
   },
   {
     labelText: "Cloud Extinction",
@@ -206,7 +199,6 @@ const SHARED_FIELDS = [
       "< 3.00 mag",
     ],
     element: "select",
-    showIfMode: "both",
   },
   {
     labelText: "Sky Background",
@@ -215,7 +207,6 @@ const SHARED_FIELDS = [
     formatter: Formatters.capitalizeFirstLetter,
     options: ["Darkest", "Dark", "Gray", "Bright"],
     element: "select",
-    showIfMode: "both",
   },
   {
     labelText: "Water Vapor",
@@ -224,11 +215,9 @@ const SHARED_FIELDS = [
     formatter: Formatters.titleCaseFromUnderscore,
     options: ["Very Dry", "Dry", "Median", "Wet"],
     element: "select",
-    showIfMode: "both",
   },
   {
     path: "constraintSet.elevationRange",
-    showIfMode: "both",
     handler: "handleElevationRange",
   },
   { section: "Configuration" },
@@ -256,6 +245,7 @@ const GMOS_NORTH_LONG_SLIT_FIELDS = [
     path: "instrument",
     id: "instrument",
     lookup: Lookups.instrument,
+    readOnly: "both",
   },
   {
     labelText: "Position Angle",
@@ -263,20 +253,28 @@ const GMOS_NORTH_LONG_SLIT_FIELDS = [
     suffix: "deg",
     type: "number",
     id: "posAngle",
+    readOnly: "both",
   },
   {
     labelText: "Grating",
     path: "observingMode.gmosNorthLongSlit.grating",
     id: "grating",
     formatter: Formatters.replaceUnderscore,
+    readOnly: "both",
   },
-  { labelText: "Filter", path: "observingMode.gmosNorthLongSlit.filter", id: "filter" },
+  {
+    labelText: "Filter",
+    path: "observingMode.gmosNorthLongSlit.filter",
+    id: "filter",
+    readOnly: "both",
+  },
   {
     labelText: "FPU",
     path: "observingMode.gmosNorthLongSlit.fpu",
     id: "fpu",
     lookup: Lookups.gmosNorthBuiltinFpu,
     colSize: "col-lg-6",
+    readOnly: "both",
   },
   {
     labelText: "Spatial Offsets",
@@ -321,24 +319,28 @@ const GMOS_NORTH_LONG_SLIT_FIELDS = [
     path: "observingMode.gmosNorthLongSlit.xBin",
     id: "xBin",
     lookup: Lookups.gmosBinning,
+    readOnly: "both",
   },
   {
     labelText: "Y Binning",
     path: "observingMode.gmosNorthLongSlit.yBin",
     id: "yBin",
     lookup: Lookups.gmosBinning,
+    readOnly: "both",
   },
   {
     labelText: "Read Mode",
     path: "observingMode.gmosNorthLongSlit.ampReadMode",
     id: "ampReadMode",
     formatter: Formatters.capitalizeFirstLetter,
+    readOnly: "both",
   },
   {
     labelText: "ROI",
     path: "observingMode.gmosNorthLongSlit.roi",
     id: "roi",
     lookup: Lookups.gmosRoi,
+    readOnly: "both",
   },
 ];
 
@@ -348,6 +350,7 @@ const GMOS_SOUTH_LONG_SLIT_FIELDS = [
     path: "instrument",
     id: "instrument",
     lookup: Lookups.instrument,
+    readOnly: "both",
   },
   {
     labelText: "Position Angle",
@@ -355,20 +358,28 @@ const GMOS_SOUTH_LONG_SLIT_FIELDS = [
     suffix: "deg",
     type: "number",
     id: "posAngle",
+    readonly: "both",
   },
   {
     labelText: "Grating",
     path: "observingMode.gmosSouthLongSlit.grating",
     id: "grating",
     formatter: Formatters.replaceUnderscore,
+    readOnly: "both",
   },
-  { labelText: "Filter", path: "observingMode.gmosSouthLongSlit.filter", id: "filter" },
+  {
+    labelText: "Filter",
+    path: "observingMode.gmosSouthLongSlit.filter",
+    id: "filter",
+    readOnly: "both",
+  },
   {
     labelText: "FPU",
     path: "observingMode.gmosSouthLongSlit.fpu",
     id: "fpu",
     lookup: Lookups.gmosSouthBuiltinFpu,
     colSize: "col-lg-6",
+    readOnly: "both",
   },
   {
     labelText: "Spatial Offsets",
@@ -413,24 +424,28 @@ const GMOS_SOUTH_LONG_SLIT_FIELDS = [
     path: "observingMode.gmosSouthLongSlit.xBin",
     id: "xBin",
     lookup: Lookups.gmosBinning,
+    readOnly: "both",
   },
   {
     labelText: "Y Binning",
     path: "observingMode.gmosSouthLongSlit.yBin",
     id: "yBin",
     lookup: Lookups.gmosBinning,
+    readOnly: "both",
   },
   {
     labelText: "Read Mode",
     path: "observingMode.gmosSouthLongSlit.ampReadMode",
     id: "ampReadMode",
     formatter: Formatters.capitalizeFirstLetter,
+    readOnly: "both",
   },
   {
     labelText: "ROI",
     path: "observingMode.gmosSouthLongSlit.roi",
     id: "roi",
     lookup: Lookups.gmosRoi,
+    readOnly: "both",
   },
 ];
 

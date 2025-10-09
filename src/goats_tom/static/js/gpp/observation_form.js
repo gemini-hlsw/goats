@@ -38,23 +38,19 @@ class ObservationForm {
           element: meta.element,
           options: meta.options,
           value: raw?.mode ?? meta.value,
-          readOnly: this.#readOnly,
         });
 
         // Show angle input only for certain modes.
-        const showAngle = [
-          "ALLOW_180_FLIP",
-          "AVERAGE_PARALLACTIC",
-          "PARALLACTIC_OVERRIDE",
-        ].includes(raw?.mode);
+        const showAngle = ["ALLOW_180_FLIP", "PARALLACTIC_OVERRIDE", "FIXED"].includes(
+          raw?.mode
+        );
 
         const angleField = this.#createFormField({
           id: `${meta.id}_angle`,
-          labelText: "Position Angle",
+          labelText: "\u00A0", // Non-breaking space to align.
           type: "number",
           suffix: meta.suffix,
           value: raw?.angle?.degrees ?? "",
-          readOnly: this.#readOnly,
           colSize: "col-md-6",
         });
 
@@ -63,12 +59,12 @@ class ObservationForm {
         // Add event listener to toggle angle field.
         modeField.querySelector("select")?.addEventListener("change", (e) => {
           const selected = e.target.value;
-          const needsAngle = [
+          const showAngle = [
             "ALLOW_180_FLIP",
-            "AVERAGE_PARALLACTIC",
             "PARALLACTIC_OVERRIDE",
+            "FIXED",
           ].includes(selected);
-          angleField.classList.toggle("d-none", !needsAngle);
+          angleField.classList.toggle("d-none", !showAngle);
         });
 
         div.append(modeField, angleField);
@@ -226,7 +222,7 @@ class ObservationForm {
    * @param {string=} field.element - Element type: input, textarea, or select.
    * @param {string=} field.type - Input type (e.g., "number", "text").
    * @param {string=} field.colSize - Bootstrap column class.
-   * @param {boolean=} field.readOnly - Whether the field is read-only.
+   * @param {string=} field.readOnly - Whether the field is read-only in what mode.
    * @param {Array<string|{labelText: string, value: string}>=} field.options - Options for a
    * select element.
    * @returns {!HTMLElement}
@@ -241,7 +237,7 @@ class ObservationForm {
     element = "input",
     type = "text",
     colSize = "col-md-6",
-    readOnly = false,
+    readOnly = undefined,
     options = [],
   }) {
     const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
@@ -289,7 +285,14 @@ class ObservationForm {
     }
 
     control.id = elementId;
-    control.disabled = readOnly || this.#readOnly;
+    // Apply read-only state if applicable.
+    // Use the global readOnly flag.
+    // Otherwise, if readOnly is "both" or matches current mode, disable the control.
+    const isReadOnly =
+      this.#readOnly ||
+      (typeof readOnly === "string" &&
+        (readOnly === "both" || readOnly === this.#mode));
+    control.disabled = isReadOnly;
 
     // Wrap and append.
     col.append(this.#wrapWithGroup(control, { prefix, suffix }));
