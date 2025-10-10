@@ -299,16 +299,6 @@ const GMOS_NORTH_LONG_SLIT_FIELDS = [
     suffix: "nm",
   },
   {
-    labelText: "Resolution",
-    path: "scienceRequirements.spectroscopy.resolution",
-    id: "resolution",
-  },
-  {
-    labelText: "\u03BB Interval",
-    path: "scienceRequirements.spectroscopy.wavelengthCoverage",
-    id: "wavelengthCoverage",
-  },
-  {
     labelText: "Exposure Mode",
     path: "scienceRequirements.exposureTimeMode",
     id: "exposureMode",
@@ -402,16 +392,6 @@ const GMOS_SOUTH_LONG_SLIT_FIELDS = [
     path: "observingMode.gmosSouthLongSlit.centralWavelength.nanometers",
     id: "centralWavelength",
     suffix: "nm",
-  },
-  {
-    labelText: "Resolution",
-    path: "scienceRequirements.spectroscopy.resolution",
-    id: "resolution",
-  },
-  {
-    labelText: "\u03BB Interval",
-    path: "scienceRequirements.spectroscopy.wavelengthCoverage",
-    id: "wavelengthCoverage",
   },
   {
     labelText: "Exposure Mode",
