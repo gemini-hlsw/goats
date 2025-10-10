@@ -358,7 +358,7 @@ const GMOS_SOUTH_LONG_SLIT_FIELDS = [
     suffix: "deg",
     type: "number",
     id: "posAngle",
-    readonly: "both",
+    readOnly: "both",
   },
   {
     labelText: "Grating",

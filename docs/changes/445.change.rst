@@ -1,0 +1,1 @@
+The Position Angle angle control now only appears when the selected Position Angle Mode requires an explicit angle (``ALLOW_180_FLIP``, ``PARALLACTIC_OVERRIDE``, or ``FIXED``); it is hidden in other modes to reduce clutter. Read-only views now correctly prevent edits across the form—text fields are read-only.
