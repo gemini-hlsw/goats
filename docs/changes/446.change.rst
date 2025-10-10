@@ -1,0 +1,1 @@
+Removed unnecessary fields ``resolution`` and ``wavelength interval`` fields from the GPP form as these are not easily accessible for supported instruments.
