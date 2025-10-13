@@ -17,6 +17,58 @@ from goats_cli.modify_settings import modify_settings
 from goats_cli.process_manager import ProcessManager
 
 
+def _run_migrations(manage_file: Path) -> None:
+    """
+    Run Django database migrations.
+
+    Executes ``manage.py migrate`` for the project.
+
+    Parameters
+    ----------
+    manage_file : pathlib.Path
+        Path to the project's ``manage.py``.
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If the underlying command exits with a non-zero status.
+    """
+    utils.display_info("Applying database migrations... ")
+    subprocess.run(
+        [f"{manage_file}", "migrate"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+    utils.display_ok()
+
+
+def _verify_manage_py(manage_file: Path, project_name: str) -> None:
+    """
+    Verify that ``manage.py`` exists for the project.
+
+    Parameters
+    ----------
+    manage_file : pathlib.Path
+        Absolute path to the project's ``manage.py``.
+    project_name : str
+        Project name used to improve the error message.
+
+    Raises
+    ------
+    GOATSClickException
+        If ``manage.py`` is not present at the expected location.
+    """
+    utils.display_info("Verifying 'manage.py' exists... ")
+    if not manage_file.is_file():
+        utils.display_failed()
+        raise GOATSClickException(
+            f"The 'manage.py' file for '{project_name}' does not exist at "
+            f"'{manage_file.absolute()}'."
+        )
+    utils.display_ok()
+
+
 def validate_addrport(ctx, param, value):
     """Validate IP address and port."""
     if not re.match(config.addrport_regex_pattern, value):
@@ -24,6 +76,121 @@ def validate_addrport(ctx, param, value):
             "The address and port must be in format 'HOST:PORT' or 'PORT'.",
         )
     return value
+
+
+def start_redis_server(addrport: str, disable_rdb: bool = True) -> subprocess.Popen:
+    """Starts the Redis server.
+
+    Parameters
+    ----------
+    addrport: `str`
+        IP address and port to serve on.
+
+    Returns
+    -------
+    `subprocess.Popen`
+        The subprocess.
+
+    Raises
+    ------
+    GOATSClickException
+        Raised if issue starting Redis server.
+
+    """
+    utils.display_message("Starting redis database.")
+    pattern = re.compile(config.addrport_regex_pattern)
+    match = pattern.match(addrport)
+    port = match.group("port")
+    cmd = ["redis-server", "--port", f"{port}"]
+
+    # Don't save snapshot if True.
+    if disable_rdb:
+        cmd.extend(["--save", "''", "--appendonly", "no"])
+    try:
+        redis_process = subprocess.Popen(cmd, start_new_session=True)
+    except subprocess.CalledProcessError as error:
+        raise GOATSClickException(
+            f"Error running Redis server: '{error.cmd}'. "
+            f"Exit status: {error.returncode}.",
+        )
+    return redis_process
+
+
+def start_django_server(manage_file: Path, addrport: str) -> subprocess.Popen:
+    """Starts the Django development server.
+
+    Parameters
+    ----------
+    manage_file : `Path`
+        Path to the GOATS manage file.
+    addrport: `str`
+        IP address and port to serve on.
+
+    Returns
+    -------
+    `subprocess.Popen`
+        The subprocess.
+
+    Raises
+    ------
+    GOATSClickException
+        Raised if issue starting Django server.
+
+    """
+    utils.display_message("Starting django server.")
+    try:
+        django_process = subprocess.Popen(
+            [f"{manage_file}", "runserver", addrport],
+            start_new_session=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise GOATSClickException(
+            f"Error running Django server: '{error.cmd}'. "
+            f"Exit status: {error.returncode}.",
+        )
+    return django_process
+
+
+def start_background_workers(manage_file: Path, workers: int) -> subprocess.Popen:
+    """Starts the background workers.
+
+    Parameters
+    ----------
+    manage_file : `Path`
+        Path to the GOATS manage file.
+
+    Returns
+    -------
+    `subprocess.Popen`
+        The subprocess.
+
+    Raises
+    ------
+    GOATSClickException
+        Raised if issue starting background workers.
+
+    """
+    utils.display_message("Starting background workers.")
+    try:
+        background_workers_process = subprocess.Popen(
+            [
+                f"{manage_file}",
+                "rundramatiq",
+                "--threads",
+                f"{workers}",
+                "--path",
+                f"{manage_file.parent}",
+                "--worker-shutdown-timeout",
+                "1000",
+            ],
+            start_new_session=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise GOATSClickException(
+            f"Error running background consumer: '{error.cmd}'. "
+            f"Exit status: {error.returncode}."
+        )
+    return background_workers_process
 
 
 @click.group(invoke_without_command=True)
@@ -174,20 +341,7 @@ def install(
 
         # Migrate the webpage.
         utils.display_message("Wrapping up:", show_goats_emoji=False)
-        utils.display_info("Running final migrations... ")
-        subprocess.run(
-            [f"{manage_file}", "makemigrations"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-        )
-        subprocess.run(
-            [f"{manage_file}", "migrate"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-        )
-        utils.display_ok()
+        _run_migrations(manage_file)
 
         utils.display_message("GOATS installed!", color="green")
 
@@ -303,17 +457,11 @@ def run(
     utils.display_message(
         "Finding GOATS and Redis installation:", show_goats_emoji=True
     )
-    utils.display_info("Verifying 'manage.py' exists for GOATS...")
-    project_path = directory / project_name
+    project_path = directory.resolve() / project_name
     # Get the path for the 'manage.py' file.
     manage_file = project_path / "manage.py"
-    if not manage_file.is_file():
-        utils.display_failed()
-        raise GOATSClickException(
-            f"The 'manage.py' file for the project '{project_name}' does not exist at"
-            f" '{manage_file.absolute()}'."
-        )
-    utils.display_ok()
+    _verify_manage_py(manage_file, project_name)
+
     utils.display_info("Verifying Redis installed...")
     try:
         subprocess.run(
@@ -380,120 +528,53 @@ def run(
         process_manager.stop_all()
 
 
-def start_redis_server(addrport: str, disable_rdb: bool = True) -> subprocess.Popen:
-    """Starts the Redis server.
+@click.command(help=("Update the local project after upgrading GOATS."))
+@click.option(
+    "-p",
+    "--project-name",
+    default="GOATS",
+    type=str,
+    help="Specify a custom project name. Default is 'GOATS'.",
+)
+@click.option(
+    "-d",
+    "--directory",
+    default=Path.cwd(),
+    type=Path,
+    help=(
+        "Specify the parent directory where GOATS is installed. "
+        "Default is the current directory."
+    ),
+)
+def apply_update(project_name: str, directory: Path) -> None:
+    """
+    Apply Django database migrations to the local project after upgrading GOATS.
+    This ensures the local schema matches the upgraded package.
 
     Parameters
     ----------
-    addrport: `str`
-        IP address and port to serve on.
-
-    Returns
-    -------
-    `subprocess.Popen`
-        The subprocess.
+    project_name : str
+        Directory name of the Django project (used to locate ``manage.py``).
+    directory : pathlib.Path
+        Parent directory where the project folder resides.
 
     Raises
     ------
     GOATSClickException
-        Raised if issue starting Redis server.
-
+        If ``manage.py`` is not found or migration commands fail.
     """
-    utils.display_message("Starting redis database.")
-    pattern = re.compile(config.addrport_regex_pattern)
-    match = pattern.match(addrport)
-    port = match.group("port")
-    cmd = ["redis-server", "--port", f"{port}"]
+    project_path = directory.resolve() / project_name
+    manage_file = project_path / "manage.py"
 
-    # Don't save snapshot if True.
-    if disable_rdb:
-        cmd.extend(["--save", "''", "--appendonly", "no"])
-    try:
-        redis_process = subprocess.Popen(cmd, start_new_session=True)
-    except subprocess.CalledProcessError as error:
-        raise GOATSClickException(
-            f"Error running Redis server: '{error.cmd}'. "
-            f"Exit status: {error.returncode}.",
-        )
-    return redis_process
+    utils.display_message(
+        f"Applying updates at {project_path}:", show_goats_emoji=False
+    )
 
-
-def start_django_server(manage_file: Path, addrport: str) -> subprocess.Popen:
-    """Starts the Django development server.
-
-    Parameters
-    ----------
-    manage_file : `Path`
-        Path to the GOATS manage file.
-    addrport: `str`
-        IP address and port to serve on.
-
-    Returns
-    -------
-    `subprocess.Popen`
-        The subprocess.
-
-    Raises
-    ------
-    GOATSClickException
-        Raised if issue starting Django server.
-
-    """
-    utils.display_message("Starting django server.")
-    try:
-        django_process = subprocess.Popen(
-            [f"{manage_file}", "runserver", addrport],
-            start_new_session=True,
-        )
-    except subprocess.CalledProcessError as error:
-        raise GOATSClickException(
-            f"Error running Django server: '{error.cmd}'. "
-            f"Exit status: {error.returncode}.",
-        )
-    return django_process
-
-
-def start_background_workers(manage_file: Path, workers: int) -> subprocess.Popen:
-    """Starts the background workers.
-
-    Parameters
-    ----------
-    manage_file : `Path`
-        Path to the GOATS manage file.
-
-    Returns
-    -------
-    `subprocess.Popen`
-        The subprocess.
-
-    Raises
-    ------
-    GOATSClickException
-        Raised if issue starting background workers.
-
-    """
-    utils.display_message("Starting background workers.")
-    try:
-        background_workers_process = subprocess.Popen(
-            [
-                f"{manage_file}",
-                "rundramatiq",
-                "--threads",
-                f"{workers}",
-                "--path",
-                f"{manage_file.parent}",
-                "--worker-shutdown-timeout",
-                "1000",
-            ],
-            start_new_session=True,
-        )
-    except subprocess.CalledProcessError as error:
-        raise GOATSClickException(
-            f"Error running background consumer: '{error.cmd}'. "
-            f"Exit status: {error.returncode}."
-        )
-    return background_workers_process
+    _verify_manage_py(manage_file, project_name)
+    _run_migrations(manage_file)
+    utils.display_message("Project updated!", color="green")
 
 
 cli.add_command(install)
 cli.add_command(run)
+cli.add_command(apply_update)

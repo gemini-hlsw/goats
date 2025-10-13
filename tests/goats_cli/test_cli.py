@@ -16,4 +16,4 @@ def test_cli_succeeds_without_subcommand(runner):
 def test_cli_version_flag(runner):
     result = runner.invoke(cli, ["--version"])
     assert result.exit_code == 0
-    assert re.search(r"version \d+\.\d+\.\d", result.output) 
+    assert re.search(r"version \d+\.\d+\.\d", result.output)
