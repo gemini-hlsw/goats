@@ -1,19 +1,18 @@
 Updating Dependencies
 =====================
 
-Overview
---------
 GOATS uses **Dependabot** to automatically check for dependency updates.  
 Dependabot is a GitHub-native automation tool that monitors dependency files
 (e.g., ``pyproject.toml`` and ``uv.lock``) and creates pull requests
 (PRs) when new versions of packages are available.
 
-A dedicated GitHub Action groups dependency updates into four categories:
+A dedicated GitHub Action groups dependency updates into five categories:
 
 - ``dependencies``
 - ``development-dependencies``
 - ``documentation-dependencies``
 - ``notebook-dependencies``
+- ``github-actions``
 
 Dependabot runs **weekly** and creates PRs every **Monday** with any available updates.
 
@@ -65,6 +64,17 @@ Used only for running and testing local Jupyter notebooks.
 - Can be updated immediately.
 - Require minimal testing.
 
+``github-actions``
+^^^^^^^^^^^^^^^^^^
+Used to keep the **GitHub Actions workflows** up to date.  
+Dependabot will check for new versions of actions defined in the repository's workflow files.
+
+- These updates do **not** modify ``pyproject.toml`` or ``uv.lock``.
+- Dependabot manages these PRs automatically.
+- Validate the affected workflow if possible to confirm it still functions as expected.
+- If the action cannot easily be tested (e.g., publishing or deployment workflows),  
+  assume it will continue to function correctly until the next applicable run.
+
 How to Update
 -------------
 1. Dependabot opens pull requests every Monday for detected updates.
@@ -74,6 +84,15 @@ How to Update
    - If the PR title is too generic (e.g., "Bump dependencies"),  
      append version details (e.g., *"Update astropy to 6.0.2"*).
 3. Add the ticket to the **current sprint**.
+
+.. note::
+   ``github-actions`` updates do **not** require any further steps beyond ticket creation and review.  
+   These updates do not modify ``pyproject.toml`` or ``uv.lock`` and are handled entirely by Dependabot.  
+   The only requirement is to ensure the updated workflow continues to function correctly.  
+   If the workflow cannot be tested directly (for example, a publishing or deployment workflow),
+   assume it will function as expected since the updated action versions are managed by GitHub and
+   typically maintain backward compatibility.  
+   Once verified or deemed safe, the pull request can be merged without local modification.
 
 Pull the pull request locally. Dependabot updates the ``uv.lock`` file but not ``pyproject.toml``.  
 This file must therefore be updated manually most of the time. For example, for a PR titled  
@@ -94,7 +113,6 @@ Then update the ``pyproject.toml`` file to match the ``uv.lock`` file by running
    - For other groups such as documentation, use ``--group docs``.  
    - The main ``dependencies`` group does **not** require ``--dev`` or ``--group``.  
    - Use ``>=`` for flexible version ranges and ``==`` when pinning exact versions.  
-     - For example, ``gpp-client`` should be pinned using ``==``.
 
 Commit and push the change:
 
