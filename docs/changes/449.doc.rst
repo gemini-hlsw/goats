@@ -1,0 +1,1 @@
+Added section on updating dependencies to developer guide.
