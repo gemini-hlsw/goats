@@ -123,7 +123,12 @@ class ProgramObservationsPanel {
    * @param {!Array<Object>} programs - Array of program objects.
    */
   updatePrograms(programs) {
-    this.#fillSelect(this.#programSelect, programs);
+    this.#fillSelect(
+      this.#programSelect,
+      programs,
+      // Use program reference label if available, else ID.
+      (p) => `${p.reference?.label ?? p.id} - ${p.name ?? p.title ?? ""}`
+    );
   }
 
   /**
@@ -332,7 +337,12 @@ class ProgramObservationsPanel {
         "Choose an observation..."
       ),
       this.#createToolbar("obsButtonToolbar", [
-        { id: "updateButton", label: "Update On GPP & Save", color: "primary", classes: ["me-2"] },
+        {
+          id: "updateButton",
+          label: "Update On GPP & Save",
+          color: "primary",
+          classes: ["me-2"],
+        },
         { id: "saveButton", label: "Save", color: "primary" },
       ])
     );
@@ -413,10 +423,15 @@ class ProgramObservationsPanel {
   /**
    * Fill a <select> with options.
    * @private
-   * @param {!HTMLSelectElement} selectEl
-   * @param {!Array<Object>} options
+   * @param {!HTMLSelectElement} selectEl - The select element to populate.
+   * @param {!Array<Object>} options - Array of objects with `id` and `name` or `title` properties.
+   * @param {function(Object): string} [getLabel] - Optional label resolver.
    */
-  #fillSelect(selectEl, options) {
+  #fillSelect(
+    selectEl,
+    options,
+    getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`
+  ) {
     // Clear existing options, keep placeholder.
     selectEl.length = 1;
 
@@ -429,7 +444,7 @@ class ProgramObservationsPanel {
     options.forEach((o) => {
       const opt = Utils.createElement("option");
       opt.value = o.id;
-      opt.textContent = `${o.id} - ${o.name ?? o.title ?? ""}`;
+      opt.textContent = getLabel(o);
       frag.appendChild(opt);
     });
     selectEl.appendChild(frag);
