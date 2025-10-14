@@ -150,11 +150,10 @@ class BrightnessesEditor {
     col.dataset.role = "brightness-col";
 
     const inputGroup = Utils.createElement("div", "input-group");
-    const uniqueId = `brightness-${this.#idCounter++}`;
+    const uniqueId = `${this.#idCounter++}`;
 
     const bandSelect = this.#createSelect(
-      `${uniqueId}-band`,
-      "brightnessBand",
+      `brightnessBandSelect${uniqueId}`,
       this.#bands,
       band
     );
@@ -162,13 +161,13 @@ class BrightnessesEditor {
     const valueInput = Utils.createElement("input", "form-control");
     valueInput.type = "number";
     valueInput.step = "any";
-    valueInput.name = "brightnessValue";
-    valueInput.id = `${uniqueId}-value`;
+    const brightnessValueId = `brightnessValueInput${uniqueId}`;
+    valueInput.name = brightnessValueId;
+    valueInput.id = brightnessValueId;
     valueInput.value = value;
 
     const unitSelect = this.#createSelect(
-      `${uniqueId}-units`,
-      "brightnessUnits",
+      `brightnessUnitsSelect${uniqueId}`,
       this.#units,
       units
     );
@@ -196,14 +195,13 @@ class BrightnessesEditor {
    *
    * @private
    * @param {string} id - Element ID.
-   * @param {string} name - Name attribute.
    * @param {string[]} options - Option values.
    * @param {string} selectedValue - Value to select by default.
    * @returns {HTMLSelectElement}
    */
-  #createSelect(id, name, options, selectedValue = "") {
+  #createSelect(id, options, selectedValue = "") {
     const select = Utils.createElement("select", "form-select");
-    select.name = name;
+    select.name = id;
     select.id = id;
 
     options.forEach((opt) => {

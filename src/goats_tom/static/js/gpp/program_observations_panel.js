@@ -190,12 +190,20 @@ class ProgramObservationsPanel {
       console.log("[ProgramObservationsPanel] Normal buttons disabled:", disabled);
   }
 
+  /**
+   * Enable or disable the normal observation <select>.
+   * @param {boolean} disabled
+   */
   toggleNormalSelect(disabled) {
     this.#normalSelect.disabled = disabled;
     if (this.#debug)
       console.log("[ProgramObservationsPanel] Normal select disabled:", disabled);
   }
 
+  /**
+   * Enable or disable the ToO observation <select>.
+   * @param {boolean} disabled
+   */
   toggleTooSelect(disabled) {
     this.#tooSelect.disabled = disabled;
     if (this.#debug)

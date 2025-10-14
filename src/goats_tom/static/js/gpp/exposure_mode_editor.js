@@ -93,6 +93,7 @@ class ExposureModeEditor {
   #createSelect(value) {
     const select = Utils.createElement("select", "form-select");
     select.id = "exposureModeSelect";
+    select.name = "exposureModeSelect";
     ["Signal / Noise", "Time & Count"].forEach((opt) => {
       const o = Utils.createElement("option");
       o.value = opt;
@@ -117,7 +118,9 @@ class ExposureModeEditor {
     const col = Utils.createElement("div", "col-md-6");
     const labelEl = this.#createLabel(label, `${id}Input`);
     const input = Utils.createElement("input", "form-control");
-    input.id = `${id}Input`;
+    const inputId = `${id}Input`;
+    input.id = inputId;
+    input.name = inputId;
     input.type = "number";
     input.value = value;
     if (this.#readOnly) input.disabled = true;

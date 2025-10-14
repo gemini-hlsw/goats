@@ -55,11 +55,12 @@ class SourceProfileEditor {
     const col = Utils.createElement("div", "col-md-6");
     const label = Utils.createElement("label", "form-label");
     label.textContent = "Profile";
-    label.htmlFor = "profileType";
+    const profileId = "sedProfileTypeSelect";
+    label.htmlFor = profileId;
 
     const select = Utils.createElement("select", "form-select");
-    select.name = "profileType";
-    select.id = "profileType";
+    select.name = profileId;
+    select.id = profileId;
     select.disabled = this.#readOnly;
 
     // Hardcode options for now; will be dynamic later.
@@ -93,11 +94,12 @@ class SourceProfileEditor {
     const col = Utils.createElement("div", "col-md-6");
     const label = Utils.createElement("label", "form-label");
     label.textContent = "SED";
-    label.htmlFor = "sedType";
+    const sedId = "sedTypeSelect";
+    label.htmlFor = sedId;
 
     const select = Utils.createElement("select", "form-select");
-    select.name = "sedType";
-    select.id = "sedType";
+    select.name = sedId;
+    select.id = sedId;
     select.disabled = this.#readOnly;
 
     // Hardcode options for now; will be dynamic later.
@@ -130,15 +132,16 @@ class SourceProfileEditor {
 
         const label = Utils.createElement("label", "form-label");
         label.textContent = "Temperature";
-        label.htmlFor = "blackBodyTemperature";
+        const inputId = "sedBlackBodyTemperature";
+        label.htmlFor = inputId;
 
         const inputGroup = Utils.createElement("div", "input-group");
         const input = Utils.createElement("input", "form-control");
         input.type = "number";
-        input.name = "temperature";
+        input.name = inputId;
         input.value = data.temperature ?? "10000";
         input.min = "0";
-        input.id = "blackBodyTemperature";
+        input.id = inputId;
         if (this.#readOnly) input.disabled = true;
 
         const suffix = Utils.createElement("span", "input-group-text");
@@ -149,9 +152,8 @@ class SourceProfileEditor {
         return col;
       },
       extract: (formContainer) => {
-        const input = formContainer.querySelector("#blackBodyTemperature");
-        const value = parseFloat(input?.value ?? "");
-        return Number.isNaN(value) ? {} : { temperature: value };
+        // FIXME: Don't need this anymore; can directly query the form data.
+        return {};
       },
     };
   }

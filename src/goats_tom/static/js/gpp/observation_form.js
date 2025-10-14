@@ -46,7 +46,7 @@ class ObservationForm {
         );
 
         const angleField = this.#createFormField({
-          id: `${meta.id}_angle`,
+          id: `${meta.id}Angle`,
           labelText: "\u00A0", // Non-breaking space to align.
           type: "number",
           suffix: meta.suffix,
@@ -260,6 +260,9 @@ class ObservationForm {
     } else if (element === "input") {
       control = Utils.createElement("input", ["form-control"]);
       control.type = type;
+      if (control.type === "number") {
+        control.step = "any"; // Allow decimals.
+      }
       control.value = value;
     } else if (element === "select") {
       control = Utils.createElement("select", ["form-select"]);
@@ -285,6 +288,7 @@ class ObservationForm {
     }
 
     control.id = elementId;
+    control.name = elementId;
     // Apply read-only state if applicable.
     // Use the global readOnly flag.
     // Otherwise, if readOnly is "both" or matches current mode, disable the control.
@@ -344,5 +348,15 @@ class ObservationForm {
     }
 
     return [...sharedFields, ...instrumentFields];
+  }
+
+  /**
+   * Get the current form data as FormData.
+   * @returns {FormData|null} FormData object or null if form not initialized.
+   */
+  getData() {
+    if (!this.#form) return null;
+    const formData = new FormData(this.#form);
+    return formData;
   }
 }
