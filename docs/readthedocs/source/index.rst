@@ -90,6 +90,7 @@ GOATS relies on the following components -
    developer_guide/code_overview/index.rst
    developer_guide/updating_dependencies.rst
    developer_guide/documentation.rst
+   developer_guide/conda-forge-maintenance.rst
    developer_guide/deployment.rst
 
 
