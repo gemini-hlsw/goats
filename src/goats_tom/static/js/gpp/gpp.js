@@ -60,6 +60,7 @@ class GPPModel {
   #gppUrl = "gpp/";
   #gppProgramsUrl = `${this.#gppUrl}programs/`;
   #gppObservationsUrl = `${this.#gppUrl}observations/`;
+  #gppToosUrl = `${this.#gppUrl}toos/`;
   #gppPingUrl = `${this.#gppUrl}ping/`;
   #observationsUrl = `observations/`;
 
@@ -108,6 +109,22 @@ class GPPModel {
       // Have to unpack the error still.
       const data = await error.json();
       return data;
+    }
+  }
+
+  /**
+   * Creates a new ToO observation.
+   * @param {*} formData The form data to submit.
+   * @returns {Promise<{status: number, data: Object}>} A response object with status code and
+   * response data.
+   */
+  async createTooObservation(formData) {
+    try {
+      const response = await this.#api.post(this.#gppToosUrl, formData);
+      return { status: 200, data: response };
+    } catch (error) {
+      const data = await error.json();
+      return { status: data.status, data: data };
     }
   }
 
@@ -369,6 +386,19 @@ class GPPView {
   }
 
   /**
+   * Get the data from the observation form.
+   * @return {Object|null} The form data, or null if no form is present.
+   * @private
+   */
+  #getFormData() {
+    if (this.#form) {
+      const formData = this.#form.getData();
+      return formData;
+    }
+    return null;
+  }
+
+  /**
    * Render hook called by the controller.
    * @param {String} viewCmd  Command string.
    * @param {Object} parameter  Payload of parameters.
@@ -429,6 +459,12 @@ class GPPView {
       case "clearObservationForm":
         this.#clearObservationForm();
         break;
+      case "getFormData":
+        return this.#getFormData();
+
+      default:
+        console.warn(`[GPPView] Unknown render command: ${viewCmd}`);
+        break;
     }
   }
 
@@ -455,14 +491,8 @@ class GPPView {
       case "saveObservation":
         this.#poPanel.onSave(handler);
         break;
-      case "createNewObservation":
+      case "createAndSaveTooObservation":
         this.#poPanel.onCreateNew(handler);
-        break;
-      case "createAndSaveObservation":
-        Utils.delegate(this.#formContainer, selector, "click", (e) => {
-          e.preventDefault();
-          handler();
-        });
         break;
     }
   }
@@ -509,21 +539,53 @@ class GPPController {
     this.#view.bindCallback("selectTooObservation", (item) => {
       this.#selectTooObservation(item.observationId);
     });
-    // FIXME:
-    // Which one below do I keep in callbacks?
-    this.#view.bindCallback("createNewObservation", (item) =>
-      this.#createNewObservation()
-    );
-    this.#view.bindCallback("createAndSaveObservation", () =>
-      this.#createAndSaveObservation()
+    this.#view.bindCallback("createAndSaveTooObservation", () =>
+      this.#createAndSaveTooObservation()
     );
   }
-  #createNewObservation() {
-    this.#view.render("clearObservationForm");
-    this.#view.render("showCreateNewObservation");
-  }
-  #createAndSaveObservation() {
-    console.log("Controller got the create and save");
+
+  /**
+   * Creates and saves a new ToO observation. Displays a toast notification
+   * based on the result of the operation.
+   * @returns {Promise<void>} A promise that resolves when the operation is complete.
+   * @private
+   */
+  async #createAndSaveTooObservation() {
+    const formData = this.#view.render("getFormData");
+
+    // If no form data, issue a warning toast and return.
+    if (formData == null) {
+      const notification = {
+        label: "No Form Data",
+        message: "No form data available to create a new ToO observation.",
+        color: "warning",
+      };
+      this.#toast.show(notification);
+      return;
+    }
+
+    const response = await this.#model.createTooObservation(formData);
+
+    if (response.status === 200) {
+      const notification = {
+        label: "ToO Observation Sent Successfully",
+        message: `New ToO observation has been sent successfully.`,
+        color: "success",
+      };
+      this.#toast.show(notification);
+    } else {
+      // Gracefully extract and format error messages.
+      const errorMessages = Object.values(response.data).flat().join(" ");
+
+      const notification = {
+        label: "ToO Observation Not Created",
+        message:
+          errorMessages ||
+          "An unknown error occurred while creating the ToO observation.",
+        color: "danger",
+      };
+      this.#toast.show(notification);
+    }
   }
 
   /**
@@ -531,7 +593,7 @@ class GPPController {
    * based on the result. Shows a warning if the observation has no reference,
    * a success toast if saved successfully, or an error toast with details if it fails.
    * @private
-   * @returns {Promise<void>}
+   * @returns {Promise<void>} A promise that resolves when the operation is complete.
    */
   async #saveObservation() {
     const observation = this.#model.activeObservation;
