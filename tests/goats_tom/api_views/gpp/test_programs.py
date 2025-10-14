@@ -26,7 +26,11 @@ class TestGPPProgramViewSet:
 
     def test_list_programs_success(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.programs.GPPClient")
-        mock_client.return_value.program.get_all = AsyncMock(return_value=[self.program_data])
+        mock_director = mocker.patch("goats_tom.api_views.gpp.programs.GPPDirector")
+
+        mock_director.return_value.goats.program.get_all = AsyncMock(
+            return_value=[self.program_data]
+)
 
         request = self.factory.get(self.programs_url)
         force_authenticate(request, user=self.user_with_login)
@@ -35,7 +39,7 @@ class TestGPPProgramViewSet:
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data == [self.program_data]
-        mock_client.return_value.program.get_all.assert_called_once()
+        mock_director.assert_called_once_with(mock_client.return_value)
 
     def test_list_programs_missing_gpplogin(self):
         request = self.factory.get(self.programs_url)
