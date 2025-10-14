@@ -69,8 +69,8 @@ The official ``conda-forge`` `maintainer documentation <https://conda-forge.org/
 reference for feedstock maintenance and update procedures.
 
 .. note::
-   To perform any maintenance actions on a ``conda-forge`` feedstock—such as merging pull requests,
-   rerendering recipes, or triggering rebuilds—the maintainer must first be listed in the
+   To perform any maintenance actions on a ``conda-forge`` feedstock, such as merging pull requests,
+   rerendering recipes, or triggering rebuilds, the maintainer must first be listed in the
    ``recipe-maintainers`` section of the feedstock's ``meta.yaml`` file.  
 
 When a new release of a maintained package is published, ``conda-forge`` automation tags maintainers on the corresponding pull request
