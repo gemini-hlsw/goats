@@ -24,7 +24,7 @@ and all dependencies must be available on **conda-forge**.
 Before approving or merging any update:
 
 1. Verify that the new release is available on ``conda-forge`` or that it can be published there if maintained internally.  
-   (See the upcoming section *"Conda-Forge Maintenance"* for details.)
+   (See the section :ref:`Conda-Forge Maintenance <conda_forge_maintenance>` for details.)
 2. Confirm that **DRAGONS** and **TOMToolkit** support the proposed versions.  
    DRAGONS, for example, depends on specific ``astropy`` versions.
 
