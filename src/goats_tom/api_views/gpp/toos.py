@@ -65,7 +65,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             An authenticated GPP client instance.
         properties : TargetPropertiesInput
             The new properties for the cloned target.
-        target_id : int
+        target_id : str
             The ID of the target to clone.
 
         Returns
@@ -91,7 +91,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             An authenticated GPP client instance.
         properties : ObservationPropertiesInput
             The new properties for the cloned observation.
-        observation_id : int
+        observation_id : str
             The ID of the observation to clone.
 
         Returns
@@ -144,7 +144,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         ----------
         client : GPPClient
             An authenticated GPP client instance.
-        observation_id : int
+        observation_id : str
             The ID of the observation to retrieve the workflow state for.
 
         Returns
@@ -170,7 +170,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             An authenticated GPP client instance.
         workflow_state : ObservationWorkflowState
             The new workflow state to set.
-        observation_id : int
+        observation_id : str
             The ID of the observation to set the workflow state for.
 
         Returns
