@@ -1,0 +1,2 @@
+Added `apply-update` command to the GOATS CLI to run database migrations after upgrading GOATS. Refactored client logic for clarity.
+
