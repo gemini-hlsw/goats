@@ -11,6 +11,7 @@ router.register(r"gpp/programs", api_views.GPPProgramViewSet, basename="gppprogr
 router.register(
     r"gpp/observations", api_views.GPPObservationViewSet, basename="gppobservations"
 )
+router.register(r"gpp/toos", api_views.GPPTooViewSet, basename="gpptoo")
 router.register(
     r"reduceddatums", api_views.ReducedDatumViewSet, basename="reduceddatums"
 )

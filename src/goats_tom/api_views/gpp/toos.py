@@ -1,0 +1,200 @@
+"""Handles creating ToOs with GPP."""
+
+__all__ = ["GPPTooViewSet"]
+
+from typing import Any
+
+from asgiref.sync import async_to_sync
+from django.conf import settings
+from gpp_client import GPPClient
+from gpp_client.api.enums import ObservationWorkflowState
+from gpp_client.api.input_types import ObservationPropertiesInput, TargetPropertiesInput
+from rest_framework import permissions, status
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.viewsets import GenericViewSet, mixins
+
+
+class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
+    serializer_class = None
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = None
+
+    def create(self, request: Request, *args, **kwargs) -> Response:
+        """Create a ToO target, observation, and sets the workflow in GPP.
+
+        The steps taken to create a ToO observation are:
+        1. Clone the target with new properties, setting the target as sidereal.
+        2. Clone the observation with new properties, linking to the new target.
+        3. Set the workflow state for the new observation.
+
+        Parameters
+        ----------
+        request : Request
+            The request object containing the data for the new target and observation.
+
+        Returns
+        -------
+        Response
+            A DRF Response object containing the details of the created observation.
+        """
+        # Ensure the user has GPP credentials.
+        if not hasattr(request.user, "gpplogin"):
+            return Response(
+                {"detail": "GPP login credentials are not configured for this user."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        credentials = request.user.gpplogin
+
+        # Setup client to communicate with GPP.
+        try:
+            _ = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            return Response({"detail": "Not yet implemented."})
+
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _clone_target(
+        self, client: GPPClient, properties: TargetPropertiesInput, target_id: str
+    ) -> dict[str, Any]:
+        """Clone a target in GPP with new properties.
+
+        Parameters
+        ----------
+        client : GPPClient
+            An authenticated GPP client instance.
+        properties : TargetPropertiesInput
+            The new properties for the cloned target.
+        target_id : str
+            The ID of the target to clone.
+
+        Returns
+        -------
+        dict[str, Any]
+            The newly created target's details.
+        """
+        return async_to_sync(client.target.clone)(
+            target_id=target_id, properties=properties
+        )
+
+    def _clone_observation(
+        self,
+        client: GPPClient,
+        properties: ObservationPropertiesInput,
+        observation_id: str,
+    ) -> dict[str, Any]:
+        """Clone an observation in GPP with new properties.
+
+        Parameters
+        ----------
+        client : GPPClient
+            An authenticated GPP client instance.
+        properties : ObservationPropertiesInput
+            The new properties for the cloned observation.
+        observation_id : str
+            The ID of the observation to clone.
+
+        Returns
+        -------
+        dict[str, Any]
+            The newly created observation's details.
+        """
+        return async_to_sync(client.observation.clone)(
+            observation_id=observation_id, properties=properties
+        )
+
+    def _format_observation_properties(
+        self, data: dict[str, Any]
+    ) -> ObservationPropertiesInput:
+        """Format the observation properties from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing observation properties.
+
+        Returns
+        -------
+        ObservationPropertiesInput
+            The formatted observation properties.
+        """
+        raise NotImplementedError
+
+    def _format_target_properties(self, data: dict[str, Any]) -> TargetPropertiesInput:
+        """Format the target properties from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing target properties.
+
+        Returns
+        -------
+        TargetPropertiesInput
+            The formatted target properties.
+        """
+        raise NotImplementedError
+
+    def _get_workflow_state(
+        self, client: GPPClient, observation_id: str
+    ) -> dict[str, Any]:
+        """Retrieve the workflow state for a given observation.
+
+        Parameters
+        ----------
+        client : GPPClient
+            An authenticated GPP client instance.
+        observation_id : str
+            The ID of the observation to retrieve the workflow state for.
+
+        Returns
+        -------
+        dict[str, Any]
+            The workflow state details.
+        """
+        return async_to_sync(client.workflow_state.get_by_id)(
+            observation_id=observation_id
+        )
+
+    def _set_workflow_state(
+        self,
+        client: GPPClient,
+        workflow_state: ObservationWorkflowState,
+        observation_id: str,
+    ) -> dict[str, Any]:
+        """Set the workflow state for a given observation.
+
+        Parameters
+        ----------
+        client : GPPClient
+            An authenticated GPP client instance.
+        workflow_state : ObservationWorkflowState
+            The new workflow state to set.
+        observation_id : str
+            The ID of the observation to set the workflow state for.
+
+        Returns
+        -------
+        dict[str, Any]
+            The updated workflow state details.
+        """
+        return async_to_sync(client.workflow_state.update_by_id)(
+            workflow_state=workflow_state, observation_id=observation_id
+        )
+
+    def _format_workflow_state_properties(
+        self, data: dict[str, Any]
+    ) -> ObservationWorkflowState:
+        """Format the workflow state property from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing workflow state property.
+
+        Returns
+        -------
+        ObservationWorkflowState
+            The formatted workflow state property.
+        """
+        raise NotImplementedError
