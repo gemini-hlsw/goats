@@ -1,0 +1,1 @@
+Updated documentation to include the new `apply-update` GOATS CLI command.
