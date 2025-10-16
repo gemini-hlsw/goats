@@ -5,7 +5,6 @@ import re
 import shutil
 import subprocess
 import time
-from importlib.metadata import version
 from pathlib import Path
 
 import click
@@ -15,6 +14,55 @@ from goats_cli.config import config
 from goats_cli.exceptions import GOATSClickException
 from goats_cli.modify_settings import modify_settings
 from goats_cli.process_manager import ProcessManager
+from goats_cli.versioning import VersionChecker
+
+UPDATE_DOC_URL = "https://goats.readthedocs.io/en/stable/update.html"
+
+
+def _check_version() -> None:
+    """
+    Check whether GOATS is outdated.
+
+    Returns
+    -------
+    None
+        This function does not return a value. It may block for user input and
+        can raise ``click.Abort`` if the user cancels
+
+    Raises
+    ------
+    GOATSClickException
+        If the latest version cannot be resolved or version strings are invalid.
+    """
+    utils.display_message("Checking for updates...\n")
+    checker = VersionChecker()
+    if checker.is_outdated:
+        utils.display_warning(
+            "A new version of GOATS is available: "
+            "{checker.latest_version} (current: {checker.current_version})"
+        )
+        utils.display_info(
+            "GOATS interacts with several external services (e.g., GPP, GOA, TNS)\n    "
+            "which may evolve over time. Using an outdated version can result in\n    "
+            "unexpected behavior or failed operations due to API changes or\n    "
+            "incompatible features.\n\n"
+        )
+        utils.display_info(
+            f"➤ Visit {UPDATE_DOC_URL} for update instructions\n\n",
+        )
+        utils.display_info(
+            "Press Enter to continue at your own risk, or Ctrl+C to cancel...",
+        )
+        try:
+            click.prompt("", default="", show_default=False, prompt_suffix="")
+        except (KeyboardInterrupt, EOFError):
+            raise click.Abort()
+
+    else:
+        utils.display_message(
+            f"GOATS is up to date (version {checker.current_version})."
+            "No update necessary.\n"
+        )
 
 
 def _run_migrations(manage_file: Path) -> None:
@@ -194,7 +242,7 @@ def start_background_workers(manage_file: Path, workers: int) -> subprocess.Pope
 
 
 @click.group(invoke_without_command=True)
-@click.version_option(version=version("goats"))
+@click.version_option(package_name="goats")
 @click.pass_context
 def cli(ctx):
     """Gemini Observation and Analysis of Targets System (GOATS).
@@ -454,6 +502,9 @@ def run(
         Raised if the 'subprocess' calls fail.
     """
     utils.display_message("Serving GOATS.\n")
+
+    _check_version()
+
     utils.display_message(
         "Finding GOATS and Redis installation:", show_goats_emoji=True
     )
