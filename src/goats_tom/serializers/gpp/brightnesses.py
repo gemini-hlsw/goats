@@ -15,7 +15,7 @@ class BrightnessSerializer(serializers.Serializer):
     -----
     This serializer is tied to
     ``gpp_client.api.input_types.BandNormalizedIntegratedInput.`` and will eventually
-    eventually need to support all types of ``SourceProfileInput``.
+    need to support all types of ``SourceProfileInput``.
     """
 
     band = serializers.ChoiceField(choices=[b.value for b in Band])
