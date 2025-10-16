@@ -5,7 +5,6 @@ import re
 import shutil
 import subprocess
 import time
-from importlib.metadata import version
 from pathlib import Path
 
 import click
@@ -15,6 +14,7 @@ from goats_cli.config import config
 from goats_cli.exceptions import GOATSClickException
 from goats_cli.modify_settings import modify_settings
 from goats_cli.process_manager import ProcessManager
+from goats_cli.versioning import check_version
 
 
 def _run_migrations(manage_file: Path) -> None:
@@ -194,7 +194,7 @@ def start_background_workers(manage_file: Path, workers: int) -> subprocess.Pope
 
 
 @click.group(invoke_without_command=True)
-@click.version_option(version=version("goats"))
+@click.version_option(package_name="goats")
 @click.pass_context
 def cli(ctx):
     """Gemini Observation and Analysis of Targets System (GOATS).
@@ -453,7 +453,11 @@ def run(
     GOATSClickException
         Raised if the 'subprocess' calls fail.
     """
+
     utils.display_message("Serving GOATS.\n")
+
+    check_version()
+
     utils.display_message(
         "Finding GOATS and Redis installation:", show_goats_emoji=True
     )
