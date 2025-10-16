@@ -20,12 +20,12 @@ classifiers = [
 requires-python = ">=3.12"
 dependencies = [
     "astropy>=6.0,<7",
-    "astroquery>=0.4.10",
+    "astroquery>=0.4.11",
     "channels-redis>=4.3.0,<5",
     "channels[daphne]>=4.0,<5",
-    "click>=8.2.1,<9",
-    "django>=4.2.23,<5",
-    "django-cors-headers>=4.7.0,<5",
+    "click>=8.3.0,<9",
+    "django>=4.2.24,<5",
+    "django-cors-headers>=4.9.0",
     "django-dramatiq>=0.14.0",
     "djangorestframework>=3.16.1,<4",
     "dramatiq-abort>=1.2.1",
@@ -34,8 +34,8 @@ dependencies = [
     "marshmallow>=3.26.1,<4",
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
-    "tom-tns>=0.3.1",
-    "tomtoolkit==2.26.0",
+    "tom-tns>=0.3.2",
+    "tomtoolkit==2.26.2",
 ]
 version = "25.9.0"
 
