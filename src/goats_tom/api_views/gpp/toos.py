@@ -8,11 +8,23 @@ from asgiref.sync import async_to_sync
 from django.conf import settings
 from gpp_client import GPPClient
 from gpp_client.api.enums import ObservationWorkflowState
-from gpp_client.api.input_types import ObservationPropertiesInput, TargetPropertiesInput
+from gpp_client.api.input_types import (
+    BandBrightnessIntegratedInput,
+    ElevationRangeInput,
+    ExposureTimeModeInput,
+    ObservationPropertiesInput,
+    TargetPropertiesInput,
+)
 from rest_framework import permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, mixins
+
+from goats_tom.serializers import (
+    GPPBrightnessesSerializer,
+    GPPElevationRangeSerializer,
+    GPPExposureModeSerializer,
+)
 
 
 class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
@@ -46,13 +58,109 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             )
         credentials = request.user.gpplogin
 
-        # Setup client to communicate with GPP.
+        print(request.data)
         try:
+            # Setup client to communicate with GPP.
             _ = GPPClient(url=settings.GPP_URL, token=credentials.token)
+
+            # TODO: Format brightnesses from request data.
+            # TODO: Format exposure mode from request data.
+            # TODO: Format elevation range from request data.
+
             return Response({"detail": "Not yet implemented."})
 
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _format_elevation_range_properties(
+        self, data: dict[str, Any]
+    ) -> ElevationRangeInput | None:
+        """Format elevation range properties from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing elevation range fields.
+
+        Returns
+        -------
+        ElevationRangeInput | None
+            An ElevationRangeInput instance or ``None`` if no elevation range is
+            provided.
+
+        Raises
+        ------
+        serializers.ValidationError
+            If any error occurs during parsing or validation of elevation range values.
+        """
+
+        elevation_range = GPPElevationRangeSerializer(data=data)
+        elevation_range.is_valid(raise_exception=True)
+        return (
+            ElevationRangeInput(**elevation_range.validated_data)
+            if elevation_range.validated_data
+            else None
+        )
+
+    def _format_brightnesses_properties(
+        self, data: dict[str, Any]
+    ) -> list[BandBrightnessIntegratedInput] | None:
+        """Format brightnesses properties from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing brightness fields.
+
+        Returns
+        -------
+        list[BandBrightnessIntegratedInput] | None
+            A list of BandBrightnessIntegratedInput instances or ``None`` if no
+            brightnesses are provided.
+
+        Raises
+        ------
+        serializers.ValidationError
+            If any error occurs during parsing or validation of brightness values.
+        """
+        brightnesses = GPPBrightnessesSerializer(data=data)
+        brightnesses.is_valid(raise_exception=True)
+        brightnesses_data = brightnesses.validated_data.get("brightnesses", None)
+        return (
+            [BandBrightnessIntegratedInput(**b) for b in brightnesses_data]
+            if brightnesses_data
+            else None
+        )
+
+    def _format_exposure_mode_properties(
+        self, data: dict[str, Any]
+    ) -> ExposureTimeModeInput | None:
+        """Format exposure mode properties from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing exposure mode fields.
+
+        Returns
+        -------
+        ExposureTimeModeInput | None
+            An ExposureTimeModeInput instance or ``None`` if no exposure mode is
+            provided.
+
+        Raises
+        ------
+        serializers.ValidationError
+            If any error occurs during parsing or validation of exposure mode values.
+        """
+
+        exposure_mode = GPPExposureModeSerializer(data=data)
+        exposure_mode.is_valid(raise_exception=True)
+        return (
+            ExposureTimeModeInput(**exposure_mode.validated_data)
+            if exposure_mode.validated_data
+            else None
+        )
 
     def _clone_target(
         self, client: GPPClient, properties: TargetPropertiesInput, target_id: str

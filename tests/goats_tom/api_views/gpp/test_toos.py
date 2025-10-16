@@ -8,6 +8,7 @@ from gpp_client.api.input_types import ObservationPropertiesInput, TargetPropert
 from gpp_client.api.enums import ObservationWorkflowState
 from goats_tom.tests.factories import UserFactory, GPPLoginFactory
 from goats_tom.api_views import GPPTooViewSet
+from gpp_client.api.input_types import BandBrightnessIntegratedInput, ExposureTimeModeInput, ElevationRangeInput, AirMassRangeInput, HourAngleRangeInput
 
 
 @pytest.mark.django_db
@@ -128,3 +129,157 @@ class TestGPPTooViewSet:
         viewset = GPPTooViewSet()
         with pytest.raises(NotImplementedError):
             getattr(viewset, method_name)({})
+
+    def test_format_brightnesses_properties_valid_data(self, mocker) -> None:
+        """Test _format_brightnesses_properties with valid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.GPPBrightnessesSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.return_value = True
+        mock_serializer_instance.validated_data = {
+            "brightnesses": [{"band": "V", "value": 12.3}]
+        }
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_brightnesses_properties({"brightnesses": [{"band": "V", "value": 12.3}]})
+
+        assert result == [BandBrightnessIntegratedInput(band="V", value=12.3)]
+        mock_serializer.assert_called_once_with(data={"brightnesses": [{"band": "V", "value": 12.3}]})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_brightnesses_properties_no_data(self, mocker) -> None:
+        """Test _format_brightnesses_properties with no brightnesses data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.GPPBrightnessesSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.return_value = True
+        mock_serializer_instance.validated_data = {}
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_brightnesses_properties({})
+
+        assert result is None
+        mock_serializer.assert_called_once_with(data={})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_brightnesses_properties_invalid_data(self, mocker) -> None:
+        """Test _format_brightnesses_properties with invalid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.GPPBrightnessesSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.side_effect = ValueError("Invalid data")
+
+        viewset = GPPTooViewSet()
+        with pytest.raises(ValueError, match="Invalid data"):
+            viewset._format_brightnesses_properties({"brightnesses": [{"band": "V"}]})
+
+        mock_serializer.assert_called_once_with(data={"brightnesses": [{"band": "V"}]})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_exposure_mode_properties_valid_data(self, mocker) -> None:
+        """Test _format_exposure_mode_properties with valid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.GPPExposureModeSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.return_value = True
+        mock_serializer_instance.validated_data = {"mode": "EXPOSURE"}
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_exposure_mode_properties({"mode": "EXPOSURE"})
+
+        assert result == ExposureTimeModeInput(mode="EXPOSURE")
+        mock_serializer.assert_called_once_with(data={"mode": "EXPOSURE"})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_exposure_mode_properties_no_data(self, mocker) -> None:
+        """Test _format_exposure_mode_properties with no exposure mode data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.GPPExposureModeSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.return_value = True
+        mock_serializer_instance.validated_data = {}
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_exposure_mode_properties({})
+
+        assert result is None
+        mock_serializer.assert_called_once_with(data={})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_exposure_mode_properties_invalid_data(self, mocker) -> None:
+        """Test _format_exposure_mode_properties with invalid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.GPPExposureModeSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.side_effect = ValueError("Invalid data")
+
+        viewset = GPPTooViewSet()
+        with pytest.raises(ValueError, match="Invalid data"):
+            viewset._format_exposure_mode_properties({"mode": "INVALID"})
+
+        mock_serializer.assert_called_once_with(data={"mode": "INVALID"})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_elevation_range_properties_valid_air_mass(self, mocker) -> None:
+        """Test _format_elevation_range_properties with valid air mass data."""
+        mock_serializer = mocker.patch("goats_tom.api_views.gpp.toos.GPPElevationRangeSerializer")
+        mock_instance = mock_serializer.return_value
+        mock_instance.is_valid.return_value = True
+        mock_instance.validated_data = {"airMass": {"min": 1.0, "max": 2.0}}
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_elevation_range_properties({"airMassMinimumInput": "1.0", "airMassMaximumInput": "2.0"})
+
+        assert result == ElevationRangeInput(airMass=AirMassRangeInput(min=1.0, max=2.0), hourAngle=None)
+        mock_serializer.assert_called_once_with(data={"airMassMinimumInput": "1.0", "airMassMaximumInput": "2.0"})
+        mock_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+
+    def test_format_elevation_range_properties_valid_hour_angle(self, mocker) -> None:
+        """Test _format_elevation_range_properties with valid hour angle data."""
+        mock_serializer = mocker.patch("goats_tom.api_views.gpp.toos.GPPElevationRangeSerializer")
+        mock_instance = mock_serializer.return_value
+        mock_instance.is_valid.return_value = True
+        mock_instance.validated_data = {"hourAngle": {"minHours": -2.0, "maxHours": 2.0}}
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_elevation_range_properties({"haMinimumInput": "-2.0", "haMaximumInput": "2.0"})
+
+        assert result == ElevationRangeInput(hourAngle=HourAngleRangeInput(minHours=-2.0, maxHours=2.0), airMass=None)
+        mock_serializer.assert_called_once_with(data={"haMinimumInput": "-2.0", "haMaximumInput": "2.0"})
+        mock_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+
+    def test_format_elevation_range_properties_empty(self, mocker) -> None:
+        """Test _format_elevation_range_properties with no elevation range data."""
+        mock_serializer = mocker.patch("goats_tom.api_views.gpp.toos.GPPElevationRangeSerializer")
+        mock_instance = mock_serializer.return_value
+        mock_instance.is_valid.return_value = True
+        mock_instance.validated_data = {}
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_elevation_range_properties({})
+
+        assert result is None
+        mock_serializer.assert_called_once_with(data={})
+        mock_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+
+    def test_format_elevation_range_properties_invalid_data(self, mocker) -> None:
+        """Test _format_elevation_range_properties with invalid elevation range data."""
+        mock_serializer = mocker.patch("goats_tom.api_views.gpp.toos.GPPElevationRangeSerializer")
+        mock_instance = mock_serializer.return_value
+        mock_instance.is_valid.side_effect = ValueError("Invalid data")
+
+        viewset = GPPTooViewSet()
+        with pytest.raises(ValueError, match="Invalid data"):
+            viewset._format_elevation_range_properties({"haMinimumInput": "bad"})
+
+        mock_serializer.assert_called_once_with(data={"haMinimumInput": "bad"})
+        mock_instance.is_valid.assert_called_once_with(raise_exception=True)

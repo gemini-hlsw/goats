@@ -120,7 +120,7 @@ class GPPModel {
    */
   async createTooObservation(formData) {
     try {
-      const response = await this.#api.post(this.#gppToosUrl, formData);
+      const response = await this.#api.post(this.#gppToosUrl, formData, {}, false);
       return { status: 200, data: response };
     } catch (error) {
       const data = await error.json();
