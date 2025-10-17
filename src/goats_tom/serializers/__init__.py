@@ -13,12 +13,6 @@ from .dragons_reduce import (
     DRAGONSReduceUpdateSerializer,
 )
 from .dragons_run import DRAGONSRunFilterSerializer, DRAGONSRunSerializer
-from .gpp import (
-    GPPBrightnessesSerializer,
-    GPPElevationRangeSerializer,
-    GPPExposureModeSerializer,
-    GPPInstrumentRegistry,
-)
 from .header import HeaderSerializer
 from .recipes_module import RecipesModuleSerializer
 from .run_processor import RunProcessorSerializer
@@ -43,8 +37,4 @@ __all__ = [
     "Antares2GoatsSerializer",
     "HeaderSerializer",
     "AstroDatalabSerializer",
-    "GPPBrightnessesSerializer",
-    "GPPExposureModeSerializer",
-    "GPPElevationRangeSerializer",
-    "GPPInstrumentRegistry",
 ]

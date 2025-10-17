@@ -4,7 +4,7 @@ GMOS-South long slit serializer but is kept separate for clarity and potential f
 differences.
 """
 
-__all__ = ["GPPGMOSNorthLongSlitSerializer"]
+__all__ = ["GMOSNorthLongSlitSerializer"]
 
 from typing import Any
 
@@ -13,7 +13,7 @@ from rest_framework import serializers
 from goats_tom.serializers.gpp.utils import normalize, parse_comma_separated_floats
 
 
-class GPPGMOSNorthLongSlitSerializer(serializers.Serializer):
+class GMOSNorthLongSlitSerializer(serializers.Serializer):
     """Serializer for GMOS-North long slit input data."""
 
     centralWavelengthInput = serializers.CharField(required=False, allow_blank=True)

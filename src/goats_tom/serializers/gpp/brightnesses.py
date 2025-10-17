@@ -1,4 +1,4 @@
-__all__ = ["GPPBrightnessesSerializer"]
+__all__ = ["BrightnessesSerializer"]
 
 import re
 from typing import Any
@@ -24,7 +24,7 @@ class BrightnessSerializer(serializers.Serializer):
     error = serializers.FloatField(required=False, allow_null=True)
 
 
-class GPPBrightnessesSerializer(serializers.Serializer):
+class BrightnessesSerializer(serializers.Serializer):
     """Serializer to parse and validate brightness entries from flat form data."""
 
     brightnesses = serializers.ListField(
