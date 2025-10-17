@@ -2,7 +2,7 @@ import pytest
 from rest_framework.serializers import ValidationError
 
 from goats_tom.serializers.gpp.brightnesses import (
-    GPPBrightnessesSerializer,
+    BrightnessesSerializer,
     BrightnessSerializer,
 )
 from gpp_client.api.enums import Band, BrightnessIntegratedUnits
@@ -83,8 +83,8 @@ from gpp_client.api.enums import Band, BrightnessIntegratedUnits
     ],
 )
 def test_to_internal_value_valid(input_data, expected_output):
-    """Test valid inputs for GPPBrightnessesSerializer."""
-    serializer = GPPBrightnessesSerializer()
+    """Test valid inputs for BrightnessesSerializer."""
+    serializer = BrightnessesSerializer()
     result = serializer.to_internal_value(input_data)
     assert result == expected_output
 
@@ -128,8 +128,8 @@ def test_to_internal_value_valid(input_data, expected_output):
     ],
 )
 def test_to_internal_value_invalid(input_data, expected_exception_message):
-    """Test invalid inputs for GPPBrightnessesSerializer."""
-    serializer = GPPBrightnessesSerializer()
+    """Test invalid inputs for BrightnessesSerializer."""
+    serializer = BrightnessesSerializer()
     with pytest.raises(ValidationError) as excinfo:
         serializer.to_internal_value(input_data)
     assert str(excinfo.value.detail[0]) == expected_exception_message

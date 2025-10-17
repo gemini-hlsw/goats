@@ -1,6 +1,6 @@
 import pytest
 from rest_framework.exceptions import ValidationError
-from goats_tom.serializers.gpp.exposure_mode import GPPExposureModeSerializer
+from goats_tom.serializers.gpp.exposure_mode import ExposureModeSerializer
 
 @pytest.mark.parametrize(
     "input_data, expected_output",
@@ -55,7 +55,7 @@ from goats_tom.serializers.gpp.exposure_mode import GPPExposureModeSerializer
     ],
 )
 def test_validate_valid_inputs(input_data, expected_output):
-    serializer = GPPExposureModeSerializer()
+    serializer = ExposureModeSerializer()
     assert serializer.validate(input_data) == expected_output
 
 
@@ -127,7 +127,7 @@ def test_validate_valid_inputs(input_data, expected_output):
     ],
 )
 def test_validate_invalid_inputs(input_data, expected_exception_message):
-    serializer = GPPExposureModeSerializer()
+    serializer = ExposureModeSerializer()
     with pytest.raises(ValidationError) as excinfo:
         serializer.validate(input_data)
     assert str(excinfo.value.detail[0]) == expected_exception_message

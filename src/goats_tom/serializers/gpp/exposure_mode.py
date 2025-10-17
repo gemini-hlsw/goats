@@ -1,4 +1,4 @@
-__all__ = ["GPPExposureModeSerializer"]
+__all__ = ["ExposureModeSerializer"]
 
 from typing import Any
 
@@ -34,7 +34,7 @@ class TimeAndCountExposureSerializer(serializers.Serializer):
     at = WavelengthSerializer()
 
 
-class GPPExposureModeSerializer(serializers.Serializer):
+class ExposureModeSerializer(serializers.Serializer):
     """Serializer to parse and validate exposure mode from flat form data."""
 
     exposureModeSelect = serializers.ChoiceField(

@@ -1,4 +1,4 @@
-__all__ = ["GPPElevationRangeSerializer"]
+__all__ = ["ElevationRangeSerializer"]
 
 from typing import Any
 
@@ -7,7 +7,7 @@ from rest_framework import serializers
 from .utils import normalize
 
 
-class GPPElevationRangeSerializer(serializers.Serializer):
+class ElevationRangeSerializer(serializers.Serializer):
     """Serializer to parse and validate elevation range from flat form data."""
 
     elevationRangeSelect = serializers.ChoiceField(choices=["Air Mass", "Hour Angle"])

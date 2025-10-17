@@ -13,6 +13,7 @@ from gpp_client.api.input_types import (
     ElevationRangeInput,
     ExposureTimeModeInput,
     ObservationPropertiesInput,
+    SourceProfileInput,
     TargetPropertiesInput,
 )
 from rest_framework import permissions, status
@@ -20,15 +21,16 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, mixins
 
-from goats_tom.serializers import (
-    GPPBrightnessesSerializer,
-    GPPElevationRangeSerializer,
-    GPPExposureModeSerializer,
-    GPPInstrumentRegistry,
+from goats_tom.serializers.gpp import (
+    BrightnessesSerializer,
+    ElevationRangeSerializer,
+    ExposureModeSerializer,
+    InstrumentRegistry,
+    SourceProfileSerializer,
 )
 
 # Import type for instrument input models.
-from goats_tom.serializers.gpp.instruments import GPPInstrumentInputModelInstance
+from goats_tom.serializers.gpp.instruments import InstrumentInputModelInstance
 
 
 class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
@@ -62,23 +64,55 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             )
         credentials = request.user.gpplogin
 
+        # FIXME: Remove debug print statement after finalizing implementation all PRs.
         print(request.data)
         try:
             # Setup client to communicate with GPP.
             _ = GPPClient(url=settings.GPP_URL, token=credentials.token)
-
             # TODO: Format brightnesses from request data.
             # TODO: Format exposure mode from request data.
             # TODO: Format elevation range from request data.
+            # TODO: Format instrument from request data.
+            # TODO: Format source profile from request data.
 
             return Response({"detail": "Not yet implemented."})
 
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    def _format_source_profile_properties(
+        self, data: dict[str, Any]
+    ) -> SourceProfileInput | None:
+        """
+        Format source profile properties from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing source profile fields.
+
+        Returns
+        -------
+        SourceProfileInput | None
+            A SourceProfileInput instance or ``None`` if no source profile is
+            provided.
+
+        Raises
+        ------
+        serializers.ValidationError
+            If any error occurs during parsing or validation of source profile values.
+        """
+        source_profile_serializer = SourceProfileSerializer(data=data)
+        source_profile_serializer.is_valid(raise_exception=True)
+        return (
+            SourceProfileInput(**source_profile_serializer.validated_data)
+            if source_profile_serializer.validated_data
+            else None
+        )
+
     def _format_instrument_properties(
         self, data: dict[str, Any]
-    ) -> GPPInstrumentInputModelInstance | None:
+    ) -> InstrumentInputModelInstance | None:
         """Format instrument-specific properties from the request data.
 
         Parameters
@@ -88,7 +122,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
 
         Returns
         -------
-        GPPInstrumentInputModelInstance | None
+        InstrumentInputModelInstance | None
             An instrument input model instance or ``None`` if no instrument is
             provided.
 
@@ -97,10 +131,10 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         serializers.ValidationError
             If any error occurs during parsing or validation of instrument values.
         """
-        instrument_serializer_class = GPPInstrumentRegistry.get_serializer(data)
+        instrument_serializer_class = InstrumentRegistry.get_serializer(data)
         instrument = instrument_serializer_class(data=data)
         instrument.is_valid(raise_exception=True)
-        instrument_input_model_class = GPPInstrumentRegistry.get_input_model(data)
+        instrument_input_model_class = InstrumentRegistry.get_input_model(data)
 
         return (
             instrument_input_model_class(**instrument.validated_data)
@@ -130,7 +164,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             If any error occurs during parsing or validation of elevation range values.
         """
 
-        elevation_range = GPPElevationRangeSerializer(data=data)
+        elevation_range = ElevationRangeSerializer(data=data)
         elevation_range.is_valid(raise_exception=True)
         return (
             ElevationRangeInput(**elevation_range.validated_data)
@@ -159,7 +193,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         serializers.ValidationError
             If any error occurs during parsing or validation of brightness values.
         """
-        brightnesses = GPPBrightnessesSerializer(data=data)
+        brightnesses = BrightnessesSerializer(data=data)
         brightnesses.is_valid(raise_exception=True)
         brightnesses_data = brightnesses.validated_data.get("brightnesses", None)
         return (
@@ -190,7 +224,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             If any error occurs during parsing or validation of exposure mode values.
         """
 
-        exposure_mode = GPPExposureModeSerializer(data=data)
+        exposure_mode = ExposureModeSerializer(data=data)
         exposure_mode.is_valid(raise_exception=True)
         return (
             ExposureTimeModeInput(**exposure_mode.validated_data)

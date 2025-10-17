@@ -1,15 +1,15 @@
-from .gmos_north_long_slit import GPPGMOSNorthLongSlitSerializer
-from .gmos_south_long_slit import GPPGMOSSouthLongSlitSerializer
+from .gmos_north_long_slit import GMOSNorthLongSlitSerializer
+from .gmos_south_long_slit import GMOSSouthLongSlitSerializer
 from .registry import (
-    GPPInstrumentInputModelClass,
-    GPPInstrumentInputModelInstance,
-    GPPInstrumentRegistry,
+    InstrumentInputModelClass,
+    InstrumentInputModelInstance,
+    InstrumentRegistry,
 )
 
 __all__ = [
-    "GPPGMOSNorthLongSlitSerializer",
-    "GPPGMOSSouthLongSlitSerializer",
-    "GPPInstrumentRegistry",
-    "GPPInstrumentInputModelClass",
-    "GPPInstrumentInputModelInstance",
+    "GMOSNorthLongSlitSerializer",
+    "GMOSSouthLongSlitSerializer",
+    "InstrumentRegistry",
+    "InstrumentInputModelClass",
+    "InstrumentInputModelInstance",
 ]
