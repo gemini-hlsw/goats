@@ -1,5 +1,6 @@
 import pytest
 from rest_framework.exceptions import ValidationError
+
 from goats_tom.serializers.gpp.instruments import GPPGMOSNorthLongSlitSerializer
 
 
@@ -35,18 +36,22 @@ from goats_tom.serializers.gpp.instruments import GPPGMOSNorthLongSlitSerializer
         # Only dithers.
         (
             {"wavelengthDithersInput": "1.0, 2.0"},
-            {"explicitWavelengthDithers": [
-                {"nanometers": 1.0},
-                {"nanometers": 2.0},
-            ]},
+            {
+                "explicitWavelengthDithers": [
+                    {"nanometers": 1.0},
+                    {"nanometers": 2.0},
+                ]
+            },
         ),
         # Only spatial offsets.
         (
             {"spatialOffsetsInput": "5.5, -5.5"},
-            {"explicitOffsets": [
-                {"arcseconds": 5.5},
-                {"arcseconds": -5.5},
-            ]},
+            {
+                "explicitOffsets": [
+                    {"arcseconds": 5.5},
+                    {"arcseconds": -5.5},
+                ]
+            },
         ),
         # Input with extra whitespace or empty entries.
         (
@@ -72,6 +77,7 @@ def test_valid_gmos_north_longslit_inputs(input_data, expected_output):
     serializer = GPPGMOSNorthLongSlitSerializer()
     result = serializer.validate(input_data)
     assert result == expected_output
+
 
 @pytest.mark.parametrize(
     "input_data, expected_message",
