@@ -24,7 +24,11 @@ from goats_tom.serializers import (
     GPPBrightnessesSerializer,
     GPPElevationRangeSerializer,
     GPPExposureModeSerializer,
+    GPPInstrumentRegistry,
 )
+
+# Import type for instrument input models.
+from goats_tom.serializers.gpp.instruments import GPPInstrumentInputModelInstance
 
 
 class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
@@ -71,6 +75,38 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
 
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _format_instrument_properties(
+        self, data: dict[str, Any]
+    ) -> GPPInstrumentInputModelInstance | None:
+        """Format instrument-specific properties from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing instrument fields.
+
+        Returns
+        -------
+        GPPInstrumentInputModelInstance | None
+            An instrument input model instance or ``None`` if no instrument is
+            provided.
+
+        Raises
+        ------
+        serializers.ValidationError
+            If any error occurs during parsing or validation of instrument values.
+        """
+        instrument_serializer_class = GPPInstrumentRegistry.get_serializer(data)
+        instrument = instrument_serializer_class(data=data)
+        instrument.is_valid(raise_exception=True)
+        instrument_input_model_class = GPPInstrumentRegistry.get_input_model(data)
+
+        return (
+            instrument_input_model_class(**instrument.validated_data)
+            if instrument.validated_data
+            else None
+        )
 
     def _format_elevation_range_properties(
         self, data: dict[str, Any]

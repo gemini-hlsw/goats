@@ -17,6 +17,7 @@ from .gpp import (
     GPPBrightnessesSerializer,
     GPPElevationRangeSerializer,
     GPPExposureModeSerializer,
+    GPPInstrumentRegistry,
 )
 from .header import HeaderSerializer
 from .recipes_module import RecipesModuleSerializer
@@ -45,4 +46,5 @@ __all__ = [
     "GPPBrightnessesSerializer",
     "GPPExposureModeSerializer",
     "GPPElevationRangeSerializer",
+    "GPPInstrumentRegistry",
 ]

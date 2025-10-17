@@ -1,0 +1,1 @@
+Added support for GMOS-N and GMOS-S Long Slit instruments in ToO submissions: GOATS now validates and formats instrument-specific parameters (e.g., central wavelength, dithers, spatial offsets) through a new serializer and registry system integrated with GPP ToO requests.
