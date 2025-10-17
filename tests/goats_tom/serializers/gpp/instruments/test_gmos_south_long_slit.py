@@ -1,6 +1,6 @@
 import pytest
 from rest_framework.exceptions import ValidationError
-from goats_tom.serializers.gpp.instruments import GPPGMOSSouthLongSlitSerializer
+from goats_tom.serializers.gpp.instruments import GMOSSouthLongSlitSerializer
 
 
 @pytest.mark.parametrize(
@@ -69,7 +69,7 @@ from goats_tom.serializers.gpp.instruments import GPPGMOSSouthLongSlitSerializer
 )
 def test_valid_gmos_south_longslit_inputs(input_data, expected_output):
     """Test valid GMOS South Long Slit input cases."""
-    serializer = GPPGMOSSouthLongSlitSerializer()
+    serializer = GMOSSouthLongSlitSerializer()
     result = serializer.validate(input_data)
     assert result == expected_output
 
@@ -95,7 +95,7 @@ def test_valid_gmos_south_longslit_inputs(input_data, expected_output):
 )
 def test_invalid_gmos_south_longslit_inputs(input_data, expected_message):
     """Test invalid GMOS South Long Slit input cases."""
-    serializer = GPPGMOSSouthLongSlitSerializer()
+    serializer = GMOSSouthLongSlitSerializer()
     with pytest.raises(ValidationError) as excinfo:
         serializer.validate(input_data)
     assert expected_message in str(excinfo.value.detail[0])

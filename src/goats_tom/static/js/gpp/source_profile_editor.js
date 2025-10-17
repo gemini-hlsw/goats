@@ -39,8 +39,11 @@ class SourceProfileEditor {
 
     this.#registerSedRenderers();
     this.#setupEventListeners();
-
+    console.log("got data:", data);
     if (data.sed) {
+      // TODO: Fix SED name mapping here maybe.
+      // FIXME: Remove debug log later after testing.
+      console.log("Preloading SED data:", data);
       this.#renderSedForm(data.sed, data);
     }
   }
@@ -51,7 +54,7 @@ class SourceProfileEditor {
    * @returns {HTMLElement} Column container for the field.
    * @private
    */
-  #createProfileSelect(selected = "Point") {
+  #createProfileSelect(selected = "point") {
     const col = Utils.createElement("div", "col-md-6");
     const label = Utils.createElement("label", "form-label");
     label.textContent = "Profile";
@@ -65,9 +68,9 @@ class SourceProfileEditor {
 
     // Hardcode options for now; will be dynamic later.
     const options = [
-      { value: "Point", label: "Point", disabled: false },
-      { value: "Gaussian", label: "Gaussian", disabled: true },
-      { value: "Uniform", label: "Uniform", disabled: true },
+      { value: "point", label: "Point", disabled: false },
+      { value: "gaussian", label: "Gaussian", disabled: true },
+      { value: "uniform", label: "Uniform", disabled: true },
     ];
 
     for (const { value, label, disabled } of options) {
@@ -105,13 +108,28 @@ class SourceProfileEditor {
     // Hardcode options for now; will be dynamic later.
     const options = [
       { value: "", label: "" },
-      { value: "Black Body", label: "Black Body" },
+      { value: "blackBodyTempK", label: "Black Body" },
+      { value: "stellarLibrary", label: "Stellar Library", disabled: true },
+      { value: "coolStar", label: "Cool Star", disabled: true },
+      { value: "galaxy", label: "Galaxy", disabled: true },
+      { value: "planet", label: "Planet", disabled: true },
+      { value: "quasar", label: "Quasar", disabled: true },
+      { value: "hiiRegion", label: "HII Region", disabled: true },
+      { value: "planetaryNebula", label: "Planetary Nebula", disabled: true },
+      { value: "powerLaw", label: "Power Law", disabled: true },
+      { value: "fluxDensities", label: "Flux Densities", disabled: true },
+      {
+        value: "fluxDensitiesAttachment",
+        label: "Flux Densities Attachment",
+        disabled: true,
+      },
     ];
 
-    for (const { value, label } of options) {
+    for (const { value, label, disabled } of options) {
       const opt = Utils.createElement("option");
       opt.value = value;
       opt.textContent = label;
+      if (disabled) opt.disabled = true;
       select.appendChild(opt);
     }
 
@@ -126,13 +144,13 @@ class SourceProfileEditor {
    * @private
    */
   #registerSedRenderers() {
-    this.#sedRegistry["Black Body"] = {
+    this.#sedRegistry["blackBodyTempK"] = {
       render: (data = {}) => {
         const col = Utils.createElement("div", "col-md-6");
 
         const label = Utils.createElement("label", "form-label");
         label.textContent = "Temperature";
-        const inputId = "sedBlackBodyTemperature";
+        const inputId = "sedBlackBodyTempK";
         label.htmlFor = inputId;
 
         const inputGroup = Utils.createElement("div", "input-group");

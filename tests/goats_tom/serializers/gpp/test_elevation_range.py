@@ -1,6 +1,6 @@
 import pytest
 from rest_framework.exceptions import ValidationError
-from goats_tom.serializers.gpp.elevation_range import GPPElevationRangeSerializer
+from goats_tom.serializers.gpp.elevation_range import ElevationRangeSerializer
 
 
 @pytest.mark.parametrize(
@@ -75,7 +75,7 @@ from goats_tom.serializers.gpp.elevation_range import GPPElevationRangeSerialize
 )
 def test_validate_valid_inputs(input_data, expected_output):
     """Test valid elevation range inputs."""
-    serializer = GPPElevationRangeSerializer()
+    serializer = ElevationRangeSerializer()
     result = serializer.validate(input_data)
     assert result == expected_output
 
@@ -130,7 +130,7 @@ def test_validate_valid_inputs(input_data, expected_output):
 )
 def test_validate_invalid_inputs(input_data, expected_exception_message):
     """Test invalid elevation range inputs."""
-    serializer = GPPElevationRangeSerializer()
+    serializer = ElevationRangeSerializer()
     with pytest.raises(ValidationError) as excinfo:
         serializer.validate(input_data)
     assert expected_exception_message in str(excinfo.value.detail[0])
