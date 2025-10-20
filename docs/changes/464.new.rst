@@ -1,0 +1,1 @@
+Added hidden fields in GPP observation forms to support additional metadata without displaying them to users: Sets up being able to create ToOs with GPP.
