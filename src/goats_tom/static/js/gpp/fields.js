@@ -58,6 +58,24 @@ const SHARED_FIELDS = [
   // Details section.
   { section: "Details" },
   {
+    path: "id",
+    element: "input",
+    type: "hidden",
+    id: "hiddenObservationId",
+  },
+  {
+    path: "targetEnvironment.firstScienceTarget.id",
+    type: "hidden",
+    element: "input",
+    id: "hiddenTargetId",
+  },
+  {
+    path: "observingMode.mode",
+    element: "input",
+    type: "hidden",
+    id: "hiddenObservingMode",
+  },
+  {
     labelText: "ID",
     path: "id",
     id: "id",

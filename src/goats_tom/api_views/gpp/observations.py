@@ -72,6 +72,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    # FIXME: Should I be getting "opportunity" from "firstScienceTarget" instead of the
+    # list of asterisms?
     def is_too(self, obs: dict) -> bool:
         """Return whether the observation is a Target of Opportunity (ToO).
 
