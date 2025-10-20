@@ -178,12 +178,14 @@ class ObservationForm {
         return;
       }
 
+      // Handle section headers.
       if (meta.section) {
         form.append(this.#createSectionHeader(meta.section));
         return;
       }
       const raw = Utils.getByPath(observation, meta.path);
 
+      // Handle special field handlers.
       if (meta.handler) {
         const handler = this.#handlers[meta.handler];
         if (handler) handler(meta, raw).forEach((el) => form.append(el));
@@ -241,6 +243,17 @@ class ObservationForm {
     options = [],
   }) {
     const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
+
+    // Handle creating a hidden input and return early to avoid breaking layout.
+    if (type === "hidden") {
+      const input = Utils.createElement("input");
+      input.type = type;
+      input.id = elementId;
+      input.name = elementId;
+      input.value = value;
+      return input;
+    }
+
     const col = Utils.createElement("div", [colSize]);
 
     // Create label.

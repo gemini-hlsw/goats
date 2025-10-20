@@ -1323,7 +1323,7 @@ requires-dist = [
     { name = "djangorestframework", specifier = ">=3.16.1,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
-    { name = "gpp-client", specifier = "==25.10.1" },
+    { name = "gpp-client", specifier = "==25.10.3" },
     { name = "marshmallow", specifier = ">=3.26.1,<4" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
@@ -1360,7 +1360,7 @@ notebook = [{ name = "ipykernel", specifier = ">=7.0.0" }]
 
 [[package]]
 name = "gpp-client"
-version = "25.10.1"
+version = "25.10.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1372,9 +1372,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/98/1c/b1e0cae222d9e7deeee40a7df3ded097563e2cd03c0df3ba7941ceebb86c/gpp_client-25.10.1.tar.gz", hash = "sha256:6dc42cd94662c361a758f343ee84349d1630241572dfaf046fac31995aff378a", size = 135996, upload-time = "2025-10-14T05:44:54.49Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6f/0e/2a2834a8f66e88f0669fef8dd2e003eb69ace52884da00ab3bc9e50e3b26/gpp_client-25.10.3.tar.gz", hash = "sha256:05fe74626a49766d433fc0e393ba80c5403f21e4bd55e4d179362da43461bfbd", size = 136377, upload-time = "2025-10-20T22:20:17.244Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/99/67/d7317d9a25e333bd59be6823d17059209530d994a912026051e5d4b7f5d9/gpp_client-25.10.1-py3-none-any.whl", hash = "sha256:8eee425c9ecdcfa6a97eafc26a94c64c108e07ef82fa411595f41665e0bcf438", size = 161943, upload-time = "2025-10-14T05:44:52.806Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/4a/48bc4117b1320754aedd4a3e59bc0da89a300fab0f9effdd99b1dfe4ba64/gpp_client-25.10.3-py3-none-any.whl", hash = "sha256:cb9975323be95ae04a9bc901418a1a93eea389fd6feadadbe9b92f0018f71e31", size = 162432, upload-time = "2025-10-20T22:20:15.641Z" },
 ]
 
 [[package]]
