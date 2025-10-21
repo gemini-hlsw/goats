@@ -10,6 +10,8 @@ from gpp_client import GPPClient
 from gpp_client.api.enums import ObservationWorkflowState
 from gpp_client.api.input_types import (
     BandBrightnessIntegratedInput,
+    CloneObservationInput,
+    CloneTargetInput,
     ElevationRangeInput,
     ExposureTimeModeInput,
     ObservationPropertiesInput,
@@ -23,6 +25,8 @@ from rest_framework.viewsets import GenericViewSet, mixins
 
 from goats_tom.serializers.gpp import (
     BrightnessesSerializer,
+    CloneObservationSerializer,
+    CloneTargetSerializer,
     ElevationRangeSerializer,
     ExposureModeSerializer,
     InstrumentRegistry,
@@ -74,6 +78,8 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             # TODO: Format elevation range from request data.
             # TODO: Format instrument from request data.
             # TODO: Format source profile from request data.
+            # print(self._format_clone_observation_input(request.data))
+            # print(self._format_clone_target_input(request.data))
 
             return Response({"detail": "Not yet implemented."})
 
@@ -312,6 +318,52 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             The formatted target properties.
         """
         raise NotImplementedError
+
+    def _format_clone_observation_input(
+        self, data: dict[str, Any]
+    ) -> CloneObservationInput:
+        """Format the clone observation input from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing observation fields.
+
+        Returns
+        -------
+        CloneObservationInput
+            The formatted clone observation input.
+        """
+        clone_observation = CloneObservationSerializer(data=data)
+        clone_observation.is_valid(raise_exception=True)
+
+        observation_properties = ObservationPropertiesInput(
+            **clone_observation.validated_data
+        )
+
+        return CloneObservationInput(
+            observation_id=clone_observation.observation_id, set=observation_properties
+        )
+
+    def _format_clone_target_input(self, data: dict[str, Any]) -> CloneTargetInput:
+        """Format the target input from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing target fields.
+
+        Returns
+        -------
+        CloneTargetInput
+            The formatted clone target input.
+        """
+        clone_target = CloneTargetSerializer(data=data)
+        clone_target.is_valid(raise_exception=True)
+
+        target_properties = TargetPropertiesInput(**clone_target.validated_data)
+
+        return CloneTargetInput(target_id=clone_target.target_id, set=target_properties)
 
     def _get_workflow_state(
         self, client: GPPClient, observation_id: str
