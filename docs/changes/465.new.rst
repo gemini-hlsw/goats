@@ -1,0 +1,1 @@
+Introduced serializers for cloning GPP targets and observations, enabling deserializing and serializing through the ToO form with proper validation of input data.
