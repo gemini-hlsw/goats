@@ -31,6 +31,7 @@ from goats_tom.serializers.gpp import (
     ExposureModeSerializer,
     InstrumentRegistry,
     SourceProfileSerializer,
+    WorkflowStateSerializer,
 )
 
 # Import type for instrument input models.
@@ -80,6 +81,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             # TODO: Format source profile from request data.
             # print(self._format_clone_observation_input(request.data))
             # print(self._format_clone_target_input(request.data))
+            # print(self._format_workflow_state_properties(request.data))
 
             return Response({"detail": "Not yet implemented."})
 
@@ -147,6 +149,31 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             if instrument.validated_data
             else None
         )
+
+    def _format_workflow_state_properties(
+        self, data: dict[str, Any]
+    ) -> ObservationWorkflowState | None:
+        """Format workflow state property from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing workflow state fields.
+
+        Returns
+        -------
+        ObservationWorkflowState | None
+            An ObservationWorkflowState enum instance or ``None`` if no workflow
+            state is provided.
+
+        Raises
+        ------
+        serializers.ValidationError
+            If any error occurs during parsing or validation of workflow state values.
+        """
+        workflow_state_serializer = WorkflowStateSerializer(data=data)
+        workflow_state_serializer.is_valid(raise_exception=True)
+        return workflow_state_serializer.workflow_state_enum
 
     def _format_elevation_range_properties(
         self, data: dict[str, Any]
@@ -411,20 +438,3 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         return async_to_sync(client.workflow_state.update_by_id)(
             workflow_state=workflow_state, observation_id=observation_id
         )
-
-    def _format_workflow_state_properties(
-        self, data: dict[str, Any]
-    ) -> ObservationWorkflowState:
-        """Format the workflow state property from the request data.
-
-        Parameters
-        ----------
-        data : dict[str, Any]
-            The request data containing workflow state property.
-
-        Returns
-        -------
-        ObservationWorkflowState
-            The formatted workflow state property.
-        """
-        raise NotImplementedError
