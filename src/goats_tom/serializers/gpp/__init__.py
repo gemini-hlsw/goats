@@ -5,6 +5,7 @@ from .elevation_range import ElevationRangeSerializer
 from .exposure_mode import ExposureModeSerializer
 from .instruments import InstrumentRegistry
 from .source_profile import SourceProfileSerializer
+from .workflow_state import WorkflowStateSerializer
 
 __all__ = [
     "BrightnessesSerializer",
@@ -14,4 +15,5 @@ __all__ = [
     "InstrumentRegistry",
     "CloneTargetSerializer",
     "CloneObservationSerializer",
+    "WorkflowStateSerializer",
 ]

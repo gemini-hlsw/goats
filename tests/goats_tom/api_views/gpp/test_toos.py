@@ -140,7 +140,6 @@ class TestGPPTooViewSet:
         [
             "_format_observation_properties",
             "_format_target_properties",
-            "_format_workflow_state_properties",
         ],
     )
     def test_not_implemented_methods(self, method_name: str) -> None:
@@ -536,4 +535,51 @@ class TestGPPTooViewSet:
             viewset._format_clone_target_input({"field": "invalid"})
 
         mock_serializer.assert_called_once_with(data={"field": "invalid"})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_workflow_state_properties_valid_data(self, mocker) -> None:
+        """Test _format_workflow_state_properties with valid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.WorkflowStateSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.return_value = True
+        mock_serializer_instance.workflow_state_enum = ObservationWorkflowState.READY
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_workflow_state_properties({"state": "READY"})
+
+        assert result == ObservationWorkflowState.READY
+        mock_serializer.assert_called_once_with(data={"state": "READY"})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_workflow_state_properties_no_data(self, mocker) -> None:
+        """Test _format_workflow_state_properties with no workflow state data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.WorkflowStateSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.return_value = True
+        mock_serializer_instance.workflow_state_enum = None
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_workflow_state_properties({})
+
+        assert result is None
+        mock_serializer.assert_called_once_with(data={})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_workflow_state_properties_invalid_data(self, mocker) -> None:
+        """Test _format_workflow_state_properties with invalid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.WorkflowStateSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.side_effect = serializers.ValidationError
+
+        viewset = GPPTooViewSet()
+        with pytest.raises(serializers.ValidationError):
+            viewset._format_workflow_state_properties({"state": "INVALID"})
+
+        mock_serializer.assert_called_once_with(data={"state": "INVALID"})
         mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)

@@ -22,6 +22,8 @@
  *
  * options     : array (optional)
  *    For select elements, the list of options to display.
+ *    Each option can be a string (used for both value and label) or an object
+ *    with `labelText`, `value`, and `disabled` properties.
  *
  * type        : string (default: "text")
  *     Input type attribute (e.g., "number", "text", etc.).
@@ -90,6 +92,23 @@ const SHARED_FIELDS = [
     colSize: "col-lg-6",
     showIfMode: "normal",
     readOnly: "normal",
+  },
+  {
+    labelText: "State",
+    path: "workflow.value.state",
+    id: "workflowState",
+    colSize: "col-12",
+    element: "select",
+    readOnly: "normal",
+    options: [
+      { value: "READY", labelText: "Ready" },
+      { value: "DEFINED", labelText: "Defined" },
+      { value: "INACTIVE", labelText: "Inactive" },
+      { value: "ONGOING", labelText: "Ongoing", disabled: true },
+      { value: "COMPLETED", labelText: "Completed", disabled: true },
+      { value: "UNAPPROVED", labelText: "Unapproved", disabled: true },
+      { value: "UNDEFINED", labelText: "Undefined", disabled: true },
+    ],
   },
   {
     labelText: "Right Ascension",

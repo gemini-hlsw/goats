@@ -174,7 +174,6 @@ class ObservationForm {
         meta.showIfMode !== "both" &&
         meta.showIfMode !== this.#mode
       ) {
-        console.log("Skipping field:", meta.id);
         return;
       }
 
@@ -289,6 +288,11 @@ class ObservationForm {
           // User passed in JSON object {value: "", labelText: ""}.
           optionEl.value = opt.value;
           optionEl.textContent = opt.labelText;
+
+          // Handle disabled state.
+          if (opt.disabled) {
+            optionEl.disabled = true;
+          }
         }
         if (optionEl.value === value) {
           optionEl.selected = true;

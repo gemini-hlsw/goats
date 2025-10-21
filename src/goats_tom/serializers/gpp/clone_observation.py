@@ -15,10 +15,10 @@ from gpp_client.api.enums import (
 )
 from rest_framework import serializers
 
-from .utils import normalize
+from ._base import _BaseSerializer
 
 
-class CloneObservationSerializer(serializers.Serializer):
+class CloneObservationSerializer(_BaseSerializer):
     """
     Serializer for cloning observation data.
 
@@ -57,24 +57,6 @@ class CloneObservationSerializer(serializers.Serializer):
     posAngleConstraintAngleInput = serializers.FloatField(
         required=False, allow_null=True, min_value=0.0, max_value=360.0
     )
-
-    def to_internal_value(self, data: dict[str, Any]) -> dict[str, Any]:
-        """
-        Normalize blank strings to ``None`` before standard processing because this is
-        form data.
-
-        Parameters
-        ----------
-        data : dict[str, Any]
-            The input data from the form.
-
-        Returns
-        -------
-        dict[str, Any]
-            The normalized internal value dictionary.
-        """
-        normalized_data = {key: normalize(value) for key, value in data.items()}
-        return super().to_internal_value(normalized_data)
 
     def validate(self, data: dict[str, Any]) -> dict[str, Any]:
         """
