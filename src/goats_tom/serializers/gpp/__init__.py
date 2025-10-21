@@ -1,4 +1,6 @@
 from .brightnesses import BrightnessesSerializer
+from .clone_observation import CloneObservationSerializer
+from .clone_target import CloneTargetSerializer
 from .elevation_range import ElevationRangeSerializer
 from .exposure_mode import ExposureModeSerializer
 from .instruments import InstrumentRegistry
@@ -10,4 +12,6 @@ __all__ = [
     "ElevationRangeSerializer",
     "SourceProfileSerializer",
     "InstrumentRegistry",
+    "CloneTargetSerializer",
+    "CloneObservationSerializer",
 ]

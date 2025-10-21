@@ -14,7 +14,7 @@ from gpp_client.api.input_types import (
     TargetPropertiesInput,
     SourceProfileInput
 )
-from rest_framework import status
+from rest_framework import status, serializers
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from goats_tom.api_views import GPPTooViewSet
@@ -193,10 +193,10 @@ class TestGPPTooViewSet:
             "goats_tom.api_views.gpp.toos.BrightnessesSerializer"
         )
         mock_serializer_instance = mock_serializer.return_value
-        mock_serializer_instance.is_valid.side_effect = ValueError("Invalid data")
+        mock_serializer_instance.is_valid.side_effect = serializers.ValidationError
 
         viewset = GPPTooViewSet()
-        with pytest.raises(ValueError, match="Invalid data"):
+        with pytest.raises(serializers.ValidationError):
             viewset._format_brightnesses_properties({"brightnesses": [{"band": "V"}]})
 
         mock_serializer.assert_called_once_with(data={"brightnesses": [{"band": "V"}]})
@@ -240,10 +240,10 @@ class TestGPPTooViewSet:
             "goats_tom.api_views.gpp.toos.ExposureModeSerializer"
         )
         mock_serializer_instance = mock_serializer.return_value
-        mock_serializer_instance.is_valid.side_effect = ValueError("Invalid data")
+        mock_serializer_instance.is_valid.side_effect = serializers.ValidationError
 
         viewset = GPPTooViewSet()
-        with pytest.raises(ValueError, match="Invalid data"):
+        with pytest.raises(serializers.ValidationError):
             viewset._format_exposure_mode_properties({"mode": "INVALID"})
 
         mock_serializer.assert_called_once_with(data={"mode": "INVALID"})
@@ -317,10 +317,10 @@ class TestGPPTooViewSet:
             "goats_tom.api_views.gpp.toos.ElevationRangeSerializer"
         )
         mock_instance = mock_serializer.return_value
-        mock_instance.is_valid.side_effect = ValueError("Invalid data")
+        mock_instance.is_valid.side_effect = serializers.ValidationError
 
         viewset = GPPTooViewSet()
-        with pytest.raises(ValueError, match="Invalid data"):
+        with pytest.raises(serializers.ValidationError):
             viewset._format_elevation_range_properties({"haMinimumInput": "bad"})
 
         mock_serializer.assert_called_once_with(data={"haMinimumInput": "bad"})
@@ -387,10 +387,10 @@ class TestGPPTooViewSet:
 
         mock_serializer_class = mock_get_serializer.return_value
         mock_serializer_instance = mock_serializer_class.return_value
-        mock_serializer_instance.is_valid.side_effect = ValueError("Invalid data")
+        mock_serializer_instance.is_valid.side_effect = serializers.ValidationError
 
         viewset = GPPTooViewSet()
-        with pytest.raises(ValueError, match="Invalid data"):
+        with pytest.raises(serializers.ValidationError):
             viewset._format_instrument_properties({"field": "invalid"})
 
         mock_get_serializer.assert_called_once_with({"field": "invalid"})
@@ -438,11 +438,102 @@ class TestGPPTooViewSet:
             "goats_tom.api_views.gpp.toos.SourceProfileSerializer"
         )
         mock_serializer_instance = mock_serializer.return_value
-        mock_serializer_instance.is_valid.side_effect = ValueError("Invalid data")
+        mock_serializer_instance.is_valid.side_effect = serializers.ValidationError
 
         viewset = GPPTooViewSet()
-        with pytest.raises(ValueError, match="Invalid data"):
+        with pytest.raises(serializers.ValidationError):
             viewset._format_source_profile_properties({"profile": "INVALID"})
 
         mock_serializer.assert_called_once_with(data={"profile": "INVALID"})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_clone_observation_input_valid_data(self, mocker) -> None:
+        """Test _format_clone_observation_input with valid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.CloneObservationSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.return_value = True
+        mock_serializer_instance.validated_data = {"field": "value"}
+        mock_serializer_instance.observation_id = "o-123"
+
+        mock_observation_properties = mocker.patch(
+            "goats_tom.api_views.gpp.toos.ObservationPropertiesInput"
+        )
+        mock_observation_properties_instance = mock_observation_properties.return_value
+
+        mock_clone_observation_input = mocker.patch(
+            "goats_tom.api_views.gpp.toos.CloneObservationInput"
+        )
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_clone_observation_input({"field": "value"})
+
+        assert result == mock_clone_observation_input.return_value
+        mock_serializer.assert_called_once_with(data={"field": "value"})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+        mock_observation_properties.assert_called_once_with(field="value")
+        mock_clone_observation_input.assert_called_once_with(
+            observation_id="o-123", set=mock_observation_properties_instance
+        )
+
+
+    def test_format_clone_observation_input_invalid_data(self, mocker) -> None:
+        """Test _format_clone_observation_input with invalid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.CloneObservationSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.side_effect = serializers.ValidationError
+
+        viewset = GPPTooViewSet()
+        with pytest.raises(serializers.ValidationError):
+            viewset._format_clone_observation_input({"field": "invalid"})
+
+        mock_serializer.assert_called_once_with(data={"field": "invalid"})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_clone_target_input_valid_data(self, mocker) -> None:
+        """Test _format_clone_target_input with valid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.CloneTargetSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.return_value = True
+        mock_serializer_instance.validated_data = {"field": "value"}
+        mock_serializer_instance.target_id = "t-123"
+
+        mock_target_properties = mocker.patch(
+            "goats_tom.api_views.gpp.toos.TargetPropertiesInput"
+        )
+        mock_target_properties_instance = mock_target_properties.return_value
+
+        mock_clone_target_input = mocker.patch(
+            "goats_tom.api_views.gpp.toos.CloneTargetInput"
+        )
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_clone_target_input({"field": "value"})
+
+        assert result == mock_clone_target_input.return_value
+        mock_serializer.assert_called_once_with(data={"field": "value"})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+        mock_target_properties.assert_called_once_with(field="value")
+        mock_clone_target_input.assert_called_once_with(
+            target_id="t-123", set=mock_target_properties_instance
+        )
+
+    def test_format_clone_target_input_invalid_data(self, mocker) -> None:
+        """Test _format_clone_target_input with invalid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.CloneTargetSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.side_effect = serializers.ValidationError
+
+        viewset = GPPTooViewSet()
+        with pytest.raises(serializers.ValidationError):
+            viewset._format_clone_target_input({"field": "invalid"})
+
+        mock_serializer.assert_called_once_with(data={"field": "invalid"})
         mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
