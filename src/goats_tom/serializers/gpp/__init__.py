@@ -3,7 +3,8 @@ from .clone_observation import CloneObservationSerializer
 from .clone_target import CloneTargetSerializer
 from .elevation_range import ElevationRangeSerializer
 from .exposure_mode import ExposureModeSerializer
-from .instruments import InstrumentRegistry
+from .observing_mode import ObservingModeSerializer
+from .sidereal import SiderealSerializer
 from .source_profile import SourceProfileSerializer
 from .workflow_state import WorkflowStateSerializer
 
@@ -12,8 +13,9 @@ __all__ = [
     "ExposureModeSerializer",
     "ElevationRangeSerializer",
     "SourceProfileSerializer",
-    "InstrumentRegistry",
     "CloneTargetSerializer",
     "CloneObservationSerializer",
     "WorkflowStateSerializer",
+    "SiderealSerializer",
+    "ObservingModeSerializer",
 ]

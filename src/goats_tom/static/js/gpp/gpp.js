@@ -119,6 +119,8 @@ class GPPModel {
    * response data.
    */
   async createTooObservation(formData) {
+    // Append the target ID to the form data.
+    formData.append("hiddenGoatsTargetIdInput", this.#targetId);
     try {
       const response = await this.#api.post(this.#gppToosUrl, formData, {}, false);
       return { status: 200, data: response };

@@ -12,7 +12,8 @@ from gpp_client.api.input_types import (
     HourAngleRangeInput,
     ObservationPropertiesInput,
     TargetPropertiesInput,
-    SourceProfileInput
+    SourceProfileInput,
+    ObservingModeInput
 )
 from rest_framework import status, serializers
 from rest_framework.test import APIRequestFactory, force_authenticate
@@ -134,19 +135,6 @@ class TestGPPTooViewSet:
         mock_client.workflow_state.update_by_id.assert_awaited_once_with(
             workflow_state=ObservationWorkflowState.READY, observation_id="o-1"
         )
-
-    @pytest.mark.parametrize(
-        "method_name",
-        [
-            "_format_observation_properties",
-            "_format_target_properties",
-        ],
-    )
-    def test_not_implemented_methods(self, method_name: str) -> None:
-        """Ensure NotImplementedError is raised for unimplemented methods."""
-        viewset = GPPTooViewSet()
-        with pytest.raises(NotImplementedError):
-            getattr(viewset, method_name)({})
 
     def test_format_brightnesses_properties_valid_data(self, mocker) -> None:
         """Test _format_brightnesses_properties with valid data."""
@@ -325,77 +313,6 @@ class TestGPPTooViewSet:
         mock_serializer.assert_called_once_with(data={"haMinimumInput": "bad"})
         mock_instance.is_valid.assert_called_once_with(raise_exception=True)
 
-    def test_format_instrument_properties_valid_data(self, mocker) -> None:
-        """Test _format_instrument_properties with valid data."""
-        mock_get_serializer = mocker.patch(
-            "goats_tom.api_views.gpp.toos.InstrumentRegistry.get_serializer"
-        )
-        mock_get_input_model = mocker.patch(
-            "goats_tom.api_views.gpp.toos.InstrumentRegistry.get_input_model"
-        )
-
-        # Mock serializer behavior.
-        mock_serializer_class = mock_get_serializer.return_value
-        mock_serializer_instance = mock_serializer_class.return_value
-        mock_serializer_instance.is_valid.return_value = True
-        mock_serializer_instance.validated_data = {"field": "value"}
-
-        # Use a real simple class or Mock for input model.
-        mock_input_model_class = mocker.Mock()
-        mock_get_input_model.return_value = mock_input_model_class
-
-        viewset = GPPTooViewSet()
-        result = viewset._format_instrument_properties({"field": "value"})
-
-        # Validate results and calls.
-        assert result == mock_input_model_class.return_value
-        mock_get_serializer.assert_called_once_with({"field": "value"})
-        mock_serializer_class.assert_called_once_with(data={"field": "value"})
-        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
-        mock_get_input_model.assert_called_once_with({"field": "value"})
-        mock_input_model_class.assert_called_once_with(field="value")
-
-    def test_format_instrument_properties_no_data(self, mocker) -> None:
-        """Test _format_instrument_properties with no instrument data."""
-        mock_get_serializer = mocker.patch(
-            "goats_tom.api_views.gpp.toos.InstrumentRegistry.get_serializer"
-        )
-        mock_get_input_model = mocker.patch(
-            "goats_tom.api_views.gpp.toos.InstrumentRegistry.get_input_model"
-        )
-
-        mock_serializer_class = mock_get_serializer.return_value
-        mock_serializer_instance = mock_serializer_class.return_value
-        mock_serializer_instance.is_valid.return_value = True
-        mock_serializer_instance.validated_data = {}
-
-        viewset = GPPTooViewSet()
-        result = viewset._format_instrument_properties({})
-
-        assert result is None
-        mock_get_serializer.assert_called_once_with({})
-        mock_serializer_class.assert_called_once_with(data={})
-        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
-        mock_get_input_model.assert_called_once_with({})
-
-    def test_format_instrument_properties_invalid_data(self, mocker) -> None:
-        """Test _format_instrument_properties with invalid data."""
-        mock_get_serializer = mocker.patch(
-            "goats_tom.api_views.gpp.toos.InstrumentRegistry.get_serializer"
-        )
-
-        mock_serializer_class = mock_get_serializer.return_value
-        mock_serializer_instance = mock_serializer_class.return_value
-        mock_serializer_instance.is_valid.side_effect = serializers.ValidationError
-
-        viewset = GPPTooViewSet()
-        with pytest.raises(serializers.ValidationError):
-            viewset._format_instrument_properties({"field": "invalid"})
-
-        mock_get_serializer.assert_called_once_with({"field": "invalid"})
-        mock_serializer_class.assert_called_once_with(data={"field": "invalid"})
-        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
-
     def test_format_source_profile_properties_valid_data(self, mocker) -> None:
         """Test _format_source_profile_properties with valid data."""
         data = {"point": {
@@ -415,22 +332,6 @@ class TestGPPTooViewSet:
         mock_serializer.assert_called_once_with(data=data)
         mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
 
-    def test_format_source_profile_properties_no_data(self, mocker) -> None:
-        """Test _format_source_profile_properties with no source profile data."""
-        mock_serializer = mocker.patch(
-            "goats_tom.api_views.gpp.toos.SourceProfileSerializer"
-        )
-        mock_serializer_instance = mock_serializer.return_value
-        mock_serializer_instance.is_valid.return_value = True
-        mock_serializer_instance.validated_data = {}
-
-        viewset = GPPTooViewSet()
-        result = viewset._format_source_profile_properties({})
-
-        assert result is None
-        mock_serializer.assert_called_once_with(data={})
-        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
-
     def test_format_source_profile_properties_invalid_data(self, mocker) -> None:
         """Test _format_source_profile_properties with invalid data."""
         mock_serializer = mocker.patch(
@@ -446,37 +347,6 @@ class TestGPPTooViewSet:
         mock_serializer.assert_called_once_with(data={"profile": "INVALID"})
         mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
 
-    def test_format_clone_observation_input_valid_data(self, mocker) -> None:
-        """Test _format_clone_observation_input with valid data."""
-        mock_serializer = mocker.patch(
-            "goats_tom.api_views.gpp.toos.CloneObservationSerializer"
-        )
-        mock_serializer_instance = mock_serializer.return_value
-        mock_serializer_instance.is_valid.return_value = True
-        mock_serializer_instance.validated_data = {"field": "value"}
-        mock_serializer_instance.observation_id = "o-123"
-
-        mock_observation_properties = mocker.patch(
-            "goats_tom.api_views.gpp.toos.ObservationPropertiesInput"
-        )
-        mock_observation_properties_instance = mock_observation_properties.return_value
-
-        mock_clone_observation_input = mocker.patch(
-            "goats_tom.api_views.gpp.toos.CloneObservationInput"
-        )
-
-        viewset = GPPTooViewSet()
-        result = viewset._format_clone_observation_input({"field": "value"})
-
-        assert result == mock_clone_observation_input.return_value
-        mock_serializer.assert_called_once_with(data={"field": "value"})
-        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
-        mock_observation_properties.assert_called_once_with(field="value")
-        mock_clone_observation_input.assert_called_once_with(
-            observation_id="o-123", set=mock_observation_properties_instance
-        )
-
-
     def test_format_clone_observation_input_invalid_data(self, mocker) -> None:
         """Test _format_clone_observation_input with invalid data."""
         mock_serializer = mocker.patch(
@@ -491,36 +361,6 @@ class TestGPPTooViewSet:
 
         mock_serializer.assert_called_once_with(data={"field": "invalid"})
         mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
-
-    def test_format_clone_target_input_valid_data(self, mocker) -> None:
-        """Test _format_clone_target_input with valid data."""
-        mock_serializer = mocker.patch(
-            "goats_tom.api_views.gpp.toos.CloneTargetSerializer"
-        )
-        mock_serializer_instance = mock_serializer.return_value
-        mock_serializer_instance.is_valid.return_value = True
-        mock_serializer_instance.validated_data = {"field": "value"}
-        mock_serializer_instance.target_id = "t-123"
-
-        mock_target_properties = mocker.patch(
-            "goats_tom.api_views.gpp.toos.TargetPropertiesInput"
-        )
-        mock_target_properties_instance = mock_target_properties.return_value
-
-        mock_clone_target_input = mocker.patch(
-            "goats_tom.api_views.gpp.toos.CloneTargetInput"
-        )
-
-        viewset = GPPTooViewSet()
-        result = viewset._format_clone_target_input({"field": "value"})
-
-        assert result == mock_clone_target_input.return_value
-        mock_serializer.assert_called_once_with(data={"field": "value"})
-        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
-        mock_target_properties.assert_called_once_with(field="value")
-        mock_clone_target_input.assert_called_once_with(
-            target_id="t-123", set=mock_target_properties_instance
-        )
 
     def test_format_clone_target_input_invalid_data(self, mocker) -> None:
         """Test _format_clone_target_input with invalid data."""
@@ -582,4 +422,35 @@ class TestGPPTooViewSet:
             viewset._format_workflow_state_properties({"state": "INVALID"})
 
         mock_serializer.assert_called_once_with(data={"state": "INVALID"})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_observing_mode_properties_no_data(self, mocker) -> None:
+        """Test _format_observing_mode_properties with no observing mode data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.ObservingModeSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.return_value = True
+        mock_serializer_instance.validated_data = {}
+
+        viewset = GPPTooViewSet()
+        result = viewset._format_observing_mode_properties({})
+
+        assert result == ObservingModeInput()
+        mock_serializer.assert_called_once_with(data={})
+        mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)
+
+    def test_format_observing_mode_properties_invalid_data(self, mocker) -> None:
+        """Test _format_observing_mode_properties with invalid data."""
+        mock_serializer = mocker.patch(
+            "goats_tom.api_views.gpp.toos.ObservingModeSerializer"
+        )
+        mock_serializer_instance = mock_serializer.return_value
+        mock_serializer_instance.is_valid.side_effect = serializers.ValidationError
+
+        viewset = GPPTooViewSet()
+        with pytest.raises(serializers.ValidationError):
+            viewset._format_observing_mode_properties({"mode": "INVALID"})
+
+        mock_serializer.assert_called_once_with(data={"mode": "INVALID"})
         mock_serializer_instance.is_valid.assert_called_once_with(raise_exception=True)

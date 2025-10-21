@@ -15,6 +15,8 @@ from gpp_client.api.input_types import (
     ElevationRangeInput,
     ExposureTimeModeInput,
     ObservationPropertiesInput,
+    ObservingModeInput,
+    SiderealInput,
     SourceProfileInput,
     TargetPropertiesInput,
 )
@@ -29,13 +31,11 @@ from goats_tom.serializers.gpp import (
     CloneTargetSerializer,
     ElevationRangeSerializer,
     ExposureModeSerializer,
-    InstrumentRegistry,
+    ObservingModeSerializer,
+    SiderealSerializer,
     SourceProfileSerializer,
     WorkflowStateSerializer,
 )
-
-# Import type for instrument input models.
-from goats_tom.serializers.gpp.instruments import InstrumentInputModelInstance
 
 
 class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
@@ -69,19 +69,21 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             )
         credentials = request.user.gpplogin
 
-        # FIXME: Remove debug print statement after finalizing implementation all PRs.
-        print(request.data)
         try:
             # Setup client to communicate with GPP.
             _ = GPPClient(url=settings.GPP_URL, token=credentials.token)
-            # TODO: Format brightnesses from request data.
-            # TODO: Format exposure mode from request data.
-            # TODO: Format elevation range from request data.
-            # TODO: Format instrument from request data.
-            # TODO: Format source profile from request data.
-            # print(self._format_clone_observation_input(request.data))
-            # print(self._format_clone_target_input(request.data))
-            # print(self._format_workflow_state_properties(request.data))
+
+            # We want to setup all the formatting and mutations first, for validation,
+            # before making any changes in GPP.
+            """
+            clone_target_input = self._format_clone_target_input(request.data)
+
+            clone_observation_input = self._format_clone_observation_input(request.data)
+
+            set_workflow_state_input = self._format_workflow_state_properties(
+                request.data
+            )
+            """
 
             return Response({"detail": "Not yet implemented."})
 
@@ -90,7 +92,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
 
     def _format_source_profile_properties(
         self, data: dict[str, Any]
-    ) -> SourceProfileInput | None:
+    ) -> SourceProfileInput:
         """
         Format source profile properties from the request data.
 
@@ -101,9 +103,8 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
 
         Returns
         -------
-        SourceProfileInput | None
-            A SourceProfileInput instance or ``None`` if no source profile is
-            provided.
+        SourceProfileInput
+            A SourceProfileInput instance.
 
         Raises
         ------
@@ -112,43 +113,26 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         """
         source_profile_serializer = SourceProfileSerializer(data=data)
         source_profile_serializer.is_valid(raise_exception=True)
-        return (
-            SourceProfileInput(**source_profile_serializer.validated_data)
-            if source_profile_serializer.validated_data
-            else None
-        )
+        return SourceProfileInput(**source_profile_serializer.validated_data)
 
-    def _format_instrument_properties(
+    def _format_observing_mode_properties(
         self, data: dict[str, Any]
-    ) -> InstrumentInputModelInstance | None:
-        """Format instrument-specific properties from the request data.
+    ) -> ObservingModeInput:
+        """Format observing mode-specific properties from the request data.
 
         Parameters
         ----------
         data : dict[str, Any]
-            The request data containing instrument fields.
+            The request data containing observing mode fields.
 
         Returns
         -------
-        InstrumentInputModelInstance | None
-            An instrument input model instance or ``None`` if no instrument is
-            provided.
-
-        Raises
-        ------
-        serializers.ValidationError
-            If any error occurs during parsing or validation of instrument values.
+        ObservingModeInput
+            An ObservingModeInput instance.
         """
-        instrument_serializer_class = InstrumentRegistry.get_serializer(data)
-        instrument = instrument_serializer_class(data=data)
-        instrument.is_valid(raise_exception=True)
-        instrument_input_model_class = InstrumentRegistry.get_input_model(data)
-
-        return (
-            instrument_input_model_class(**instrument.validated_data)
-            if instrument.validated_data
-            else None
-        )
+        observing_mode_serializer = ObservingModeSerializer(data=data)
+        observing_mode_serializer.is_valid(raise_exception=True)
+        return ObservingModeInput(**observing_mode_serializer.validated_data)
 
     def _format_workflow_state_properties(
         self, data: dict[str, Any]
@@ -314,38 +298,6 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             observation_id=observation_id, properties=properties
         )
 
-    def _format_observation_properties(
-        self, data: dict[str, Any]
-    ) -> ObservationPropertiesInput:
-        """Format the observation properties from the request data.
-
-        Parameters
-        ----------
-        data : dict[str, Any]
-            The request data containing observation properties.
-
-        Returns
-        -------
-        ObservationPropertiesInput
-            The formatted observation properties.
-        """
-        raise NotImplementedError
-
-    def _format_target_properties(self, data: dict[str, Any]) -> TargetPropertiesInput:
-        """Format the target properties from the request data.
-
-        Parameters
-        ----------
-        data : dict[str, Any]
-            The request data containing target properties.
-
-        Returns
-        -------
-        TargetPropertiesInput
-            The formatted target properties.
-        """
-        raise NotImplementedError
-
     def _format_clone_observation_input(
         self, data: dict[str, Any]
     ) -> CloneObservationInput:
@@ -361,19 +313,42 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         CloneObservationInput
             The formatted clone observation input.
         """
+        print("Starting _format_clone_observation_input")
+
         clone_observation = CloneObservationSerializer(data=data)
         clone_observation.is_valid(raise_exception=True)
+        print("CloneObservationSerializer validated successfully")
+
+        observing_mode = self._format_observing_mode_properties(data)
+        print("Observing mode properties formatted successfully")
+
+        elevation_range = self._format_elevation_range_properties(data)
+        print("Elevation range properties formatted successfully")
+
+        exposure_mode = self._format_exposure_mode_properties(data)
+        print("Exposure mode properties formatted successfully")
 
         observation_properties = ObservationPropertiesInput(
             **clone_observation.validated_data
         )
+        print("ObservationPropertiesInput created successfully")
 
+        observation_properties.constraint_set.elevation_range = elevation_range
+        print("Elevation range set successfully")
+
+        observation_properties.observing_mode = observing_mode
+        print("Observing mode set successfully")
+
+        observation_properties.science_requirements.exposure_time_mode = exposure_mode
+        print("Exposure time mode set successfully")
+
+        print("Finished _format_clone_observation_input")
         return CloneObservationInput(
             observation_id=clone_observation.observation_id, set=observation_properties
         )
 
     def _format_clone_target_input(self, data: dict[str, Any]) -> CloneTargetInput:
-        """Format the target input from the request data.
+        """Format the target input from the request data and other payloads.
 
         Parameters
         ----------
@@ -388,9 +363,34 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         clone_target = CloneTargetSerializer(data=data)
         clone_target.is_valid(raise_exception=True)
 
-        target_properties = TargetPropertiesInput(**clone_target.validated_data)
+        source_profile = self._format_source_profile_properties(data)
+        brightnesses = self._format_brightnesses_properties(data)
+        source_profile.point.band_normalized.brightnesses = brightnesses
+        sidereal = self._format_sidereal_target_input(data)
+
+        target_properties = TargetPropertiesInput(
+            sidereal=sidereal,
+            source_profile=source_profile,
+        )
 
         return CloneTargetInput(target_id=clone_target.target_id, set=target_properties)
+
+    def _format_sidereal_target_input(self, data: dict[str, Any]) -> SiderealInput:
+        """Format the sidereal target input from the request data.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The request data containing sidereal target fields.
+
+        Returns
+        -------
+        SiderealInput
+            The formatted sidereal target input.
+        """
+        sidereal_properties = SiderealSerializer(data=data)
+        sidereal_properties.is_valid(raise_exception=True)
+        return SiderealInput(**sidereal_properties.validated_data)
 
     def _get_workflow_state(
         self, client: GPPClient, observation_id: str
