@@ -21,9 +21,9 @@ class InstrumentRegistry:
 
     _registry: dict[str, type[serializers.Serializer]] = {
         # GMOS South Long Slit.
-        ObservingModeType.GMOS_SOUTH_LONG_SLIT.value: (GMOSSouthLongSlitSerializer),
+        ObservingModeType.GMOS_SOUTH_LONG_SLIT.value: GMOSSouthLongSlitSerializer,
         # GMOS North Long Slit.
-        ObservingModeType.GMOS_NORTH_LONG_SLIT.value: (GMOSNorthLongSlitSerializer),
+        ObservingModeType.GMOS_NORTH_LONG_SLIT.value: GMOSNorthLongSlitSerializer,
     }
     """
     Defines the mapping from observing mode type keys to their corresponding serializer
@@ -54,6 +54,6 @@ class InstrumentRegistry:
         """
         lookup_key = key.value if isinstance(key, ObservingModeType) else key
         try:
-            return cls._registry[lookup_key][0]
+            return cls._registry[lookup_key]
         except KeyError:
             raise ValidationError(f"Unsupported instrument type: {lookup_key}")

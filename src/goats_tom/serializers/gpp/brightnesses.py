@@ -89,7 +89,6 @@ class BrightnessesSerializer(serializers.Serializer):
 
             band = entry.get("BandSelect")
             units = entry.get("UnitsSelect")
-            print("DEBUG BRIGHTNESS:", band, value, units)
 
             # Ensure band and unit are provided.
             if not band or not units:

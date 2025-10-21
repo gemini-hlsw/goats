@@ -313,36 +313,26 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         CloneObservationInput
             The formatted clone observation input.
         """
-        print("Starting _format_clone_observation_input")
 
         clone_observation = CloneObservationSerializer(data=data)
         clone_observation.is_valid(raise_exception=True)
-        print("CloneObservationSerializer validated successfully")
 
         observing_mode = self._format_observing_mode_properties(data)
-        print("Observing mode properties formatted successfully")
 
         elevation_range = self._format_elevation_range_properties(data)
-        print("Elevation range properties formatted successfully")
 
         exposure_mode = self._format_exposure_mode_properties(data)
-        print("Exposure mode properties formatted successfully")
 
         observation_properties = ObservationPropertiesInput(
             **clone_observation.validated_data
         )
-        print("ObservationPropertiesInput created successfully")
 
         observation_properties.constraint_set.elevation_range = elevation_range
-        print("Elevation range set successfully")
 
         observation_properties.observing_mode = observing_mode
-        print("Observing mode set successfully")
 
         observation_properties.science_requirements.exposure_time_mode = exposure_mode
-        print("Exposure time mode set successfully")
 
-        print("Finished _format_clone_observation_input")
         return CloneObservationInput(
             observation_id=clone_observation.observation_id, set=observation_properties
         )
