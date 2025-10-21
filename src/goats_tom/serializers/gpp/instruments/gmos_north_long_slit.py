@@ -65,4 +65,5 @@ class GMOSNorthLongSlitSerializer(serializers.Serializer):
                 offsets, "spatialOffsetsInput", "arcseconds"
             )
 
-        return result
+        # Return the structured data from the serializer with the instrument key.
+        return {"gmos_north_long_slit": result}

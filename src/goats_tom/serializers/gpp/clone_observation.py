@@ -111,6 +111,7 @@ class CloneObservationSerializer(_BaseSerializer):
             },
             # Placeholder for other serializer field.
             "observingMode": None,
+            "scienceRequirements": {"exposureTimeMode": None},
         }
 
     @property

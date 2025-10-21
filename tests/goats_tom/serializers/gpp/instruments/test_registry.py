@@ -7,43 +7,22 @@ from goats_tom.serializers.gpp.instruments import (
     GMOSSouthLongSlitSerializer,
 )
 from gpp_client.api.enums import ObservingModeType
-from gpp_client.api.input_types import (
-    GmosNorthLongSlitInput,
-    GmosSouthLongSlitInput,
-)
 
 
 @pytest.mark.parametrize(
-    "input_key, expected_serializer, expected_input_model",
+    "input_key, expected_serializer",
     [
         # Valid keys using Enum.
-        (
-            ObservingModeType.GMOS_NORTH_LONG_SLIT,
-            GMOSNorthLongSlitSerializer,
-            GmosNorthLongSlitInput,
-        ),
-        (
-            ObservingModeType.GMOS_SOUTH_LONG_SLIT,
-            GMOSSouthLongSlitSerializer,
-            GmosSouthLongSlitInput,
-        ),
+        (ObservingModeType.GMOS_NORTH_LONG_SLIT, GMOSNorthLongSlitSerializer),
+        (ObservingModeType.GMOS_SOUTH_LONG_SLIT, GMOSSouthLongSlitSerializer),
         # Valid keys using raw strings.
-        (
-            "GMOS_NORTH_LONG_SLIT",
-            GMOSNorthLongSlitSerializer,
-            GmosNorthLongSlitInput,
-        ),
-        (
-            "GMOS_SOUTH_LONG_SLIT",
-            GMOSSouthLongSlitSerializer,
-            GmosSouthLongSlitInput,
-        ),
+        ("GMOS_NORTH_LONG_SLIT", GMOSNorthLongSlitSerializer),
+        ("GMOS_SOUTH_LONG_SLIT", GMOSSouthLongSlitSerializer),
     ],
 )
-def test_gpp_instrument_registry_valid(input_key, expected_serializer, expected_input_model):
-    """Ensure correct serializer and input model are returned for valid keys."""
+def test_gpp_instrument_registry_valid(input_key, expected_serializer):
+    """Ensure correct serializer is returned for valid keys."""
     assert InstrumentRegistry.get_serializer(input_key) is expected_serializer
-    assert InstrumentRegistry.get_input_model(input_key) is expected_input_model
 
 
 @pytest.mark.parametrize(
@@ -62,8 +41,4 @@ def test_gpp_instrument_registry_invalid(invalid_key):
     """Ensure ValidationError is raised for unsupported instrument types."""
     with pytest.raises(ValidationError) as excinfo:
         InstrumentRegistry.get_serializer(invalid_key)
-    assert "Unsupported instrument type" in str(excinfo.value)
-
-    with pytest.raises(ValidationError) as excinfo:
-        InstrumentRegistry.get_input_model(invalid_key)
     assert "Unsupported instrument type" in str(excinfo.value)

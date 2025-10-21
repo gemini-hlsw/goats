@@ -1,57 +1,34 @@
 """
-Instrument serializer and input model registry for GPP.
+Instrument registry for GPP instrument serializers.
 """
 
 __all__ = [
     "InstrumentRegistry",
-    "InstrumentInputModelInstance",
-    "InstrumentInputModelClass",
 ]
 
 from gpp_client.api.enums import ObservingModeType
-from gpp_client.api.input_types import (
-    GmosNorthLongSlitInput,
-    GmosSouthLongSlitInput,
-)
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from .gmos_north_long_slit import GMOSNorthLongSlitSerializer
 from .gmos_south_long_slit import GMOSSouthLongSlitSerializer
 
-InstrumentInputModelClass = type[GmosNorthLongSlitInput] | type[GmosSouthLongSlitInput]
-"""
-Type alias for instrument input model classes. Must be updated when new instruments
-are added.
-"""
-
-InstrumentInputModelInstance = GmosNorthLongSlitInput | GmosSouthLongSlitInput
-"""
-Type alias for instrument input model instances. Must be updated when new
-instruments are added.
-"""
-
 
 class InstrumentRegistry:
     """
-    Central registry for instrument serializers and GPP input model mappings.
+    Registry mapping observing mode types to their corresponding instrument serializers.
     """
 
-    _registry: dict[
-        str, tuple[type[serializers.Serializer], InstrumentInputModelClass]
-    ] = {
+    _registry: dict[str, type[serializers.Serializer]] = {
         # GMOS South Long Slit.
-        ObservingModeType.GMOS_SOUTH_LONG_SLIT.value: (
-            GMOSSouthLongSlitSerializer,
-            GmosSouthLongSlitInput,
-        ),
+        ObservingModeType.GMOS_SOUTH_LONG_SLIT.value: GMOSSouthLongSlitSerializer,
         # GMOS North Long Slit.
-        ObservingModeType.GMOS_NORTH_LONG_SLIT.value: (
-            GMOSNorthLongSlitSerializer,
-            GmosNorthLongSlitInput,
-        ),
+        ObservingModeType.GMOS_NORTH_LONG_SLIT.value: GMOSNorthLongSlitSerializer,
     }
-    """Mapping of observing mode keys to (serializer, input model) tuples."""
+    """
+    Defines the mapping from observing mode type keys to their corresponding serializer
+    classes.
+    """
 
     @classmethod
     def get_serializer(
@@ -77,32 +54,6 @@ class InstrumentRegistry:
         """
         lookup_key = key.value if isinstance(key, ObservingModeType) else key
         try:
-            return cls._registry[lookup_key][0]
-        except KeyError:
-            raise ValidationError(f"Unsupported instrument type: {lookup_key}")
-
-    @classmethod
-    def get_input_model(cls, key: str | ObservingModeType) -> InstrumentInputModelClass:
-        """
-        Retrieve the input model class for a given instrument key.
-
-        Parameters
-        ----------
-        key : str | ObservingModeType
-            The instrument key as a string or ObservingModeType enum.
-
-        Returns
-        -------
-        InstrumentInputModelClass
-            The corresponding input model class.
-
-        Raises
-        ------
-        ValidationError
-            If the instrument key is not supported.
-        """
-        lookup_key = key.value if isinstance(key, ObservingModeType) else key
-        try:
-            return cls._registry[lookup_key][1]
+            return cls._registry[lookup_key]
         except KeyError:
             raise ValidationError(f"Unsupported instrument type: {lookup_key}")

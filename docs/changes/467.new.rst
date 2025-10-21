@@ -1,0 +1,2 @@
+Added payload-building support for creating Target of Opportunity (ToO) observations in GPP.  
+This update introduces new serializers for sidereal targets and observing modes, improves instrument-specific data handling, and standardizes field names for clarity.

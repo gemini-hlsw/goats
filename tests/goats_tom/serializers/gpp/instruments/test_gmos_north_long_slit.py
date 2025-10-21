@@ -15,42 +15,52 @@ from goats_tom.serializers.gpp.instruments import GMOSNorthLongSlitSerializer
                 "spatialOffsetsInput": "0.0, 15.0, -15.0",
             },
             {
-                "centralWavelength": {"nanometers": 750.5},
-                "explicitWavelengthDithers": [
-                    {"nanometers": 0.0},
-                    {"nanometers": 8.0},
-                    {"nanometers": -8.0},
-                ],
-                "explicitOffsets": [
-                    {"arcseconds": 0.0},
-                    {"arcseconds": 15.0},
-                    {"arcseconds": -15.0},
-                ],
+                "gmos_north_long_slit": {
+                    "centralWavelength": {"nanometers": 750.5},
+                    "explicitWavelengthDithers": [
+                        {"nanometers": 0.0},
+                        {"nanometers": 8.0},
+                        {"nanometers": -8.0},
+                    ],
+                    "explicitOffsets": [
+                        {"arcseconds": 0.0},
+                        {"arcseconds": 15.0},
+                        {"arcseconds": -15.0},
+                    ],
+                }
             },
         ),
         # Only central wavelength.
         (
             {"centralWavelengthInput": "700.0"},
-            {"centralWavelength": {"nanometers": 700.0}},
+            {
+                "gmos_north_long_slit": {
+                    "centralWavelength": {"nanometers": 700.0}
+                }
+            },
         ),
         # Only dithers.
         (
             {"wavelengthDithersInput": "1.0, 2.0"},
             {
-                "explicitWavelengthDithers": [
-                    {"nanometers": 1.0},
-                    {"nanometers": 2.0},
-                ]
+                "gmos_north_long_slit": {
+                    "explicitWavelengthDithers": [
+                        {"nanometers": 1.0},
+                        {"nanometers": 2.0},
+                    ]
+                }
             },
         ),
         # Only spatial offsets.
         (
             {"spatialOffsetsInput": "5.5, -5.5"},
             {
-                "explicitOffsets": [
-                    {"arcseconds": 5.5},
-                    {"arcseconds": -5.5},
-                ]
+                "gmos_north_long_slit": {
+                    "explicitOffsets": [
+                        {"arcseconds": 5.5},
+                        {"arcseconds": -5.5},
+                    ]
+                }
             },
         ),
         # Input with extra whitespace or empty entries.
@@ -60,14 +70,16 @@ from goats_tom.serializers.gpp.instruments import GMOSNorthLongSlitSerializer
                 "spatialOffsetsInput": " , 10.0 , -10.0",
             },
             {
-                "explicitWavelengthDithers": [
-                    {"nanometers": 1.0},
-                    {"nanometers": 2.0},
-                ],
-                "explicitOffsets": [
-                    {"arcseconds": 10.0},
-                    {"arcseconds": -10.0},
-                ],
+                "gmos_north_long_slit": {
+                    "explicitWavelengthDithers": [
+                        {"nanometers": 1.0},
+                        {"nanometers": 2.0},
+                    ],
+                    "explicitOffsets": [
+                        {"arcseconds": 10.0},
+                        {"arcseconds": -10.0},
+                    ],
+                }
             },
         ),
     ],
@@ -82,17 +94,14 @@ def test_valid_gmos_north_longslit_inputs(input_data, expected_output):
 @pytest.mark.parametrize(
     "input_data, expected_message",
     [
-        # Invalid central wavelength.
         (
             {"centralWavelengthInput": "not_a_number"},
             "centralWavelengthInput must be a numeric value in nanometers.",
         ),
-        # Invalid dither value.
         (
             {"wavelengthDithersInput": "1.0, not_a_number"},
             "wavelengthDithersInput must be a comma-separated list of numeric values in nanometers.",
         ),
-        # Invalid offset value.
         (
             {"spatialOffsetsInput": "0.0, fail"},
             "spatialOffsetsInput must be a comma-separated list of numeric values in arcseconds.",

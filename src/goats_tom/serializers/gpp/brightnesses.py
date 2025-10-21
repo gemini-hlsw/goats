@@ -20,7 +20,9 @@ class BrightnessSerializer(serializers.Serializer):
 
     band = serializers.ChoiceField(choices=[b.value for b in Band])
     value = serializers.FloatField()
-    unit = serializers.ChoiceField(choices=[u.value for u in BrightnessIntegratedUnits])
+    units = serializers.ChoiceField(
+        choices=[u.value for u in BrightnessIntegratedUnits]
+    )
     error = serializers.FloatField(required=False, allow_null=True)
 
 
@@ -86,19 +88,19 @@ class BrightnessesSerializer(serializers.Serializer):
                 )
 
             band = entry.get("BandSelect")
-            unit = entry.get("UnitsSelect")
+            units = entry.get("UnitsSelect")
 
             # Ensure band and unit are provided.
-            if not band or not unit:
+            if not band or not units:
                 raise serializers.ValidationError(
-                    "A Brightness is missing a band or unit."
+                    "A Brightness is missing a band or units."
                 )
 
             parsed.append(
                 {
                     "band": band,
                     "value": value,
-                    "unit": unit,
+                    "units": units,
                 }
             )
 

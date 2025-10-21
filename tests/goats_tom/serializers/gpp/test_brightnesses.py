@@ -26,12 +26,12 @@ from gpp_client.api.enums import Band, BrightnessIntegratedUnits
                     {
                         "band": Band.SLOAN_G.value,
                         "value": 10.5,
-                        "unit": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
+                        "units": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
                     },
                     {
                         "band": Band.SLOAN_R.value,
                         "value": 20.0,
-                        "unit": BrightnessIntegratedUnits.VEGA_MAGNITUDE.value,
+                        "units": BrightnessIntegratedUnits.VEGA_MAGNITUDE.value,
                     },
                 ]
             },
@@ -50,7 +50,7 @@ from gpp_client.api.enums import Band, BrightnessIntegratedUnits
                     {
                         "band": Band.H.value,
                         "value": 15.0,
-                        "unit": BrightnessIntegratedUnits.JANSKY.value,
+                        "units": BrightnessIntegratedUnits.JANSKY.value,
                     }
                 ]
             },
@@ -70,12 +70,12 @@ from gpp_client.api.enums import Band, BrightnessIntegratedUnits
                     {
                         "band": Band.SLOAN_G.value,
                         "value": 21.0,
-                        "unit": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
+                        "units": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
                     },
                     {
                         "band": Band.SLOAN_R.value,
                         "value": 22.0,
-                        "unit": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
+                        "units": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
                     },
                 ]
             },
@@ -106,7 +106,7 @@ def test_to_internal_value_valid(input_data, expected_output):
                 "brightnessValueInput1": "10.5",
                 "brightnessUnitsSelect1": BrightnessIntegratedUnits.JANSKY.value,
             },
-            "A Brightness is missing a band or unit.",
+            "A Brightness is missing a band or units.",
         ),
         # Test case: Missing unit.
         (
@@ -114,7 +114,7 @@ def test_to_internal_value_valid(input_data, expected_output):
                 "brightnessValueInput1": "10.5",
                 "brightnessBandSelect1": Band.SLOAN_G.value,
             },
-            "A Brightness is missing a band or unit.",
+            "A Brightness is missing a band or units.",
         ),
         # Test case: Invalid value input.
         (
@@ -142,24 +142,24 @@ def test_to_internal_value_invalid(input_data, expected_exception_message):
             {
                 "band": Band.SLOAN_G.value,
                 "value": 21.0,
-                "unit": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
+                "units": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
             },
             {
                 "band": Band.SLOAN_G.value,
                 "value": 21.0,
-                "unit": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
+                "units": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
             },
         ),
         (
             {
                 "band": Band.J.value,
                 "value": 19.5,
-                "unit": BrightnessIntegratedUnits.VEGA_MAGNITUDE.value,
+                "units": BrightnessIntegratedUnits.VEGA_MAGNITUDE.value,
             },
             {
                 "band": Band.J.value,
                 "value": 19.5,
-                "unit": BrightnessIntegratedUnits.VEGA_MAGNITUDE.value,
+                "units": BrightnessIntegratedUnits.VEGA_MAGNITUDE.value,
             },
         ),
     ],
@@ -175,16 +175,16 @@ def test_brightness_serializer_valid(input_data, expected_output):
     "input_data, missing_field",
     [
         (
-            {"value": 21.0, "unit": BrightnessIntegratedUnits.AB_MAGNITUDE.value},
+            {"value": 21.0, "units": BrightnessIntegratedUnits.AB_MAGNITUDE.value},
             "band",
         ),
         (
-            {"band": Band.SLOAN_G.value, "unit": BrightnessIntegratedUnits.AB_MAGNITUDE.value},
+            {"band": Band.SLOAN_G.value, "units": BrightnessIntegratedUnits.AB_MAGNITUDE.value},
             "value",
         ),
         (
             {"band": Band.SLOAN_G.value, "value": 21.0},
-            "unit",
+            "units",
         ),
     ],
 )
@@ -198,8 +198,8 @@ def test_brightness_serializer_missing_field(input_data, missing_field):
 @pytest.mark.parametrize(
     "input_data, invalid_field",
     [
-        ({"band": "INVALID", "value": 21.0, "unit": BrightnessIntegratedUnits.AB_MAGNITUDE.value}, "band"),
-        ({"band": Band.SLOAN_G.value, "value": 21.0, "unit": "BAD_UNIT"}, "unit"),
+        ({"band": "INVALID", "value": 21.0, "units": BrightnessIntegratedUnits.AB_MAGNITUDE.value}, "band"),
+        ({"band": Band.SLOAN_G.value, "value": 21.0, "units": "BAD_UNIT"}, "units"),
     ],
 )
 def test_brightness_serializer_partial_invalid_enum(input_data, invalid_field):
