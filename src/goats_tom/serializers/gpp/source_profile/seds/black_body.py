@@ -6,66 +6,29 @@ __all__ = ["BlackBodySerializer"]
 
 from typing import Any
 
+from gpp_client.api.input_types import UnnormalizedSedInput
 from rest_framework import serializers
 
-from goats_tom.serializers.gpp.utils import normalize
+from ..._base_gpp import _BaseGPPSerializer
 
 
-class BlackBodySerializer(serializers.Serializer):
-    sedBlackBodyTempK = serializers.CharField(required=False, allow_blank=True)
+class BlackBodySerializer(_BaseGPPSerializer):
+    sedBlackBodyTempK = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
 
-    def validate_sedBlackBodyTempK(self, value: str | None) -> int | None:
+    pydantic_model = UnnormalizedSedInput
+
+    def format_gpp(self) -> dict[str, Any] | None:
         """
-        Validate black body temperature input.
-
-        Parameters
-        ----------
-        value : str | None
-            The input value to validate.
+        Format the SED data for GPP.
 
         Returns
         -------
-        int | None
-            The validated temperature in Kelvin, or None if not provided.
-
-        Raises
-        ------
-        serializers.ValidationError
-            If the value is not a positive integer.
+        dict[str, Any] | None
+            The formatted data dictionary for GPP or ``None`` if no data is present.
         """
-        # Normalize input.
-        value = normalize(value)
-        # If normalization returns None, treat it as missing.
-        if value is None:
-            return None
+        if (temp := self.validated_data.get("sedBlackBodyTempK")) is not None:
+            return {"blackBodyTempK": temp}
 
-        try:
-            temp = int(value)
-        except (TypeError, ValueError):
-            raise serializers.ValidationError("Must be a valid integer.")
-
-        if temp <= 0:
-            raise serializers.ValidationError("Must be a positive integer (Kelvin).")
-
-        return temp
-
-    def validate(self, data: dict[str, Any]) -> dict[str, Any]:
-        """
-        Validate and structure SED fields.
-
-        Parameters
-        ----------
-        data : dict[str, Any]
-            The raw form input data.
-
-        Returns
-        -------
-        dict[str, Any]
-            The structured GraphQL-ready data for SED input.
-
-        Raises
-        ------
-        serializers.ValidationError
-            If any values are invalid or incorrectly formatted.
-        """
-        return {"blackBodyTempK": data.get("sedBlackBodyTempK")}
+        return None

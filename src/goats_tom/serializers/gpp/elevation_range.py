@@ -1,82 +1,104 @@
+"""
+Serializer for elevation range input data.
+"""
+
 __all__ = ["ElevationRangeSerializer"]
 
 from typing import Any
 
+from gpp_client.api.input_types import ElevationRangeInput
 from rest_framework import serializers
 
-from .utils import normalize
+from ._base_gpp import _BaseGPPSerializer
 
 
-class ElevationRangeSerializer(serializers.Serializer):
+class ElevationRangeSerializer(_BaseGPPSerializer):
     """Serializer to parse and validate elevation range from flat form data."""
 
-    elevationRangeSelect = serializers.ChoiceField(choices=["Air Mass", "Hour Angle"])
-    airMassMinimumInput = serializers.CharField(required=False, allow_blank=True)
-    airMassMaximumInput = serializers.CharField(required=False, allow_blank=True)
-    haMinimumInput = serializers.CharField(required=False, allow_blank=True)
-    haMaximumInput = serializers.CharField(required=False, allow_blank=True)
+    elevationRangeSelect = serializers.ChoiceField(
+        choices=["Air Mass", "Hour Angle"],
+        required=True,
+        allow_blank=False,
+        allow_null=False,
+    )
+    airMassMinimumInput = serializers.FloatField(required=False, allow_null=True)
+    airMassMaximumInput = serializers.FloatField(required=False, allow_null=True)
+    haMinimumInput = serializers.FloatField(required=False, allow_null=True)
+    haMaximumInput = serializers.FloatField(required=False, allow_null=True)
+
+    pydantic_model = ElevationRangeInput
 
     def validate(self, data: dict[str, Any]) -> dict[str, Any]:
         """
-        Validate and structure elevation range input into the correct nested model
-        shape.
+        Validate elevation range.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The flat validated form data.
 
         Returns
         -------
         dict[str, Any]
-            The structured elevation range data.
+            The validated data dictionary.
 
         Raises
         ------
         serializers.ValidationError
-            If required fields are missing or invalid based on the selected mode.
+            If required fields are missing based on the selected mode.
         """
-
         mode = data["elevationRangeSelect"]
 
-        # Handle Air Mass mode.
         if mode == "Air Mass":
-            min_val = normalize(data.get("airMassMinimumInput"))
-            max_val = normalize(data.get("airMassMaximumInput"))
-
-            # At least one of min or max must be provided.
-            if min_val is None and max_val is None:
+            if (
+                data.get("airMassMinimumInput") is None
+                and data.get("airMassMaximumInput") is None
+            ):
                 raise serializers.ValidationError(
-                    "Air mass range must have at least one value."
+                    "At least one air mass boundary (min or max) must be provided."
                 )
 
-            # Build and return the structured data.
-            try:
-                return {
-                    "airMass": {
-                        "min": float(min_val) if min_val is not None else None,
-                        "max": float(max_val) if max_val is not None else None,
-                    }
-                }
-            except ValueError:
-                raise serializers.ValidationError("Air mass values must be numeric.")
-
-        # Handle Hour Angle mode.
         elif mode == "Hour Angle":
-            min_val = normalize(data.get("haMinimumInput"))
-            max_val = normalize(data.get("haMaximumInput"))
-
-            # At least one of min or max must be provided.
-            if min_val is None and max_val is None:
+            if (
+                data.get("haMinimumInput") is None
+                and data.get("haMaximumInput") is None
+            ):
                 raise serializers.ValidationError(
-                    "Hour angle range must have at least one value."
+                    "At least one hour angle boundary (min or max) must be provided."
                 )
 
-            # Build and return the structured data.
-            try:
-                return {
-                    "hourAngle": {
-                        "minHours": float(min_val) if min_val is not None else None,
-                        "maxHours": float(max_val) if max_val is not None else None,
-                    }
-                }
-            except ValueError:
-                raise serializers.ValidationError("Hour angle values must be numeric.")
+        else:
+            raise serializers.ValidationError("Invalid elevation range mode selected.")
 
-        # If mode is neither "Air Mass" nor "Hour Angle", raise an error.
+        return data
+
+    def format_gpp(self) -> dict[str, Any]:
+        """
+        Format validated elevation range data into GPP input format.
+
+        Returns
+        -------
+        dict[str, Any]
+            The formatted data dictionary for GPP input.
+        """
+        data = self.validated_data
+        mode = data["elevationRangeSelect"]
+
+        if mode == "Air Mass":
+            air_mass: dict[str, float] = {}
+            if data.get("airMassMinimumInput") is not None:
+                air_mass["min"] = data["airMassMinimumInput"]
+            if data.get("airMassMaximumInput") is not None:
+                air_mass["max"] = data["airMassMaximumInput"]
+            return {"airMass": air_mass}
+
+        if mode == "Hour Angle":
+            hour_angle: dict[str, float] = {}
+            if data.get("haMinimumInput") is not None:
+                hour_angle["minHours"] = data["haMinimumInput"]
+            if data.get("haMaximumInput") is not None:
+                hour_angle["maxHours"] = data["haMaximumInput"]
+            return {"hourAngle": hour_angle}
+
+        # Defensive fallback, should never get here.
         raise serializers.ValidationError("Invalid elevation range mode selected.")

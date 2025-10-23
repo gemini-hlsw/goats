@@ -1,12 +1,12 @@
 import pytest
+from gpp_client.api.enums import ObservingModeType
 from rest_framework.exceptions import ValidationError
 
 from goats_tom.serializers.gpp.instruments import (
-    InstrumentRegistry,
     GMOSNorthLongSlitSerializer,
     GMOSSouthLongSlitSerializer,
+    InstrumentRegistry,
 )
-from gpp_client.api.enums import ObservingModeType
 
 
 @pytest.mark.parametrize(
@@ -28,13 +28,13 @@ def test_gpp_instrument_registry_valid(input_key, expected_serializer):
 @pytest.mark.parametrize(
     "invalid_key",
     [
-        "GMOS_EAST_LONG_SLIT",                 # Invalid string.
-        "FLAMINGOS_2_IFU",                     # Not yet registered.
+        "GMOS_EAST_LONG_SLIT",  # Invalid string.
+        "FLAMINGOS_2_IFU",  # Not yet registered.
         ObservingModeType.GMOS_SOUTH_IMAGING,  # Valid enum but unregistered.
-        "gmos_north_long_slit",                # Incorrect casing.
-        "",                                    # Empty string.
-        None,                                  # None type.
-        42,                                    # Non-string type.
+        "gmos_north_long_slit",  # Incorrect casing.
+        "",  # Empty string.
+        None,  # None type.
+        42,  # Non-string type.
     ],
 )
 def test_gpp_instrument_registry_invalid(invalid_key):
