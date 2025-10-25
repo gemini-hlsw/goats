@@ -66,7 +66,6 @@ class BrightnessesSerializer(_BaseGPPSerializer):
         serializers.ValidationError
             If any brightness value is invalid or required fields are missing.
         """
-        # data = super().to_internal_value(data)
         brightnesses_data: dict[int, dict[str, Any]] = {}
 
         # Group brightness fields by their index.

@@ -105,8 +105,6 @@ class TestPosAngleSerializer:
             "Angle should be omitted when not provided."
         )
 
-    from gpp_client.api.input_types import PosAngleConstraintInput
-
     def test_to_pydantic_model_valid_output(self):
         """Test that to_pydantic() returns a valid PosAngleConstraintInput model."""
         data = {
