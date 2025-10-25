@@ -1,54 +1,37 @@
+"""
+Serializer to parse and validate exposure mode from flat form data.
+"""
+
 __all__ = ["ExposureModeSerializer"]
 
 from typing import Any
 
+from gpp_client.api.input_types import ExposureTimeModeInput
 from rest_framework import serializers
 
-from .utils import normalize
+from ._base_gpp import _BaseGPPSerializer
 
 
-class WavelengthSerializer(serializers.Serializer):
-    """Serializer for wavelength values."""
-
-    nanometers = serializers.FloatField()
-
-
-class TimeSpanSerializer(serializers.Serializer):
-    """Serializer for time span values."""
-
-    seconds = serializers.FloatField()
-
-
-class SignalToNoiseExposureSerializer(serializers.Serializer):
-    """Serializer for signal-to-noise exposure mode."""
-
-    value = serializers.FloatField()
-    at = WavelengthSerializer()
-
-
-class TimeAndCountExposureSerializer(serializers.Serializer):
-    """Serializer for time and count exposure mode."""
-
-    time = TimeSpanSerializer()
-    count = serializers.IntegerField(min_value=1)
-    at = WavelengthSerializer()
-
-
-class ExposureModeSerializer(serializers.Serializer):
+class ExposureModeSerializer(_BaseGPPSerializer):
     """Serializer to parse and validate exposure mode from flat form data."""
 
     exposureModeSelect = serializers.ChoiceField(
-        choices=["Signal / Noise", "Fixed Exposure"]
+        choices=["Signal / Noise", "Fixed Exposure"],
+        required=True,
+        allow_blank=False,
+        allow_null=False,
     )
-    snInput = serializers.CharField(required=False, allow_blank=True)
-    snWavelengthInput = serializers.CharField(required=False, allow_blank=True)
-    exposureTimeInput = serializers.CharField(required=False, allow_blank=True)
-    numExposuresInput = serializers.CharField(required=False, allow_blank=True)
-    countWavelengthInput = serializers.CharField(required=False, allow_blank=True)
+    snInput = serializers.FloatField(required=False, allow_null=True)
+    snWavelengthInput = serializers.FloatField(required=False, allow_null=True)
+    exposureTimeInput = serializers.FloatField(required=False, allow_null=True)
+    numExposuresInput = serializers.IntegerField(required=False, allow_null=True)
+    countWavelengthInput = serializers.FloatField(required=False, allow_null=True)
+
+    pydantic_model = ExposureTimeModeInput
 
     def validate(self, data: dict[str, Any]) -> dict[str, Any]:
         """
-        Validate and structure exposure mode input into the correct nested model shape.
+        Validate the input.
 
         Parameters
         ----------
@@ -68,53 +51,57 @@ class ExposureModeSerializer(serializers.Serializer):
 
         mode = data.get("exposureModeSelect")
 
-        # Handle Signal-to-Noise Mode
         if mode == "Signal / Noise":
-            sn_value = normalize(data.get("snInput"))
-            sn_wavelength = normalize(data.get("snWavelengthInput"))
-
-            if sn_value is None or sn_wavelength is None:
-                raise serializers.ValidationError("Missing signal-to-noise input(s).")
-
-            # Build and return the structured data.
-            try:
-                return {
-                    "signalToNoise": {
-                        "value": float(sn_value),
-                        "at": {"nanometers": float(sn_wavelength)},
-                    }
-                }
-            except ValueError:
+            if data.get("snInput") is None or data.get("snWavelengthInput") is None:
                 raise serializers.ValidationError(
-                    "Signal-to-noise values must be numeric."
+                    "Both S/N value and wavelength are required for "
+                    "Signal / Noise mode."
                 )
 
-        # Handle Fixed Exposure Mode
         elif mode == "Fixed Exposure":
-            exposure_time = normalize(data.get("exposureTimeInput"))
-            num_exposures = normalize(data.get("numExposuresInput"))
-            count_wavelength = normalize(data.get("countWavelengthInput"))
-
             if (
-                exposure_time is None
-                or num_exposures is None
-                or count_wavelength is None
+                data.get("exposureTimeInput") is None
+                or data.get("numExposuresInput") is None
+                or data.get("countWavelengthInput") is None
             ):
-                raise serializers.ValidationError("Missing fixed exposure input(s).")
-
-            # Build and return the structured data.
-            try:
-                return {
-                    "timeAndCount": {
-                        "time": {"seconds": float(exposure_time)},
-                        "count": int(num_exposures),
-                        "at": {"nanometers": float(count_wavelength)},
-                    }
-                }
-            except ValueError:
                 raise serializers.ValidationError(
-                    "Fixed exposure values must be numeric."
+                    "Exposure time, number of exposures, and wavelength are required "
+                    "for Fixed Exposure mode."
                 )
 
-        # Raise error for unrecognized mode.
+        else:
+            raise serializers.ValidationError("Invalid exposure mode selected.")
+
+        return data
+
+    def format_gpp(self) -> dict[str, Any]:
+        """
+        Format validated exposure mode data into GPP input format.
+
+        Returns
+        -------
+        dict[str, Any]
+            The formatted data for GPP input.
+        """
+        data = self.validated_data
+        mode = data["exposureModeSelect"]
+
+        if mode == "Signal / Noise":
+            return {
+                "signalToNoise": {
+                    "value": data["snInput"],
+                    "at": {"nanometers": data["snWavelengthInput"]},
+                }
+            }
+
+        if mode == "Fixed Exposure":
+            return {
+                "timeAndCount": {
+                    "time": {"seconds": data["exposureTimeInput"]},
+                    "count": data["numExposuresInput"],
+                    "at": {"nanometers": data["countWavelengthInput"]},
+                }
+            }
+
+        # Defensive fallback, though DRF validation ensures this never runs.
         raise serializers.ValidationError("Invalid exposure mode selected.")

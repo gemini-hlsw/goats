@@ -1,16 +1,18 @@
 import pytest
 from rest_framework.exceptions import ValidationError
+
 from goats_tom.serializers.gpp.exposure_mode import ExposureModeSerializer
+
 
 @pytest.mark.parametrize(
     "input_data, expected_output",
     [
-        # Test Signal-to-Noise Mode with valid inputs.
+        # Valid Signal-to-Noise mode.
         (
             {
                 "exposureModeSelect": "Signal / Noise",
-                "snInput": "10.5",
-                "snWavelengthInput": "500",
+                "snInput": 10.5,
+                "snWavelengthInput": 500.0,
             },
             {
                 "signalToNoise": {
@@ -19,13 +21,13 @@ from goats_tom.serializers.gpp.exposure_mode import ExposureModeSerializer
                 }
             },
         ),
-        # Test Fixed Exposure Mode with valid inputs.
+        # Valid Fixed Exposure mode.
         (
             {
                 "exposureModeSelect": "Fixed Exposure",
-                "exposureTimeInput": "2.5",
-                "numExposuresInput": "3",
-                "countWavelengthInput": "600",
+                "exposureTimeInput": 2.5,
+                "numExposuresInput": 3,
+                "countWavelengthInput": 600.0,
             },
             {
                 "timeAndCount": {
@@ -35,99 +37,82 @@ from goats_tom.serializers.gpp.exposure_mode import ExposureModeSerializer
                 }
             },
         ),
-        # Test providing all inputs, ensuring correct mode is processed.
-        (
-            {
-                "exposureModeSelect": "Signal / Noise",
-                "snInput": "15.0",
-                "snWavelengthInput": "700",
-                "exposureTimeInput": "5.0",
-                "numExposuresInput": "4",
-                "countWavelengthInput": "800",
-            },
-            {
-                "signalToNoise": {
-                    "value": 15.0,
-                    "at": {"nanometers": 700.0},
-                }
-            },
-        ),
     ],
 )
-def test_validate_valid_inputs(input_data, expected_output):
-    serializer = ExposureModeSerializer()
-    assert serializer.validate(input_data) == expected_output
+def test_format_gpp_valid_modes(input_data, expected_output):
+    """Test correct GPP formatting for valid exposure modes."""
+    serializer = ExposureModeSerializer(data=input_data)
+    assert serializer.is_valid(), serializer.errors
+    formatted = serializer.format_gpp()
+    assert formatted == expected_output
 
 
 @pytest.mark.parametrize(
-    "input_data, expected_exception_message",
+    "input_data, expected_message",
     [
-        # Test Signal-to-Noise Mode with missing inputs.
+        # Missing snInput.
         (
             {
                 "exposureModeSelect": "Signal / Noise",
-                "snInput": "",
-                "snWavelengthInput": "500",
+                "snWavelengthInput": 500.0,
             },
-            "Missing signal-to-noise input(s).",
+            "Both S/N value and wavelength are required for Signal / Noise mode.",
         ),
+        # Missing snWavelengthInput.
         (
             {
                 "exposureModeSelect": "Signal / Noise",
-                "snInput": "10.5",
-                "snWavelengthInput": "",
+                "snInput": 10.5,
             },
-            "Missing signal-to-noise input(s).",
+            "Both S/N value and wavelength are required for Signal / Noise mode.",
         ),
-        # Test Fixed Exposure Mode with missing inputs.
+        # Missing exposureTimeInput.
         (
             {
                 "exposureModeSelect": "Fixed Exposure",
-                "exposureTimeInput": "",
-                "numExposuresInput": "3",
-                "countWavelengthInput": "600",
+                "numExposuresInput": 3,
+                "countWavelengthInput": 600.0,
             },
-            "Missing fixed exposure input(s).",
+            "Exposure time, number of exposures, and wavelength are required for Fixed Exposure mode.",
         ),
+        # Missing numExposuresInput.
         (
             {
                 "exposureModeSelect": "Fixed Exposure",
-                "exposureTimeInput": "2.5",
-                "numExposuresInput": "",
-                "countWavelengthInput": "600",
+                "exposureTimeInput": 2.5,
+                "countWavelengthInput": 600.0,
             },
-            "Missing fixed exposure input(s).",
+            "Exposure time, number of exposures, and wavelength are required for Fixed Exposure mode.",
         ),
-        # Test invalid exposure mode.
+        # Invalid mode.
         (
-            {
-                "exposureModeSelect": "Invalid Mode",
-            },
-            "Invalid exposure mode selected.",
-        ),
-        # Test Signal-to-Noise Mode with non-numeric inputs.
-        (
-            {
-                "exposureModeSelect": "Signal / Noise",
-                "snInput": "abc",
-                "snWavelengthInput": "500",
-            },
-            "Signal-to-noise values must be numeric.",
-        ),
-        # Test Fixed Exposure Mode with non-numeric inputs.
-        (
-            {
-                "exposureModeSelect": "Fixed Exposure",
-                "exposureTimeInput": "abc",
-                "numExposuresInput": "3",
-                "countWavelengthInput": "600",
-            },
-            "Fixed exposure values must be numeric.",
+            {"exposureModeSelect": "Invalid Mode"},
+            '"Invalid Mode" is not a valid choice.',
         ),
     ],
 )
-def test_validate_invalid_inputs(input_data, expected_exception_message):
-    serializer = ExposureModeSerializer()
+def test_validate_invalid_modes(input_data, expected_message):
+    """Test validation errors for missing or invalid exposure mode data."""
+    serializer = ExposureModeSerializer(data=input_data)
     with pytest.raises(ValidationError) as excinfo:
-        serializer.validate(input_data)
-    assert str(excinfo.value.detail[0]) == expected_exception_message
+        serializer.is_valid(raise_exception=True)
+    assert expected_message in str(excinfo.value)
+
+
+def test_to_pydantic_returns_valid_model():
+    """Test to_pydantic() produces a valid ExposureTimeModeInput model."""
+    input_data = {
+        "exposureModeSelect": "Signal / Noise",
+        "snInput": 15.0,
+        "snWavelengthInput": 700.0,
+    }
+
+    serializer = ExposureModeSerializer(data=input_data)
+    assert serializer.is_valid(), serializer.errors
+
+    model = serializer.to_pydantic()
+    from gpp_client.api.input_types import ExposureTimeModeInput
+
+    assert isinstance(model, ExposureTimeModeInput)
+    assert model.signal_to_noise.value == 15.0
+    assert model.signal_to_noise.at.nanometers == 700.0

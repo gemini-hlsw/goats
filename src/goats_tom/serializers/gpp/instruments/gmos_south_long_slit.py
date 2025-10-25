@@ -8,62 +8,42 @@ __all__ = ["GMOSSouthLongSlitSerializer"]
 
 from typing import Any
 
+from gpp_client.api.input_types import GmosSouthLongSlitInput
 from rest_framework import serializers
 
-from goats_tom.serializers.gpp.utils import normalize, parse_comma_separated_floats
+from .._base_gpp import _BaseGPPSerializer
+from .fields import CommaSeparatedFloatField
 
 
-class GMOSSouthLongSlitSerializer(serializers.Serializer):
+class GMOSSouthLongSlitSerializer(_BaseGPPSerializer):
     """Serializer for GMOS-South long slit input data."""
 
-    centralWavelengthInput = serializers.CharField(required=False, allow_blank=True)
-    spatialOffsetsInput = serializers.CharField(required=False, allow_blank=True)
-    wavelengthDithersInput = serializers.CharField(required=False, allow_blank=True)
+    centralWavelengthInput = serializers.FloatField(required=False, allow_null=True)
+    spatialOffsetsInput = CommaSeparatedFloatField(required=False, allow_null=True)
+    wavelengthDithersInput = CommaSeparatedFloatField(required=False, allow_null=True)
 
-    def validate(self, data: dict[str, Any]) -> dict[str, Any]:
+    pydantic_model = GmosSouthLongSlitInput
+
+    def format_gpp(self) -> dict[str, Any] | None:
         """
-        Validate and structure GMOS-South Long Slit fields.
-
-        Parameters
-        ----------
-        data : dict[str, Any]
-            The raw form input data.
+        Format validated GMOS-South Long Slit data for GPP.
 
         Returns
         -------
-        dict[str, Any]
-            The structured GraphQL-ready data for GmosSouthLongSlitInput.
-
-        Raises
-        ------
-        serializers.ValidationError
-            If any values are invalid or incorrectly formatted.
+        dict[str, Any] | None
+            The formatted data dictionary for GmosSouthLongSlitInput,
+            or ``None`` if no relevant fields are provided.
         """
+        data = self.validated_data
         result: dict[str, Any] = {}
 
-        # Handle central wavelength.
-        central = normalize(data.get("centralWavelengthInput"))
-        if central is not None:
-            try:
-                result["centralWavelength"] = {"nanometers": float(central)}
-            except ValueError:
-                raise serializers.ValidationError(
-                    "centralWavelengthInput must be a numeric value in nanometers."
-                )
+        if (cw := data.get("centralWavelengthInput")) is not None:
+            result["centralWavelength"] = {"nanometers": cw}
 
-        # Handle wavelength dithers.
-        dithers = normalize(data.get("wavelengthDithersInput"))
-        if dithers:
-            result["explicitWavelengthDithers"] = parse_comma_separated_floats(
-                dithers, "wavelengthDithersInput", "nanometers"
-            )
+        if (wd := data.get("wavelengthDithersInput")) is not None:
+            result["explicitWavelengthDithers"] = [{"nanometers": v} for v in wd]
 
-        # Handle spatial offsets.
-        offsets = normalize(data.get("spatialOffsetsInput"))
-        if offsets:
-            result["explicitOffsets"] = parse_comma_separated_floats(
-                offsets, "spatialOffsetsInput", "arcseconds"
-            )
+        if (so := data.get("spatialOffsetsInput")) is not None:
+            result["explicitOffsets"] = [{"arcseconds": v} for v in so]
 
-        # Return the structured data from the serializer with the instrument key.
-        return {"gmos_south_long_slit": result}
+        return result if result else None

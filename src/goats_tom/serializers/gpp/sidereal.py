@@ -6,13 +6,14 @@ __all__ = ["SiderealSerializer"]
 
 from typing import Any
 
+from gpp_client.api.input_types import SiderealInput
 from rest_framework import serializers
 from tom_targets.models import BaseTarget as Target
 
-from ._base import _BaseSerializer
+from ._base_gpp import _BaseGPPSerializer
 
 
-class SiderealSerializer(_BaseSerializer):
+class SiderealSerializer(_BaseGPPSerializer):
     """
     Serializer for sidereal target properties.
     """
@@ -25,37 +26,50 @@ class SiderealSerializer(_BaseSerializer):
     uRaInput = serializers.FloatField(required=False, allow_null=True)
     uDecInput = serializers.FloatField(required=False, allow_null=True)
 
-    def validate(self, data: dict[str, Any]) -> dict[str, Any]:
-        """
-        Validate the input data for the sidereal properties.
+    pydantic_model = SiderealInput
 
-        Parameters
-        ----------
-        data : dict[str, Any]
-            The validated data dictionary.
+    def format_gpp(self) -> dict[str, Any]:
+        """
+        Format the sidereal target data for GPP.
 
         Returns
         -------
         dict[str, Any]
-            The validated data dictionary.
+            The formatted data dictionary for GPP.
         """
-        # Assign target instance.
-        self._target = data.get("hiddenGoatsTargetIdInput")
-
-        return {
-            "radialVelocity": {"kilometersPerSecond": data.get("radialVelocityInput")},
-            "parallax": {"milliarcseconds": data.get("parallaxInput")},
-            "properMotion": {
-                "ra": {"milliarcsecondsPerYear": data.get("uRaInput")},
-                "dec": {"milliarcsecondsPerYear": data.get("uDecInput")},
-            },
-            # Update with target's RA and Dec.
-            "ra": {"degrees": self._target.ra},
-            "dec": {"degrees": self._target.dec},
-            # Use standard epoch.
-            "epoch": "J2000",
+        data = self.validated_data
+        result: dict[str, Any] = {
+            "ra": {"degrees": self.target.ra},
+            "dec": {"degrees": self.target.dec},
+            "epoch": "J2000.000",
         }
 
+        if (rv := data.get("radialVelocityInput")) is not None:
+            result["radialVelocity"] = {"kilometersPerSecond": rv}
+
+        if (parallax := data.get("parallaxInput")) is not None:
+            result["parallax"] = {"milliarcseconds": parallax}
+
+        u_ra = data.get("uRaInput")
+        u_dec = data.get("uDecInput")
+
+        if u_ra is not None or u_dec is not None:
+            result["properMotion"] = {}
+            if u_ra is not None:
+                result["properMotion"]["ra"] = {"milliarcsecondsPerYear": u_ra}
+            if u_dec is not None:
+                result["properMotion"]["dec"] = {"milliarcsecondsPerYear": u_dec}
+
+        return result
+
     @property
-    def target(self) -> Target | None:
-        return getattr(self, "_target", None)
+    def target(self) -> Target:
+        """
+        Get the Target instance for the sidereal properties.
+
+        Returns
+        -------
+        Target
+            The Target instance.
+        """
+        return self.validated_data["hiddenGoatsTargetIdInput"]

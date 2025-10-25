@@ -9,7 +9,7 @@ from enum import Enum
 
 from rest_framework import serializers
 
-from goats_tom.serializers.gpp.source_profile.seds import BlackBodySerializer
+from .black_body import BlackBodySerializer
 
 
 class SEDType(str, Enum):

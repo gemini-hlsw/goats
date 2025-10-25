@@ -7,10 +7,12 @@ __all__ = ["SourceProfileSerializer"]
 from enum import Enum
 from typing import Any
 
+from gpp_client.api.input_types import SourceProfileInput
 from rest_framework import serializers
 
-from goats_tom.serializers.gpp.source_profile.seds.registry import SEDRegistry, SEDType
-from goats_tom.serializers.gpp.utils import normalize
+from .._base_gpp import _BaseGPPSerializer
+from .brightnesses import BrightnessesSerializer
+from .seds import SEDRegistry, SEDType
 
 
 class SourceProfileType(str, Enum):
@@ -24,49 +26,97 @@ class SourceProfileType(str, Enum):
     # GAUSSIAN = "gaussian"
 
 
-class SourceProfileSerializer(serializers.Serializer):
+class SourceProfileSerializer(_BaseGPPSerializer):
     sedProfileTypeSelect = serializers.ChoiceField(
         choices=[e.value for e in SourceProfileType], required=True, allow_blank=False
     )
     sedTypeSelect = serializers.ChoiceField(
-        choices=[e.value for e in SEDType], required=False, allow_blank=True
+        choices=[e.value for e in SEDType],
+        required=False,
+        allow_blank=False,
+        allow_null=True,
     )
+    pydantic_model = SourceProfileInput
 
-    def validate(self, data: dict[str, Any]) -> dict[str, Any]:
+    def to_internal_value(self, data: dict[str, Any]) -> dict[str, Any]:
         """
-        Validate and structure source profile fields.
+        Deserialize the input data, validating brightnesses and SED if present.
 
         Parameters
         ----------
         data : dict[str, Any]
-            The raw form input data.
+            The raw input data.
 
         Returns
         -------
         dict[str, Any]
-            The structured GraphQL-ready data for SourceProfileInput.
-
-        Raises
-        ------
-        serializers.ValidationError
-            If any values are invalid or incorrectly formatted.
+            The validated and deserialized data.
         """
-        # Profile is always provided.
-        profile_type = data["sedProfileTypeSelect"]
-        sed_type = normalize(data.get("sedTypeSelect"))
+        internal: dict[str, Any] = super().to_internal_value(data)
 
-        # If no SED type is provided, return None for the SED.
-        if sed_type is None:
-            return {profile_type: {"bandNormalized": {"sed": None}}}
+        # Validate brightnesses.
+        brightnesses = BrightnessesSerializer(data=data)
+        brightnesses.is_valid(raise_exception=True)
+        self._brightnesses = brightnesses
 
-        # Get nested SED serializer from registry and validate it.
-        serializer_class = SEDRegistry.get_serializer(sed_type)
+        # Validate SED if sedTypeSelect is provided.
+        sed_type = data.get("sedTypeSelect")
+        if sed_type:
+            sed_serializer = SEDRegistry.get_serializer(sed_type)
+            sed = sed_serializer(data=data)
+            sed.is_valid(raise_exception=True)
+            self._sed = sed
+        else:
+            self._sed = None
 
-        # Create nested serializer with the same initial data.
-        sed_serializer = serializer_class(data=self.initial_data)
-        sed_serializer.is_valid(raise_exception=True)
+        return internal
 
-        # Return structured data.
-        return {
-            profile_type: {"bandNormalized": {"sed": sed_serializer.validated_data}}
-        }
+    def format_gpp(self) -> dict[str, Any] | None:
+        """
+        Format the source profile data for GPP.
+
+        Returns
+        -------
+        dict[str, Any] | None
+            The formatted source profile data, or ``None`` if no data was provided.
+        """
+        profile_type = self.validated_data["sedProfileTypeSelect"]
+        band_normalized: dict[str, Any] = {}
+
+        if self.sed is not None:
+            sed_data = self.sed.format_gpp()
+            if sed_data is not None:
+                band_normalized["sed"] = sed_data
+
+        brightness_data = self.brightnesses.format_gpp()
+        if brightness_data is not None:
+            band_normalized["brightnesses"] = brightness_data["brightnesses"]
+
+        if not band_normalized:
+            return None
+
+        return {profile_type: {"bandNormalized": band_normalized}}
+
+    @property
+    def brightnesses(self) -> BrightnessesSerializer | None:
+        """
+        Get the brightnesses instance.
+
+        Returns
+        -------
+        BrightnessesSerializer | None
+            The brightnesses instance, or ``None`` if not set.
+        """
+        return getattr(self, "_brightnesses", None)
+
+    @property
+    def sed(self) -> _BaseGPPSerializer | None:
+        """
+        Get the SED instance, if present.
+
+        Returns
+        -------
+        _BaseGPPSerializer | None
+            The SED instance, or ``None``.
+        """
+        return getattr(self, "_sed", None)

@@ -1,6 +1,6 @@
 import pytest
-from unittest.mock import patch, MagicMock
-from rest_framework.serializers import ValidationError
+from gpp_client.api.input_types import SourceProfileInput
+from rest_framework.exceptions import ErrorDetail, ValidationError
 
 from goats_tom.serializers.gpp.source_profile.seds.registry import SEDRegistry, SEDType
 from goats_tom.serializers.gpp.source_profile.source_profile import (
@@ -9,118 +9,133 @@ from goats_tom.serializers.gpp.source_profile.source_profile import (
 )
 
 
-@pytest.mark.parametrize(
-    "data, expected_result",
-    [
-        (
-            # Case: Valid profile and valid SED type.
-            {
-                "sedProfileTypeSelect": SourceProfileType.POINT.value,
-                "sedTypeSelect": SEDType.BLACK_BODY.value,
-            },
-            {
-                SourceProfileType.POINT.value: {
-                    "bandNormalized": {"sed": {"mocked": "data"}}
-                }
-            },
-        ),
-        (
-            # Case: Valid profile with no SED type (empty string).
-            {
-                "sedProfileTypeSelect": SourceProfileType.POINT.value,
-                "sedTypeSelect": "",
-            },
-            {
-                SourceProfileType.POINT.value: {
-                    "bandNormalized": {"sed": None}
-                }
-            },
-        ),
-        (
-            # Case: Valid profile with missing SED type.
-            {
-                "sedProfileTypeSelect": SourceProfileType.POINT.value,
-            },
-            {
-                SourceProfileType.POINT.value: {
-                    "bandNormalized": {"sed": None}
-                }
-            },
-        ),
-    ],
-)
-def test_source_profile_serializer_valid(data, expected_result):
-    """Test valid cases for SourceProfileSerializer."""
-    with patch.object(SEDRegistry, "get_serializer") as mock_get_serializer:
-        # Create a mock instance to simulate the nested serializer.
-        mock_instance = MagicMock()
-        mock_instance.is_valid.return_value = True
-        mock_instance.validated_data = {"mocked": "data"}
+@pytest.mark.django_db
+class TestSourceProfileSerializer:
+    """Tests for SourceProfileSerializer."""
 
-        # Make get_serializer() return a mock class that returns our instance.
-        mock_get_serializer.return_value = MagicMock(return_value=mock_instance)
+    @pytest.fixture
+    def base_valid_data(self) -> dict:
+        return {
+            "sedProfileTypeSelect": SourceProfileType.POINT.value,
+            "sedTypeSelect": SEDType.BLACK_BODY.value,
+        }
+
+    @pytest.fixture
+    def mock_brightness(self, mocker):
+        """Mock the BrightnessesSerializer."""
+        mock_cls = mocker.patch(
+            "goats_tom.serializers.gpp.source_profile.source_profile.BrightnessesSerializer"
+        )
+        instance = mocker.MagicMock()
+        instance.is_valid.return_value = True
+        # Use valid enum band name (SLOAN_R) to pass Pydantic validation.
+        instance.format_gpp.return_value = {
+            "brightnesses": [{"band": "SLOAN_R", "value": 22.0}]
+        }
+        mock_cls.return_value = instance
+        return instance
+
+    @pytest.fixture
+    def mock_sed(self, mocker):
+        """Mock the SEDRegistry.get_serializer()."""
+        mock_cls = mocker.MagicMock()
+        instance = mocker.MagicMock()
+        instance.is_valid.return_value = True
+        instance.format_gpp.return_value = {"mocked": "data"}
+        mock_cls.return_value = instance
+        mocker.patch.object(SEDRegistry, "get_serializer", return_value=mock_cls)
+        return instance
+
+    def test_valid_with_sed(self, base_valid_data, mock_brightness, mock_sed):
+        """Test valid input with SED and brightness data."""
+        serializer = SourceProfileSerializer(data=base_valid_data)
+        assert serializer.is_valid(), serializer.errors
+
+        formatted = serializer.format_gpp()
+        assert formatted == {
+            "point": {
+                "bandNormalized": {
+                    "sed": {"mocked": "data"},
+                    "brightnesses": [{"band": "SLOAN_R", "value": 22.0}],
+                }
+            }
+        }
+
+    def test_to_pydantic_returns_valid_model(
+        self, base_valid_data, mock_brightness, mock_sed
+    ):
+        """Test that `to_pydantic()` returns a valid SourceProfileInput model."""
+        serializer = SourceProfileSerializer(data=base_valid_data)
+        assert serializer.is_valid(), serializer.errors
+        model = serializer.to_pydantic()
+        assert isinstance(model, SourceProfileInput)
+        assert model.point is not None
+        assert model.point.band_normalized is not None
+
+    @pytest.mark.parametrize("sed_type", [None])
+    def test_valid_without_sed(self, mocker, sed_type, mock_brightness):
+        """Test valid input without SED type (field omitted or None)."""
+        mock_registry = mocker.patch.object(SEDRegistry, "get_serializer")
+
+        data = {
+            "sedProfileTypeSelect": SourceProfileType.POINT.value,
+        }
+        if sed_type is not None:
+            data["sedTypeSelect"] = sed_type
 
         serializer = SourceProfileSerializer(data=data)
         assert serializer.is_valid(), serializer.errors
-        assert serializer.validated_data == expected_result
 
-        if "sedTypeSelect" in data and data["sedTypeSelect"]:
-            mock_get_serializer.assert_called_once_with(data["sedTypeSelect"])
-            mock_instance.is_valid.assert_called_once()
-        else:
-            mock_get_serializer.assert_not_called()
+        result = serializer.format_gpp()
+        assert "point" in result
+        assert "bandNormalized" in result["point"]
+        assert "brightnesses" in result["point"]["bandNormalized"]
+        assert "sed" not in result["point"]["bandNormalized"]
+        mock_registry.assert_not_called()
 
+    @pytest.mark.parametrize(
+        "data, expected_field",
+        [
+            ({"sedProfileTypeSelect": "", "sedTypeSelect": ""}, "sedProfileTypeSelect"),
+            (
+                {
+                    "sedProfileTypeSelect": SourceProfileType.POINT.value,
+                    "sedTypeSelect": "invalid",
+                },
+                "sedTypeSelect",
+            ),
+            ({"sedTypeSelect": SEDType.BLACK_BODY.value}, "sedProfileTypeSelect"),
+        ],
+    )
+    def test_invalid_fields(self, data: dict, expected_field: str) -> None:
+        """Test invalid enum values and missing required fields."""
+        serializer = SourceProfileSerializer(data=data)
+        assert not serializer.is_valid()
+        assert expected_field in serializer.errors
 
-@pytest.mark.parametrize(
-    "data, expected_error_field",
-    [
-        (
-            # Blank profile type (not allowed).
-            {
-                "sedProfileTypeSelect": "",
-                "sedTypeSelect": "",
-            },
-            "sedProfileTypeSelect",
-        ),
-        (
-            # Invalid SED type (not in enum).
-            {
-                "sedProfileTypeSelect": SourceProfileType.POINT.value,
-                "sedTypeSelect": "invalid_sed_type",
-            },
-            "sedTypeSelect",
-        ),
-        (
-            # Missing profile type entirely.
-            {
-                "sedTypeSelect": SEDType.BLACK_BODY.value,
-            },
-            "sedProfileTypeSelect",
-        ),
-    ],
-)
-def test_source_profile_serializer_invalid(data, expected_error_field):
-    """Test invalid input scenarios for SourceProfileSerializer."""
-    serializer = SourceProfileSerializer(data=data)
-    is_valid = serializer.is_valid()
-    assert not is_valid
-    assert expected_error_field in serializer.errors
+    def test_nested_sed_validation_error(self, mocker, mock_brightness):
+        """Test that nested SED serializer raising ValidationError propagates correctly."""
+        data = {
+            "sedProfileTypeSelect": SourceProfileType.POINT.value,
+            "sedTypeSelect": SEDType.BLACK_BODY.value,
+        }
 
-
-def test_source_profile_serializer_nested_validation_error():
-    """Test when nested SED serializer raises its own validation error."""
-    data = {
-        "sedProfileTypeSelect": SourceProfileType.POINT.value,
-        "sedTypeSelect": SEDType.BLACK_BODY.value,
-    }
-
-    with patch.object(SEDRegistry, "get_serializer") as mock_get_serializer:
-        mock_instance = MagicMock()
-        mock_instance.is_valid.side_effect = ValidationError("Invalid SED data.")
-
-        mock_get_serializer.return_value = MagicMock(return_value=mock_instance)
+        mock_cls = mocker.MagicMock()
+        instance = mocker.MagicMock()
+        instance.is_valid.side_effect = ValidationError(
+            {"non_field_errors": [ErrorDetail("Invalid SED data.", code="invalid")]}
+        )
+        mock_cls.return_value = instance
+        mocker.patch.object(SEDRegistry, "get_serializer", return_value=mock_cls)
 
         serializer = SourceProfileSerializer(data=data)
-
-        with pytest.raises(ValidationError, match="Invalid SED data."):
+        with pytest.raises(ValidationError, match="Invalid SED data"):
             serializer.is_valid(raise_exception=True)
+
+    def test_format_gpp_returns_none_when_empty(self, mocker, mock_brightness):
+        """Test `format_gpp()` returns None if no brightness or SED data are present."""
+        mock_brightness.format_gpp.return_value = None
+        data = {"sedProfileTypeSelect": SourceProfileType.POINT.value}
+        serializer = SourceProfileSerializer(data=data)
+        assert serializer.is_valid(), serializer.errors
+        assert serializer.format_gpp() is None
