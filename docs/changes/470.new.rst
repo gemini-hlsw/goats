@@ -1,0 +1,1 @@
+Added retry mechanism for setting workflow state for a newly created ToO observation in the GPP application to improve user experience.
