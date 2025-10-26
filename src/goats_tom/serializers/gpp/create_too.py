@@ -5,6 +5,7 @@ Opportunity) in GPP.
 
 __all__ = ["CreateTooSerializer"]
 
+from gpp_client.api.enums import ObservingModeType
 from rest_framework import serializers
 from tom_targets.models import BaseTarget as Target
 
@@ -25,6 +26,13 @@ class CreateTooSerializer(_BaseGPPSerializer):
     )
     hiddenObservationIdInput = serializers.CharField(
         required=True, allow_blank=False, allow_null=False
+    )
+
+    hiddenObservingModeInput = serializers.ChoiceField(
+        choices=[m.value for m in ObservingModeType],
+        required=True,
+        allow_blank=False,
+        allow_null=False,
     )
 
     @property
@@ -62,3 +70,15 @@ class CreateTooSerializer(_BaseGPPSerializer):
             The GPP observation ID.
         """
         return self.validated_data["hiddenObservationIdInput"]
+
+    @property
+    def instrument(self) -> str:
+        """
+        Get the instrument from the observing mode.
+
+        Returns
+        -------
+        str
+            The instrument name.
+        """
+        return self.validated_data["hiddenObservingModeInput"]

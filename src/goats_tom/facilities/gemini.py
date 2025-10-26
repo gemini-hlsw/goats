@@ -16,7 +16,7 @@ from tom_observations.facility import (
 )
 from django import forms
 from tom_observations.models import ObservationRecord
-
+from gpp_client.api.enums import ObservingModeType
 from goats_tom.astroquery import Observations as GOA
 from goats_tom.ocs import OCSClient
 from bs4 import BeautifulSoup
@@ -56,8 +56,10 @@ class GEMObservationForm(BaseRoboticObservationForm):
     cloud_extinction = forms.CharField(required=False)
     sky_background = forms.CharField(required=False)
     water_vapor = forms.CharField(required=False)
-    execution_state = forms.CharField(required=False)
 
+    # All FIELD_MAP keys are relative to `observing_parameters`, which is passed
+    # directly as the `data` dict to this form. So do NOT prefix paths with
+    # "observing_parameters."
     BASE_FIELD_MAP = {
         "gpp_id": "id",
         "observation_id": "reference.label",
@@ -67,7 +69,6 @@ class GEMObservationForm(BaseRoboticObservationForm):
         "cloud_extinction": "constraintSet.cloudExtinction",
         "sky_background": "constraintSet.skyBackground",
         "water_vapor": "constraintSet.waterVapor",
-        "status": "execution.executionState",
         "target_id": "target_id",
         "facility": "facility",
     }
@@ -131,7 +132,10 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
     """
 
     name = "GEM"
-    observation_forms = {"GMOS_SOUTH": GMOSSouthForm, "GMOS_NORTH": GMOSNorthForm}
+    observation_forms = {
+        ObservingModeType.GMOS_SOUTH_LONG_SLIT.value: GMOSSouthForm,
+        ObservingModeType.GMOS_NORTH_LONG_SLIT.value: GMOSNorthForm
+    }
 
     def get_form(self, observation_type):
         """Return the appropriate form to use."""
