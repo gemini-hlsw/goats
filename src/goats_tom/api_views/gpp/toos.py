@@ -3,6 +3,7 @@
 __all__ = ["GPPTooViewSet"]
 
 import time
+from typing import Any
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
@@ -12,7 +13,9 @@ from gpp_client.api.input_types import TargetEnvironmentInput
 from rest_framework import permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet, mixins
+from tom_observations.api_views import ObservationRecordViewSet
 
 from goats_tom.serializers.gpp import (
     CreateTooSerializer,
@@ -85,11 +88,13 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             gpp_target_id = create_too_serializer.gpp_target_id
             gpp_observation_id = create_too_serializer.gpp_observation_id
             goats_target = create_too_serializer.goats_target
+            instrument = create_too_serializer.instrument
             print(
                 "Required IDs for ToO creation: ",
                 gpp_target_id,
                 gpp_observation_id,
                 goats_target.id,
+                instrument,
             )
 
             print("Serializing target, observation, and workflow state...")
@@ -133,6 +138,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
                 observation_id=gpp_observation_id, properties=observation_properties
             )
 
+            new_observation = clone_observation_result.get("newObservation", {})
             # Get the new observation ID from the clone result.
             new_observation_id = clone_observation_result.get("newObservation", {}).get(
                 "id"
@@ -155,13 +161,37 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             )
 
             # TODO: Save the created ToO observation to GOATS database.
-            print("Saving ToO observation to GOATS database... (TODO)")
-            print("ToO created successfully.")
+            print("Saving ToO observation to GOATS database...")
+
+            tom_response = self._create_goats_observation(
+                request=request,
+                target_id=goats_target.id,
+                instrument=instrument,
+                new_observation=new_observation,
+            )
+
+            # Handle TOM errors
+            if tom_response.status_code != status.HTTP_201_CREATED:
+                return Response(
+                    {
+                        "detail": (
+                            "ToO created in GPP, but failed to save observation "
+                            "in GOATS."
+                        ),
+                        "newTargetId": new_target_id,
+                        "newObservationId": new_observation_id,
+                        "errors": tom_response.data,
+                    },
+                    status=tom_response.status_code,
+                )
+
+            # All good
             return Response(
                 {
-                    "detail": "ToO created successfully.",
+                    "detail": "ToO created and saved successfully.",
                     "newTargetId": new_target_id,
                     "newObservationId": new_observation_id,
+                    "goatsObservation": tom_response.data,
                 },
                 status=status.HTTP_201_CREATED,
             )
@@ -231,3 +261,57 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
                 raise
 
         raise RuntimeError("Failed to set workflow state after multiple retries.")
+
+    def _create_goats_observation(
+        self,
+        request: Request,
+        target_id: int,
+        instrument: str,
+        new_observation: dict[str, Any],
+        facility: str = "GEM",
+    ) -> Response:
+        """
+        Save the created ToO GPP observation to the GOATS database using the TOM API
+        view.
+
+        Parameters
+        ----------
+        request : Request
+            The DRF request object.
+        target_id : int
+            The ID of the GOATS target to associate with the observation.
+        instrument : str
+            The observation type (e.g., "GMOS_SOUTH_LONG_SLIT").
+        new_observation : dict[str, Any]
+            The observation data returned from GPP.
+        facility : str, default="GEM"
+            The facility name.
+
+        Returns
+        -------
+        Response
+            The DRF response from the TOM ObservationRecordViewSet.
+        """
+        # Inject required fields into observation parameters.
+        new_observation.update(
+            {
+                "target_id": target_id,
+                "facility": facility,
+            }
+        )
+
+        payload = {
+            "target_id": target_id,
+            "facility": facility,
+            "observation_type": instrument,
+            "observing_parameters": new_observation,
+        }
+
+        # Use APIRequestFactory to build an internal POST request.
+        factory = APIRequestFactory()
+        internal_request = factory.post("/api/observations/", payload, format="json")
+        internal_request.user = request.user
+
+        # Dispatch request to TOM view.
+        view = ObservationRecordViewSet.as_view({"post": "create"})
+        return view(internal_request)

@@ -21,6 +21,7 @@ class TestCreateTooSerializer:
             "hiddenGoatsTargetIdInput": target.pk,
             "hiddenTargetIdInput": "gpp-target-123",
             "hiddenObservationIdInput": "gpp-observation-456",
+            "hiddenObservingModeInput": "GMOS_NORTH_LONG_SLIT",
         }
 
         serializer = CreateTooSerializer(data=data)
@@ -29,6 +30,7 @@ class TestCreateTooSerializer:
         assert serializer.goats_target == target
         assert serializer.gpp_target_id == "gpp-target-123"
         assert serializer.gpp_observation_id == "gpp-observation-456"
+        assert serializer.instrument == "GMOS_NORTH_LONG_SLIT"
 
     @pytest.mark.parametrize(
         "invalid_data,missing_field",
