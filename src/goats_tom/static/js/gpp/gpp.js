@@ -69,6 +69,7 @@ class GPPModel {
   #tooObservations = new Map();
   #programs = new Map();
   #activeObservation;
+  #activeProgram;
 
   constructor(options) {
     this.#options = options;
@@ -88,6 +89,7 @@ class GPPModel {
   /** Clears every cached program. */
   clearPrograms() {
     this.#programs.clear();
+    this.#activeProgram = null;
   }
 
   /** Clears all cached entities (programs + observations). */
@@ -121,15 +123,49 @@ class GPPModel {
   async createTooObservation(formData) {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    return await this.#normalizeResponse(() =>
+      this.#api.post(this.#gppToosUrl, formData, {}, false)
+    );
+  }
+
+  /**
+   * Normalize an API call into a consistent structure.
+   * @param {() => Promise<any>} requestFn - A function that executes the request.
+   * @returns {Promise<{ status: number, data: Object }>}
+   */
+  async #normalizeResponse(requestFn) {
     try {
-      const response = await this.#api.post(this.#gppToosUrl, formData, {}, false);
-      console.log(response)
-      return { status: 200, data: response };
+      const data = await requestFn();
+      return { status: 200, data };
     } catch (error) {
-      const data = await error.json();
-      console.log(data)
-      return { status: data.status, data: data };
+      return await this.#normalizeError(error);
     }
+  }
+
+  /**
+   * Normalize an error response from fetch or API post/get call.
+   * @param {Response|any} error - The error object thrown.
+   * @returns {Promise<{ status: number, data: Object }>}
+   */
+  async #normalizeError(error) {
+    if (error instanceof Response) {
+      try {
+        const contentType = error.headers.get("Content-Type") || "";
+        const data = contentType.includes("application/json")
+          ? await error.json()
+          : { message: await error.text() };
+
+        return { status: error.status, data };
+      } catch {
+        return {
+          status: error.status,
+          data: { message: "Failed to parse error response." },
+        };
+      }
+    }
+
+    // Non-HTTP errors
+    return { status: 0, data: { message: String(error) } };
   }
 
   /**
@@ -157,7 +193,8 @@ class GPPModel {
   /**
    * Submits an observation to the backend API.
    * @param {Object} observation The observation object to save.
-   * @returns {Promise<{status: number, data: Object}>} A response object with status code and response data.
+   * @returns {Promise<{status: number, data: Object}>} A response object with status code and
+   * response data.
    */
   // FIXME: Update the right way
   async saveObservation(observation) {
@@ -218,6 +255,18 @@ class GPPModel {
   }
 
   /**
+   * Get a program object that is already in the cache. Also sets the active
+   * program to track the last retrieved.
+   * @param {string} programId
+   * @returns {Object|undefined}
+   */
+  getProgram(programId) {
+    const program = this.#programs.get(programId);
+    this.#activeProgram = program || null;
+    return program;
+  }
+
+  /**
    * Get a too observation object that is already in the cache. Also sets the active
    * observation to track the last retrieved.
    * @param {string} observationId
@@ -250,6 +299,14 @@ class GPPModel {
   }
 
   /**
+   * The last retrieved program from cache.
+   * @returns {Object|null}
+   */
+  get activeProgram() {
+    return this.#activeProgram;
+  }
+
+  /**
    * All cached too observations as an array.
    * @type {!Array<!Object>}
    */
@@ -279,15 +336,6 @@ class GPPModel {
    */
   get normalObservationsIds() {
     return Array.from(this.#normalObservations.keys());
-  }
-
-  /**
-   * Look up a single program by its ID.
-   * @param {string} programId
-   * @returns {Object|undefined} The program, or `undefined` if not cached.
-   */
-  getProgram(programId) {
-    return this.#programs.get(programId);
   }
 
   /**
@@ -356,6 +404,11 @@ class GPPView {
     return this.#template.create();
   }
 
+  /**
+   * Update the observation form with a normal observation.
+   * @param {Object} observation
+   * @private
+   */
   #updateNormalObservation(observation) {
     this.#form = new ObservationForm(this.#formContainer, {
       observation: observation,
@@ -364,6 +417,11 @@ class GPPView {
     });
   }
 
+  /**
+   * Update the observation form with a ToO observation.
+   * @param {Object} observation
+   * @private
+   */
   #updateTooObservation(observation) {
     this.#form = new ObservationForm(this.#formContainer, {
       observation: observation,
@@ -459,6 +517,14 @@ class GPPView {
         this.#updateTooObservation(parameter.observation);
         break;
 
+      // Observation helpers.
+      case "disableObservationButtons":
+        this.#poPanel.toggleAllButtons(true);
+        break;
+      case "enableObservationButtons":
+        this.#poPanel.toggleAllButtons(false);
+        break;
+
       // Form renders.
       case "clearObservationForm":
         this.#clearObservationForm();
@@ -510,6 +576,7 @@ class GPPController {
   #options;
   #model;
   #view;
+  #modal;
   #toast;
 
   /**
@@ -523,6 +590,7 @@ class GPPController {
     this.#view = view;
     this.#options = options;
     this.#toast = options.toast;
+    this.#modal = options.modal;
 
     // Bind the callbacks.
     // Program callbacks.
@@ -549,47 +617,194 @@ class GPPController {
   }
 
   /**
-   * Creates and saves a new ToO observation. Displays a toast notification
-   * based on the result of the operation.
+   * Creates and saves a new ToO observation.
+   * Uses ModalManager to show progress and results.
    * @returns {Promise<void>} A promise that resolves when the operation is complete.
    * @private
    */
   async #createAndSaveTooObservation() {
     const formData = this.#view.render("getFormData");
 
-    // If no form data, issue a warning toast and return.
     if (formData == null) {
-      const notification = {
-        label: "No Form Data",
-        message: "No form data available to create a new ToO observation.",
-        color: "warning",
-      };
-      this.#toast.show(notification);
+      this.#modal.show({
+        title: "Missing Form Data",
+        body: `
+          <div class="text-center">
+            <p class="fst-italic">No form data available to create a new ToO observation.</p>
+            <p>Please fill out the observation form before submitting.</p>
+          </div>
+        `,
+        backdrop: "static",
+        dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+      });
+      // Don't refresh observations or disable buttons, just return.
       return;
     }
 
-    const response = await this.#model.createTooObservation(formData);
+    // Show progress modal with spinner and message.
+    this.#modal.show({
+      title: "Creating ToO Observation",
+      body: `
+        <div class="text-center">
+          <div class="spinner-border mb-4" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="fst-italic">
+            Please wait while your observation is created in GPP and added to GOATS.
+          </p>
+          <p>
+            This process can take a few minutes. Do not refresh the page, close this modal, or use
+            the back or forward buttons until the operation completes.
+          </p>
+        </div>
+      `,
+      backdrop: "static",
+      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+    });
 
-    if (response.status === 200) {
-      const notification = {
-        label: "ToO Observation Sent Successfully",
-        message: `New ToO observation has been sent successfully.`,
-        color: "success",
-      };
-      this.#toast.show(notification);
+    // Attempt to create the ToO observation.
+    const { status, data } = await this.#model.createTooObservation(formData);
+    const isStructured = data?.messages && Array.isArray(data.messages);
+
+    // Update the modal based on the result.
+    // Success case.
+    if (status >= 200 && status < 300 && isStructured) {
+      let observationId = data?.data?.newObservationId;
+      this.#modal.update({
+        title: "ToO Observation Created",
+        body: `
+        <div class="text-center">
+          <p class="fst-italic">Your observation has been successfully created.</p>
+          ${
+            observationId
+              ? `<p><strong>Observation ID:</strong> ${observationId}</p>`
+              : ""
+          }
+          ${this.renderMessageTable(data.messages)}
+        </div>
+      `,
+      });
+    // Partial success case or failure but with structured messages.
+    } else if (isStructured) {
+      let observationId = data?.data?.newObservationId;
+      this.#modal.update({
+        title: `ToO Observation Result`,
+        body: `
+        <div class="text-center">
+          <p>The observation request was processed with status: ${data.status}.</p>
+          ${
+            observationId
+              ? `<p><strong>Observation ID:</strong> ${observationId}</p>`
+              : ""
+          }
+          ${this.renderMessageTable(data.messages)}
+        </div>
+      `,
+      });
+    // Failure case.
     } else {
-      // Gracefully extract and format error messages.
-      const errorMessages = Object.values(response.data).flat().join(" ");
-
-      const notification = {
-        label: "ToO Observation Not Created",
-        message:
-          errorMessages ||
-          "An unknown error occurred while creating the ToO observation.",
-        color: "danger",
-      };
-      this.#toast.show(notification);
+      this.#modal.update({
+        title: `Request Failed (${status})`,
+        body: `
+        <div class="text-center">
+          <p class="fst-italic">An error occurred while creating the observation.</p>
+          <pre class="bg-light p-3 rounded small text-wrap">
+            <code>${JSON.stringify(data, null, 2)}</code>
+          </pre>
+        </div>
+      `,
+      });
     }
+
+    // Finally, refresh the observations list.
+    const programId = this.#model.activeProgram.id;
+    await this.#resetAndUpdateObservations(programId);
+  }
+
+  /**
+   * Renders a status message table from a list of messages.
+   * @param {Array<Object>} messages - The messages array with `stage`, `status`, and `message`.
+   * @returns {string} - HTML string for the table.
+   */
+  renderMessageTable(messages) {
+    const rows = messages
+      .map(({ stage, status, message }, index) => {
+        let variant = "table-";
+        switch (status.toLowerCase()) {
+          case "success":
+            variant += "success";
+            break;
+          case "error":
+            variant += "danger";
+            break;
+          case "warning":
+            variant += "warning";
+            break;
+          default:
+            variant += "secondary";
+            break;
+        }
+
+        return `
+        <tr class="${variant}">
+          <td class="text-end">${index + 1}.</td>
+          <td class="text-start">${stage}</td>
+          <td>${status}</td>
+          <td class="text-start">${message}</td>
+        </tr>`;
+      })
+      .join("");
+
+    return `
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <thead class="table-secondary">
+          <tr>
+            <th class="text-end" scope="col"></th>
+            <th class="text-start" scope="col">Stage</th>
+            <th scope="col">Status</th>
+            <th class="text-start" scope="col">Message</th>
+          </tr>
+        </thead>
+        <tbody class="table-group-divider">
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
+  }
+
+  /**
+   * Resets and updates both normal and ToO observation lists for the given program ID.
+   * @param {string} programId  Program identifier.
+   * @returns {Promise<void>}
+   * @private
+   */
+  async #resetAndUpdateObservations(programId) {
+    this.#view.render("disableObservationButtons");
+
+    // Reset the observation lists.
+    this.#view.render("resetNormalObservations");
+    this.#view.render("resetTooObservations");
+
+    // Show loading states.
+    this.#view.render("normalObservationsLoading");
+    this.#view.render("tooObservationsLoading");
+
+    // Fetch observations again.
+    await this.#model.fetchObservations(programId);
+
+    // Update both lists in one go.
+    this.#view.render("updateNormalObservations", {
+      observations: this.#model.normalObservationsList,
+    });
+    this.#view.render("updateTooObservations", {
+      observations: this.#model.tooObservationsList,
+    });
+
+    // Remove loading states.
+    this.#view.render("normalObservationsLoaded");
+    this.#view.render("tooObservationsLoaded");
   }
 
   /**
@@ -667,27 +882,11 @@ class GPPController {
   /**
    * Fired when the user picks a program.
    * @private
-   * FIXME: Update this.
    */
   async #selectProgram(programId) {
-    // Reset and show loading.
-    this.#view.render("resetNormalObservations");
-    this.#view.render("resetTooObservations");
-    this.#view.render("normalObservationsLoading");
-    this.#view.render("tooObservationsLoading");
-
-    await this.#model.fetchObservations(programId);
-
-    // Update both lists in one go.
-    this.#view.render("updateNormalObservations", {
-      observations: this.#model.normalObservationsList,
-    });
-    this.#view.render("updateTooObservations", {
-      observations: this.#model.tooObservationsList,
-    });
-
-    this.#view.render("normalObservationsLoaded");
-    this.#view.render("tooObservationsLoaded");
+    // Set the active program in the model.
+    this.#model.getProgram(programId);
+    await this.#resetAndUpdateObservations(programId);
   }
 
   #selectNormalObservation(observationId) {
@@ -728,6 +927,7 @@ class GPP {
       ...options,
       api: window.api,
       toast: window.toast,
+      modal: window.modal,
       userId: dataset.userId,
       facility: dataset.facility,
       targetId: dataset.targetId,

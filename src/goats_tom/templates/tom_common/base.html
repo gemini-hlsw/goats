@@ -55,13 +55,19 @@
     <footer class="container-fluid py-4 bg-light-subtle">
       {% include 'footer.html' %}
     </footer>
+    <div id="globalModalContainer"></div>
 
     {% block javascript %}
     <script src="{% static 'js/get_csrf_token.js' %}"></script>
     <script src="{% static 'js/toast_manager.js' %}"></script>
+    <script src="{% static 'js/modal_manager.js' %}"></script>
     <script src="{% static 'js/download_progress.js' %}"></script>
     <script>
       window.toast = new ToastManager(document.getElementById("toastContainer"));
+      // TODO: Change DRAGONS to use this modal manager instead of its own implementation.
+      window.modal = new ModalManager(
+        document.getElementById("globalModalContainer")
+      );
 
       const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
       const wsUrl = `${wsProtocol}://${window.location.host}/ws/updates/`;
