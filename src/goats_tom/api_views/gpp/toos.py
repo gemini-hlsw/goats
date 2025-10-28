@@ -379,7 +379,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         observation_id: str,
         workflow_state: ObservationWorkflowState,
         *,
-        max_attempts: int = 10,
+        max_attempts: int = 55,
         initial_delay: float = 5.0,
         retry_delay: float = 1.0,
     ) -> None:
