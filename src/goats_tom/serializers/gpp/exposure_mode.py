@@ -16,7 +16,7 @@ class ExposureModeSerializer(_BaseGPPSerializer):
     """Serializer to parse and validate exposure mode from flat form data."""
 
     exposureModeSelect = serializers.ChoiceField(
-        choices=["Signal / Noise", "Fixed Exposure"],
+        choices=["Signal / Noise", "Time & Count"],
         required=True,
         allow_blank=False,
         allow_null=False,
@@ -58,7 +58,7 @@ class ExposureModeSerializer(_BaseGPPSerializer):
                     "Signal / Noise mode."
                 )
 
-        elif mode == "Fixed Exposure":
+        elif mode == "Time & Count":
             if (
                 data.get("exposureTimeInput") is None
                 or data.get("numExposuresInput") is None
@@ -66,7 +66,7 @@ class ExposureModeSerializer(_BaseGPPSerializer):
             ):
                 raise serializers.ValidationError(
                     "Exposure time, number of exposures, and wavelength are required "
-                    "for Fixed Exposure mode."
+                    "for Time & Count mode."
                 )
 
         else:
@@ -94,7 +94,7 @@ class ExposureModeSerializer(_BaseGPPSerializer):
                 }
             }
 
-        if mode == "Fixed Exposure":
+        if mode == "Time & Count":
             return {
                 "timeAndCount": {
                     "time": {"seconds": data["exposureTimeInput"]},

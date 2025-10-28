@@ -1,0 +1,1 @@
+The exposure mode name was changed from "Fixed Exposure" to "Time & Count" across serializers and tests.
