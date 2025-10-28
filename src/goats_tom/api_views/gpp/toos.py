@@ -29,6 +29,8 @@ from goats_tom.serializers.gpp import (
 
 
 class Stage(str, Enum):
+    """Stages in the ToO creation process."""
+
     CREDENTIALS_CHECK = "credentials_check"
     NORMALIZATION = "normalization"
     VALIDATION = "validation"
@@ -39,12 +41,16 @@ class Stage(str, Enum):
 
 
 class MessageStatus(str, Enum):
+    """Status of a message in the ToO creation process."""
+
     SUCCESS = "success"
     ERROR = "error"
     WARNING = "warning"
 
 
 class ResponseStatus(str, Enum):
+    """Overall status of the ToO creation response."""
+
     SUCCESS = "success"
     PARTIAL_SUCCESS = "partial_success"
     FAILURE = "failure"
@@ -52,6 +58,8 @@ class ResponseStatus(str, Enum):
 
 @dataclass
 class StageMessage:
+    """Message for a specific stage in the ToO creation process."""
+
     stage: Stage
     status: MessageStatus
     message: str
@@ -65,7 +73,28 @@ def build_failure_response(
     http_status: int = status.HTTP_400_BAD_REQUEST,
     overall_status: ResponseStatus = ResponseStatus.FAILURE,
 ) -> Response:
-    """Build a structured failure response and append an error message."""
+    """Build a structured failure response and append an error message.
+
+    Parameters
+    ----------
+    stage : Stage
+        The stage at which the failure occurred.
+    error : Exception | str
+        The error that occurred.
+    previous_messages : list[StageMessage]
+        The list of messages from previous stages.
+    data : dict[str, Any] | None = None
+        Additional data to include in the response.
+    http_status : int = status.HTTP_400_BAD_REQUEST
+        The HTTP status code for the response.
+    overall_status : ResponseStatus = ResponseStatus.FAILURE
+        The overall status of the response.
+
+    Returns
+    -------
+    Response
+        The response containing the failure details.
+    """
     print(f"Building failure response for stage: {stage}: {error}")
     error_message = str(error)
     messages = previous_messages + [
