@@ -123,9 +123,11 @@ class GPPModel {
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
     try {
       const response = await this.#api.post(this.#gppToosUrl, formData, {}, false);
+      console.log(response)
       return { status: 200, data: response };
     } catch (error) {
       const data = await error.json();
+      console.log(data)
       return { status: data.status, data: data };
     }
   }

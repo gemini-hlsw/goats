@@ -21,10 +21,10 @@ from goats_tom.serializers.gpp.exposure_mode import ExposureModeSerializer
                 }
             },
         ),
-        # Valid Fixed Exposure mode.
+        # Valid Time & Count mode.
         (
             {
-                "exposureModeSelect": "Fixed Exposure",
+                "exposureModeSelect": "Time & Count",
                 "exposureTimeInput": 2.5,
                 "numExposuresInput": 3,
                 "countWavelengthInput": 600.0,
@@ -69,20 +69,20 @@ def test_format_gpp_valid_modes(input_data, expected_output):
         # Missing exposureTimeInput.
         (
             {
-                "exposureModeSelect": "Fixed Exposure",
+                "exposureModeSelect": "Time & Count",
                 "numExposuresInput": 3,
                 "countWavelengthInput": 600.0,
             },
-            "Exposure time, number of exposures, and wavelength are required for Fixed Exposure mode.",
+            "Exposure time, number of exposures, and wavelength are required for Time & Count mode.",
         ),
         # Missing numExposuresInput.
         (
             {
-                "exposureModeSelect": "Fixed Exposure",
+                "exposureModeSelect": "Time & Count",
                 "exposureTimeInput": 2.5,
                 "countWavelengthInput": 600.0,
             },
-            "Exposure time, number of exposures, and wavelength are required for Fixed Exposure mode.",
+            "Exposure time, number of exposures, and wavelength are required for Time & Count mode.",
         ),
         # Invalid mode.
         (

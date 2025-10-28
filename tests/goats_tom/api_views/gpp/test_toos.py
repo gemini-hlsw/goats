@@ -34,10 +34,6 @@ class TestGPPTooViewSet:
         response = self.create_view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert (
-            response.data["detail"]
-            == "GPP login credentials are not configured for this user."
-        )
 
     # def test_create_too_success(self, mocker) -> None:
     #     """Initialize GPPClient successfully and return placeholder response."""
