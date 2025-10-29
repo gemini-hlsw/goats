@@ -209,17 +209,17 @@ class ModalManager {
   /**
    * Appends additional content to the modal body or footer.
    *
-   * @param {Object} options - Append options.
+   * @param {Object} [options={}] - Append options.
    * @param {string} [options.body] - HTML to append to body.
    * @param {string} [options.footer] - HTML to append to footer.
    */
-  append({ body, footer }) {
+  append({ body, footer } = {}) {
     this.#logDebug("Appending to modal content");
-    if (body) {
+    if (body !== undefined) {
       this.#logDebug("Appending to modal body");
       this.#body.insertAdjacentHTML("beforeend", body);
     }
-    if (footer) {
+    if (footer !== undefined) {
       this.#logDebug("Appending to modal footer");
       this.#footer.insertAdjacentHTML("beforeend", footer);
       this.#footer.classList.remove("d-none");
