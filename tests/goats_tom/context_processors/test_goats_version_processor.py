@@ -4,7 +4,7 @@ from django.template import Template, RequestContext
 from django.test import RequestFactory
 
 from goats_tom.context_processors.goats_version_processor import (
-    goats_version_processor,
+    goats_version_info_processor,
     get_goats_version,
 )
 
@@ -15,7 +15,7 @@ def clear_goats_version_cache():
 
 def test_goats_version_context_processor():
     """The context processor should inject GOATS_VERSION with correct format."""
-    ctx = goats_version_processor(None)
+    ctx = goats_version_info_processor(None)
     version = ctx.get("GOATS_VERSION")
     assert version, "GOATS_VERSION missing from context"
     assert re.fullmatch(r"\d+\.\d+\.\d", version), f"Unexpected version format: {version!r}"
