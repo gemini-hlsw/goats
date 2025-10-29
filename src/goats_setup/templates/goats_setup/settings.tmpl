@@ -214,12 +214,21 @@ LOGGING = {
 # Caching
 # https://docs.djangoproject.com/en/dev/topics/cache/#filesystem-caching
 
+CACHE_REDIS_URL = "redis://{{ REDIS_HOST }}:{{ REDIS_PORT }}/2"
+
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
         "LOCATION": tempfile.gettempdir(),
-    }
-}
+    },
+    "redis": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": CACHE_REDIS_URL,
+        "KEY_PREFIX": "goats",
+        "TIMEOUT": None,
+      }
+   }
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
