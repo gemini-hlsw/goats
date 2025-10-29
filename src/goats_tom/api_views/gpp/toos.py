@@ -408,7 +408,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         # ready immediately.
         time.sleep(initial_delay)
 
-        for _ in range(1, max_attempts + 1):
+        for attempt in range(1, max_attempts + 1):
             try:
                 result = async_to_sync(client.workflow_state.update_by_id)(
                     observation_id=observation_id,
