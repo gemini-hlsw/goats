@@ -242,6 +242,24 @@ def start_background_workers(manage_file: Path, workers: int) -> subprocess.Pope
     return background_workers_process
 
 
+def start_task_scheduler(manage_file: Path) -> subprocess.Popen:
+    """
+    Start the APScheduler-based management command in the background via Popen.
+    """
+    utils.display_message("Starting task scheduler.")
+    try:
+        task_scheduler_process = subprocess.Popen(
+            [f"{manage_file}", "run_task_scheduler"],
+            start_new_session=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise GOATSClickException(
+            f"Error running goats task scheduler: '{error.cmd}'. "
+            f"Exit status: {error.returncode}."
+        )
+    return task_scheduler_process
+
+
 @click.group(invoke_without_command=True)
 @click.version_option(package_name="goats")
 @click.pass_context
@@ -562,6 +580,12 @@ def run(
         process_manager.add_process(
             "background_workers",
             start_background_workers(manage_file, workers=workers),
+        )
+
+        # Start background task scheduler
+        process_manager.add_process(
+            "task_scheduler",
+            start_task_scheduler(manage_file),
         )
 
         # Open the browser.

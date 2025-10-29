@@ -19,7 +19,12 @@ class ProcessManager:
 
     """
 
-    shutdown_order: list[str] = ["background_workers", "django", "redis"]
+    shutdown_order: list[str] = [
+        "background_workers",
+        "django",
+        "redis",
+        "task_scheduler",
+    ]
     """Fixed order in which subprocesses are to be shut down."""
 
     def __init__(self, timeout: int = 15):
