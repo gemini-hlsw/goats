@@ -12,6 +12,7 @@ class ProgramObservationsPanel {
   #container;
   #parentElement;
   #debug;
+  #debugTag = "[ProgramObservationsPanel]";
 
   #programSelect;
   #programSpinner;
@@ -61,7 +62,7 @@ class ProgramObservationsPanel {
     this.toggleNormalButtons(true);
     this.toggleTooButtons(true);
 
-    if (this.#debug) console.log("[ProgramObservationsPanel] Initialized and mounted.");
+    this.#logDebug("Initialized and mounted.");
   }
 
   /**
@@ -78,7 +79,17 @@ class ProgramObservationsPanel {
    */
   setDebug(flag) {
     this.#debug = flag;
-    if (this.#debug) console.log("[ProgramObservationsPanel] Debug logging enabled.");
+    this.#logDebug("Debug logging enabled.");
+  }
+
+  /**
+   * Logs a debug message if debugging is enabled.
+   *
+   * @param {string} message - The message to log.
+   * @private
+   */
+  #logDebug(message) {
+    if (this.#debug) console.debug(`${this.#debugTag} ${message}`);
   }
 
   /**
@@ -93,11 +104,7 @@ class ProgramObservationsPanel {
     option.disabled = true;
     selectEl.appendChild(option);
 
-    if (this.#debug)
-      console.log(
-        "[ProgramObservationsPanel] Empty state shown for select:",
-        selectEl.id
-      );
+    this.#logDebug(`Empty state shown for select: ${selectEl.id}`);
   }
 
   /**
@@ -106,7 +113,7 @@ class ProgramObservationsPanel {
    */
   clearTooSelect() {
     this.#tooSelect.length = 1;
-    if (this.#debug) console.log("[ProgramObservationsPanel] Cleared ToO select.");
+    this.#logDebug("Cleared ToO select.");
   }
 
   /**
@@ -115,7 +122,7 @@ class ProgramObservationsPanel {
    */
   clearNormalSelect() {
     this.#normalSelect.length = 1;
-    if (this.#debug) console.log("[ProgramObservationsPanel] Cleared normal select.");
+    this.#logDebug("Cleared normal select.");
   }
 
   /**
@@ -154,8 +161,7 @@ class ProgramObservationsPanel {
   toggleProgramsLoading(isLoading) {
     this.#programSelect.disabled = isLoading;
     this.#programSpinner.hidden = !isLoading;
-    if (this.#debug)
-      console.log("[ProgramObservationsPanel] Program loading:", isLoading);
+    this.#logDebug(`Program loading: ${isLoading}`);
   }
 
   /**
@@ -165,8 +171,7 @@ class ProgramObservationsPanel {
   toggleNormalLoading(isLoading) {
     this.#normalSelect.disabled = isLoading;
     this.#normalSpinner.hidden = !isLoading;
-    if (this.#debug)
-      console.log("[ProgramObservationsPanel] Normal loading:", isLoading);
+    this.#logDebug(`Normal loading: ${isLoading}`);
   }
 
   /**
@@ -176,7 +181,7 @@ class ProgramObservationsPanel {
   toggleTooLoading(isLoading) {
     this.#tooSelect.disabled = isLoading;
     this.#tooSpinner.hidden = !isLoading;
-    if (this.#debug) console.log("[ProgramObservationsPanel] ToO loading:", isLoading);
+    this.#logDebug(`ToO loading: ${isLoading}`);
   }
 
   /**
@@ -186,8 +191,7 @@ class ProgramObservationsPanel {
   toggleNormalButtons(disabled) {
     this.#updateButton.disabled = disabled;
     this.#saveButton.disabled = disabled;
-    if (this.#debug)
-      console.log("[ProgramObservationsPanel] Normal buttons disabled:", disabled);
+    this.#logDebug(`Normal buttons disabled: ${disabled}`);
   }
 
   /**
@@ -196,8 +200,7 @@ class ProgramObservationsPanel {
    */
   toggleNormalSelect(disabled) {
     this.#normalSelect.disabled = disabled;
-    if (this.#debug)
-      console.log("[ProgramObservationsPanel] Normal select disabled:", disabled);
+    this.#logDebug(`Normal select disabled: ${disabled}`);
   }
 
   /**
@@ -206,8 +209,7 @@ class ProgramObservationsPanel {
    */
   toggleTooSelect(disabled) {
     this.#tooSelect.disabled = disabled;
-    if (this.#debug)
-      console.log("[ProgramObservationsPanel] ToO select disabled:", disabled);
+    this.#logDebug(`ToO select disabled: ${disabled}`);
   }
 
   /**
@@ -216,8 +218,7 @@ class ProgramObservationsPanel {
    */
   toggleTooButtons(disabled) {
     this.#createNewButton.disabled = disabled;
-    if (this.#debug)
-      console.log("[ProgramObservationsPanel] ToO buttons disabled:", disabled);
+    this.#logDebug(`ToO buttons disabled: ${disabled}`);
   }
 
   /**
@@ -227,8 +228,7 @@ class ProgramObservationsPanel {
   toggleAllButtons(disabled) {
     this.toggleNormalButtons(disabled);
     this.toggleTooButtons(disabled);
-    if (this.#debug)
-      console.log("[ProgramObservationsPanel] All buttons disabled:", disabled);
+    this.#logDebug(`All buttons disabled: ${disabled}`);
   }
 
   // Event hooks.
@@ -240,8 +240,7 @@ class ProgramObservationsPanel {
    */
   onProgramSelect(handler) {
     this.#programSelect.addEventListener("change", (e) => {
-      if (this.#debug)
-        console.log("[ProgramObservationsPanel] Program selected:", e.target.value);
+      this.#logDebug(`Program selected: ${e.target.value}`);
 
       // Reset dependent state.
       this.clearNormalSelect();
@@ -262,8 +261,7 @@ class ProgramObservationsPanel {
    */
   onNormalSelect(handler) {
     this.#normalSelect.addEventListener("change", (e) => {
-      if (this.#debug)
-        console.log("[ProgramObservationsPanel] Normal selected:", e.target.value);
+      this.#logDebug(`Normal selected: ${e.target.value}`);
 
       // Enable normal buttons, disable ToO buttons.
       this.toggleNormalButtons(false);
@@ -283,8 +281,7 @@ class ProgramObservationsPanel {
    */
   onTooSelect(handler) {
     this.#tooSelect.addEventListener("change", (e) => {
-      if (this.#debug)
-        console.log("[ProgramObservationsPanel] ToO selected:", e.target.value);
+      this.#logDebug(`ToO selected: ${e.target.value}`);
 
       // Enable ToO buttons, disable normal buttons.
       this.toggleTooButtons(false);
@@ -303,7 +300,7 @@ class ProgramObservationsPanel {
    */
   onSave(handler) {
     this.#saveButton.addEventListener("click", () => {
-      if (this.#debug) console.log("[ProgramObservationsPanel] Save clicked");
+      this.#logDebug("Save clicked");
       handler();
     });
   }
@@ -314,7 +311,7 @@ class ProgramObservationsPanel {
    */
   onUpdate(handler) {
     this.#updateButton.addEventListener("click", () => {
-      if (this.#debug) console.log("[ProgramObservationsPanel] Update clicked");
+      this.#logDebug("Update clicked");
       handler();
     });
   }
@@ -325,7 +322,7 @@ class ProgramObservationsPanel {
    */
   onCreateNew(handler) {
     this.#createNewButton.addEventListener("click", () => {
-      if (this.#debug) console.log("[ProgramObservationsPanel] Create New clicked");
+      this.#logDebug("Create New clicked");
       handler();
     });
   }
@@ -468,13 +465,6 @@ class ProgramObservationsPanel {
     });
     selectEl.appendChild(frag);
     selectEl.disabled = false;
-    if (this.#debug)
-      console.log(
-        "[ProgramObservationsPanel] Filled select:",
-        selectEl.id,
-        "with",
-        options.length,
-        "items."
-      );
+    this.#logDebug(`Filled select: ${selectEl.id} with ${options.length} items.`);
   }
 }
