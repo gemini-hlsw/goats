@@ -39,11 +39,9 @@ class SourceProfileEditor {
 
     this.#registerSedRenderers();
     this.#setupEventListeners();
-    console.log("got data:", data);
     if (data.sed) {
       // TODO: Fix SED name mapping here maybe.
       // FIXME: Remove debug log later after testing.
-      console.log("Preloading SED data:", data);
       this.#renderSedForm(data.sed, data);
     }
   }

@@ -95,7 +95,6 @@ def build_failure_response(
     Response
         The response containing the failure details.
     """
-    print(f"Building failure response for stage: {stage}: {error}")
     error_message = str(error)
     messages = previous_messages + [
         StageMessage(stage=stage, status=MessageStatus.ERROR, message=error_message)
@@ -161,8 +160,6 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
                 error="GPP login credentials are not configured for this user.",
                 previous_messages=messages,
             )
-
-        print("Getting GPP credentials for user:", request.user.username)
         credentials = request.user.gpplogin
 
         messages.append(
@@ -174,7 +171,6 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         )
 
         try:
-            print("Normalizing request data...")
             normalized_data = {
                 key: self._normalize(value) for key, value in request.data.items()
             }
@@ -192,7 +188,6 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
 
         try:
             # Setup client to communicate with GPP.
-            print("Setting up GPP client...")
             client = GPPClient(url=settings.GPP_URL, token=credentials.token)
 
             # Validate and extract required IDs for ToO creation.
@@ -202,14 +197,6 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             gpp_observation_id = create_too_serializer.gpp_observation_id
             goats_target = create_too_serializer.goats_target
             instrument = create_too_serializer.instrument
-            print(
-                "Required IDs for ToO creation: ",
-                gpp_target_id,
-                gpp_observation_id,
-                goats_target.id,
-                goats_target.name,
-                instrument,
-            )
 
             # Serialize and validate target.
             target_serializer = TargetSerializer(data=normalized_data)
@@ -247,12 +234,10 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
 
         # Create target
         try:
-            print("Cloning target...")
             clone_target_result = async_to_sync(client.target.clone)(
                 target_id=gpp_target_id, properties=target_properties
             )
             new_target_id = clone_target_result.get("newTarget", {}).get("id")
-            print("New target ID:", new_target_id)
 
             if new_target_id is None:
                 raise ValueError("Failed to retrieve new target ID from clone result.")
@@ -271,18 +256,15 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
 
         # Create observation
         try:
-            print("Updating observation properties with new target ID...")
             observation_properties.target_environment = TargetEnvironmentInput(
                 asterism=[new_target_id]
             )
 
-            print("Cloning observation...")
             clone_observation_result = async_to_sync(client.observation.clone)(
                 observation_id=gpp_observation_id, properties=observation_properties
             )
             new_observation = clone_observation_result.get("newObservation", {})
             new_observation_id = new_observation.get("id")
-            print("New observation ID:", new_observation_id)
 
             if new_observation_id is None:
                 raise ValueError(
@@ -304,10 +286,8 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             return build_failure_response(Stage.CREATE_OBSERVATION, e, messages)
 
         # Set workflow state.
-        # TODO: Make this smarter.
         try:
-            print("Setting workflow state for new observation...")
-            self._set_workflow_state_with_retry(
+            new_workflow_state = self._set_workflow_state_with_retry(
                 client=client,
                 observation_id=new_observation_id,
                 workflow_state=workflow_state,
@@ -316,12 +296,11 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
                 StageMessage(
                     stage=Stage.UPDATE_WORKFLOW_STATE,
                     status=MessageStatus.SUCCESS,
-                    message=f"Workflow state set to {workflow_state.value}.",
+                    message=f"Workflow state set to {new_workflow_state['state']}.",
                 )
             )
 
         except Exception as e:
-            print(f"Failed to set workflow state: {str(e)}")
             messages.append(
                 StageMessage(
                     stage=Stage.UPDATE_WORKFLOW_STATE,
@@ -332,7 +311,6 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
 
         # Save the created ToO observation to GOATS database.
         try:
-            print("Saving ToO observation to GOATS database...")
             tom_response = self._create_goats_observation(
                 request=request,
                 target_id=goats_target.id,
@@ -389,7 +367,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         max_attempts: int = 55,
         initial_delay: float = 5.0,
         retry_delay: float = 1.0,
-    ) -> None:
+    ) -> dict[str, Any]:
         """
         Attempt to set the workflow state, retrying if the observation is not ready.
 
@@ -412,32 +390,39 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
         retry_delay : float, default=1.0
             Delay in seconds between retry attempts.
 
+        Returns
+        -------
+        dict[str, Any]
+            The result of the successful workflow state update.
+
         Raises
         ------
         RuntimeError
             If the workflow state could not be set after all retry attempts.
+        ValueError
+            If the requested transition is invalid (non-retryable).
         Exception
             If a non-retryable error occurs.
         """
         # Initial delay before starting attempts since we know the observation won't be
         # ready immediately.
-        print(f"Waiting for {initial_delay} seconds before setting workflow state...")
         time.sleep(initial_delay)
 
         for attempt in range(1, max_attempts + 1):
             try:
-                print(f"Attempt {attempt}: Trying to set workflow state...")
                 result = async_to_sync(client.workflow_state.update_by_id)(
                     observation_id=observation_id,
                     workflow_state=workflow_state,
                 )
-                print("Successfully set workflow state:", result)
-                return
-            except ValueError as e:
-                print(f"Attempt {attempt} failed (retryable): {e}")
+                return result
+            except RuntimeError:
+                # This is the only retryable case: calculation state not READY.
                 time.sleep(retry_delay)
-            except Exception as e:
-                print(f"Non-retryable error setting workflow state: {e}")
+            except ValueError:
+                # Invalid transition, do not retry.
+                raise
+            except Exception:
+                # All other exceptions are treated as non-retryable.
                 raise
 
         raise RuntimeError("Failed to set workflow state after multiple retries.")
