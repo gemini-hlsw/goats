@@ -220,6 +220,17 @@ class ProgramObservationsPanel {
       console.log("[ProgramObservationsPanel] ToO buttons disabled:", disabled);
   }
 
+  /**
+   * Enable or disable all observation toolbar buttons.
+   * @param {boolean} disabled
+   */
+  toggleAllButtons(disabled) {
+    this.toggleNormalButtons(disabled);
+    this.toggleTooButtons(disabled);
+    if (this.#debug)
+      console.log("[ProgramObservationsPanel] All buttons disabled:", disabled);
+  }
+
   // Event hooks.
 
   /**

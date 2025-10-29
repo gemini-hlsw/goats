@@ -31,29 +31,29 @@ from goats_tom.serializers.gpp import (
 class Stage(str, Enum):
     """Stages in the ToO creation process."""
 
-    CREDENTIALS_CHECK = "credentials_check"
-    NORMALIZATION = "normalization"
-    VALIDATION = "validation"
-    CREATE_TARGET = "create_target"
-    CREATE_OBSERVATION = "create_observation"
-    UPDATE_WORKFLOW_STATE = "update_workflow_state"
-    GOATS_OBSERVATION_SAVE = "goats_observation_save"
+    CREDENTIALS_CHECK = "Credentials Check"
+    NORMALIZATION = "Data Normalization"
+    VALIDATION = "Data Validation"
+    CREATE_TARGET = "Create Sidereal Target"
+    CREATE_OBSERVATION = "Create ToO Observation"
+    UPDATE_WORKFLOW_STATE = "Update Workflow State"
+    GOATS_OBSERVATION_SAVE = "Save Observation in GOATS"
 
 
 class MessageStatus(str, Enum):
     """Status of a message in the ToO creation process."""
 
-    SUCCESS = "success"
-    ERROR = "error"
-    WARNING = "warning"
+    SUCCESS = "Success"
+    ERROR = "Error"
+    WARNING = "Warning"
 
 
 class ResponseStatus(str, Enum):
     """Overall status of the ToO creation response."""
 
-    SUCCESS = "success"
-    PARTIAL_SUCCESS = "partial_success"
-    FAILURE = "failure"
+    SUCCESS = "Success"
+    PARTIAL_SUCCESS = "Partial Success"
+    FAILURE = "Failure"
 
 
 @dataclass
@@ -182,6 +182,13 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
             return build_failure_response(
                 stage=Stage.NORMALIZATION, error=e, previous_messages=messages
             )
+        messages.append(
+            StageMessage(
+                stage=Stage.NORMALIZATION,
+                status=MessageStatus.SUCCESS,
+                message="Form data normalized successfully.",
+            )
+        )
 
         try:
             # Setup client to communicate with GPP.
@@ -319,7 +326,7 @@ class GPPTooViewSet(GenericViewSet, mixins.CreateModelMixin):
                 StageMessage(
                     stage=Stage.UPDATE_WORKFLOW_STATE,
                     status=MessageStatus.ERROR,
-                    message=f"Failed to set workflow state: {str(e)}",
+                    message=str(e),
                 )
             )
 
