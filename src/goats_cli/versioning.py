@@ -1,3 +1,9 @@
+"""
+Module providing version checking functionality for GOATS.
+"""
+
+__all__ = ["VersionChecker"]
+
 from importlib.metadata import version as get_version
 from json import JSONDecodeError
 

@@ -8,6 +8,8 @@ import subprocess
 
 import goats_cli.utils as utils
 
+from .processes import ProcessName
+
 
 class ProcessManager:
     """Manages named subprocesses to ensure clean startup and strict shutdown sequence.
@@ -19,44 +21,35 @@ class ProcessManager:
 
     """
 
-    shutdown_order: list[str] = [
-        "background_workers",
-        "django",
-        "redis",
-        "task_scheduler",
-    ]
-    """Fixed order in which subprocesses are to be shut down."""
-
     def __init__(self, timeout: int = 15):
-        self.processes: dict[str, subprocess.Popen] = {}
+        self.processes: dict[ProcessName, subprocess.Popen] = {}
         self.timeout = timeout
 
-    def add_process(self, name: str, process: subprocess.Popen) -> None:
+    def add_process(self, name: ProcessName, process: subprocess.Popen) -> None:
         """Adds a named process to the manager.
 
         Parameters
         ----------
-        name : `str`
+        name : ProcessName
             The name of the process.
-        process : `subprocess.Popen`
+        process : subprocess.Popen
             The process.
-
         """
         self.processes[name] = process
 
     def stop_all(self) -> None:
         """Stops all managed processes in a specific order."""
         utils.display_message("Stopping all processes for GOATS, please wait.")
-        for name in self.shutdown_order:
-            _ = self.stop_process(name)
+        for name in ProcessName.shutdown_order():
+            self.stop_process(name)
         utils.display_message("GOATS successfully stopped.")
 
-    def stop_process(self, name: str) -> bool:
+    def stop_process(self, name: ProcessName) -> bool:
         """Stops a named process gracefully with a timeout.
 
         Parameters
         ----------
-        name : `str`
+        name : ProcessName
             The name of the process to stop.
 
         Returns
@@ -68,16 +61,18 @@ class ProcessManager:
         process = self.processes.pop(name, None)
 
         if process is None:
-            utils.display_warning(f"No process found for {name}, skipping.")
+            utils.display_warning(f"No process found for {name.value}, skipping.")
             return False
 
-        utils.display_message(f"Stopping {name}.")
+        utils.display_message(f"Stopping {name.value}.")
         process.terminate()
 
         try:
             process.wait(timeout=self.timeout)
         except subprocess.TimeoutExpired:
-            utils.display_warning(f"Could not stop {name} in time, killing {name}.")
+            utils.display_warning(
+                f"Could not stop {name.value} in time, killing {name.value}."
+            )
             # Kill the entire group.
             # Handles the children.
             pgid = os.getpgid(process.pid)
@@ -86,8 +81,8 @@ class ProcessManager:
 
         return_code = process.poll()
         if return_code is not None:
-            utils.display_message(f"{name} exited with code {return_code}.")
+            utils.display_message(f"{name.value} exited with code {return_code}.")
         else:
-            utils.display_warning(f"{name} may still be running...")
+            utils.display_warning(f"{name.value} may still be running...")
 
         return True

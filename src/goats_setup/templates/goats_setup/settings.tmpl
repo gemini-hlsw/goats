@@ -37,6 +37,7 @@ TOM_NAME = "{{ PROJECT_NAME }}"
 
 INSTALLED_APPS = [
     "django_dramatiq",
+    "goats_scheduler",
     "daphne",
     "goats_tom",
     "channels",
@@ -115,6 +116,9 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        "OPTIONS": {
+            "timeout": 20,
+        }
     }
 }
 
@@ -140,13 +144,14 @@ DRAMATIQ_BROKER = {
         "dramatiq.middleware.AgeLimit",
         "dramatiq.middleware.TimeLimit",
         "dramatiq.middleware.Retries",
-        "django_dramatiq.middleware.AdminMiddleware",
+        # "django_dramatiq.middleware.AdminMiddleware",
         "django_dramatiq.middleware.DbConnectionsMiddleware",
         "dramatiq.middleware.Callbacks",
         "goats_tom.middleware.DRAGONSMiddleware",
     ],
 }
 DRAMATIQ_ACTOR_TIME_LIMIT = 86400000  # In milliseconds
+DRAMATIQ_AUTODISCOVER_MODULES = ["tasks"]
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
