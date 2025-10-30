@@ -15,7 +15,7 @@ from goats_cli.exceptions import GOATSClickException
 from goats_cli.modify_settings import modify_settings
 from goats_cli.process_manager import ProcessManager
 from goats_cli.processes import ProcessName
-from goats_cli.versioning import VersionChecker
+from goats_common.version_checker import VersionChecker
 
 UPDATE_DOC_URL = "https://goats.readthedocs.io/en/stable/update.html"
 
@@ -34,7 +34,7 @@ def _check_version() -> None:
     utils.display_message("Checking for updates...\n")
     try:
         checker = VersionChecker()
-        if checker.check_if_outdated():
+        if checker.is_outdated:
             utils.display_warning(
                 "A new version of GOATS is available: "
                 f"{checker.latest_version} (current: {checker.current_version})"
