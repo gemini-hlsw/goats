@@ -7,4 +7,14 @@ Use for updates or the slogan.
   <div class="col text-center">
     <p class="banner-slogan mb-0 small subpixel-antialiased">Time-domain astronomy made time efficient.</p>
   </div>
+  <div class="col-auto text-end text-muted small">
+    {% if version_info %}
+      <strong>Version Info</strong><br>
+      <code>current:</code> {{ version_info.current }}<br>
+      <code>latest:</code> {{ version_info.latest }}<br>
+      <code>is_outdated:</code> {{ version_info.is_outdated }}<br>
+    {% else %}
+      <em>No version info available</em>
+    {% endif %}
+  </div>
 </div>

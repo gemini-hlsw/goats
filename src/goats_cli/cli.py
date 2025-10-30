@@ -14,7 +14,8 @@ from goats_cli.config import config
 from goats_cli.exceptions import GOATSClickException
 from goats_cli.modify_settings import modify_settings
 from goats_cli.process_manager import ProcessManager
-from goats_cli.versioning import VersionChecker
+from goats_cli.processes import ProcessName
+from goats_common.version_checker import VersionChecker
 
 UPDATE_DOC_URL = "https://goats.readthedocs.io/en/stable/update.html"
 
@@ -33,7 +34,7 @@ def _check_version() -> None:
     utils.display_message("Checking for updates...\n")
     try:
         checker = VersionChecker()
-        if checker.check_if_outdated():
+        if checker.is_outdated:
             utils.display_warning(
                 "A new version of GOATS is available: "
                 f"{checker.latest_version} (current: {checker.current_version})"
@@ -240,6 +241,24 @@ def start_background_workers(manage_file: Path, workers: int) -> subprocess.Pope
             f"Exit status: {error.returncode}."
         )
     return background_workers_process
+
+
+def start_task_scheduler(manage_file: Path) -> subprocess.Popen:
+    """
+    Start the APScheduler-based management command in the background via Popen.
+    """
+    utils.display_message("Starting task scheduler.")
+    try:
+        task_scheduler_process = subprocess.Popen(
+            [f"{manage_file}", "run_scheduler"],
+            start_new_session=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise GOATSClickException(
+            f"Error running goats task scheduler: '{error.cmd}'. "
+            f"Exit status: {error.returncode}."
+        )
+    return task_scheduler_process
 
 
 @click.group(invoke_without_command=True)
@@ -551,17 +570,25 @@ def run(
         process_manager = ProcessManager()
 
         # Start the Redis server.
-        process_manager.add_process("redis", start_redis_server(redis_addrport))
+        process_manager.add_process(
+            ProcessName.REDIS, start_redis_server(redis_addrport)
+        )
 
         # Start Django server.
         process_manager.add_process(
-            "django", start_django_server(manage_file, addrport)
+            ProcessName.DJANGO, start_django_server(manage_file, addrport)
         )
 
         # Start the background consumer.
         process_manager.add_process(
-            "background_workers",
+            ProcessName.BACKGROUND_WORKERS,
             start_background_workers(manage_file, workers=workers),
+        )
+
+        # Start background task scheduler
+        process_manager.add_process(
+            ProcessName.TASK_SCHEDULER,
+            start_task_scheduler(manage_file),
         )
 
         # Open the browser.

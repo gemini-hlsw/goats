@@ -4,7 +4,7 @@ from django.template import Template, RequestContext
 from django.test import RequestFactory
 
 from goats_tom.context_processors.goats_version_processor import (
-    goats_version_processor,
+    goats_version_info_processor,
     get_goats_version,
 )
 
@@ -14,18 +14,18 @@ def clear_goats_version_cache():
     get_goats_version.cache_clear()
 
 def test_goats_version_context_processor():
-    """The context processor should inject GOATS_VERSION with correct format."""
-    ctx = goats_version_processor(None)
-    version = ctx.get("GOATS_VERSION")
-    assert version, "GOATS_VERSION missing from context"
+    """The context processor should inject version_info.current with correct format."""
+    ctx = goats_version_info_processor(None)
+    version = ctx.get("version_info").get("current")
+    assert version, "version_info.current missing from context"
     assert re.fullmatch(r"\d+\.\d+\.\d", version), f"Unexpected version format: {version!r}"
 
 def test_goats_version_auto_injected_in_template():
-    """GOATS_VERSION should be available to Django templates via context processors."""
+    """version_info.current should be available to Django templates via context processors."""
     request = RequestFactory().get("/")
-    template = Template("{{ GOATS_VERSION }}")
+    template = Template(" {{ version_info.current }} ")
     rendered = template.render(RequestContext(request, {})).strip()
-    assert rendered, "GOATS_VERSION is missing in rendered template"
+    assert rendered, "version_info.current is missing in rendered template"
     assert re.fullmatch(r"\d+\.\d+\.\d", rendered), f"Unexpected version in template: {rendered!r}"
 
 def test_goats_version_is_cached():

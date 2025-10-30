@@ -20,38 +20,48 @@ class NotificationInstance:
         label: str = "",
         message: str = "",
         color: str = "primary",
+        autohide: bool = True,
     ) -> None:
         """Creates and sends a notification.
 
         Parameters
         ----------
-        message : `str`, optional
+        message : str, optional
             The body of the notification message to be sent, by default "".
-        label : `str`, optional
+        label : str, optional
             The label of the notification, by default "".
-        color : `str`, optional
+        color : str, optional
             The bootstrap color scheme to apply to the notification, by default
             "primary".
-
+        autohide : bool = True
+            Whether the notification should auto-hide after a delay.
         """
         unique_id = f"{uuid.uuid4()}"
-        cls._send(unique_id, label, message, color)
+        cls._send(unique_id, label, message, color, autohide)
 
     @classmethod
-    def _send(cls, unique_id: str, label: str, message: str, color: str) -> None:
+    def _send(
+        cls,
+        unique_id: str,
+        label: str,
+        message: str,
+        color: str,
+        autohide: bool,
+    ) -> None:
         """Sends a notification.
 
         Parameters
         ----------
-        unique_id: `str`
+        unique_id: str
             The unique ID for the notification.
-        message : `str`
+        message : str
             The body of the notification message to be sent.
-        label : `str`
+        label : str
             The label of the notification.
-        color : `str`
+        color : str
             The bootstrap color scheme to apply to the notification.
-
+        autohide : bool
+            Whether the notification should auto-hide after a delay.
         """
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
@@ -62,5 +72,6 @@ class NotificationInstance:
                 "label": label,
                 "message": message,
                 "color": color,
+                "autohide": autohide,
             },
         )

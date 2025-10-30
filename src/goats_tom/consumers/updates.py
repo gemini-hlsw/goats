@@ -56,6 +56,7 @@ class UpdatesConsumer(WebsocketConsumer):
             "color": event["color"],
             "label": event["label"],
             "message": event["message"],
+            "autohide": event["autohide"],
         }
 
         # Send the notification message to the WebSocket.

@@ -19,6 +19,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "apscheduler>=3.11.0",
     "astropy>=6.0,<7",
     "astroquery>=0.4.11",
     "channels-redis>=4.3.0,<5",

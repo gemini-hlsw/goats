@@ -101,7 +101,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "goats_tom.context_processors.goats_version_processor",
+                "goats_tom.context_processors.goats_version_info_processor",
             ],
         },
     },
@@ -212,7 +212,13 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
         "LOCATION": tempfile.gettempdir(),
     },
-}
+    "redis": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "redis-test",
+        "TIMEOUT": None,
+      }
+   }
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

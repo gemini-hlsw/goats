@@ -31,6 +31,7 @@ class ToastManager {
    * @param {string} notification.label - Short heading for the toast.
    * @param {string} notification.message - Main body content of the toast.
    * @param {string} notification.color - One of "info", "success", "warning", or "danger".
+   * @param {boolean} [notification.autohide] - Whether the toast should auto-hide.
    * @param {Object} [options] - Toast behavior options.
    * @param {number} [options.delay] - Delay override.
    * @param {boolean} [options.autohide] - Autohide override.
@@ -40,6 +41,12 @@ class ToastManager {
     this.container.appendChild(toastEl);
 
     const toastOptions = { ...this.options, ...options };
+    console.log(notification)
+    // Accept override from notification payload (from backend).
+    if ("autohide" in notification) {
+      toastOptions.autohide = notification.autohide;
+    }
+
     const toast = new bootstrap.Toast(toastEl, toastOptions);
     toast.show();
   }
