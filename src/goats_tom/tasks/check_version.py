@@ -20,7 +20,7 @@ CACHE_KEY = "version_info"
 LOCK_KEY = "lock:version_info"
 
 
-@cron(second="*/30")  # Every 30 seconds for testing.
+@cron(hour="*")
 @dramatiq.actor
 def check_version() -> None:
     """

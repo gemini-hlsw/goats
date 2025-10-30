@@ -57,6 +57,15 @@ def cron(
     """
 
     def decorator(actor: Actor) -> Actor:
+        if not isinstance(actor, Actor):
+            raise TypeError(
+                "cron decorator must wrap a dramatiq.Actor. "
+                "Order must be:\n"
+                "    @cron(...)\n"
+                "    @dramatiq.actor\n"
+                "    def my_task(...): ..."
+            )
+
         module_path = actor.fn.__module__
         func_name = actor.fn.__name__
         module_func = f"{module_path}:{func_name}"
