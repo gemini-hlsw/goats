@@ -10,15 +10,16 @@ def test_notification_instance():
     with patch.object(NotificationInstance, "_send") as mock_send:
         # Create and send a notification
         NotificationInstance.create_and_send(
-            label="Alert", message="Test notification", color="warning",
+            label="Alert", message="Test notification", color="warning", autohide=False,
         )
 
         # Verify that _send was called with the correct parameters.
         mock_send.assert_called_once()
         args, _ = mock_send.call_args
-        unique_id, label, message, color = args
+        unique_id, label, message, color, autohide = args
 
         assert label == "Alert", "Label not set correctly"
         assert message == "Test notification", "Message not set correctly"
         assert color == "warning", "Color not set correctly"
         assert isinstance(unique_id, str), "Unique ID not set correctly"
+        assert isinstance(autohide, bool), "Auto hide not set correctly"
