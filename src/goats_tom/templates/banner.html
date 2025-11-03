@@ -1,20 +1,22 @@
 {% load static bootstrap4 %}
 
-{% comment %}
-Use for updates or the slogan.
-{% endcomment %}
-<div class="row">
-  <div class="col text-center">
-    <p class="banner-slogan mb-0 small subpixel-antialiased">Time-domain astronomy made time efficient.</p>
+<div class="row align-items-center">
+  <div class="d-none d-lg-block col-lg-4"></div>
+
+  <div class="col-12 col-md-6 col-lg-4 text-center">
+    <p class="banner-slogan mb-0 small subpixel-antialiased">
+      Time-domain astronomy made time efficient.
+    </p>
   </div>
-  <div class="col-auto text-end text-muted small">
-    {% if version_info %}
-      <strong>Version Info</strong><br>
-      <code>current:</code> {{ version_info.current }}<br>
-      <code>latest:</code> {{ version_info.latest }}<br>
-      <code>is_outdated:</code> {{ version_info.is_outdated }}<br>
-    {% else %}
-      <em>No version info available</em>
-    {% endif %}
+
+  <div class="col-12 col-md-6 col-lg-4 text-muted small">
+  <div class="d-flex justify-content-center justify-content-md-end">
+  {% if version_info.is_outdated %}
+        <div class="alert alert-danger mb-0 py-1 px-2 d-inline-block text-nowrap" role="alert">
+          <strong>Update available:</strong>
+          Current: {{ version_info.current }} → Latest: {{ version_info.latest }}
+        </div>
+      {% endif %}
+    </div>
   </div>
 </div>
