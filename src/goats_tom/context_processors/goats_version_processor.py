@@ -4,12 +4,15 @@ Expose version info to all templates under the 'version_info' namespace.
 
 __all__ = ["goats_version_info_processor"]
 
+import logging
 from functools import lru_cache
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 from django.core.cache import caches
 from django.http import HttpRequest
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
@@ -20,8 +23,13 @@ def get_goats_version() -> str:
     -------
     str
         Version string obtained from ``importlib.metadata.version("goats")``.
+        Returns ``"unknown"`` if the package is not installed.
     """
-    return version("goats")
+    try:
+        return version("goats")
+    except PackageNotFoundError:
+        logger.warning("GOATS package not found when retrieving version.")
+        return "unknown"
 
 
 def goats_version_info_processor(request: HttpRequest) -> dict[str, Any]:
@@ -43,11 +51,16 @@ def goats_version_info_processor(request: HttpRequest) -> dict[str, Any]:
 
     # Fallback to current version if not in cache.
     # This can happen if the version check task has not run yet.
-    current_version = version_info.get("current", get_goats_version())
+    current_version = version_info.get("current") or get_goats_version()
     latest_version = version_info.get("latest", "")
     is_outdated = version_info.get("is_outdated", False)
-    doc_url = f"https://goats.readthedocs.io/en/{current_version}/index.html"
-
+    # Fallback to '/latest/' docs if 'current_version' is not known.
+    version_for_docs = (
+        current_version
+        if current_version and current_version != "unknown"
+        else "latest"
+    )
+    doc_url = f"https://goats.readthedocs.io/en/{version_for_docs}/index.html"
     return {
         "version_info": {
             "current": current_version,
