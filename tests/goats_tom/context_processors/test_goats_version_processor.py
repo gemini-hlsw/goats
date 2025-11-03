@@ -87,7 +87,7 @@ class TestGoatsVersionProcessor:
 
         monkeypatch.setattr(
             "goats_tom.context_processors.goats_version_processor.version",
-            lambda _: (_ for _ in ()).throw(PackageNotFoundError),
+            lambda _: (_ for _ in ()).throw(PackageNotFoundError("not found")),
         )
         get_goats_version.cache_clear()
         assert get_goats_version() == "unknown"

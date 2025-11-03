@@ -6,7 +6,7 @@ __all__ = ["goats_version_info_processor"]
 
 import logging
 from functools import lru_cache
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import version
 from typing import Any
 
 from django.core.cache import caches
@@ -23,12 +23,12 @@ def get_goats_version() -> str:
     -------
     str
         Version string obtained from ``importlib.metadata.version("goats")``.
-        Returns ``"unknown"`` if the package is not installed.
+        Returns ``"unknown"`` if there is an error.
     """
     try:
         return version("goats")
-    except PackageNotFoundError:
-        logger.warning("GOATS package not found when retrieving version.")
+    except Exception as e:
+        logger.warning(f"Error retrieving GOATS version: {e}")
         return "unknown"
 
 
