@@ -38,7 +38,7 @@ def test_registers_actor_and_builds_job_dict(mod):
     assert job["coalesce"] is False
     assert job["max_instances"] == 2
     assert job["replace_existing"] is False
-    
+
     assert job["module_func"].endswith(":ping")
     assert job["job_path"].endswith(":ping.send")
 
@@ -86,4 +86,3 @@ def test_module_func_and_job_path_include_module_and_send(mod):
     job = mod.SCHEDULED_JOBS[0]
     assert job["module_func"].endswith(":hello")
     assert job["job_path"].endswith(":hello.send")
-
