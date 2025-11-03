@@ -1355,7 +1355,7 @@ dev = [
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-remotedata", specifier = ">=0.4.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
-    { name = "ruff", specifier = ">=0.14.2" },
+    { name = "ruff", specifier = ">=0.14.3" },
     { name = "towncrier", specifier = ">=25.8.0" },
 ]
 docs = [
