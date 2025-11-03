@@ -43,10 +43,16 @@ def goats_version_info_processor(request: HttpRequest) -> dict[str, Any]:
 
     # Fallback to current version if not in cache.
     # This can happen if the version check task has not run yet.
+    current_version = version_info.get("current", get_goats_version())
+    latest_version = version_info.get("latest", "")
+    is_outdated = version_info.get("is_outdated", False)
+    doc_url = f"https://goats.readthedocs.io/en/{current_version}/index.html"
+
     return {
         "version_info": {
-            "current": version_info.get("current", get_goats_version()),
-            "latest": version_info.get("latest", ""),
-            "is_outdated": version_info.get("is_outdated", False),
+            "current": current_version,
+            "latest": latest_version,
+            "is_outdated": is_outdated,
+            "doc_url": doc_url,
         }
     }
