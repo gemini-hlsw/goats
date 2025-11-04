@@ -17,7 +17,8 @@ from goats_cli.process_manager import ProcessManager
 from goats_cli.processes import ProcessName
 from goats_common.version_checker import VersionChecker
 
-UPDATE_DOC_URL = "https://goats.readthedocs.io/en/stable/update.html"
+# TODO: Should this take into account the version?
+UPDATE_DOC_URL = "https://goats.readthedocs.io/en/stable/updating.html"
 
 
 def _check_version() -> None:
