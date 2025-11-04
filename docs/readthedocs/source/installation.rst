@@ -191,5 +191,12 @@ Once the environment is created and activated, install and run GOATS normally:
 
 Since the entire Conda environment is running under ``osx-64``, GOATS will always execute in ``x86`` mode automatically.
 
+Updating GOATS
+==============
+
+GOATS is actively developed and regularly updated. When a new version is available, you should update using Conda to ensure compatibility with all dependencies.
+
+See :ref:`updating` for full instructions on how to update GOATS safely and correctly.
+
 
 
