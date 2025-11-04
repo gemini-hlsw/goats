@@ -1,22 +1,12 @@
 {% load static bootstrap4 %}
 
-<div class="row align-items-center">
-  <div class="d-none d-lg-block col-lg-4"></div>
+<div class="position-relative text-center py-0 small subpixel-antialiased">
+  <p class="banner-slogan mb-0">
+    Time-domain astronomy made time efficient.
+  </p>
 
-  <div class="col-12 col-md-6 col-lg-4 text-center">
-    <p class="banner-slogan mb-0 small subpixel-antialiased">
-      Time-domain astronomy made time efficient.
-    </p>
-  </div>
-
-  <div class="col-12 col-md-6 col-lg-4 text-muted small">
-  <div class="d-flex justify-content-center justify-content-md-end">
-  {% if version_info.is_outdated %}
-        <div class="alert alert-danger mb-0 py-1 px-2 d-inline-block text-nowrap" role="alert">
-          <strong>Update available:</strong>
-          Current: {{ version_info.current }} → Latest: {{ version_info.latest }}
-        </div>
-      {% endif %}
-    </div>
+  <div class="position-absolute top-0 end-0 me-3 text-muted" title="New GOATS version available: {{ version_info.latest }}">
+    <i class="fas fa-exclamation-triangle fa-fade" style="--fa-animation-duration: 2s"></i> <span class="d-md-inline d-none">New version available: <span class="font-monospace">{{ version_info.latest }}</span></span>
   </div>
 </div>
+
