@@ -48,8 +48,16 @@ def _check_version() -> None:
                 "unexpected behavior or failed operations due to API changes or\n    "
                 "incompatible features.\n\n"
             )
+            instructions = (
+                "Update steps:\n"
+                "       • Stop GOATS\n"
+                "       • Run: conda update goats\n"
+                "       • Start GOATS again\n\n"
+            )
+
+            utils.display_info(instructions)
             utils.display_info(
-                f"➤ Visit {UPDATE_DOC_URL} for update instructions\n\n",
+                f"➤ For more details, visit {UPDATE_DOC_URL}\n\n",
             )
             utils.display_info(
                 "Press Enter to continue at your own risk, or Ctrl+C to cancel...",
