@@ -1,58 +1,116 @@
 /**
- * Class representing a dynamic UI for editing a source profile.
+ * Class representing the editor for source profile configuration.
  */
 class SourceProfileEditor {
+  /** @type {HTMLElement} @private */
   #container;
+  /** @type {HTMLSelectElement} @private */
   #profileSelect;
+  /** @type {HTMLSelectElement} @private */
   #sedSelect;
+  /** @type {HTMLElement} @private */
   #sedFormContainer;
-  #sedRegistry = {};
-  #readOnly;
+  /** @type {SEDRegistry} @private */
+  #sedRegistry;
+  /** @type {ProfileRegistry} @private */
+  #profileRegistry;
+  /** @type {boolean} @private */
+  #notSupported = false;
+  /** @type {boolean} @private */
+  #debug;
+  /** @type {string} @private */
+  #debugTag = "[SourceProfileEditor]";
 
   /**
-   * Construct a source profile editor UI.
-   * @param {HTMLElement} parentElement - The parent element to render into.
-   * @param {Object} [options] - Optional configuration.
-   * @param {Object} [options.data] - Preloaded profile/SED data.
-   * @param {boolean} [options.readOnly=false] - Whether inputs are read-only.
+   * Create a new SourceProfileEditor instance.
+   * @param {HTMLElement} parentElement - The container to attach this editor to.
+   * @param {Object} [options]
+   * @param {Object} [options.data={}] - Initial source profile data.
+   * @param {boolean} [options.debug=false] - Enable debug logging.
    */
-  constructor(parentElement, { data = {}, readOnly = false } = {}) {
+  constructor(parentElement, { data = {}, debug = false } = {}) {
     if (!(parentElement instanceof HTMLElement)) {
       throw new Error("SourceProfileEditor expects an HTMLElement as the parent.");
     }
 
-    this.#readOnly = readOnly;
+    this.#debug = debug;
 
+    this.#profileRegistry = new ProfileRegistry();
+    this.#sedRegistry = new SEDRegistry();
+
+    // Parse input profile and SED keys
+    const profileKey = Object.keys(data)[0] ?? "point";
+    const profileData = data[profileKey] ?? {};
+    const bandNormalized = profileData.bandNormalized ?? {};
+    const sedData = bandNormalized.sed ?? {};
+    const sedKey = Object.keys(sedData).find((key) => sedData[key] != null);
+
+    // Determine if the input is unsupported
+    this.#notSupported =
+      !this.#profileRegistry.isSupported(profileKey) ||
+      !this.#sedRegistry.isSupported(sedKey);
+
+    this.#logDebug(`Detected profile: ${profileKey}`);
+    this.#logDebug(`Detected SED: ${sedKey}`);
+    if (this.#notSupported) {
+      this.#logDebug(`Unsupported input. Showing warning.`);
+    }
+
+    // Build container and append early so it's available even if unsupported.
     this.#container = Utils.createElement("div", "mb-3");
-    const row = Utils.createElement("div", ["row", "g-3"]);
+    parentElement.appendChild(this.#container);
 
-    const col1 = this.#createProfileSelect(data.profile);
-    const col2 = this.#createSedSelect(data.sed);
-    // Need to wrap this in a div to apply Bootstrap row/col classes properly.
+    if (this.#notSupported) {
+      this.#renderUnsupportedWarning(data);
+      return;
+    }
+
+    // Build form layout
+    const row = Utils.createElement("div", ["row", "g-3"]);
+    const col1 = this.#createProfileSelect(profileKey);
+    const col2 = this.#createSedSelect(sedKey);
+
     this.#sedFormContainer = Utils.createElement("div", ["row", "g-3"]);
     const wrapper = Utils.createElement("div", "col-12");
     wrapper.appendChild(this.#sedFormContainer);
 
     row.append(col1, col2, wrapper);
     this.#container.appendChild(row);
-    parentElement.appendChild(this.#container);
 
-    this.#registerSedRenderers();
-    this.#setupEventListeners();
-    if (data.sed) {
-      // TODO: Fix SED name mapping here maybe.
-      // FIXME: Remove debug log later after testing.
-      this.#renderSedForm(data.sed, data);
+    if (sedKey) {
+      this.#renderSedForm(sedKey, sedData[sedKey]);
     }
+
+    this.#setupEventListeners();
   }
 
   /**
-   * Create the profile type <select> dropdown with hardcoded options.
-   * @param {string} [selected="Point"] - Pre-selected value.
-   * @returns {HTMLElement} Column container for the field.
+   * Enable or disable debug logging at runtime.
+   * @param {boolean} flag
+   */
+  setDebug(flag) {
+    this.#debug = flag;
+    this.#logDebug(`Setting debug to ${flag}`);
+  }
+
+  /**
+   * Logs a debug message if debugging is enabled.
+   *
+   * @param {string} message - The message to log.
+   * @private
+   */
+  #logDebug(message) {
+    if (this.#debug) console.debug(`${this.#debugTag} ${message}`);
+  }
+
+  /**
+   * Create the profile select dropdown.
+   * @param {string} selected - The selected profile type.
+   * @returns {HTMLElement}
    * @private
    */
   #createProfileSelect(selected = "point") {
+    this.#logDebug(`Creating profile select. Selected: ${selected}`);
     const col = Utils.createElement("div", "col-md-6");
     const label = Utils.createElement("label", "form-label");
     label.textContent = "Profile";
@@ -62,36 +120,29 @@ class SourceProfileEditor {
     const select = Utils.createElement("select", "form-select");
     select.name = profileId;
     select.id = profileId;
-    select.disabled = this.#readOnly;
 
-    // Hardcode options for now; will be dynamic later.
-    const options = [
-      { value: "point", label: "Point", disabled: false },
-      { value: "gaussian", label: "Gaussian", disabled: true },
-      { value: "uniform", label: "Uniform", disabled: true },
-    ];
-
-    for (const { value, label, disabled } of options) {
+    const options = this.#profileRegistry.getOptions();
+    for (const { value, label } of options) {
       const opt = Utils.createElement("option");
       opt.value = value;
       opt.textContent = label;
-      if (disabled) opt.disabled = true;
       select.appendChild(opt);
     }
 
     select.value = selected;
-    col.append(label, select);
     this.#profileSelect = select;
+    col.append(label, select);
     return col;
   }
 
   /**
-   * Create the SED <select> dropdown.
-   * @param {string} [selected=""] - Pre-selected value.
-   * @returns {HTMLElement} Column container for the field.
+   * Create the SED select dropdown.
+   * @param {string} selected - The selected SED type.
+   * @returns {HTMLElement}
    * @private
    */
   #createSedSelect(selected = "") {
+    this.#logDebug(`Creating SED select. Selected: ${selected}`);
     const col = Utils.createElement("div", "col-md-6");
     const label = Utils.createElement("label", "form-label");
     label.textContent = "SED";
@@ -101,151 +152,219 @@ class SourceProfileEditor {
     const select = Utils.createElement("select", "form-select");
     select.name = sedId;
     select.id = sedId;
-    select.disabled = this.#readOnly;
 
-    // Hardcode options for now; will be dynamic later.
-    const options = [
-      { value: "", label: "" },
-      { value: "blackBodyTempK", label: "Black Body" },
-      { value: "stellarLibrary", label: "Stellar Library", disabled: true },
-      { value: "coolStar", label: "Cool Star", disabled: true },
-      { value: "galaxy", label: "Galaxy", disabled: true },
-      { value: "planet", label: "Planet", disabled: true },
-      { value: "quasar", label: "Quasar", disabled: true },
-      { value: "hiiRegion", label: "HII Region", disabled: true },
-      { value: "planetaryNebula", label: "Planetary Nebula", disabled: true },
-      { value: "powerLaw", label: "Power Law", disabled: true },
-      { value: "fluxDensities", label: "Flux Densities", disabled: true },
-      {
-        value: "fluxDensitiesAttachment",
-        label: "Flux Densities Attachment",
-        disabled: true,
-      },
-    ];
-
-    for (const { value, label, disabled } of options) {
+    const options = [{ value: "", label: "" }, ...this.#sedRegistry.getOptions()];
+    for (const { value, label } of options) {
       const opt = Utils.createElement("option");
       opt.value = value;
       opt.textContent = label;
-      if (disabled) opt.disabled = true;
       select.appendChild(opt);
     }
 
     select.value = selected;
-    col.append(label, select);
     this.#sedSelect = select;
+    col.append(label, select);
     return col;
   }
 
   /**
-   * Register renderers and extractors for each supported SED type.
+   * Set up change listeners for dropdowns.
    * @private
    */
-  #registerSedRenderers() {
-    this.#sedRegistry["blackBodyTempK"] = {
-      render: (data = {}) => {
-        const col = Utils.createElement("div", "col-md-6");
+  #setupEventListeners() {
+    this.#logDebug("Setting up event listeners.");
+    if (!this.#profileSelect || !this.#sedSelect) return;
+    this.#profileSelect.addEventListener("change", () => {
+      this.#logDebug(`Profile changed to: ${this.#profileSelect.value}`);
+    });
 
-        const label = Utils.createElement("label", "form-label");
-        label.textContent = "Temperature";
-        const inputId = "sedBlackBodyTempK";
-        label.htmlFor = inputId;
+    this.#sedSelect.addEventListener("change", (e) => {
+      const sedType = e.target.value;
+      this.#logDebug(`SED changed to: ${sedType}`);
+      this.#renderSedForm(sedType);
+    });
+  }
 
-        const inputGroup = Utils.createElement("div", "input-group");
-        const input = Utils.createElement("input", "form-control");
-        input.type = "number";
-        input.name = inputId;
-        input.value = data.temperature ?? "10000";
-        input.min = "0";
-        input.id = inputId;
-        if (this.#readOnly) input.disabled = true;
+  /**
+   * Render the selected SED form.
+   * @param {string} sedType - The selected SED type.
+   * @param {Object} [data={}] - SED data to populate the form with.
+   * @private
+   */
+  #renderSedForm(sedType, data = {}) {
+    this.#logDebug(`Rendering SED form for: ${sedType}`);
+    this.#sedFormContainer.innerHTML = "";
 
-        const suffix = Utils.createElement("span", "input-group-text");
-        suffix.textContent = "\u00B0K";
+    if (!sedType) {
+      this.#logDebug("No SED selected. Clearing form.");
+      return;
+    }
 
-        inputGroup.append(input, suffix);
-        col.append(label, inputGroup);
-        return col;
-      },
-      extract: (formContainer) => {
-        // FIXME: Don't need this anymore; can directly query the form data.
-        return {};
-      },
+    const form = this.#sedRegistry.render(sedType, data);
+    if (form) {
+      this.#sedFormContainer.appendChild(form);
+    }
+  }
+
+  /**
+   * Render a warning for unsupported input.
+   * @param {Object} data - Raw source profile data.
+   * @private
+   */
+  #renderUnsupportedWarning(data) {
+    const id = "notSupportedSourceProfile";
+    const accordionId = `${id}Accordion`;
+    const collapseId = `${id}Collapse`;
+    const alert = Utils.createElement("div", ["alert", "alert-warning", "mt-2"]);
+    alert.innerHTML = `
+      <div class="alert-heading">
+        <h6>Unsupported Source Profile</h6>
+      </div>
+      This configuration is not currently supported by the editor. The data has been preserved below for reference, but it will not be editable.
+      <div class="accordion accordion-flush mt-3" id="${accordionId}">
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+              data-bs-target="#${collapseId}" aria-expanded="false" aria-controls="${collapseId}">
+              View raw source profile data
+            </button>
+          </h2>
+          <div id="${collapseId}" class="accordion-collapse collapse" data-bs-parent="#${accordionId}">
+            <div class="accordion-body accordion-body-sm-overflow">
+              <pre><code>${JSON.stringify(data, null, 2)}</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    this.#container.append(alert);
+  }
+}
+/**
+ * A registry for Spectral Energy Distribution (SED) types.
+ *
+ * Each SED type must define:
+ * - a `label` (string) shown in the UI,
+ * - a `render(data: object): HTMLElement` function that returns the UI elements for editing.
+ *
+ * To register a new SED type, use:
+ *
+ * ```js
+ * sedRegistry.register("newType", {
+ *   label: "My SED Type",
+ *   render: (data) => { ... }
+ * });
+ * ```
+ */
+class SEDRegistry {
+  /** @type {Record<string, {label: string, render: (data: object) => HTMLElement}>} @private */
+  #registry = {};
+
+  constructor() {
+    this.register("blackBodyTempK", {
+      label: "Black Body",
+      render: this.#renderBlackBodyTempK,
+    });
+  }
+
+  /**
+   * Register a new SED type.
+   * @param {string} key - Internal SED key (e.g., "blackBodyTempK").
+   * @param {{ label: string, render: (data: object) => HTMLElement }} definition
+   */
+  register(key, definition) {
+    this.#registry[key] = definition;
+  }
+
+  /**
+   * Return the list of selectable SED options.
+   * @returns {Array<{value: string, label: string}>}
+   */
+  getOptions() {
+    return Object.entries(this.#registry).map(([value, { label }]) => ({
+      value,
+      label,
+    }));
+  }
+
+  /**
+   * Check if a given SED type is supported.
+   * @param {string} sedType
+   * @returns {boolean}
+   */
+  isSupported(sedType) {
+    return sedType in this.#registry;
+  }
+
+  /**
+   * Render the form UI for a given SED type, or return null if unsupported.
+   * @param {string} sedType
+   * @param {object} [data={}]
+   * @returns {HTMLElement|null}
+   */
+  render(sedType, data = {}) {
+    return this.isSupported(sedType) ? this.#registry[sedType].render(data) : null;
+  }
+
+  /**
+   * Default renderer for Black Body temperature input.
+   * @private
+   * @param {object} data
+   * @returns {HTMLElement}
+   */
+  #renderBlackBodyTempK(data = {}) {
+    const col = Utils.createElement("div", "col-md-6");
+    const label = Utils.createElement("label", "form-label");
+    label.textContent = "Temperature";
+    const inputId = "sedBlackBodyTempK";
+    label.htmlFor = inputId;
+
+    const inputGroup = Utils.createElement("div", "input-group");
+    const input = Utils.createElement("input", "form-control");
+    input.type = "number";
+    input.name = inputId;
+    input.id = inputId;
+    input.min = "0";
+    input.value = data.temperature ?? "10000";
+
+    const suffix = Utils.createElement("span", "input-group-text");
+    suffix.textContent = "\u00B0K";
+
+    inputGroup.append(input, suffix);
+    col.append(label, inputGroup);
+    return col;
+  }
+}
+
+/**
+ * Registry for supported source profile types.
+ */
+class ProfileRegistry {
+  /** @type {Object<string, {label: string}>} @private */
+  #registry;
+  constructor() {
+    this.#registry = {
+      point: { label: "Point" },
     };
   }
 
   /**
-   * Setup event listeners for interactivity.
-   * @private
+   * Get supported profile options.
+   * @returns {Array<{value: string, label: string}>}
    */
-  #setupEventListeners() {
-    this.#profileSelect.addEventListener("change", () => {
-      // Profile-specific logic if needed later.
-    });
-
-    this.#sedSelect.addEventListener("change", (e) => {
-      this.#renderSedForm(e.target.value);
-    });
+  getOptions() {
+    return Object.entries(this.#registry).map(([value, { label }]) => ({
+      value,
+      label,
+    }));
   }
 
   /**
-   * Render the appropriate SED input form based on selected type.
-   * @param {string} sedType - Type of SED to render.
-   * @param {Object} [data={}] - Optional data to prefill fields.
-   * @private
+   * Check if a profile is supported.
+   * @param {string} profile
+   * @returns {boolean}
    */
-  #renderSedForm(sedType, data = {}) {
-    this.#sedFormContainer.innerHTML = "";
-    const entry = this.#sedRegistry[sedType];
-    if (entry?.render) {
-      const form = entry.render(data);
-      this.#sedFormContainer.appendChild(form);
-    } else if (sedType) {
-      const warning = Utils.createElement("div", ["alert", "alert-warning", "col-12"]);
-      warning.textContent = `SED type "${sedType}" is not yet supported.`;
-      this.#sedFormContainer.appendChild(warning);
-      console.warn(`Unregistered SED type: "${sedType}"`);
-    }
-  }
-
-  /**
-   * Get the selected values from the UI.
-   * @returns {Object|null} - Extracted values, or null if required fields are missing.
-   */
-  getValues() {
-    const profile = this.#profileSelect.value;
-    if (!profile) return null;
-
-    const result = { profile };
-
-    if (profile === "Point") {
-      const sed = this.#sedSelect.value;
-      if (!sed) return null;
-
-      result.sed = sed;
-
-      const entry = this.#sedRegistry[sed];
-      if (entry?.extract) {
-        Object.assign(result, entry.extract(this.#sedFormContainer));
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Toggle read-only mode on all input elements.
-   * @param {boolean} flag - Whether to enable read-only mode.
-   */
-  setReadOnly(flag) {
-    this.#readOnly = flag;
-    this.#profileSelect.disabled = flag;
-    this.#sedSelect.disabled = flag;
-
-    // Disable/enable input fields if rendered
-    const inputs = this.#sedFormContainer.querySelectorAll("input");
-    for (const input of inputs) {
-      input.disabled = flag;
-    }
+  isSupported(profile) {
+    return this.#registry[profile];
   }
 }

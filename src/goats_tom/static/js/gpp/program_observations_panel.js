@@ -79,7 +79,7 @@ class ProgramObservationsPanel {
    */
   setDebug(flag) {
     this.#debug = flag;
-    this.#logDebug("Debug logging enabled.");
+    this.#logDebug(`Setting debug to ${flag}`);
   }
 
   /**

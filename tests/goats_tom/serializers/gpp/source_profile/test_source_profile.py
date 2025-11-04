@@ -28,7 +28,6 @@ class TestSourceProfileSerializer:
         )
         instance = mocker.MagicMock()
         instance.is_valid.return_value = True
-        # Use valid enum band name (SLOAN_R) to pass Pydantic validation.
         instance.format_gpp.return_value = {
             "brightnesses": [{"band": "SLOAN_R", "value": 22.0}]
         }
@@ -93,10 +92,25 @@ class TestSourceProfileSerializer:
         assert "sed" not in result["point"]["bandNormalized"]
         mock_registry.assert_not_called()
 
+    def test_format_gpp_returns_none_when_profile_type_missing(
+        self, mock_brightness, mocker
+    ):
+        """Test `format_gpp()` returns None if sedProfileTypeSelect is not provided."""
+        data = {}  # Completely missing profile type and sed
+        serializer = SourceProfileSerializer(data=data)
+        assert serializer.is_valid(), serializer.errors
+        assert serializer.format_gpp() is None
+
+    def test_invalid_sed_profile_type(self):
+        """Test invalid sedProfileTypeSelect is rejected."""
+        data = {"sedProfileTypeSelect": "invalid_type"}
+        serializer = SourceProfileSerializer(data=data)
+        assert not serializer.is_valid()
+        assert "sedProfileTypeSelect" in serializer.errors
+
     @pytest.mark.parametrize(
         "data, expected_field",
         [
-            ({"sedProfileTypeSelect": "", "sedTypeSelect": ""}, "sedProfileTypeSelect"),
             (
                 {
                     "sedProfileTypeSelect": SourceProfileType.POINT.value,
@@ -104,11 +118,10 @@ class TestSourceProfileSerializer:
                 },
                 "sedTypeSelect",
             ),
-            ({"sedTypeSelect": SEDType.BLACK_BODY.value}, "sedProfileTypeSelect"),
         ],
     )
     def test_invalid_fields(self, data: dict, expected_field: str) -> None:
-        """Test invalid enum values and missing required fields."""
+        """Test invalid enum values."""
         serializer = SourceProfileSerializer(data=data)
         assert not serializer.is_valid()
         assert expected_field in serializer.errors

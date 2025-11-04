@@ -28,7 +28,10 @@ class SourceProfileType(str, Enum):
 
 class SourceProfileSerializer(_BaseGPPSerializer):
     sedProfileTypeSelect = serializers.ChoiceField(
-        choices=[e.value for e in SourceProfileType], required=True, allow_blank=False
+        choices=[e.value for e in SourceProfileType],
+        required=False,
+        allow_blank=False,
+        allow_null=True,
     )
     sedTypeSelect = serializers.ChoiceField(
         choices=[e.value for e in SEDType],
@@ -80,7 +83,11 @@ class SourceProfileSerializer(_BaseGPPSerializer):
         dict[str, Any] | None
             The formatted source profile data, or ``None`` if no data was provided.
         """
-        profile_type = self.validated_data["sedProfileTypeSelect"]
+        profile_type = self.validated_data.get("sedProfileTypeSelect")
+        if not profile_type:
+            # Nothing to format.
+            return None
+
         band_normalized: dict[str, Any] = {}
 
         if self.sed is not None:

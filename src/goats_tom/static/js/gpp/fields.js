@@ -181,7 +181,7 @@ const SHARED_FIELDS = [
   },
   // Source profile section.
   {
-    path: "targetEnvironment.firstScienceTarget.sourceProfile.point.bandNormalized.sed",
+    path: "targetEnvironment.firstScienceTarget.sourceProfile",
     handler: "handleSourceProfile",
   },
   // Brightnesses section.

@@ -482,6 +482,11 @@ select.form-control[multiple] {
   overflow-y: auto;
 }
 
+.accordion-body-sm-overflow {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
 .custom-tooltip {
   overflow-y: auto;
   max-height: 400px;
