@@ -1,0 +1,1 @@
+Added updating guide and update documentation link in CLI.

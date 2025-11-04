@@ -57,7 +57,7 @@ GOATS checks for newer versions every time you run ``goats run``. If your versio
        unexpected behavior or failed operations due to API changes or
        incompatible features.
 
-   ➤ Visit https://goats.readthedocs.io/en/latest/updating/ for update instructions
+   ➤ Visit https://goats.readthedocs.io/en/stable/updating.html for update instructions
 
    Press Enter to continue at your own risk, or Ctrl+C to cancel...
 
