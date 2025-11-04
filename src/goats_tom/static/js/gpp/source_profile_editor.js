@@ -15,8 +15,6 @@ class SourceProfileEditor {
   /** @type {ProfileRegistry} @private */
   #profileRegistry;
   /** @type {boolean} @private */
-  #notSupported = false;
-  /** @type {boolean} @private */
   #debug;
   /** @type {string} @private */
   #debugTag = "[SourceProfileEditor]";
@@ -32,40 +30,36 @@ class SourceProfileEditor {
     if (!(parentElement instanceof HTMLElement)) {
       throw new Error("SourceProfileEditor expects an HTMLElement as the parent.");
     }
-
     this.#debug = debug;
 
     this.#profileRegistry = new ProfileRegistry();
     this.#sedRegistry = new SEDRegistry();
 
-    // Parse input profile and SED keys
+    // Parse input profile and SED keys.
     const profileKey = Object.keys(data)[0] ?? "point";
     const profileData = data[profileKey] ?? {};
     const bandNormalized = profileData.bandNormalized ?? {};
     const sedData = bandNormalized.sed ?? {};
-    const sedKey = Object.keys(sedData).find((key) => sedData[key] != null);
+    const sedKey = Object.keys(sedData).find((key) => sedData[key] != null) ?? "";
 
-    // Determine if the input is unsupported
-    this.#notSupported =
-      !this.#profileRegistry.isSupported(profileKey) ||
-      !this.#sedRegistry.isSupported(sedKey);
+    // Determine if the input is unsupported.
+    const hasProfile = this.#profileRegistry.isSupported(profileKey);
+    const hasSed = this.#sedRegistry.isSupported(sedKey);
+    const notSupported = !hasProfile || !hasSed;
 
     this.#logDebug(`Detected profile: ${profileKey}`);
     this.#logDebug(`Detected SED: ${sedKey}`);
-    if (this.#notSupported) {
-      this.#logDebug(`Unsupported input. Showing warning.`);
-    }
 
     // Build container and append early so it's available even if unsupported.
     this.#container = Utils.createElement("div", "mb-3");
     parentElement.appendChild(this.#container);
 
-    if (this.#notSupported) {
+    if (notSupported) {
       this.#renderUnsupportedWarning(data);
       return;
     }
 
-    // Build form layout
+    // Build form layout.
     const row = Utils.createElement("div", ["row", "g-3"]);
     const col1 = this.#createProfileSelect(profileKey);
     const col2 = this.#createSedSelect(sedKey);
@@ -153,8 +147,7 @@ class SourceProfileEditor {
     select.name = sedId;
     select.id = sedId;
 
-    const options = [{ value: "", label: "" }, ...this.#sedRegistry.getOptions()];
-    for (const { value, label } of options) {
+    for (const { value, label } of this.#sedRegistry.getOptions()) {
       const opt = Utils.createElement("option");
       opt.value = value;
       opt.textContent = label;
@@ -195,14 +188,11 @@ class SourceProfileEditor {
     this.#logDebug(`Rendering SED form for: ${sedType}`);
     this.#sedFormContainer.innerHTML = "";
 
-    if (!sedType) {
-      this.#logDebug("No SED selected. Clearing form.");
-      return;
-    }
-
     const form = this.#sedRegistry.render(sedType, data);
     if (form) {
       this.#sedFormContainer.appendChild(form);
+    } else {
+      this.#logDebug("No form rendered (blank or unsupported SED).");
     }
   }
 
@@ -212,6 +202,7 @@ class SourceProfileEditor {
    * @private
    */
   #renderUnsupportedWarning(data) {
+    this.#logDebug(`Unsupported input. Showing warning.`);
     const id = "notSupportedSourceProfile";
     const accordionId = `${id}Accordion`;
     const collapseId = `${id}Collapse`;
@@ -261,6 +252,11 @@ class SEDRegistry {
   #registry = {};
 
   constructor() {
+    // Register default SED type to render nothing aka reset.
+    this.register("", {
+      label: "",
+      render: () => null,
+    });
     this.register("blackBodyTempK", {
       label: "Black Body",
       render: this.#renderBlackBodyTempK,
@@ -365,6 +361,6 @@ class ProfileRegistry {
    * @returns {boolean}
    */
   isSupported(profile) {
-    return this.#registry[profile];
+    return profile in this.#registry;
   }
 }

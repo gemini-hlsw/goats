@@ -91,7 +91,7 @@ class ObservationForm {
         const div = Utils.createElement("div", "mt-3");
         new SourceProfileEditor(div, {
           data: raw ?? {},
-          debug: false,
+          debug: true,
         });
         return [div];
       },
