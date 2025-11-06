@@ -1,1 +1,0 @@
-Updated UI to split GPP application to support creating new observations from approved ToO configurations.

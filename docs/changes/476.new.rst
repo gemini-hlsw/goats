@@ -1,2 +1,0 @@
-Added periodic version checking so GOATS automatically detects and alerts when a newer version is available.
-

@@ -1,1 +1,0 @@
-Developed source profile editor for users when creating new observation with GPP in GOATS.

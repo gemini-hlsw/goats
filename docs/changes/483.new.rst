@@ -1,1 +1,0 @@
-Displayed the update command in `goats run` to guide users on how to upgrade.

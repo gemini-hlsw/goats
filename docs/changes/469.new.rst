@@ -1,1 +1,0 @@
-Refactored the GPP serializers to provide a solid foundation for Target of Opportunity (ToO) creation and observation cloning. This update improves how data is validated and formatted before being sent to GPP. ToO creation is possible, but not yet fully integrated into the UI.

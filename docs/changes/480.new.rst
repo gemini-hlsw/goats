@@ -1,1 +1,0 @@
-Added an update alert to the banner to notify users when GOATS is outdated.

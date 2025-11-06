@@ -1,1 +1,0 @@
-Updated the link to the GOATS documentation in the navbar: The link now points to the documentation for the installed version of GOATS. If the installed version cannot be determined, it falls back to the latest version of the documentation.

@@ -1,1 +1,0 @@
-Implemented workflow state handling for GPP observations: Added serializer to validate and convert workflow state selections, enabling users to view and update observation workflow states in the ToO form.

@@ -1,1 +1,0 @@
-Refactored the ToO creation flow to return structured responses with stage-level status reporting and improved error handling. The workflow state update now includes extended retry timing and no longer blocks saving the observation if the update fails.

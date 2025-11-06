@@ -1,1 +1,0 @@
-Added support for unpacking user-supplied data in the `GPPTooViewSet` create method and introduced serializers for new input types. The API endpoint handles brightnesses, elevation ranges, and exposure modes. These changes bring us closer to enabling the submission of ToOs to GPP.

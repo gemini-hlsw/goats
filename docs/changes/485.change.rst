@@ -1,1 +1,0 @@
-Refactored Source Profile to handle unsupported profiles and SEDs, and clean up SED rendering logic. Users can now view raw data for unsupported types.

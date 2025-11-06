@@ -1,1 +1,0 @@
-Add documentation for maintaining ``conda-forge`` feedstocks for developers.
