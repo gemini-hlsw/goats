@@ -1,0 +1,1 @@
+Added the link to Gemini Explore for observations with GPP-style IDs on the observation detail page.
