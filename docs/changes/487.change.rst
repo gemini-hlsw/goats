@@ -1,0 +1,1 @@
+Changed GOA query radius from 15 arcseconds to 3 arcminutes when querying for observation IDs near a target.
