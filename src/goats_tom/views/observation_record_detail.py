@@ -1,6 +1,5 @@
 __all__ = ["ObservationRecordDetailView"]
 import logging
-import re
 from typing import Any
 
 from django.urls import reverse
@@ -19,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 def _is_gpp_id(obs_id: str) -> bool:
     """
-    Return True if the observation ID is a GPP-style ID, otherwise False.
+    Return True if the observation ID is a GPP-style ID (starts with 'G-'),
+    and not an OCS-style ID (which starts with 'GS-' or 'GN-').
 
     Parameters
     ----------
@@ -29,10 +29,9 @@ def _is_gpp_id(obs_id: str) -> bool:
     Returns
     -------
     bool
-        True if it is a GPP ID (e.g., G-2026A-0166-Q-0001), False otherwise.
+        True if it is a GPP ID, False otherwise.
     """
-    pattern = re.compile(r"^G-(?![NS]-)")
-    return bool(pattern.match(obs_id))
+    return obs_id.startswith("G-")
 
 
 class ObservationRecordDetailView(BaseObservationRecordDetailView):
