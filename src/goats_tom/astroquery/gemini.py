@@ -9,6 +9,7 @@ Query public and proprietary data from GOA.
 __all__ = ["Observations", "ObservationsClass"]
 
 import bz2
+import logging
 import os
 import shutil
 import tarfile
@@ -32,6 +33,8 @@ from recipe_system.reduction.coreReduce import Reduce
 
 from .conf import conf
 from .urlhelper import URLHelper
+
+logger = logging.getLogger(__name__)
 
 __valid_instruments__ = [
     "GMOS",
@@ -128,16 +131,24 @@ class ObservationsClass(QueryWithLogin):
         """
         url = self.url_helper.get_login_url()
         data = {"username": username, "password": password}
-        r = self._session.post(url, data=data)
-        # If there's a possibility of a non-200, handle that first.
-        if r.status_code != 200:
+        logger.debug("Attempting GOA login for user: %s", username)
+
+        try:
+            r = self._session.post(url, data=data)
+            # If there's a possibility of a non-200, handle that first.
+            if r.status_code != 200:
+                logger.warning("Login failed with HTTP status %d", r.status_code)
+                return False
+            # For the case where 200 is returned on both success and failure:
+            # Check the page content for a known error message or any other indicator.
+            if "Log-in did not succeed" in r.text:
+                logger.warning("Login rejected: invalid credentials.")
+                return False
+        except Exception:
+            logger.exception("Error during GOA login request.")
             return False
 
-        # For the case where 200 is returned on both success and failure:
-        # Check the page content for a known error message or any other indicator.
-        if "Log-in did not succeed" in r.text:
-            return False
-
+        logger.info("Successfully authenticated with GOA for user: %s", username)
         return True
 
     @class_or_instance
@@ -165,6 +176,7 @@ class ObservationsClass(QueryWithLogin):
         """
         if radius is None:
             radius = u.Quantity(conf.GOA_RADIUS)
+        logger.debug("Querying region: coords=%s radius=%s", coordinates, radius)
         return self.query_criteria(coordinates=coordinates, radius=radius)
 
     @class_or_instance
@@ -193,6 +205,7 @@ class ObservationsClass(QueryWithLogin):
         """
         if radius is None:
             radius = u.Quantity(conf.GOA_RADIUS)
+        logger.debug("Querying object: %s radius=%s", objectname, radius)
         return self.query_criteria(objectname=objectname, radius=radius)
 
     @class_or_instance
@@ -455,31 +468,42 @@ class ObservationsClass(QueryWithLogin):
         response : `~astropy.table.Table`
 
         """
-        url = self.url_helper.get_summary_url(*args, **kwargs)
-        response = self._request(
-            method="GET",
-            url=url,
-            data={},
-            timeout=conf.GOA_TIMEOUT,
-            cache=False,
-        )
-
-        js = response.json()
-        return _gemini_json_to_table(js)
+        try:
+            url = self.url_helper.get_summary_url(*args, **kwargs)
+            logger.info("Executing GOA query: %s", url)
+            response = self._request(
+                method="GET",
+                url=url,
+                data={},
+                timeout=conf.GOA_TIMEOUT,
+                cache=False,
+            )
+            response.raise_for_status()
+            js = response.json()
+            logger.debug("Received JSON response with %d records", len(js))
+            return _gemini_json_to_table(js)
+        except Exception:
+            logger.exception("Error during query_raw request.")
+            raise
 
     def get_file_list(self, *query_args, **query_kwargs):
-        url = self.url_helper.get_file_list_url(*query_args, **query_kwargs)
-
-        response = self._request(
-            method="GET",
-            url=url,
-            data={},
-            timeout=conf.GOA_TIMEOUT,
-            cache=False,
-        )
-
-        js = response.json()
-        return _gemini_json_to_table(js)
+        try:
+            url = self.url_helper.get_file_list_url(*query_args, **query_kwargs)
+            logger.info("Fetching file list from: %s", url)
+            response = self._request(
+                method="GET",
+                url=url,
+                data={},
+                timeout=conf.GOA_TIMEOUT,
+                cache=False,
+            )
+            response.raise_for_status()
+            js = response.json()
+            logger.debug("File list retrieved with %d entries", len(js))
+            return _gemini_json_to_table(js)
+        except Exception:
+            logger.exception("Error retrieving GOA file list.")
+            raise
 
     def get_file(self, filename, *, download_dir=".", timeout=None):
         """Download the requested file to the current directory
@@ -491,9 +515,14 @@ class ObservationsClass(QueryWithLogin):
         timeout : int, optional
             Timeout of the request in milliseconds
         """
-        url = self.get_file_url(filename)
-        local_filepath = os.path.join(download_dir, filename)
-        self._download_file(url=url, local_filepath=local_filepath, timeout=timeout)
+        try:
+            url = self.get_file_url(filename)
+            local_filepath = os.path.join(download_dir, filename)
+            logger.info("Downloading file: %s -> %s", url, local_filepath)
+            self._download_file(url=url, local_filepath=local_filepath, timeout=timeout)
+        except Exception:
+            logger.exception("Error downloading file: %s", filename)
+            raise
 
     def _download_file_content(
         self,
@@ -556,10 +585,10 @@ class ObservationsClass(QueryWithLogin):
         # Delete specific cookie.
         cookie_name = "gemini_archive_session"
         if cookie_name in self._session.cookies:
+            logger.debug("Clearing GOA session cookie: %s", cookie_name)
             del self._session.cookies[cookie_name]
-
-        # Update authentication state.
         self._authenticated = False
+        logger.info("Logged out from GOA session.")
 
     def get_file_content(
         self,
@@ -590,6 +619,7 @@ class ObservationsClass(QueryWithLogin):
 
         """
         url = self.get_file_url(filename)
+        logger.info("Downloading file content from: %s", url)
         return self._download_file_content(
             url,
             timeout=timeout,
@@ -612,6 +642,7 @@ class ObservationsClass(QueryWithLogin):
             The URL where the file can be downloaded.
 
         """
+        logger.debug("Generating file URL for: %s", filename)
         return self.url_helper.get_file_url(filename)
 
     def get_search_url(self, program_id):
@@ -668,6 +699,7 @@ class ObservationsClass(QueryWithLogin):
             of files omitted, a human-readable message, and boolean success.
 
         """
+        logger.info("Downloading calibration files to %s", dest_folder)
         # Assign argument to get calibrations.
         args = query_args + ("associated_calibrations",)
 
@@ -716,10 +748,12 @@ class ObservationsClass(QueryWithLogin):
             of files omitted, a human-readable message, and boolean success.
 
         """
+        logger.info("Starting GOA download to %s", dest_folder)
         last_update_time = time.time()
         # Convert destination folder.
         dest_folder = Path(dest_folder).expanduser()
         url = self.url_helper.get_tar_file_url(*query_args, **query_kwargs)
+        logger.debug("GOA download URL: %s", url)
 
         response = self._session.get(url, stream=True)
         response.raise_for_status()
@@ -746,6 +780,7 @@ class ObservationsClass(QueryWithLogin):
             temp_dir_path = Path(temp_dir)
             # Generate tar_filename based on current time.
             tar_path = temp_dir_path / "goa-query.tar"
+            logger.debug("Writing temporary tar file: %s", tar_path)
 
             # Stream download.
             with open(tar_path, "wb") as f:
@@ -764,6 +799,7 @@ class ObservationsClass(QueryWithLogin):
                             last_update_time = current_time
 
             response.close()
+            logger.info("Downloaded %d bytes from GOA", downloaded_bytes)
 
             if download_state is not None:
                 download_state.update_and_send(
@@ -773,6 +809,7 @@ class ObservationsClass(QueryWithLogin):
 
             # Extract the tar archive.
             with tarfile.open(tar_path, "r") as tar:
+                logger.debug("Extracting tar archive to %s", temp_dir_path)
                 tar.extractall(path=temp_dir_path)
 
             # Delete the tar file after extraction.
@@ -780,6 +817,11 @@ class ObservationsClass(QueryWithLogin):
 
             # Build download statistics.
             download_info = self._generate_download_info(temp_dir_path)
+            logger.info(
+                "Extracted %d files, %d omitted",
+                download_info["num_files_downloaded"],
+                download_info["num_files_omitted"],
+            )
 
             # Delete additional files if wanted.
             # TODO: Now that we have this in a temp directory, this does nothing.
@@ -788,12 +830,16 @@ class ObservationsClass(QueryWithLogin):
                     file_path = temp_dir_path / file_name
                     if file_path.exists():
                         file_path.unlink()
+                        logger.debug("Removed file: %s", file_path)
 
-            # Decompress inner files.
+            # Decompress inner files, preserving directory structure.
             if decompress_fits:
+                logger.debug(
+                    "Decompressing .bz2 files while preserving directory structure"
+                )
                 file_paths = [
-                    (temp_dir_path / filename)
-                    for filename in download_info["downloaded_files"]
+                    (temp_dir_path / rel_path)
+                    for rel_path in download_info["downloaded_files"]
                 ]
 
                 for f in file_paths:
@@ -801,14 +847,17 @@ class ObservationsClass(QueryWithLogin):
 
                 # Update file names in download_info.
                 download_info["downloaded_files"] = [
-                    filename.replace(".bz2", "")
-                    for filename in download_info["downloaded_files"]
+                    path.replace(".bz2", "")
+                    for path in download_info["downloaded_files"]
                 ]
 
             # If GHOST data, unpack.
             bundled_ghost_files = []
-            for filename in download_info["downloaded_files"]:
-                file_path = temp_dir_path / filename
+            for rel_path in download_info["downloaded_files"]:
+                file_path = temp_dir_path / rel_path
+
+                if not file_path.exists():
+                    continue
 
                 # Check if its bundled ghost data.
                 ad = astrodata.open(file_path)
@@ -818,6 +867,7 @@ class ObservationsClass(QueryWithLogin):
 
             # Now run the dragons process.
             if bundled_ghost_files:
+                logger.info("Unbundling %d GHOST files...", len(bundled_ghost_files))
                 # Update download bar.
                 if download_state is not None:
                     download_state.update_and_send(
@@ -854,7 +904,11 @@ class ObservationsClass(QueryWithLogin):
 
                 # Remove the original bundled files from download_info.
                 for bundled_file in bundled_ghost_files:
-                    download_info["downloaded_files"].remove(bundled_file.name)
+                    # TODO: Is this impacted by the change in directory in GOA.
+                    # I believe so, making change and will test.
+                    rel_name = bundled_file.relative_to(temp_dir_path)
+                    if rel_name.name in download_info["downloaded_files"]:
+                        download_info["downloaded_files"].remove(str(rel_name))
                     bundled_file.unlink()
 
                 # Add new files to the download_info.
@@ -862,16 +916,16 @@ class ObservationsClass(QueryWithLogin):
                 download_info["num_files_downloaded"] += len(new_files) - len(
                     bundled_ghost_files
                 )
+                logger.info(
+                    "Finished unbundling GHOST data; added %d new files", len(new_files)
+                )
 
-            # Prepare file paths for moving.
-            move_file_paths = [
-                (file_path, dest_folder / file_path.name)
-                for file_path in temp_dir_path.glob("**/*.fits")
-                if file_path.is_file()
-            ]
-
-            for move_file_path in move_file_paths:
-                self._move_file(move_file_path)
+            # Move final files (preserve relative folder structure)
+            for rel_path in download_info["downloaded_files"]:
+                src_path = temp_dir_path / rel_path
+                dest_path = dest_folder / rel_path
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                self._move_file((src_path, dest_path))
 
         return download_info
 
@@ -890,6 +944,9 @@ class ObservationsClass(QueryWithLogin):
             of files omitted, a human-readable message, and boolean success.
 
         """
+        logger.debug(
+            "Generating download info from extracted directory: %s", extract_dir
+        )
         readme_path = extract_dir / "README.txt"
         md5sums_path = extract_dir / "md5sums.txt"
 
@@ -902,7 +959,9 @@ class ObservationsClass(QueryWithLogin):
                     if len(parts) == 2:
                         filename = parts[1]
                         if filename in downloaded_files:
-                            print(f"Duplicate file detected in md5sums: {filename}")
+                            logger.warning(
+                                "Duplicate filename detected in md5sums: %s", filename
+                            )
                         # Set ignores duplicates.
                         downloaded_files.add(filename)
 
@@ -921,10 +980,12 @@ class ObservationsClass(QueryWithLogin):
                 "No files were found or downloaded. Data for this observation "
                 "record does not exist."
             )
+            logger.warning("No files detected in %s", extract_dir)
         else:
             message = f"Downloaded {num_files_downloaded} files."
             if num_files_omitted > 0:
                 message += f" {num_files_omitted} proprietary files were omitted."
+            logger.info(message)
 
         # Extract search criteria from README.txt
         search_url = ""
@@ -933,6 +994,7 @@ class ObservationsClass(QueryWithLogin):
                 for line in file:
                     if "The search criteria was:" in line:
                         search_url = line.split(": ")[1].strip()
+                        logger.debug("Extracted search URL from README: %s", search_url)
                         break
 
         download_info = {
@@ -957,16 +1019,22 @@ class ObservationsClass(QueryWithLogin):
             Path to the .bz2 file to be decompressed.
 
         """
-        decompressed_file_path = file_path.with_suffix("")
+        logger.debug("Decompressing %s", file_path)
+        try:
+            decompressed_file_path = file_path.with_suffix("")
 
-        with (
-            bz2.open(file_path, "rb") as in_file,
-            open(decompressed_file_path, "wb") as out_file,
-        ):
-            while chunk := in_file.read(conf.GOA_CHUNK_SIZE):
-                out_file.write(chunk)
+            with (
+                bz2.open(file_path, "rb") as in_file,
+                open(decompressed_file_path, "wb") as out_file,
+            ):
+                while chunk := in_file.read(conf.GOA_CHUNK_SIZE):
+                    out_file.write(chunk)
 
-        file_path.unlink()
+            file_path.unlink()
+            logger.info("Decompressed file: %s", decompressed_file_path)
+        except Exception:
+            logger.exception("Error decompressing file: %s", file_path)
+            raise
 
     def _move_file(self, src_dest_paths: tuple[Path, Path]) -> None:
         """Move a file from source to destination.
@@ -978,10 +1046,15 @@ class ObservationsClass(QueryWithLogin):
 
         """
         src_path, dest_path = src_dest_paths
-
-        if dest_path.exists():
-            dest_path.unlink()
-        shutil.move(src_path, dest_path)
+        try:
+            if dest_path.exists():
+                dest_path.unlink()
+                logger.debug("Overwriting existing file: %s", dest_path)
+            shutil.move(src_path, dest_path)
+            logger.debug("Moved file %s -> %s", src_path, dest_path)
+        except Exception:
+            logger.exception("Error moving file from %s to %s", src_path, dest_path)
+            raise
 
 
 def _gemini_json_to_table(json):
@@ -999,9 +1072,11 @@ def _gemini_json_to_table(json):
 
     """
     if not json:
+        logger.warning("Empty JSON returned from GOA query.")
         return Table()
 
     # Inferring keys from the first JSON object
+    logger.debug("Converting JSON (%d records) to Astropy Table", len(json))
     keys = json[0].keys()
 
     data_table = Table(masked=True)
@@ -1016,6 +1091,7 @@ def _gemini_json_to_table(json):
             MaskedColumn(col_data.astype(atype), name=key, mask=col_mask),
         )
 
+    logger.debug("Created table with %d columns", len(data_table.columns))
     return data_table
 
 
