@@ -1,8 +1,3 @@
-# Standard library imports.
-
-# Related third party imports.
-
-# Local application/library specific imports.
 from typing import Any
 
 from django import template
