@@ -3,6 +3,15 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 25.11.2 (2025-11-07)
+============================
+
+New Features
+------------
+
+- Added the link to Gemini Explore for observations with GPP-style IDs on the observation detail page. (`PR #488 <https://github.com/gemini-hlsw/goats/pull/488>`_)
+
+
 Version 25.11.1 (2025-11-07)
 ============================
 
