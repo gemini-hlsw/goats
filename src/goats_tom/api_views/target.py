@@ -22,7 +22,7 @@ class TargetViewSet(BaseTargetViewSet):
         self, request: Request, pk: Optional[str] = None
     ) -> Response:
         """
-        Return all unique observation IDs from GOA within 15 arcseconds of a given
+        Return all unique observation IDs from GOA within 3 arcminutes of a given
         target.
 
         Parameters
@@ -64,7 +64,7 @@ class TargetViewSet(BaseTargetViewSet):
             )
 
         # Grab the unique observations.
-        radius = 15.0 * u.arcsec
+        radius = 3.0 * u.arcmin
         coordinates = SkyCoord(ra=target.ra * u.deg, dec=target.dec * u.deg)
         try:
             table = GOA.query_raw("science", coordinates=coordinates, radius=radius)
