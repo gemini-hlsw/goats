@@ -3,6 +3,28 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 25.11.1 (2025-11-07)
+============================
+
+New Features
+------------
+
+- Added rotating log file to GOATS so users can keep track of operations over time and better report issues. Log files are stored in the main GOATS directory as "goats.log", with a maximum size of 50 MB and up to two backup files. The console logging remains for real-time feedback during execution. (`PR #486 <https://github.com/gemini-hlsw/goats/pull/486>`_)
+
+
+Changes
+-------
+
+- Added ``/canonical/`` to GOA URL paths as specified in GOA API documentation. (`PR #486 <https://github.com/gemini-hlsw/goats/pull/486>`_)
+- Changed GOA query radius from 15 arcseconds to 3 arcminutes when querying for observation IDs near a target. (`PR #487 <https://github.com/gemini-hlsw/goats/pull/487>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed bug when downloaded folders of data from GOA. GOA now organizes data into structured folders, and the code now correctly handles this structure when downloading and processing the data. (`PR #486 <https://github.com/gemini-hlsw/goats/pull/486>`_)
+
+
 Version 25.11.0 (2025-11-06)
 ============================
 
