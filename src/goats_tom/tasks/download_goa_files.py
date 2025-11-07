@@ -85,7 +85,7 @@ def download_goa_files(
         facility = observation_record.facility
         observation_id = observation_record.observation_id
         logger.debug(
-            "Using bservation record: target=%s, facility=%s, observation id=%s",
+            "Using Observation record: target=%s, facility=%s, observation id=%s",
             target,
             facility,
             observation_id,

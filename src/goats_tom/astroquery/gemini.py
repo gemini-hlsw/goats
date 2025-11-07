@@ -852,18 +852,9 @@ class ObservationsClass(QueryWithLogin):
                 ]
 
             # If GHOST data, unpack.
-            bundled_ghost_files = []
-            for rel_path in download_info["downloaded_files"]:
-                file_path = temp_dir_path / rel_path
-
-                if not file_path.exists():
-                    continue
-
-                # Check if its bundled ghost data.
-                ad = astrodata.open(file_path)
-                if {"GHOST", "BUNDLE"}.issubset(ad.tags):
-                    # Got bundled ghost data, let us add to the list to unbundle.
-                    bundled_ghost_files.append(file_path)
+            bundled_ghost_files = self._find_bundled_ghost_files(
+                temp_dir_path, download_info["downloaded_files"]
+            )
 
             # Now run the dragons process.
             if bundled_ghost_files:
@@ -878,44 +869,25 @@ class ObservationsClass(QueryWithLogin):
                 # Update the log output for DRAGONS to quiet and level 40 (ERROR).
                 logutils.config(mode="quiet", file_lvl=40)
 
-                # Create directory to unbundle in.
-                unbundle_ghost_dir = temp_dir_path / "unbundle_ghost"
-                unbundle_ghost_dir.mkdir()
-
-                # Create calibration database needed for DRAGONS.
-                db_path = unbundle_ghost_dir / "unbundle_ghost.db"
-                cal_service.LocalDB(db_path, force_init=True)
-
-                # Create the dragonsrc file.
-                dragons_rc = unbundle_ghost_dir / "dragonsrc"
-                with open(dragons_rc, "w") as f:
-                    f.write(f"[calibs]\ndatabases = {db_path} get store")
-
-                # Change directory to where DRAGONS needs to write unbundled data.
-                os.chdir(unbundle_ghost_dir)
-                r = Reduce()
-                # DRAGONS requires strings to be passed.
-                r.files.extend([str(file) for file in bundled_ghost_files])
-                r.config_file = str(dragons_rc)
-                r.runr()
-
-                # Get the list of new files created by DRAGONS.
-                new_files = [file.name for file in unbundle_ghost_dir.glob("*.fits")]
-
-                # Remove the original bundled files from download_info.
-                for bundled_file in bundled_ghost_files:
-                    # TODO: Is this impacted by the change in directory in GOA.
-                    # I believe so, making change and will test.
-                    rel_name = bundled_file.relative_to(temp_dir_path)
-                    if rel_name.name in download_info["downloaded_files"]:
-                        download_info["downloaded_files"].remove(str(rel_name))
-                    bundled_file.unlink()
-
-                # Add new files to the download_info.
-                download_info["downloaded_files"].extend(new_files)
-                download_info["num_files_downloaded"] += len(new_files) - len(
-                    bundled_ghost_files
+                # Prepare DRAGONS environment.
+                unbundle_ghost_dir, dragons_rc = self._prepare_dragons_environment(
+                    temp_dir_path
                 )
+
+                # Run unbundling.
+                new_files = self._run_dragons_unbundle(
+                    bundled_ghost_files, unbundle_ghost_dir, dragons_rc
+                )
+
+                # Remove the original bundled files from download_info and add
+                # unbundled outputs.
+                self._replace_bundled_with_unbundled(
+                    download_info,
+                    bundled_ghost_files,
+                    new_files,
+                    temp_dir_path,
+                )
+
                 logger.info(
                     "Finished unbundling GHOST data; added %d new files", len(new_files)
                 )
@@ -924,10 +896,140 @@ class ObservationsClass(QueryWithLogin):
             for rel_path in download_info["downloaded_files"]:
                 src_path = temp_dir_path / rel_path
                 dest_path = dest_folder / rel_path
+                if not src_path.exists():
+                    logger.warning("Skipping missing file during move: %s", src_path)
+                    continue
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
                 self._move_file((src_path, dest_path))
 
         return download_info
+
+    def _replace_bundled_with_unbundled(
+        self,
+        download_info: dict[str, Any],
+        bundled_files: list[Path],
+        new_files: list[Path],
+        temp_dir_path: Path,
+    ) -> None:
+        """
+        Remove bundled files from download_info and add unbundled outputs.
+
+        Parameters
+        ----------
+        download_info : dict[str, Any]
+            The download information dictionary to update.
+        bundled_files : list[Path]
+            List of Paths to bundled GHOST FITS files.
+        new_files : list[Path]
+            List of Paths to the newly unbundled GHOST FITS files.
+        temp_dir_path : Path
+            The temporary directory where files are downloaded.
+        """
+        for bundled_file in bundled_files:
+            rel_name = bundled_file.relative_to(temp_dir_path)
+            logger.debug("Checking to remove bundled GHOST file: %s", rel_name)
+            if str(rel_name) in download_info["downloaded_files"]:
+                logger.debug(
+                    "Removing bundled GHOST file from download info: %s", rel_name
+                )
+                download_info["downloaded_files"].remove(str(rel_name))
+            bundled_file.unlink()
+
+        download_info["downloaded_files"].extend(new_files)
+        download_info["num_files_downloaded"] += len(new_files) - len(bundled_files)
+
+    def _run_dragons_unbundle(
+        self, bundled_files: list[Path], unbundle_dir: Path, dragons_rc: Path
+    ) -> list[Path]:
+        """
+        Run DRAGONS Reduce() on bundled files and return the list of new FITS files.
+
+        Parameters
+        ----------
+        bundled_files : list[Path]
+            List of Paths to bundled GHOST FITS files.
+        unbundle_dir : Path
+            The directory where unbundling will occur.
+        dragons_rc : Path
+            The path to the dragonsrc configuration file.
+
+        Returns
+        -------
+        list[Path]
+            List of Paths to the newly unbundled GHOST FITS files.
+        """
+        # Change directory to where DRAGONS needs to write unbundled data.
+        os.chdir(unbundle_dir)
+        logger.debug("Changed working directory to: %s", unbundle_dir)
+
+        r = Reduce()
+        r.files.extend([str(f) for f in bundled_files])
+        r.config_file = str(dragons_rc)
+        r.runr()
+
+        # Get the list of new files created by DRAGONS.
+        new_files = [
+            f.relative_to(unbundle_dir.parent) for f in unbundle_dir.glob("*.fits")
+        ]
+        logger.debug("Unbundled %d new GHOST files", len(new_files))
+        return new_files
+
+    def _prepare_dragons_environment(self, temp_dir_path: Path) -> tuple[Path, Path]:
+        """
+        Prepare the environment for DRAGONS to unbundle GHOST data.
+
+        Parameters
+        ----------
+        temp_dir_path : Path
+            The temporary directory where files are downloaded.
+
+        Returns
+        -------
+        tuple[Path, Path]
+            A tuple containing the unbundle directory and the path to the
+            dragonsrc file.
+        """
+        unbundle_dir = temp_dir_path / "unbundle_ghost"
+        unbundle_dir.mkdir(exist_ok=True)
+        logger.debug("Created GHOST unbundle directory: %s", unbundle_dir)
+
+        db_path = unbundle_dir / "unbundle_ghost.db"
+        cal_service.LocalDB(db_path, force_init=True)
+
+        dragons_rc = unbundle_dir / "dragonsrc"
+        with open(dragons_rc, "w") as f:
+            f.write(f"[calibs]\ndatabases = {db_path} get store")
+
+        return unbundle_dir, dragons_rc
+
+    def _find_bundled_ghost_files(
+        self, temp_dir_path: Path, downloaded_files: list[str]
+    ) -> list[Path]:
+        """
+        Find bundled GHOST FITS files in the downloaded data.
+
+        Parameters
+        ----------
+        temp_dir_path : Path
+            The temporary directory where files are downloaded.
+        downloaded_files : list[str]
+            List of downloaded file paths relative to `temp_dir_path`.
+
+        Returns
+        -------
+        list[Path]
+            List of Paths to bundled GHOST FITS files.
+        """
+        bundled_files: list[Path] = []
+        for rel_path in downloaded_files:
+            file_path = temp_dir_path / rel_path
+            if not file_path.exists():
+                continue
+            # Check if it's bundled ghost data using astrodata.
+            ad = astrodata.open(file_path)
+            if {"GHOST", "BUNDLE"}.issubset(ad.tags):
+                bundled_files.append(file_path)
+        return bundled_files
 
     def _generate_download_info(self, extract_dir: Path) -> dict[str, Any]:
         """Generate download information.
