@@ -208,12 +208,37 @@ MEDIA_URL = "/data/"
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {name} {filename}:{lineno} - {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-        }
+            "formatter": "simple",
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": BASE_DIR / "goats.log",
+            "formatter": "verbose",
+            "maxBytes": 1024 * 1024 * 50,  # 50 MB.
+            "backupCount": 2,  # Keep two backup log files.
+        },
     },
-    "loggers": {"": {"handlers": ["console"], "level": "INFO"}},
+    "loggers": {
+        "": {"handlers": ["console", "file"], "level": "INFO"},
+        "goats_tom": {
+            "handlers": ["console", "file"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+    },
 }
 
 # Caching

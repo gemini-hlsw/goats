@@ -1,0 +1,1 @@
+Added ``/canonical/`` to GOA URL paths as specified in GOA API documentation.

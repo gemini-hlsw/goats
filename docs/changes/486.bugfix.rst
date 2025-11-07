@@ -1,0 +1,1 @@
+Fixed bug when downloaded folders of data from GOA. GOA now organizes data into structured folders, and the code now correctly handles this structure when downloading and processing the data.

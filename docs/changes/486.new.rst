@@ -1,0 +1,1 @@
+Added rotating log file to GOATS so users can keep track of operations over time and better report issues. Log files are stored in the main GOATS directory as "goats.log", with a maximum size of 50 MB and up to two backup files. The console logging remains for real-time feedback during execution.

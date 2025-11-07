@@ -1,6 +1,5 @@
 __all__ = ["GOAQueryFormView"]
 from django.contrib import messages
-from django.core import serializers
 from django.http import (
     HttpRequest,
     HttpResponse,
@@ -73,13 +72,9 @@ class GOAQueryFormView(View):
 
             query_params = form.cleaned_data["query_params"]
 
-            serialized_observation_record = serializers.serialize(
-                "json",
-                [observation_record],
-            )
             # Download in background.
             download_goa_files.send(
-                serialized_observation_record,
+                observation_record.id,
                 query_params,
                 request.user.id,
             )
