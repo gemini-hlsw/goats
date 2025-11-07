@@ -47,6 +47,8 @@ SITES = {
 
 ocs_client = OCSClient()
 
+
+
 class GEMObservationForm(BaseRoboticObservationForm):
     gpp_id = forms.CharField(required=True)
     observation_id = forms.CharField(required=True)
@@ -56,6 +58,7 @@ class GEMObservationForm(BaseRoboticObservationForm):
     cloud_extinction = forms.CharField(required=False)
     sky_background = forms.CharField(required=False)
     water_vapor = forms.CharField(required=False)
+    gpp_program_id = forms.CharField(required=False)
 
     # All FIELD_MAP keys are relative to `observing_parameters`, which is passed
     # directly as the `data` dict to this form. So do NOT prefix paths with
@@ -71,6 +74,7 @@ class GEMObservationForm(BaseRoboticObservationForm):
         "water_vapor": "constraintSet.waterVapor",
         "target_id": "target_id",
         "facility": "facility",
+        "gpp_program_id": "program.id",
     }
 
     FIELD_MAP = {}
