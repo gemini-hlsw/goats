@@ -67,5 +67,5 @@ jobs:
           draft: true # Set to true to create a draft release.
           prerelease: ${{ inputs.prerelease == 'true' }}
           body: |
-            See https://goats.readthedocs.io/en/v${{ inputs.version }}/project_details/changelog.html
+            See https://goats.readthedocs.io/en/${{ inputs.version }}/project_details/changelog.html
           generate_release_notes: true
