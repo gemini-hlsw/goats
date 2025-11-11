@@ -66,6 +66,12 @@ const SHARED_FIELDS = [
     id: "hiddenObservationId",
   },
   {
+    path: "reference.label",
+    element: "input",
+    type: "hidden",
+    id: "hiddenReferenceLabel",
+  },
+  {
     path: "targetEnvironment.firstScienceTarget.id",
     type: "hidden",
     element: "input",
@@ -99,7 +105,6 @@ const SHARED_FIELDS = [
     id: "workflowState",
     colSize: "col-12",
     element: "select",
-    readOnly: "normal",
     options: [
       { value: "READY", labelText: "Ready" },
       { value: "DEFINED", labelText: "Defined" },
@@ -170,7 +175,7 @@ const SHARED_FIELDS = [
     labelText: "Science Band",
     path: "scienceBand",
     colSize: "col-lg-6",
-    readOnly: "too",
+    readOnly: "both",
   },
   {
     labelText: "Observer Notes",

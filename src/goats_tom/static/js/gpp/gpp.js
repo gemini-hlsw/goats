@@ -60,9 +60,9 @@ class GPPModel {
   #gppUrl = "gpp/";
   #gppProgramsUrl = `${this.#gppUrl}programs/`;
   #gppObservationsUrl = `${this.#gppUrl}observations/`;
-  #gppToosUrl = `${this.#gppUrl}toos/`;
+  #gppSaveNormalObservationUrl = `${this.#gppObservationsUrl}save-only/`;
+  #gppCreateTooObservationUrl = `${this.#gppObservationsUrl}create-and-save/`;
   #gppPingUrl = `${this.#gppUrl}ping/`;
-  #observationsUrl = `observations/`;
 
   // Data-storing maps.
   #normalObservations = new Map();
@@ -124,7 +124,7 @@ class GPPModel {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
     return await this.#normalizeResponse(() =>
-      this.#api.post(this.#gppToosUrl, formData, {}, false)
+      this.#api.post(this.#gppCreateTooObservationUrl, formData, {}, false)
     );
   }
 
@@ -190,29 +190,12 @@ class GPPModel {
     }
   }
 
-  /**
-   * Submits an observation to the backend API.
-   * @param {Object} observation The observation object to save.
-   * @returns {Promise<{status: number, data: Object}>} A response object with status code and
-   * response data.
-   */
-  // FIXME: Update the right way
-  async saveObservation(observation) {
-    // User isn't needed.
-    const data = {
-      target_id: this.#targetId,
-      facility: this.#facility,
-      // Need to pass in the instrument to select the correct form.
-      observation_type: observation.instrument,
-      observing_parameters: observation,
-    };
-    try {
-      const response = await this.#api.post(this.#observationsUrl, data);
-      return { status: 200, data: response };
-    } catch (error) {
-      const data = await error.json();
-      return { status: data.status, data: data };
-    }
+  async saveNormalObservation(formData) {
+    // Append the target ID to the form data.
+    formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    return await this.#normalizeResponse(() =>
+      this.#api.post(this.#gppSaveNormalObservationUrl, formData, {}, false)
+    );
   }
 
   /**
@@ -684,7 +667,20 @@ class GPPController {
         </div>
       `,
       });
-    // Partial success case or failure but with structured messages.
+      // Success case but without structured messages.
+    } else if (status >= 200 && status < 300 && !isStructured) {
+      this.#modal.update({
+        title: "Observation Saved",
+        body: `
+      <div class="text-center">
+        <p class="fst-italic">The observation was saved, but the response format was unexpected.</p>
+        <pre class="bg-light p-3 rounded small text-wrap">
+          <code>${JSON.stringify(data, null, 2)}</code>
+        </pre>
+      </div>
+    `,
+      });
+      // Partial success case or failure but with structured messages.
     } else if (isStructured) {
       let observationId = data?.data?.newObservationId;
       this.#modal.update({
@@ -701,7 +697,7 @@ class GPPController {
         </div>
       `,
       });
-    // Failure case.
+      // Failure case.
     } else {
       this.#modal.update({
         title: `Request Failed (${status})`,
@@ -807,49 +803,107 @@ class GPPController {
     this.#view.render("tooObservationsLoaded");
   }
 
-  /**
-   * Handles the process of saving an observation and displaying a toast notification
-   * based on the result. Shows a warning if the observation has no reference,
-   * a success toast if saved successfully, or an error toast with details if it fails.
-   * @private
-   * @returns {Promise<void>} A promise that resolves when the operation is complete.
-   */
   async #saveObservation() {
-    const observation = this.#model.activeObservation;
+    // const observation = this.#model.activeObservation;
 
-    // Skip if no observation reference has been set aka null or undefined.
-    let notification = {};
-    if (observation?.reference?.label == null) {
-      notification = {
-        label: "Observation Not Saved",
-        message:
-          "Observation not saved, as no observation reference ID has been assigned.",
-        color: "warning",
-      };
-      this.#toast.show(notification);
+    const formData = this.#view.render("getFormData");
+
+    if (formData == null) {
+      this.#modal.show({
+        title: "Missing Form Data",
+        body: `
+          <div class="text-center">
+            <p class="fst-italic">No form data available to save observation to GOATS.</p>
+            <p>Please verify the observation form before submitting.</p>
+          </div>
+        `,
+        backdrop: "static",
+        dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+      });
+      // Don't refresh observations or disable buttons, just return.
       return;
     }
 
-    const response = await this.#model.saveObservation(observation);
+    // Show progress modal with spinner and message.
+    this.#modal.show({
+      title: "Saving Observation to GOATS",
+      body: `
+        <div class="text-center">
+          <div class="spinner-border mb-4" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="fst-italic">
+            Please wait while your observation is added to GOATS.
+          </p>
+          <p>
+            This process can take a few minutes. Do not refresh the page, close this modal, or use
+            the back or forward buttons until the operation completes.
+          </p>
+        </div>
+      `,
+      backdrop: "static",
+      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+    });
 
-    if (response.status === 200) {
-      notification = {
-        label: "Observation Saved Successfully",
-        message: `Observation ID ${observation.reference.label} has been saved to GOATS.`,
-        color: "success",
-      };
+    // Attempt to save the observation.
+    const { status, data } = await this.#model.saveNormalObservation(formData);
+    const isStructured = data?.messages && Array.isArray(data.messages);
+
+    // Update the modal based on the result.
+    // Success case.
+    if (status >= 200 && status < 300 && isStructured) {
+      let observationId = data?.data?.newObservationId;
+      this.#modal.update({
+        title: "Observation Saved to GOATS",
+        body: `
+        <div class="text-center">
+          <p class="fst-italic">Your observation has been successfully saved.</p>
+          ${this.renderMessageTable(data.messages)}
+        </div>
+      `,
+      });
+      // Success case but without structured messages.
+    } else if (status >= 200 && status < 300 && !isStructured) {
+      this.#modal.update({
+        title: "Observation Saved",
+        body: `
+      <div class="text-center">
+        <p class="fst-italic">The observation was saved, but the response format was unexpected.</p>
+        <pre class="bg-light p-3 rounded small text-wrap">
+          <code>${JSON.stringify(data, null, 2)}</code>
+        </pre>
+      </div>
+    `,
+      });
+      // Partial success case or failure but with structured messages.
+    } else if (isStructured) {
+      this.#modal.update({
+        title: "Observation Result",
+        body: `
+        <div class="text-center">
+          <p>The observation request was processed with status: ${data.status}.</p>
+          ${this.renderMessageTable(data.messages)}
+        </div>
+      `,
+      });
+      // Failure case.
     } else {
-      // Gracefully extract and format error messages.
-      const errorMessages = Object.values(response.data).flat().join(" ");
-
-      notification = {
-        label: "Observation Not Saved",
-        message:
-          errorMessages || "An unknown error occurred while saving the observation.",
-        color: "danger",
-      };
+      this.#modal.update({
+        title: `Request Failed (${status})`,
+        body: `
+        <div class="text-center">
+          <p class="fst-italic">An error occurred while saving the observation.</p>
+          <pre class="bg-light p-3 rounded small text-wrap">
+            <code>${JSON.stringify(data, null, 2)}</code>
+          </pre>
+        </div>
+      `,
+      });
     }
-    this.#toast.show(notification);
+
+    // Finally, refresh the observations list.
+    const programId = this.#model.activeProgram.id;
+    await this.#resetAndUpdateObservations(programId);
   }
 
   /**

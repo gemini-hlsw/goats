@@ -3,12 +3,12 @@ from rest_framework.exceptions import ValidationError
 from tom_targets.models import BaseTarget
 from tom_targets.tests.factories import SiderealTargetFactory
 
-from goats_tom.serializers.gpp.create_too import CreateTooSerializer
+from goats_tom.serializers.gpp.context import ContextSerializer
 
 
 @pytest.mark.django_db
-class TestCreateTooSerializer:
-    """Tests for CreateTooSerializer."""
+class TestContextSerializer:
+    """Tests for ContextSerializer."""
 
     @pytest.fixture
     def target(self) -> BaseTarget:
@@ -22,9 +22,11 @@ class TestCreateTooSerializer:
             "hiddenTargetIdInput": "gpp-target-123",
             "hiddenObservationIdInput": "gpp-observation-456",
             "hiddenObservingModeInput": "GMOS_NORTH_LONG_SLIT",
+            "hiddenProgramIdInput": "GPP-2024A-001",
+            "hiddenReferenceLabelInput": "Test Observation",
         }
 
-        serializer = CreateTooSerializer(data=data)
+        serializer = ContextSerializer(data=data)
         assert serializer.is_valid(), f"Unexpected errors: {serializer.errors}"
 
         assert serializer.goats_target == target
@@ -63,7 +65,7 @@ class TestCreateTooSerializer:
     )
     def test_invalid_data(self, invalid_data: dict, missing_field: str) -> None:
         """Test that serializer rejects missing or invalid required fields."""
-        serializer = CreateTooSerializer(data=invalid_data)
+        serializer = ContextSerializer(data=invalid_data)
         assert not serializer.is_valid(), "Serializer should fail validation."
         assert missing_field in serializer.errors, (
             f"Missing expected error for '{missing_field}'"
@@ -77,6 +79,6 @@ class TestCreateTooSerializer:
             "hiddenObservationIdInput": "gpp-observation-999",
         }
 
-        serializer = CreateTooSerializer(data=data)
+        serializer = ContextSerializer(data=data)
         with pytest.raises(ValidationError):
             serializer.is_valid(raise_exception=True)
