@@ -852,7 +852,6 @@ class GPPController {
     // Update the modal based on the result.
     // Success case.
     if (status >= 200 && status < 300 && isStructured) {
-      let observationId = data?.data?.newObservationId;
       this.#modal.update({
         title: "Observation Saved to GOATS",
         body: `

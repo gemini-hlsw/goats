@@ -327,7 +327,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         except Exception as e:
             return build_failure_response(Stage.VALIDATION, e, messages)
 
-        # Save the created observation to GOATS database.
+        # Save the existing observation to GOATS database.
         logger.debug("Creating GOATS observation record")
         try:
             tom_response = self._create_goats_observation(

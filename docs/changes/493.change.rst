@@ -1,0 +1,1 @@
+Enabled saving existing GPP observations to the GOATS database. This update consolidated Target of Opportunity functionality into the main ``GPPObservationViewSet`` with new action-based endpoints for creating, saving, and updating observations.
