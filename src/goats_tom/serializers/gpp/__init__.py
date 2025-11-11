@@ -1,5 +1,5 @@
 from .constraint_set import ConstraintSetSerializer
-from .create_too import CreateTooSerializer
+from .context import ContextSerializer
 from .elevation_range import ElevationRangeSerializer
 from .exposure_mode import ExposureModeSerializer
 from .observation import ObservationSerializer
@@ -18,7 +18,7 @@ __all__ = [
     "SiderealSerializer",
     "ObservingModeSerializer",
     "TargetSerializer",
-    "CreateTooSerializer",
+    "ContextSerializer",
     "PosAngleSerializer",
     "ConstraintSetSerializer",
     "ObservationSerializer",

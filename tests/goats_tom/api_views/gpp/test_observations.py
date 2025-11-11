@@ -14,16 +14,31 @@ class TestGPPObservationViewSet:
         self.viewset = GPPObservationViewSet()
         self.list_view = GPPObservationViewSet.as_view({'get': 'list'})
         self.retrieve_view = GPPObservationViewSet.as_view({'get': 'retrieve'})
+        self.create_and_save_view = GPPObservationViewSet.as_view(
+            {"post": "create_and_save_observation"}
+        )
 
         self.observation_id = "o-23e1"
         self.observation_data = {"observation_id": self.observation_id, "name": "m27"}
         self.observations_url = "/api/gpp/observations/"
         self.observation_detail_url = f"/api/gpp/observations/{self.observation_id}/"
+        self.observation_save_only_url = f"{self.observations_url}save-only/"
+        self.observation_create_and_save_url = f"{self.observations_url}create-and-save/"
+        self.observation_update_and_save_url = f"{self.observations_url}update-and-save/"
 
         # Setup users.
         self.user_with_login = UserFactory()
         GPPLoginFactory(user=self.user_with_login)
         self.user_without_login = UserFactory()
+
+    def test_create_and_save_missing_gpplogin(self) -> None:
+        """Return 400 if the user has no GPP credentials."""
+        request = self.factory.post(self.observation_create_and_save_url, {})
+        force_authenticate(request, user=self.user_without_login)
+
+        response = self.create_and_save_view(request)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_list_observations_success(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
