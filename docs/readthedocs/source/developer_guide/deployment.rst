@@ -37,16 +37,15 @@ Preparing Conda Feedstock
       git clone https://github.com/gemini-hlsw/goats-infra.git
       cd goats-infra
 
-2. Run the release SHA script to retrieve the version and checksum:
+2. Run the script to update the version and checksum:
 
    .. code-block:: bash
 
-      python get_release_sha.py
+      python update_release_sha.py
 
-33. Open ``goats-feedstock/recipe/meta.yaml`` and update:
+3.  Open ``goats-feedstock/recipe/meta.yaml`` and update:
 
-   - ``{% set version = "..." %}`` to the new release version.
-   - ``source.sha256`` to the generated SHA256 value.
+   - The ``version`` and ``sha256`` fields will be updated automatically by the script.
    - Dependencies under ``host:`` and ``run:`` to reflect any new or removed packages:
 
      - Use the ``pyproject.toml`` from the GOATS project version being released to determine the correct dependencies.
@@ -55,7 +54,7 @@ Preparing Conda Feedstock
      - Update versions for any changed libraries.
 
 
-34. Commit and push the changes:
+4.  Commit and push the changes:
 
    .. code-block:: bash
 
@@ -125,20 +124,19 @@ This walkthrough documents the process used to publish version ``25.11.3`` of GO
       git clone https://github.com/gemini-hlsw/goats-infra.git
       cd goats-infra
 
-3. **Generated the SHA256 and version from the GitHub release**:
+3. **Update the SHA256 and version from the GitHub release**:
 
    .. code-block:: bash
 
-      python get_release_sha.py
+      python update_release_sha.py
 
-   - This printed the ``version`` and the release ``sha256``.
+   - This updates the ``version`` and the release ``sha256``.
 
 4. **Updated the feedstock metadata**:
 
    - Edited ``goats-feedstock/recipe/meta.yaml``:
 
-     - Set ``version = "25.11.3"``.
-     - Set ``source.sha256`` to the generated hash.
+     - The script updates the ``version`` and ``sha256`` automatically.
      - Verified all ``host:`` and ``run:`` dependencies against the ``pyproject.toml`` of the release.
 
    .. figure:: _images/25.11.3-diff.png
