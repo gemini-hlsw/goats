@@ -1,0 +1,1 @@
+Updated documentation to reflect that the version and sha256 are updated automatically by the script in ``goats-infra/update_release_sha.py``.
