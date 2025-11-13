@@ -18,6 +18,7 @@ from goats_tom.views.logins import (
 from goats_tom.views.observation_record_delete import ObservationRecordDeleteView
 from goats_tom.views.observation_record_detail import ObservationRecordDetailView
 from goats_tom.views.observation_template_create import ObservationTemplateCreateView
+from goats_tom.views.status import status_view
 from goats_tom.views.target_delete import TargetDeleteView
 from goats_tom.views.target_detail import TargetDetailView
 from goats_tom.views.tasks import ongoing_tasks
@@ -44,4 +45,5 @@ __all__ = [
     "TargetDetailView",
     "ObservationTemplateCreateView",
     "TNSLoginView",
+    "status_view",
 ]

@@ -1,0 +1,32 @@
+{% extends "tom_common/base.html" %}
+{% load static %} {% csrf_token%}
+
+{% block content %}
+<div class="container my-4">
+  <p class="h2">Service Status Dashboard</p>
+  <p class="">Check the real-time status of backend services used by this application.</p>
+  <div class="mb-3">
+    <small>
+      <strong>Status Legend:</strong>
+      <span class="text-success">● </span> OK
+      <span class="text-warning">● </span> Warning
+      <span class="text-danger">● </span> Down
+    </small>
+  </div>
+  <hr>
+  <div id="statusContainer"></div>
+</div>
+{% endblock %}
+{% block javascript %}
+{{ block.super }}
+<script src="{% static 'js/status_dashboard.js' %}"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const panel = new StatusDashboard(document.getElementById("statusContainer"), {
+      debug: true,
+    });
+  });
+</script>
+{% endblock %}
+
+

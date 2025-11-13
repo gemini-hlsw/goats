@@ -206,6 +206,23 @@ body {
   min-height: 100vh;
 }
 
+.status-light {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.status-loading {
+  animation: pulse 1s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
 .banner {
   grid-row: 1;
 }
