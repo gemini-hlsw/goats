@@ -191,6 +191,13 @@ class GPPModel {
     }
   }
 
+  /**
+   * Updates and saves a normal observation for the current target.
+   *
+   * @async
+   * @param {FormData} formData - The form data containing observation details.
+   * @returns {Promise<Object>} The normalized response from the API.
+   */
   async updateAndSaveNormalObservation(formData) {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
@@ -608,6 +615,12 @@ class GPPController {
     );
   }
 
+  /**
+   * Updates a normal observation in GPP and saves it to GOATS.
+   * Shows progress and result modals, and refreshes the observations list.
+   * @returns {Promise<void>}
+   * @private
+   */
   async #updateAndSaveNormalObservation() {
     const formData = this.#view.render("getFormData");
 
@@ -680,6 +693,17 @@ class GPPController {
     await this.#resetAndUpdateObservations(programId);
   }
 
+  /**
+   * Handles the response from an observation creation or update request.
+   * Updates the modal with appropriate messages based on the response status and data.
+   * @param {string} titleSuccess - Title to display on success.
+   * @param {number} status - HTTP status code from the response.
+   * @param {Object} data - Response data object, may contain messages.
+   * @param {string} fallbackTitle - Title to display on failure or unexpected result.
+   * @param {?string} [id=null] - Optional observation ID to display.
+   * @returns {void}
+   * @private
+   */
   #handleObservationResponse(titleSuccess, status, data, fallbackTitle, id = null) {
     const isStructured = data?.messages && Array.isArray(data.messages);
 
@@ -732,6 +756,13 @@ class GPPController {
     }
   }
 
+  /**
+   * Shows a modal indicating that the observation form is missing or incomplete.
+   * @param {string} title - The title to display in the modal.
+   * @param {string} subtitle - The subtitle to display in the modal.
+   * @returns {void}
+   * @private
+   */
   #showMissingFormModal(title, subtitle) {
     this.#modal.show({
       title,
@@ -746,6 +777,13 @@ class GPPController {
     });
   }
 
+  /**
+   * Shows a modal dialog indicating that a process is in progress.
+   * @private
+   * @param {string} title - The title to display in the modal.
+   * @param {string} subtitle - The subtitle or message to display below the spinner.
+   * @returns {void}
+   */
   #showProgressModal(title, subtitle) {
     this.#modal.show({
       title,

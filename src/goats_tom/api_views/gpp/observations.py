@@ -579,7 +579,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 )
             )
 
-        # Save the created observation to GOATS database.
+        # Save the updated observation to GOATS database.
         logger.debug("Creating GOATS observation record")
         formatted_observation = context_serializer.format_observation()
         try:
