@@ -12,7 +12,9 @@ from asgiref.sync import async_to_sync
 from django.conf import settings
 from gpp_client import GPPClient, GPPDirector
 from gpp_client.api.enums import ObservationWorkflowState
-from gpp_client.api.input_types import TargetEnvironmentInput
+from gpp_client.api.input_types import (
+    TargetEnvironmentInput,
+)
 from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.request import Request
@@ -39,7 +41,9 @@ class Stage(str, Enum):
     NORMALIZATION = "Data Normalization"
     VALIDATION = "Data Validation"
     CREATE_TARGET = "Create Sidereal Target"
+    UPDATE_TARGET = "Update Sidereal Target"
     CREATE_OBSERVATION = "Create Observation"
+    UPDATE_OBSERVATION = "Update Observation"
     UPDATE_WORKFLOW_STATE = "Update Workflow State"
     GOATS_OBSERVATION_SAVE = "Save Observation in GOATS"
 
@@ -119,6 +123,23 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
     serializer_class = None
     permission_classes = [permissions.IsAuthenticated]
     queryset = None
+
+    def _normalize_form_data(self, request: Request) -> dict[str, Any]:
+        """
+        Normalize form data by stripping whitespace and converting empty strings to
+        ``None``.
+
+        Parameters
+        ----------
+        request : Request
+            The HTTP request object containing form data.
+
+        Returns
+        -------
+        dict[str, Any]
+            The normalized form data.
+        """
+        return {key: self._normalize(value) for key, value in request.data.items()}
 
     def _normalize(self, value: str | None) -> str | None:
         """
@@ -292,9 +313,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         data: dict[str, Any] = {}
         logger.info("Saving GPP observation to GOATS database")
         try:
-            normalized_data = {
-                key: self._normalize(value) for key, value in request.data.items()
-            }
+            normalized_data = self._normalize_form_data(request)
         except Exception as e:
             return build_failure_response(
                 stage=Stage.NORMALIZATION, error=e, previous_messages=messages
@@ -378,10 +397,221 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             A DRF Response object containing the details of the updated and saved
             observation.
         """
-        return Response(
-            {"detail": "Update and save observation functionality is not implemented."},
-            status=status.HTTP_501_NOT_IMPLEMENTED,
+        messages: list[StageMessage] = []
+        data: dict[str, Any] = {}
+
+        logger.info(
+            "Updating observation on GPP and saving observation to GOATS database"
         )
+
+        # Ensure the user has GPP credentials.
+        if not hasattr(request.user, "gpplogin"):
+            return build_failure_response(
+                stage=Stage.CREDENTIALS_CHECK,
+                error="GPP login credentials are not configured for this user.",
+                previous_messages=messages,
+            )
+        credentials = request.user.gpplogin
+
+        messages.append(
+            StageMessage(
+                stage=Stage.CREDENTIALS_CHECK,
+                status=MessageStatus.SUCCESS,
+                message="GPP credentials verified.",
+            )
+        )
+
+        logger.debug("Normalizing form data for GPP observation update")
+        try:
+            normalized_data = self._normalize_form_data(request)
+        except Exception as e:
+            return build_failure_response(
+                stage=Stage.NORMALIZATION, error=e, previous_messages=messages
+            )
+        messages.append(
+            StageMessage(
+                stage=Stage.NORMALIZATION,
+                status=MessageStatus.SUCCESS,
+                message="Form data normalized successfully.",
+            )
+        )
+
+        logger.debug("Serializing data for GPP observation update")
+        try:
+            # Setup client to communicate with GPP.
+            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+
+            # Validate and extract required IDs for observation update.
+            context_serializer = ContextSerializer(data=normalized_data)
+            context_serializer.is_valid(raise_exception=True)
+            gpp_target_id = context_serializer.gpp_target_id
+            gpp_observation_id = context_serializer.gpp_observation_id
+            goats_target = context_serializer.goats_target
+            instrument = context_serializer.instrument
+
+            # Serialize and validate target.
+            target_serializer = TargetSerializer(data=normalized_data)
+            target_serializer.is_valid(raise_exception=True)
+            target_properties = target_serializer.to_pydantic()
+            target_properties.name = goats_target.name
+
+            # Serialize and validate observation.
+            observation_serializer = ObservationSerializer(data=normalized_data)
+            observation_serializer.is_valid(raise_exception=True)
+            observation_properties = observation_serializer.to_pydantic()
+
+            # Set subtitle to a GOATS identifier for easier tracking.
+            try:
+                subtitle = f"GOATS:{get_goats_version()}"
+            except Exception:
+                subtitle = "GOATS"
+            observation_properties.subtitle = subtitle
+
+            # Serialize and validate workflow state.
+            workflow_state_serializer = WorkflowStateSerializer(data=normalized_data)
+            workflow_state_serializer.is_valid(raise_exception=True)
+            workflow_state = workflow_state_serializer.workflow_state_enum
+
+            messages.append(
+                StageMessage(
+                    stage=Stage.VALIDATION,
+                    status=MessageStatus.SUCCESS,
+                    message="All serializers validated successfully.",
+                )
+            )
+
+        except Exception as e:
+            return build_failure_response(Stage.VALIDATION, e, messages)
+
+        # Update target.
+        logger.debug("Updating sidereal target in GPP")
+        try:
+            update_target_result = async_to_sync(client.target.update_by_id)(
+                target_id=gpp_target_id, properties=target_properties
+            )
+            updated_target_id = update_target_result.get("id")
+
+            if updated_target_id is None:
+                raise ValueError(
+                    "Failed to retrieve updated target ID from update result."
+                )
+
+            data["updatedTargetId"] = updated_target_id
+            messages.append(
+                StageMessage(
+                    stage=Stage.UPDATE_TARGET,
+                    status=MessageStatus.SUCCESS,
+                    message=f"Target updated successfully as {updated_target_id}.",
+                )
+            )
+
+        except Exception as e:
+            # Continue to observation update even if target update fails.
+            messages.append(
+                StageMessage(
+                    stage=Stage.UPDATE_TARGET,
+                    status=MessageStatus.ERROR,
+                    message=str(e),
+                )
+            )
+
+        # Update observation.
+        logger.debug("Updating observation in GPP")
+        logger.debug(observation_properties)
+        logger.debug("GPP Observation ID: %s", gpp_observation_id)
+        try:
+            # where = WhereObservation(id=WhereOrderObservationId
+            # (eq=gpp_observation_id))
+            update_observation_result = async_to_sync(client.observation.update_by_id)(
+                observation_id=gpp_observation_id, properties=observation_properties
+            )
+            updated_observation_id = update_observation_result.get("id")
+
+            if updated_observation_id is None:
+                raise ValueError(
+                    "Failed to retrieve updated observation ID from update result."
+                )
+
+            data["updatedObservationId"] = updated_observation_id
+            messages.append(
+                StageMessage(
+                    stage=Stage.UPDATE_OBSERVATION,
+                    status=MessageStatus.SUCCESS,
+                    message=(
+                        f"Observation updated successfully as {updated_observation_id}."
+                    ),
+                )
+            )
+
+        except Exception as e:
+            # Continue to workflow state update even if observation update fails.
+            messages.append(
+                StageMessage(
+                    stage=Stage.UPDATE_OBSERVATION,
+                    status=MessageStatus.ERROR,
+                    message=str(e),
+                )
+            )
+
+        # Set workflow state.
+        logger.debug("Setting workflow state for updated GPP observation")
+        try:
+            new_workflow_state = self._set_workflow_state_with_retry(
+                client=client,
+                observation_id=gpp_observation_id,
+                workflow_state=workflow_state,
+            )
+            messages.append(
+                StageMessage(
+                    stage=Stage.UPDATE_WORKFLOW_STATE,
+                    status=MessageStatus.SUCCESS,
+                    message=f"Workflow state set to {new_workflow_state['state']}.",
+                )
+            )
+
+        except Exception as e:
+            # Continue to saving observation even if workflow state update fails.
+            messages.append(
+                StageMessage(
+                    stage=Stage.UPDATE_WORKFLOW_STATE,
+                    status=MessageStatus.ERROR,
+                    message=str(e),
+                )
+            )
+
+        # Save the created observation to GOATS database.
+        logger.debug("Creating GOATS observation record")
+        formatted_observation = context_serializer.format_observation()
+        try:
+            tom_response = self._create_goats_observation(
+                request=request,
+                target_id=goats_target.id,
+                instrument=instrument,
+                observation=formatted_observation,
+            )
+
+            if tom_response.status_code != status.HTTP_201_CREATED:
+                raise ValueError(tom_response.data)
+
+            data["goatsObservation"] = tom_response.data
+            messages.append(
+                StageMessage(
+                    stage=Stage.GOATS_OBSERVATION_SAVE,
+                    status=MessageStatus.SUCCESS,
+                    message="Observation saved to GOATS database successfully.",
+                )
+            )
+
+        except Exception as e:
+            messages.append(
+                StageMessage(
+                    stage=Stage.GOATS_OBSERVATION_SAVE,
+                    status=MessageStatus.ERROR,
+                    message=f"Failed to save observation to GOATS database: {str(e)}",
+                )
+            )
+
+        return self._build_structured_response(messages=messages, data=data)
 
     @action(detail=False, methods=["post"], url_path="create-and-save")
     def create_and_save_observation(
@@ -430,9 +660,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
 
         logger.debug("Normalizing form data for GPP observation creation")
         try:
-            normalized_data = {
-                key: self._normalize(value) for key, value in request.data.items()
-            }
+            normalized_data = self._normalize_form_data(request)
         except Exception as e:
             return build_failure_response(
                 stage=Stage.NORMALIZATION, error=e, previous_messages=messages
@@ -734,6 +962,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
 
         # Dispatch request to TOM view.
         view = ObservationRecordViewSet.as_view({"post": "create"})
+        print(view)
         return view(internal_request)
 
     def _build_structured_response(

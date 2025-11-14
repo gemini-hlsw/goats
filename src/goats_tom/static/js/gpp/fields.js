@@ -269,7 +269,7 @@ const SHARED_FIELDS = [
       { labelText: "Allow 180° Flip", value: "ALLOW_180_FLIP" },
       { labelText: "Average Parallactic", value: "AVERAGE_PARALLACTIC" },
       { labelText: "Parallactic Override", value: "PARALLACTIC_OVERRIDE" },
-      { labelText: "Unconstrained", value: "UNCONSTRAINED" },
+      { labelText: "Unbounded", value: "UNBOUNDED" },
     ],
     element: "select",
     value: "FIXED",
