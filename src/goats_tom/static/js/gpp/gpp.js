@@ -62,6 +62,7 @@ class GPPModel {
   #gppObservationsUrl = `${this.#gppUrl}observations/`;
   #gppSaveNormalObservationUrl = `${this.#gppObservationsUrl}save-only/`;
   #gppCreateTooObservationUrl = `${this.#gppObservationsUrl}create-and-save/`;
+  #gppUpdateNormalObservationUrl = `${this.#gppObservationsUrl}update-and-save/`;
   #gppPingUrl = `${this.#gppUrl}ping/`;
 
   // Data-storing maps.
@@ -188,6 +189,21 @@ class GPPModel {
     } catch (error) {
       console.error("Error fetching programs:", error);
     }
+  }
+
+  /**
+   * Updates and saves a normal observation for the current target.
+   *
+   * @async
+   * @param {FormData} formData - The form data containing observation details.
+   * @returns {Promise<Object>} The normalized response from the API.
+   */
+  async updateAndSaveNormalObservation(formData) {
+    // Append the target ID to the form data.
+    formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    return await this.#normalizeResponse(() =>
+      this.#api.post(this.#gppUpdateNormalObservationUrl, formData, {}, false)
+    );
   }
 
   async saveNormalObservation(formData) {
@@ -586,7 +602,7 @@ class GPPController {
       this.#selectNormalObservation(item.observationId);
     });
     this.#view.bindCallback("updateObservation", () => {
-      console.log("Controller got the update observation.");
+      this.#updateAndSaveNormalObservation();
     });
     this.#view.bindCallback("saveObservation", () => this.#saveObservation());
 
@@ -600,6 +616,45 @@ class GPPController {
   }
 
   /**
+   * Updates a normal observation in GPP and saves it to GOATS.
+   * Shows progress and result modals, and refreshes the observations list.
+   * @returns {Promise<void>}
+   * @private
+   */
+  async #updateAndSaveNormalObservation() {
+    const formData = this.#view.render("getFormData");
+
+    if (formData == null) {
+      this.#showMissingFormModal(
+        "Missing Form Data",
+        "No form data available to update on GPP and save an observation."
+      );
+      // Don't refresh observations or disable buttons, just return.
+      return;
+    }
+
+    // Show progress modal with spinner and message.
+    this.#showProgressModal(
+      "Updating and Saving Observation",
+      "Please wait while your observation is updated in GPP and saved to GOATS."
+    );
+
+    // Attempt to update the normal observation.
+    const { status, data } = await this.#model.updateAndSaveNormalObservation(formData);
+
+    this.#handleObservationResponse(
+      "Observation Updated and Saved",
+      status,
+      data,
+      "Observation Update and Save Result"
+    );
+
+    // Finally, refresh the observations list.
+    const programId = this.#model.activeProgram.id;
+    await this.#resetAndUpdateObservations(programId);
+  }
+
+  /**
    * Creates and saves a new ToO observation.
    * Uses ModalManager to show progress and results.
    * @returns {Promise<void>} A promise that resolves when the operation is complete.
@@ -609,101 +664,89 @@ class GPPController {
     const formData = this.#view.render("getFormData");
 
     if (formData == null) {
-      this.#modal.show({
-        title: "Missing Form Data",
-        body: `
-          <div class="text-center">
-            <p class="fst-italic">No form data available to create a new ToO observation.</p>
-            <p>Please fill out the observation form before submitting.</p>
-          </div>
-        `,
-        backdrop: "static",
-        dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
-      });
+      this.#showMissingFormModal(
+        "Missing Form Data",
+        "No form data available to create a new observation."
+      );
       // Don't refresh observations or disable buttons, just return.
       return;
     }
 
     // Show progress modal with spinner and message.
-    this.#modal.show({
-      title: "Creating ToO Observation",
-      body: `
-        <div class="text-center">
-          <div class="spinner-border mb-4" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
-          <p class="fst-italic">
-            Please wait while your observation is created in GPP and added to GOATS.
-          </p>
-          <p>
-            This process can take a few minutes. Do not refresh the page, close this modal, or use
-            the back or forward buttons until the operation completes.
-          </p>
-        </div>
-      `,
-      backdrop: "static",
-      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
-    });
+    this.#showProgressModal(
+      "Creating Observation",
+      "Please wait while your observation is created in GPP and added to GOATS."
+    );
 
     // Attempt to create the ToO observation.
     const { status, data } = await this.#model.createTooObservation(formData);
+
+    this.#handleObservationResponse(
+      "Observation Created and Saved",
+      status,
+      data,
+      "Observation Creation and Saved Result"
+    );
+
+    // Finally, refresh the observations list.
+    const programId = this.#model.activeProgram.id;
+    await this.#resetAndUpdateObservations(programId);
+  }
+
+  /**
+   * Handles the response from an observation creation or update request.
+   * Updates the modal with appropriate messages based on the response status and data.
+   * @param {string} titleSuccess - Title to display on success.
+   * @param {number} status - HTTP status code from the response.
+   * @param {Object} data - Response data object, may contain messages.
+   * @param {string} fallbackTitle - Title to display on failure or unexpected result.
+   * @param {?string} [id=null] - Optional observation ID to display.
+   * @returns {void}
+   * @private
+   */
+  #handleObservationResponse(titleSuccess, status, data, fallbackTitle, id = null) {
     const isStructured = data?.messages && Array.isArray(data.messages);
 
-    // Update the modal based on the result.
-    // Success case.
     if (status >= 200 && status < 300 && isStructured) {
-      let observationId = data?.data?.newObservationId;
       this.#modal.update({
-        title: "ToO Observation Created",
+        title: titleSuccess,
         body: `
         <div class="text-center">
-          <p class="fst-italic">Your observation has been successfully created.</p>
-          ${
-            observationId
-              ? `<p><strong>Observation ID:</strong> ${observationId}</p>`
-              : ""
-          }
+          <p class="fst-italic">Your observation has been successfully processed.</p>
+          ${id ? `<p><strong>Observation ID:</strong> ${id}</p>` : ""}
           ${this.renderMessageTable(data.messages)}
         </div>
       `,
       });
-      // Success case but without structured messages.
-    } else if (status >= 200 && status < 300 && !isStructured) {
+    } else if (status >= 200 && status < 300) {
       this.#modal.update({
-        title: "Observation Saved",
+        title: titleSuccess,
         body: `
-      <div class="text-center">
-        <p class="fst-italic">The observation was saved, but the response format was unexpected.</p>
-        <pre class="bg-light p-3 rounded small text-wrap">
-          <code>${JSON.stringify(data, null, 2)}</code>
-        </pre>
-      </div>
-    `,
+        <div class="text-center">
+          <p class="fst-italic">The operation succeeded, but the response format was unexpected.</p>
+          <pre class="bg-light p-3 rounded small text-wrap">
+            <code>${JSON.stringify(data, null, 2)}</code>
+          </pre>
+        </div>
+      `,
       });
-      // Partial success case or failure but with structured messages.
     } else if (isStructured) {
-      let observationId = data?.data?.newObservationId;
       this.#modal.update({
-        title: `ToO Observation Result`,
+        title: fallbackTitle,
         body: `
         <div class="text-center">
-          <p>The observation request was processed with status: ${data.status}.</p>
-          ${
-            observationId
-              ? `<p><strong>Observation ID:</strong> ${observationId}</p>`
-              : ""
-          }
+          <p>The request was processed with status: ${data.status}.</p>
+          ${id ? `<p><strong>Observation ID:</strong> ${id}</p>` : ""}
           ${this.renderMessageTable(data.messages)}
         </div>
       `,
       });
-      // Failure case.
     } else {
       this.#modal.update({
         title: `Request Failed (${status})`,
         body: `
         <div class="text-center">
-          <p class="fst-italic">An error occurred while creating the observation.</p>
+          <p class="fst-italic">An error occurred.</p>
           <pre class="bg-light p-3 rounded small text-wrap">
             <code>${JSON.stringify(data, null, 2)}</code>
           </pre>
@@ -711,10 +754,51 @@ class GPPController {
       `,
       });
     }
+  }
 
-    // Finally, refresh the observations list.
-    const programId = this.#model.activeProgram.id;
-    await this.#resetAndUpdateObservations(programId);
+  /**
+   * Shows a modal indicating that the observation form is missing or incomplete.
+   * @param {string} title - The title to display in the modal.
+   * @param {string} subtitle - The subtitle to display in the modal.
+   * @returns {void}
+   * @private
+   */
+  #showMissingFormModal(title, subtitle) {
+    this.#modal.show({
+      title,
+      body: `
+      <div class="text-center">
+        <p class="fst-italic">${subtitle}</p>
+        <p>Please fill out the observation form before submitting.</p>
+      </div>
+    `,
+      backdrop: "static",
+      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+    });
+  }
+
+  /**
+   * Shows a modal dialog indicating that a process is in progress.
+   * @private
+   * @param {string} title - The title to display in the modal.
+   * @param {string} subtitle - The subtitle or message to display below the spinner.
+   * @returns {void}
+   */
+  #showProgressModal(title, subtitle) {
+    this.#modal.show({
+      title,
+      body: `
+      <div class="text-center">
+        <div class="spinner-border mb-4" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="fst-italic">${subtitle}</p>
+        <p>This process can take a few minutes. Do not refresh the page, close this modal, or use the back or forward buttons until the operation completes.</p>
+      </div>
+    `,
+      backdrop: "static",
+      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+    });
   }
 
   /**
@@ -809,96 +893,29 @@ class GPPController {
     const formData = this.#view.render("getFormData");
 
     if (formData == null) {
-      this.#modal.show({
-        title: "Missing Form Data",
-        body: `
-          <div class="text-center">
-            <p class="fst-italic">No form data available to save observation to GOATS.</p>
-            <p>Please verify the observation form before submitting.</p>
-          </div>
-        `,
-        backdrop: "static",
-        dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
-      });
+      this.#showMissingFormModal(
+        "Missing Form Data",
+        "No form data available to save observation to GOATS."
+      );
       // Don't refresh observations or disable buttons, just return.
       return;
     }
 
     // Show progress modal with spinner and message.
-    this.#modal.show({
-      title: "Saving Observation to GOATS",
-      body: `
-        <div class="text-center">
-          <div class="spinner-border mb-4" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
-          <p class="fst-italic">
-            Please wait while your observation is added to GOATS.
-          </p>
-          <p>
-            This process can take a few minutes. Do not refresh the page, close this modal, or use
-            the back or forward buttons until the operation completes.
-          </p>
-        </div>
-      `,
-      backdrop: "static",
-      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
-    });
+    this.#showProgressModal(
+      "Saving Observation to GOATS",
+      "Please wait while your observation is added to GOATS."
+    );
 
     // Attempt to save the observation.
     const { status, data } = await this.#model.saveNormalObservation(formData);
-    const isStructured = data?.messages && Array.isArray(data.messages);
 
-    // Update the modal based on the result.
-    // Success case.
-    if (status >= 200 && status < 300 && isStructured) {
-      this.#modal.update({
-        title: "Observation Saved to GOATS",
-        body: `
-        <div class="text-center">
-          <p class="fst-italic">Your observation has been successfully saved.</p>
-          ${this.renderMessageTable(data.messages)}
-        </div>
-      `,
-      });
-      // Success case but without structured messages.
-    } else if (status >= 200 && status < 300 && !isStructured) {
-      this.#modal.update({
-        title: "Observation Saved",
-        body: `
-      <div class="text-center">
-        <p class="fst-italic">The observation was saved, but the response format was unexpected.</p>
-        <pre class="bg-light p-3 rounded small text-wrap">
-          <code>${JSON.stringify(data, null, 2)}</code>
-        </pre>
-      </div>
-    `,
-      });
-      // Partial success case or failure but with structured messages.
-    } else if (isStructured) {
-      this.#modal.update({
-        title: "Observation Result",
-        body: `
-        <div class="text-center">
-          <p>The observation request was processed with status: ${data.status}.</p>
-          ${this.renderMessageTable(data.messages)}
-        </div>
-      `,
-      });
-      // Failure case.
-    } else {
-      this.#modal.update({
-        title: `Request Failed (${status})`,
-        body: `
-        <div class="text-center">
-          <p class="fst-italic">An error occurred while saving the observation.</p>
-          <pre class="bg-light p-3 rounded small text-wrap">
-            <code>${JSON.stringify(data, null, 2)}</code>
-          </pre>
-        </div>
-      `,
-      });
-    }
+    this.#handleObservationResponse(
+      "Observation Saved to GOATS",
+      status,
+      data,
+      "Observation Result"
+    );
 
     // Finally, refresh the observations list.
     const programId = this.#model.activeProgram.id;
