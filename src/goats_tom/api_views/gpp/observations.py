@@ -962,7 +962,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
 
         # Dispatch request to TOM view.
         view = ObservationRecordViewSet.as_view({"post": "create"})
-        print(view)
         return view(internal_request)
 
     def _build_structured_response(
