@@ -13,6 +13,7 @@ from .gpp import GPPObservationViewSet, GPPProgramViewSet, GPPViewSet
 from .recipes_module import RecipesModuleViewSet
 from .reduceddatum import ReducedDatumViewSet
 from .run_processor import RunProcessorViewSet
+from .status import StatusViewSet
 from .target import TargetViewSet
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     "GPPProgramViewSet",
     "GPPObservationViewSet",
     "TargetViewSet",
+    "StatusViewSet",
 ]
