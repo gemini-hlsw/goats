@@ -1,12 +1,15 @@
 """Module that handles the DRAGONS run API."""
 
 import datetime
+import logging
 
 import astrodata
+from django.db import transaction
 from django.db.models import QuerySet
 from django.http import HttpRequest
 from recipe_system import cal_service
 from rest_framework import mixins, permissions
+from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from tom_dataproducts.models import DataProduct
@@ -20,6 +23,8 @@ from goats_tom.models import (
 )
 from goats_tom.serializers import DRAGONSRunFilterSerializer, DRAGONSRunSerializer
 from goats_tom.utils import get_recipes_and_primitives
+
+logger = logging.getLogger(__name__)
 
 
 class DRAGONSRunsViewSet(
@@ -72,9 +77,16 @@ class DRAGONSRunsViewSet(
             The serializer containing the validated data for creating a `DRAGONSRun`.
 
         """
-        dragons_run = serializer.save()
-
-        self._initialize(dragons_run)
+        with transaction.atomic():
+            dragons_run = serializer.save()
+            try:
+                self._initialize(dragons_run)
+            except Exception as e:
+                logger.exception("DRAGONS run initialization failed, cleaning up...")
+                self.perform_destroy(dragons_run)
+                exc = APIException(f"Failed to initialize DRAGONS run: {str(e)}")
+                exc.status_code = 500
+                raise exc from e
 
     def _initialize(self, dragons_run: DRAGONSRun) -> None:
         """Initializes everything.
@@ -127,22 +139,33 @@ class DRAGONSRunsViewSet(
 
             # Skip if file is prepared or processed, unless it's a BPM file.
             if "BPM" in tags:
-                print("Adding BPM to calibration database.")
+                logger.debug("Adding BPM to calibration database.")
                 cal_db.add_cal(data_product.data.path)
                 continue
             if data_product.metadata.processed:
-                print("Skipping prepared or processed file.")
+                logger.debug("Skipping prepared or processed file.")
                 continue
 
+            # Hook to check if PINHOLE is in the tags to change the OBSTYPE.
+            if "PINHOLE" in tags:
+                logger.debug("PINHOLE found in tags, setting OBSTYPE to 'PINHOLE'")
+                observation_type = "PINHOLE"
+            # Hook to check if RONCHI is in the tags to change the OBSTYPE.
+            elif "RONCHI" in tags:
+                logger.debug("RONCHI found in tags, setting OBSTYPE to 'RONCHI'")
+                observation_type = "RONCHI"
+            # Otherwise, use the standard method.
+            else:
+                observation_type = ad.observation_type()
             # Get the file type and the object name if applicable.
-            observation_type = ad.observation_type()
             object_name = ad.object()
             observation_class = ad.observation_class()
-
             # if observation_type not in processed_base_recipe_observation_types:
             recipes_and_primitives = get_recipes_and_primitives(
                 tags, instrument.lower()
             )
+
+            recipes_module = None
 
             # Create or update recipes in the database.
             for recipe_name, details in recipes_and_primitives["recipes"].items():
@@ -184,8 +207,15 @@ class DRAGONSRunsViewSet(
                             # Convert any other unsupported types to string.
                             value = str(value)
                         astrodata_descriptors[descriptor] = value
-                    except Exception as e:
-                        print(f"Error accessing descriptor {descriptor}: {str(e)}")
+                    except Exception:
+                        logger.warning("Error accessing descriptor %s", descriptor)
+                        pass
+
+            if recipes_module is None:
+                raise ValueError(
+                    f"No recipes found, instrument {instrument} may not be "
+                    "supported by DRAGONS."
+                )
 
             # Create a file for this run using the recipes module last retrieved.
             DRAGONSFile.objects.create(

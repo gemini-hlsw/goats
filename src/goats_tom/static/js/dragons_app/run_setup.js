@@ -366,9 +366,25 @@ class RunSetupModel {
         {},
         false
       );
+      window.toast?.show({
+        label: "Run Created",
+        message: "The DRAGONS run has been successfully initialized.",
+        color: "success",
+      });
+      return;
     } catch (error) {
       console.error("Error initializing DRAGONS run:", error);
-      throw error;
+
+      let message = "The DRAGONS run could not be initialized.";
+
+      window.toast?.show({
+        label: "Run Failed",
+        message,
+        color: "danger",
+        autohide: false,
+      });
+
+      return;
     }
   }
 
@@ -674,7 +690,7 @@ class RunSetupController {
       await this.model.deleteRun();
       window.location.reload();
     } catch (error) {
-      console.error("Error deleting the run:", error)
+      console.error("Error deleting the run:", error);
     }
     // FIXME: Refreshing the page is just a quick hack to reset everything, this should
     // be better when there is time to properly handle deleting a run.
