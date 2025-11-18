@@ -823,16 +823,16 @@ wheels = [
 
 [[package]]
 name = "django"
-version = "4.2.25"
+version = "4.2.26"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "sqlparse" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/f1/230c6c20a77f8f1812c01dfd0166416e7c000a43e05f701b0b83301ebfc1/django-4.2.25.tar.gz", hash = "sha256:2391ab3d78191caaae2c963c19fd70b99e9751008da22a0adcc667c5a4f8d311", size = 10456257, upload-time = "2025-10-01T15:05:55.963Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/f2/5cab08b4174b46cd9d5b4d4439d211f5dd15bec256fb43e8287adbb79580/django-4.2.26.tar.gz", hash = "sha256:9398e487bcb55e3f142cb56d19fbd9a83e15bb03a97edc31f408361ee76d9d7a", size = 10433052, upload-time = "2025-11-05T14:08:23.522Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/35/5d/2210dcf9a03931be94072deab1de2d3b73fa62ce91714eaea9e69f6e35c6/django-4.2.25-py3-none-any.whl", hash = "sha256:9584cf26b174b35620e53c2558b09d7eb180a655a3470474f513ff9acb494f8c", size = 7993964, upload-time = "2025-10-01T15:05:46.545Z" },
+    { url = "https://files.pythonhosted.org/packages/39/6f/873365d280002de462852c20bcf050564e2354770041bd950bfb4a16d91e/django-4.2.26-py3-none-any.whl", hash = "sha256:c96e64fc3c359d051a6306871bd26243db1bd02317472a62ffdbe6c3cae14280", size = 7994264, upload-time = "2025-11-05T14:08:20.328Z" },
 ]
 
 [[package]]
@@ -1342,7 +1342,7 @@ requires-dist = [
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
     { name = "tom-tns", specifier = ">=0.3.2" },
-    { name = "tomtoolkit", specifier = "==2.26.2" },
+    { name = "tomtoolkit", specifier = "==2.27.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -3422,7 +3422,7 @@ wheels = [
 
 [[package]]
 name = "tomtoolkit"
-version = "2.26.2"
+version = "2.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "astroplan" },
@@ -3452,9 +3452,9 @@ dependencies = [
     { name = "requests" },
     { name = "specutils" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/9f/5763a20380cba5eb60a22eacfbd3bd51d1b0bdf545e7dede510ed602a6e7/tomtoolkit-2.26.2.tar.gz", hash = "sha256:3a7c7c3ddfe0549f30988e5a971d8c79044c8f1658571d3772e9a581b7686761", size = 11588710, upload-time = "2025-09-11T19:57:25.297Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5e/ee/28f9f3c5ff546efe7f103d1beb2c972385338ce58c9c80c184638c20aabd/tomtoolkit-2.27.0.tar.gz", hash = "sha256:b3ef1c0a0dfc6625af11dbb32d0ad846f457c834c837acce8eb70026de227357", size = 11627917, upload-time = "2025-10-27T22:32:15.36Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/a7/4d84a349a97727b2c95811b7349a4e8e3f57cf121f4195ea01f5d3d2da6b/tomtoolkit-2.26.2-py3-none-any.whl", hash = "sha256:76ef861a7394464781bb6cf45ec3a2b8af910e8275564a069859aa76bf280514", size = 1418434, upload-time = "2025-09-11T19:57:23.189Z" },
+    { url = "https://files.pythonhosted.org/packages/75/11/32147aac6efb13f80e7da408453c0aa7d28f536e2860e4ddb13da212c9e0/tomtoolkit-2.27.0-py3-none-any.whl", hash = "sha256:9e870de30c5dc1f1c5536b1d604deafc96d3ef8d57104a20f04bb7e28410154a", size = 1445218, upload-time = "2025-10-27T22:32:12.709Z" },
 ]
 
 [[package]]
