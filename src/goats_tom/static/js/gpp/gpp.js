@@ -62,7 +62,7 @@ class GPPModel {
   #gppObservationsUrl = `${this.#gppUrl}observations/`;
   #gppSaveNormalObservationUrl = `${this.#gppObservationsUrl}save-only/`;
   #gppCreateTooObservationUrl = `${this.#gppObservationsUrl}create-and-save/`;
-  #gppUpdateNormalObservationUrl = `${this.#gppObservationsUrl}update-and-save/`;
+  #gppUpdateNormalObservationUrl = `${this.#gppObservationsUrl}update-only/`;
   #gppPingUrl = `${this.#gppUrl}ping/`;
 
   // Data-storing maps.
@@ -192,13 +192,13 @@ class GPPModel {
   }
 
   /**
-   * Updates and saves a normal observation for the current target.
+   * Updates on GPP a normal observation for the current target.
    *
    * @async
    * @param {FormData} formData - The form data containing observation details.
    * @returns {Promise<Object>} The normalized response from the API.
    */
-  async updateAndSaveNormalObservation(formData) {
+  async updateOnGppNormalObservation(formData) {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
     return await this.#normalizeResponse(() =>
@@ -602,7 +602,7 @@ class GPPController {
       this.#selectNormalObservation(item.observationId);
     });
     this.#view.bindCallback("updateObservation", () => {
-      this.#updateAndSaveNormalObservation();
+      this.#updateOnGppNormalObservation();
     });
     this.#view.bindCallback("saveObservation", () => this.#saveObservation());
 
@@ -616,12 +616,12 @@ class GPPController {
   }
 
   /**
-   * Updates a normal observation in GPP and saves it to GOATS.
+   * Updates a normal observation in GPP.
    * Shows progress and result modals, and refreshes the observations list.
    * @returns {Promise<void>}
    * @private
    */
-  async #updateAndSaveNormalObservation() {
+  async #updateOnGppNormalObservation() {
     const formData = this.#view.render("getFormData");
 
     if (formData == null) {
@@ -635,18 +635,18 @@ class GPPController {
 
     // Show progress modal with spinner and message.
     this.#showProgressModal(
-      "Updating and Saving Observation",
-      "Please wait while your observation is updated in GPP and saved to GOATS."
+      "Updating Observation",
+      "Please wait while your observation is updated in GPP."
     );
 
     // Attempt to update the normal observation.
-    const { status, data } = await this.#model.updateAndSaveNormalObservation(formData);
+    const { status, data } = await this.#model.updateOnGppNormalObservation(formData);
 
     this.#handleObservationResponse(
-      "Observation Updated and Saved",
+      "Observation Updated on GPP",
       status,
       data,
-      "Observation Update and Save Result"
+      "Observation Update Result"
     );
 
     // Finally, refresh the observations list.
