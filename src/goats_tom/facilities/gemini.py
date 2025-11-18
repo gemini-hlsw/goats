@@ -1,30 +1,36 @@
 """Gemini facility."""
 
-__all__ = ["GEMObservationForm", "GOATSGEMFacility"]
+__all__ = ["GEMObservationForm", "GOATSGEMFacility", "GOA_OBSERVING_STATES"]
 
 import logging
-from typing import Any
 from datetime import datetime, timezone
+from typing import Any
 
 import requests
+from asgiref.sync import async_to_sync
 from astropy import units as u
+from bs4 import BeautifulSoup
+from django import forms
+from django.conf import settings
 from django.http import HttpRequest
+from gpp_client import GPPClient
+from gpp_client.api.enums import ObservationWorkflowState, ObservingModeType
 from tom_dataproducts.models import DataProduct
 from tom_observations.facility import (
     BaseRoboticObservationFacility,
     BaseRoboticObservationForm,
 )
-from django import forms
 from tom_observations.models import ObservationRecord
-from gpp_client.api.enums import ObservingModeType
+
 from goats_tom.astroquery import Observations as GOA
 from goats_tom.ocs import OCSClient
-from bs4 import BeautifulSoup
+from goats_tom.utils import is_gpp_id
 
 logger = logging.getLogger(__name__)
 
 
 TERMINAL_OBSERVING_STATES = ["TRIGGERED", "ON_HOLD"]
+GOA_OBSERVING_STATES = ["Observed", "Ongoing", "Completed"]
 
 # Units of flux and wavelength for converting to Specutils Spectrum1D objects
 FLUX_CONSTANT = (1 * u.erg) / (u.cm**2 * u.second * u.angstrom)
@@ -46,7 +52,6 @@ SITES = {
 }
 
 ocs_client = OCSClient()
-
 
 
 class GEMObservationForm(BaseRoboticObservationForm):
@@ -105,21 +110,31 @@ class GEMObservationForm(BaseRoboticObservationForm):
     def clean_observation_id(self):
         observation_id = self.cleaned_data.get("observation_id")
         if ObservationRecord.objects.filter(observation_id=observation_id).exists():
-            raise forms.ValidationError(f"An observation with ID '{observation_id}' already exists.")
+            raise forms.ValidationError(
+                f"An observation with ID '{observation_id}' already exists."
+            )
         return observation_id
 
 
-class GMOSSouthForm(GEMObservationForm):
+class GMOSSouthLongSlitForm(GEMObservationForm):
+    """
+    Form for GMOS South Long Slit instrument.
+    """
+
     grating = forms.CharField(required=False)
     filter = forms.CharField(required=False)
 
     FIELD_MAP = {
         "grating": "observingMode.gmosSouthLongSlit.grating",
-        "filter": "observingMode.gmosSouthLongSlit.filter"
+        "filter": "observingMode.gmosSouthLongSlit.filter",
     }
 
 
-class GMOSNorthForm(GEMObservationForm):
+class GMOSNorthLongSlitForm(GEMObservationForm):
+    """
+    Form for GMOS North Long Slit instrument.
+    """
+
     grating = forms.CharField(required=False)
     filter = forms.CharField(required=False)
 
@@ -137,8 +152,8 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
 
     name = "GEM"
     observation_forms = {
-        ObservingModeType.GMOS_SOUTH_LONG_SLIT.value: GMOSSouthForm,
-        ObservingModeType.GMOS_NORTH_LONG_SLIT.value: GMOSNorthForm
+        ObservingModeType.GMOS_SOUTH_LONG_SLIT.value: GMOSSouthLongSlitForm,
+        ObservingModeType.GMOS_NORTH_LONG_SLIT.value: GMOSNorthLongSlitForm,
     }
 
     def get_form(self, observation_type):
@@ -198,16 +213,41 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
 
     def get_observation_status(self, observation_id):
         try:
-            observation_summary = ocs_client.get_observation_summary(observation_id)
+            # Here we need to either query the OCS or GPP to get the status.
+            if is_gpp_id(observation_id):
+                # For GPP, we use the observationWorkflow.
+                # The download button should be enabled for ONGOING or COMPLETED.
+                logger.debug("Fetching observation status from GPP.")
+                # Make sure user is provided.
+                if self.user is None:
+                    raise Exception(
+                        "User must be provided to fetch observation status from GPP."
+                    )
+                # Get GPP credentials from user profile.
+                credentials = self.user.gpplogin
+                url = settings.GPP_URL
+                # Create GPP client.
+                client = GPPClient(token=credentials.token, url=url)
+                workflow_state_summary = async_to_sync(client.workflow_state.get_by_id)(
+                    observation_reference=observation_id
+                )
 
-            if not observation_summary["success"]:
-                raise Exception(f"{observation_summary['error']}")
+                state = workflow_state_summary["workflow"]["value"]["state"]
+                state = ObservationWorkflowState(state).value.capitalize()
+            else:
+                logger.debug("Fetching observation status from OCS.")
+                observation_summary = ocs_client.get_observation_summary(observation_id)
 
-            state = observation_summary["data"]["status"]
+                if not observation_summary["success"]:
+                    raise Exception(f"{observation_summary['error']}")
+                state = observation_summary["data"]["status"]
 
-        except Exception as e:
-            logger.error(e)
+        except Exception:
+            logger.exception(
+                "Encountered an error fetching observation %s", observation_id
+            )
             state = "Error"
+
         return {"state": state, "scheduled_start": None, "scheduled_end": None}
 
     def get_flux_constant(self) -> u:
@@ -241,8 +281,14 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
 
         """
         sites_status = [
-            {"code": "cpo", "weather_url": "https://www.gemini.edu/sciops/schedules/obsStatus/GS_Instrument.html"},
-            {"code": "mko", "weather_url": "https://www.gemini.edu/sciops/schedules/obsStatus/GN_Instrument.html"}
+            {
+                "code": "cpo",
+                "weather_url": "https://www.gemini.edu/sciops/schedules/obsStatus/GS_Instrument.html",
+            },
+            {
+                "code": "mko",
+                "weather_url": "https://www.gemini.edu/sciops/schedules/obsStatus/GN_Instrument.html",
+            },
         ]
         status = {"code": self.name, "sites": sites_status}
         return status
@@ -265,6 +311,7 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
 
         See lco.py for a concrete implementation example.
         """
+
         def fetch_shutter_from_json(url: str, timeout: int = 5) -> str:
             """Fetch 'open' status from the Gemini South JSON endpoint."""
             try:
@@ -289,7 +336,9 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
             except Exception:
                 return "ERROR FETCHING STATUS"
 
-        north_url = "https://www.gemini.edu/sciops/schedules/obsStatus/GN_Instrument.html"
+        north_url = (
+            "https://www.gemini.edu/sciops/schedules/obsStatus/GN_Instrument.html"
+        )
         south_url = "https://www.gemini.edu/sciops/schedules/obsStatus/too_GS.json"
         cpo_telescope_status = [
             {"code": "Gemini South", "status": fetch_shutter_from_json(south_url)}
@@ -299,7 +348,7 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
         ]
         sites_status = [
             {"code": "cpo", "telescopes": cpo_telescope_status},
-            {"code": "mko", "telescopes": mko_telescope_status}
+            {"code": "mko", "telescopes": mko_telescope_status},
         ]
         status = {"code": self.name, "sites": sites_status}
         return status

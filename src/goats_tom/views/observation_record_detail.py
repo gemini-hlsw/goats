@@ -13,25 +13,9 @@ from tom_observations.views import (
     ObservationRecordDetailView as BaseObservationRecordDetailView,
 )
 
+from goats_tom.utils import is_gpp_id
+
 logger = logging.getLogger(__name__)
-
-
-def _is_gpp_id(obs_id: str) -> bool:
-    """
-    Return True if the observation ID is a GPP-style ID (starts with 'G-'),
-    and not an OCS-style ID (which starts with 'GS-' or 'GN-').
-
-    Parameters
-    ----------
-    obs_id : str
-        The observation ID to check.
-
-    Returns
-    -------
-    bool
-        True if it is a GPP ID, False otherwise.
-    """
-    return obs_id.startswith("G-")
 
 
 class ObservationRecordDetailView(BaseObservationRecordDetailView):
@@ -70,7 +54,7 @@ class ObservationRecordDetailView(BaseObservationRecordDetailView):
     def _get_gpp_url(observation_record: Any) -> str | None:
         """Return the Explore URL if this is a GPP Gemini observation."""
         if (
-            not _is_gpp_id(observation_record.observation_id)
+            not is_gpp_id(observation_record.observation_id)
             or observation_record.facility != "GEM"
         ):
             return None

@@ -131,7 +131,6 @@ showcontent = true
 [tool.ruff]
 extend-exclude = [
     "src/goats_tom/migrations",
-    "src/goats_tom/facilities/gemini.py",
     "src/goats_tom/tests/settings.py",
     "src/goats_tom/tests/urls.py",
     "docs/",
