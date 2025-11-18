@@ -22,6 +22,7 @@ from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet, mixins
 from tom_observations.api_views import ObservationRecordViewSet
+from tom_observations.models import ObservationRecord
 
 from goats_tom.context_processors.goats_version_processor import get_goats_version
 from goats_tom.serializers.gpp import (
@@ -356,17 +357,27 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 observation=formatted_observation,
             )
 
-            if tom_response.status_code != status.HTTP_201_CREATED:
+            if tom_response.status_code == status.HTTP_208_ALREADY_REPORTED:
+                messages.append(
+                    StageMessage(
+                        stage=Stage.GOATS_OBSERVATION_SAVE,
+                        status=MessageStatus.WARNING,
+                        message=tom_response.data["detail"],
+                    )
+                )
+
+            elif tom_response.status_code != status.HTTP_201_CREATED:
                 raise ValueError(tom_response.data)
 
-            data["goatsObservation"] = tom_response.data
-            messages.append(
-                StageMessage(
-                    stage=Stage.GOATS_OBSERVATION_SAVE,
-                    status=MessageStatus.SUCCESS,
-                    message="Observation saved to GOATS database successfully.",
+            else:
+                data["goatsObservation"] = tom_response.data
+                messages.append(
+                    StageMessage(
+                        stage=Stage.GOATS_OBSERVATION_SAVE,
+                        status=MessageStatus.SUCCESS,
+                        message="Observation saved to GOATS database successfully.",
+                    )
                 )
-            )
 
         except Exception as e:
             messages.append(
@@ -379,11 +390,9 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
 
         return self._build_structured_response(messages=messages, data=data)
 
-    @action(detail=False, methods=["post"], url_path="update-and-save")
-    def update_and_save_observation(
-        self, request: Request, *args, **kwargs
-    ) -> Response:
-        """Update an existing GPP observation and save it to the GOATS database.
+    @action(detail=False, methods=["post"], url_path="update-only")
+    def update_only(self, request: Request, *args, **kwargs) -> Response:
+        """Update an existing GPP observation.
 
         Parameters
         ----------
@@ -394,15 +403,12 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         Returns
         -------
         Response
-            A DRF Response object containing the details of the updated and saved
-            observation.
+            A DRF Response object containing the details of the updated observation.
         """
         messages: list[StageMessage] = []
         data: dict[str, Any] = {}
 
-        logger.info(
-            "Updating observation on GPP and saving observation to GOATS database"
-        )
+        logger.info("Updating observation on GPP")
 
         # Ensure the user has GPP credentials.
         if not hasattr(request.user, "gpplogin"):
@@ -447,7 +453,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             gpp_target_id = context_serializer.gpp_target_id
             gpp_observation_id = context_serializer.gpp_observation_id
             goats_target = context_serializer.goats_target
-            instrument = context_serializer.instrument
 
             # Serialize and validate target.
             target_serializer = TargetSerializer(data=normalized_data)
@@ -517,8 +522,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
 
         # Update observation.
         logger.debug("Updating observation in GPP")
-        logger.debug(observation_properties)
-        logger.debug("GPP Observation ID: %s", gpp_observation_id)
         try:
             # where = WhereObservation(id=WhereOrderObservationId
             # (eq=gpp_observation_id))
@@ -576,38 +579,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                     stage=Stage.UPDATE_WORKFLOW_STATE,
                     status=MessageStatus.ERROR,
                     message=str(e),
-                )
-            )
-
-        # Save the updated observation to GOATS database.
-        logger.debug("Creating GOATS observation record")
-        formatted_observation = context_serializer.format_observation()
-        try:
-            tom_response = self._create_goats_observation(
-                request=request,
-                target_id=goats_target.id,
-                instrument=instrument,
-                observation=formatted_observation,
-            )
-
-            if tom_response.status_code != status.HTTP_201_CREATED:
-                raise ValueError(tom_response.data)
-
-            data["goatsObservation"] = tom_response.data
-            messages.append(
-                StageMessage(
-                    stage=Stage.GOATS_OBSERVATION_SAVE,
-                    status=MessageStatus.SUCCESS,
-                    message="Observation saved to GOATS database successfully.",
-                )
-            )
-
-        except Exception as e:
-            messages.append(
-                StageMessage(
-                    stage=Stage.GOATS_OBSERVATION_SAVE,
-                    status=MessageStatus.ERROR,
-                    message=f"Failed to save observation to GOATS database: {str(e)}",
                 )
             )
 
@@ -810,17 +781,26 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 observation=new_observation,
             )
 
-            if tom_response.status_code != status.HTTP_201_CREATED:
+            if tom_response.status_code == status.HTTP_208_ALREADY_REPORTED:
+                messages.append(
+                    StageMessage(
+                        stage=Stage.GOATS_OBSERVATION_SAVE,
+                        status=MessageStatus.WARNING,
+                        message=tom_response.data["detail"],
+                    )
+                )
+            elif tom_response.status_code != status.HTTP_201_CREATED:
                 raise ValueError(tom_response.data)
 
-            data["goatsObservation"] = tom_response.data
-            messages.append(
-                StageMessage(
-                    stage=Stage.GOATS_OBSERVATION_SAVE,
-                    status=MessageStatus.SUCCESS,
-                    message="Observation saved to GOATS database successfully.",
+            else:
+                data["goatsObservation"] = tom_response.data
+                messages.append(
+                    StageMessage(
+                        stage=Stage.GOATS_OBSERVATION_SAVE,
+                        status=MessageStatus.SUCCESS,
+                        message="Observation saved to GOATS database successfully.",
+                    )
                 )
-            )
 
         except Exception as e:
             messages.append(
@@ -940,6 +920,23 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         Response
             The DRF response from the TOM ObservationRecordViewSet.
         """
+        # Check for existing ObservationRecord.
+        observation_id = observation.get("reference", {}).get("label")
+        if ObservationRecord.objects.filter(
+            target_id=target_id,
+            facility=facility,
+            observation_id=observation_id,
+        ).exists():
+            logger.debug("ObservationRecord already exists for %s", observation_id)
+            return Response(
+                {
+                    "detail": (
+                        f"ObservationRecord already exists for {observation_id}"
+                    ),
+                },
+                status=status.HTTP_208_ALREADY_REPORTED,
+            )
+
         # Inject required fields into observation parameters.
         observation.update(
             {

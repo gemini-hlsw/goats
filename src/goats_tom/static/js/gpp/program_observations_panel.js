@@ -355,11 +355,11 @@ class ProgramObservationsPanel {
       this.#createToolbar("obsButtonToolbar", [
         {
           id: "updateButton",
-          label: "Update On GPP & Save",
+          label: "Update On GPP",
           color: "primary",
           classes: ["me-2"],
         },
-        { id: "saveButton", label: "Save", color: "primary" },
+        { id: "saveButton", label: "Save To GOATS", color: "primary" },
       ])
     );
 
@@ -371,7 +371,7 @@ class ProgramObservationsPanel {
         "Choose a ToO configuration..."
       ),
       this.#createToolbar("tooButtonToolbar", [
-        { id: "createNewButton", label: "Create On GPP & Save", color: "primary" },
+        { id: "createNewButton", label: "Create On GPP & Save To GOATS", color: "primary" },
       ])
     );
 
