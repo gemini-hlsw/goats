@@ -1,0 +1,1 @@
+Changed GPP application to a 2-step process to update on GPP and save to GOATS DB separately. Updating an observation on GPP will happen more frequently than saving to GOATS DB, so this change allows for more flexibility and reduces unnecessary writes to the GOATS database.
