@@ -26,8 +26,8 @@ channels:
   - nodefaults
 
 dependencies:
-  - dragons=4.0.0
+  - dragons=4.1.0
   - pip>=25.1.1
   - python=3.12
-  - redis-server>=7.2.8
-  - uv>=0.8.15
+  - redis-server>=7.4.0,<8
+  - uv>=0.9.10
