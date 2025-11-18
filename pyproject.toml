@@ -9,6 +9,7 @@ readme = "README.md"
 authors = [
     { name = "Dan Avner", email = "dan.avner@noirlab.edu" },
     { name = "Monika Soraisam", email = "monika.soraisam@noirlab.edu" },
+    { name = "Miguel Gomez", email = "miguel.gomez@noirlab.edu" },
 ]
 maintainers = [{ name = "GOATS Team", email = "goats@noirlab.edu" }]
 classifiers = [
@@ -153,8 +154,8 @@ docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
 [tool.uv.sources]
-dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.0.0" }
-fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.4.0" }
+dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.1.0" }
+fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.5.2" }
 
 [tool.numpydoc_validation]
 checks = [
