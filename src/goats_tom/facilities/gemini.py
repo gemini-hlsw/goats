@@ -1,6 +1,6 @@
 """Gemini facility."""
 
-__all__ = ["GEMObservationForm", "GOATSGEMFacility"]
+__all__ = ["GEMObservationForm", "GOATSGEMFacility", "GOA_OBSERVING_STATES"]
 
 import logging
 from datetime import datetime, timezone
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 TERMINAL_OBSERVING_STATES = ["TRIGGERED", "ON_HOLD"]
+GOA_OBSERVING_STATES = ["Observed", "Ongoing", "Completed"]
 
 # Units of flux and wavelength for converting to Specutils Spectrum1D objects
 FLUX_CONSTANT = (1 * u.erg) / (u.cm**2 * u.second * u.angstrom)
