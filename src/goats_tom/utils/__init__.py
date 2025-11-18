@@ -7,6 +7,7 @@ from .utils import (
     get_astrodata_header,
     get_recipes_and_primitives,
     get_short_name,
+    is_gpp_id,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "get_short_name",
     "get_astrodata_header",
     "get_recipes_and_primitives",
+    "is_gpp_id",
 ]
