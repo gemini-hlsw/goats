@@ -42,10 +42,12 @@ router.register(
 )
 router.register(r"targets", api_views.TargetViewSet, basename="targets")
 router.register(r"astrodatalab", api_views.AstroDatalabViewSet, basename="astrodatalab")
+router.register(r"status", api_views.StatusViewSet, basename="status")
 # TODO: Add app_name and update paths and URL lookups.
 # TODO: Make unified path formats.
 
 urlpatterns = [
+    path("status/", views.status_view, name="status"),
     path("astro-data-lab/", views.AstroDatalabView.as_view(), name="astro-data-lab"),
     path("api/", include(router.urls)),
     path(

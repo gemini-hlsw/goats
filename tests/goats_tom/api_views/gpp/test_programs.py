@@ -1,18 +1,19 @@
-import pytest
-from rest_framework.test import APIRequestFactory, force_authenticate
-from rest_framework import status
 from unittest.mock import AsyncMock
 
-from goats_tom.tests.factories import UserFactory, GPPLoginFactory
+import pytest
+from rest_framework import status
+from rest_framework.test import APIRequestFactory, force_authenticate
+
 from goats_tom.api_views import GPPProgramViewSet
+from goats_tom.tests.factories import GPPLoginFactory, UserFactory
 
 
 @pytest.mark.django_db
 class TestGPPProgramViewSet:
     def setup_method(self):
         self.factory = APIRequestFactory()
-        self.list_view = GPPProgramViewSet.as_view({'get': 'list'})
-        self.retrieve_view = GPPProgramViewSet.as_view({'get': 'retrieve'})
+        self.list_view = GPPProgramViewSet.as_view({"get": "list"})
+        self.retrieve_view = GPPProgramViewSet.as_view({"get": "retrieve"})
 
         self.program_id = "p-230e"
         self.program_data = {"program_id": self.program_id, "title": "Test Program"}
@@ -26,7 +27,11 @@ class TestGPPProgramViewSet:
 
     def test_list_programs_success(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.programs.GPPClient")
-        mock_client.return_value.program.get_all = AsyncMock(return_value=[self.program_data])
+        mock_director = mocker.patch("goats_tom.api_views.gpp.programs.GPPDirector")
+
+        mock_director.return_value.goats.program.get_all = AsyncMock(
+            return_value=[self.program_data]
+        )
 
         request = self.factory.get(self.programs_url)
         force_authenticate(request, user=self.user_with_login)
@@ -35,7 +40,7 @@ class TestGPPProgramViewSet:
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data == [self.program_data]
-        mock_client.return_value.program.get_all.assert_called_once()
+        mock_director.assert_called_once_with(mock_client.return_value)
 
     def test_list_programs_missing_gpplogin(self):
         request = self.factory.get(self.programs_url)
@@ -44,11 +49,16 @@ class TestGPPProgramViewSet:
         response = self.list_view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert response.data["detail"] == "GPP login credentials are not configured for this user."
+        assert (
+            response.data["detail"]
+            == "GPP login credentials are not configured for this user."
+        )
 
     def test_retrieve_program_success(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.programs.GPPClient")
-        mock_client.return_value.program.get_by_id = AsyncMock(return_value=self.program_data)
+        mock_client.return_value.program.get_by_id = AsyncMock(
+            return_value=self.program_data
+        )
 
         request = self.factory.get(self.program_detail_url)
         force_authenticate(request, user=self.user_with_login)
@@ -57,7 +67,9 @@ class TestGPPProgramViewSet:
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data == self.program_data
-        mock_client.return_value.program.get_by_id.assert_called_once_with(program_id=self.program_id)
+        mock_client.return_value.program.get_by_id.assert_called_once_with(
+            program_id=self.program_id
+        )
 
     def test_retrieve_program_missing_gpplogin(self):
         request = self.factory.get(self.program_detail_url)
@@ -66,4 +78,7 @@ class TestGPPProgramViewSet:
         response = self.retrieve_view(request, pk=self.program_id)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert response.data["detail"] == "GPP login credentials are not configured for this user."
+        assert (
+            response.data["detail"]
+            == "GPP login credentials are not configured for this user."
+        )

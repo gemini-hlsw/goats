@@ -9,6 +9,7 @@ readme = "README.md"
 authors = [
     { name = "Dan Avner", email = "dan.avner@noirlab.edu" },
     { name = "Monika Soraisam", email = "monika.soraisam@noirlab.edu" },
+    { name = "Miguel Gomez", email = "miguel.gomez@noirlab.edu" },
 ]
 maintainers = [{ name = "GOATS Team", email = "goats@noirlab.edu" }]
 classifiers = [
@@ -19,25 +20,26 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "apscheduler>=3.11.0",
     "astropy>=6.0,<7",
-    "astroquery>=0.4.10",
+    "astroquery>=0.4.11",
     "channels-redis>=4.3.0,<5",
     "channels[daphne]>=4.0,<5",
-    "click>=8.2.1,<9",
-    "django>=4.2.23,<5",
-    "django-cors-headers>=4.7.0,<5",
+    "click>=8.3.0,<9",
+    "django>=4.2.24,<5",
+    "django-cors-headers>=4.9.0",
     "django-dramatiq>=0.14.0",
     "djangorestframework>=3.16.1,<4",
     "dramatiq-abort>=1.2.1",
     "dramatiq[redis,watch]>=1.18.0,<2",
-    "gpp-client==25.8.2",
+    "gpp-client==25.10.4",
     "marshmallow>=3.26.1,<4",
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
-    "tom-tns>=0.3.1",
-    "tomtoolkit==2.25.2",
+    "tom-tns>=0.3.2",
+    "tomtoolkit==2.26.2",
 ]
-version = "25.8.1"
+version = "25.11.3"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
@@ -49,20 +51,21 @@ Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 [dependency-groups]
 dev = [
     "factory-boy>=3.3.3",
-    "pytest>=8.4.1",
-    "pytest-asyncio>=1.1.0",
-    "pytest-cov>=6.2.1",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
     "pytest-django>=4.11.1",
-    "pytest-mock>=3.14.1",
+    "pytest-mock>=3.15.1",
     "pytest-remotedata>=0.4.1",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.12.8",
-    "towncrier>=24.8.0",
+    "ruff>=0.14.3",
+    "towncrier>=25.8.0",
 ]
 docs = [
-    "furo>=2025.7.19",
+    "furo>=2025.9.25",
     "sphinx>=8.2.3",
-    "sphinx-autobuild>=2024.10.3",
+    "sphinx-autobuild>=2025.8.25",
+    "sphinx-copybutton>=0.5.2",
     "sphinx-rtd-theme>=3.0.2",
     "sphinxcontrib-video>=0.4.1",
 ]
@@ -71,7 +74,7 @@ github = [
     "fits-storage",
 ]
 notebook = [
-    "ipykernel>=6.30.1",
+    "ipykernel>=7.1.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -129,7 +132,6 @@ showcontent = true
 [tool.ruff]
 extend-exclude = [
     "src/goats_tom/migrations",
-    "src/goats_tom/facilities/gemini.py",
     "src/goats_tom/tests/settings.py",
     "src/goats_tom/tests/urls.py",
     "docs/",
@@ -152,8 +154,8 @@ docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
 [tool.uv.sources]
-dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.0.0" }
-fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.4.0" }
+dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.1.0" }
+fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.5.2" }
 
 [tool.numpydoc_validation]
 checks = [

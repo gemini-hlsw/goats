@@ -4,11 +4,15 @@ Query public and proprietary data from GOA.
 
 __all__ = ["URLHelper"]
 
+import logging
+
 from astropy import units
 from astropy.coordinates import Angle
 from astroquery.utils import commons
 
 from .conf import conf
+
+logger = logging.getLogger(__name__)
 
 
 def handle_keyword_arg(key, value):
@@ -78,7 +82,9 @@ class URLHelper:
 
     def get_login_url(self):
         """Wrapper for getting login URL."""
-        return f"{self.server}{self.ENDPOINTS['login']}"
+        url = f"{self.server}{self.ENDPOINTS['login']}"
+        logger.debug("Login URL: %s", url)
+        return url
 
     def get_summary_url(self, *args, **kwargs):
         """Wrapper for getting JSON summary URL."""
@@ -94,11 +100,15 @@ class URLHelper:
 
     def get_file_url(self, filename):
         """Wrapper for getting single file URL."""
-        return f"{self.server}{self.ENDPOINTS['file']}/{filename}"
+        url = f"{self.server}{self.ENDPOINTS['file']}/{filename}"
+        logger.debug("File URL: %s", url)
+        return url
 
     def get_search_url(self, program_id):
         """Wrapper for getting the search URL for a program ID."""
-        return f"{self.server}{self.ENDPOINTS['search']}/{program_id}"
+        url = f"{self.server}{self.ENDPOINTS['search']}/{program_id}"
+        logger.debug("Search URL: %s", url)
+        return url
 
     def build_url(self, *args, endpoint=None, **kwargs):
         """Build a URL with the given args and kwargs as the query parameters.
@@ -116,55 +126,69 @@ class URLHelper:
         response : `string` url to execute the query
 
         """
-        if endpoint is not None and endpoint not in self.VALID_ENDPOINTS:
-            raise ValueError(
-                f"GOA URL endpoint ({endpoint}) must be: "
-                f"{', '.join(self.VALID_ENDPOINTS)}"
+        try:
+            if endpoint is not None and endpoint not in self.VALID_ENDPOINTS:
+                raise ValueError(
+                    f"GOA URL endpoint ({endpoint}) must be: "
+                    f"{', '.join(self.VALID_ENDPOINTS)}"
+                )
+
+            if endpoint is None:
+                endpoint = "summary"
+            elif endpoint == "file":
+                # Must handle file url differently.
+                return self.get_file_url(args[0])
+            elif endpoint == "login":
+                return self.get_login_url()
+            elif endpoint == "search":
+                return self.get_search_url(args[0])
+
+            url_endpoint = self.ENDPOINTS[endpoint]
+            logger.debug("Building URL for endpoint '%s'", endpoint)
+
+            # Get default values that are needed in API.
+            eng_parm = next(
+                (a for a in args if a in self.ENGINEERING_PARAMETERS),
+                "notengineering",
             )
 
-        if endpoint is None:
-            endpoint = "summary"
-        elif endpoint == "file":
-            # Must handle file url differently.
-            return self.get_file_url(args[0])
-        elif endpoint == "login":
-            return self.get_login_url()
-        elif endpoint == "search":
-            return self.get_search_url(args[0])
+            qa_parm = next((a for a in args if a in self.QA_PARAMETERS), "NotFail")
 
-        url_endpoint = self.ENDPOINTS[endpoint]
+            file_curation_param = next(
+                (a for a in args if a in self.FILE_CURATION_PARAMETERS),
+                "canonical",
+            )
+            logger.debug(
+                "Resolved parameters: engineering=%s, qa=%s, file_curation=%s",
+                eng_parm,
+                qa_parm,
+                file_curation_param,
+            )
 
-        # Get default values that are needed in API.
-        eng_parm = next(
-            (a for a in args if a in self.ENGINEERING_PARAMETERS),
-            "notengineering",
-        )
+            # Filter out defaults from args.
+            args = [
+                a for a in args if a not in [eng_parm, qa_parm, file_curation_param]
+            ]
 
-        qa_parm = next((a for a in args if a in self.QA_PARAMETERS), "NotFail")
+            path_parts = [url_endpoint, eng_parm, qa_parm, file_curation_param]
+            path_parts.extend(args)
 
-        file_curation_param = next(
-            (a for a in args if a in self.FILE_CURATION_PARAMETERS),
-            "canonical",
-        )
+            # Include kwargs in the URL path.
+            orderby = kwargs.pop("orderby", None)
+            for key, value in kwargs.items():
+                handler = handlers.get(key, handle_keyword_arg)
+                path_parts.append(handler(key, value))
 
-        # Filter out defaults from args.
-        args = [a for a in args if a not in [eng_parm, qa_parm, file_curation_param]]
+            path = "/".join(path_parts)
 
-        path_parts = [url_endpoint, eng_parm, qa_parm]
-        path_parts.extend(args)
+            query_string = ""
+            if orderby is not None:
+                query_string = f"?orderby={orderby}"
 
-        # Include kwargs in the URL path.
-        orderby = kwargs.pop("orderby", None)
-        for key, value in kwargs.items():
-            handler = handlers.get(key, handle_keyword_arg)
-            path_parts.append(handler(key, value))
+            full_url = f"{self.server}{path}{query_string}"
+            logger.info("Constructed GOA URL: %s", full_url)
+            return full_url
 
-        path = "/".join(path_parts)
-
-        query_string = ""
-        if orderby is not None:
-            query_string = f"?orderby={orderby}"
-
-        print(f"{self.server}{path}{query_string}")
-
-        return f"{self.server}{path}{query_string}"
+        except Exception:
+            logger.exception("Error while building GOA URL.")
+            raise

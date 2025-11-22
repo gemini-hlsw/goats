@@ -42,11 +42,11 @@ To install Miniforge, `download the appropriate installer for your system <https
 +--------------------------+--------------------------------------------------+
 | **Operating System**     | **Installation Command**                         |
 +==========================+==================================================+
-| **Linux**                | ``$ sh Miniforge3-Linux-x86_64.sh``              |
+| **Linux**                | ``sh Miniforge3-Linux-x86_64.sh``                |
 +--------------------------+--------------------------------------------------+
-| **macOS (Intel)**        | ``$ sh Miniforge3-MacOSX-x86_64.sh``             |
+| **macOS (Intel)**        | ``sh Miniforge3-MacOSX-x86_64.sh``               |
 +--------------------------+--------------------------------------------------+
-| **macOS (M1/M2 ARM)**    | ``$ sh Miniforge3-MacOSX-arm64.sh``              |
+| **macOS (M1/M2 ARM)**    | ``sh Miniforge3-MacOSX-arm64.sh``                |
 +--------------------------+--------------------------------------------------+
 | **Windows (WSL)**        | See :ref:`Windows with WSL <installing_wsl>`     |
 +--------------------------+--------------------------------------------------+
@@ -61,7 +61,7 @@ answer **no**. After installation completes, manually initialize conda for your 
 
 .. code-block:: console
 
-   $ ~/miniforge3/bin/conda init <shell>
+   ~/miniforge3/bin/conda init <shell>
 
 Replace ``<shell>`` with your shell of choice (e.g., ``bash``, ``zsh``, ``fish``).
 
@@ -69,7 +69,7 @@ To verify the installation, run:
 
 .. code-block:: console
 
-   $ which conda
+   which conda
 
 Ensure that `miniforge3` appears in the output of `which conda`.
 
@@ -80,55 +80,80 @@ Installing GOATS
 
 Follow the steps below to install GOATS across all supported platforms.
 
-1. Create the GOATS conda environment:
+1. Configure Conda channels (order matters, the last channel added has the highest priority):
 
    .. code-block:: console
 
-      $ conda create -n goats-env python=3.12 goats -c https://gemini-hlsw.github.io/goats-infra/conda
+      conda config --add channels conda-forge
+      conda config --add channels http://astroconda.gemini.edu/public
+      conda config --add channels https://gemini-hlsw.github.io/goats-infra/conda
+      conda config --set channel_priority flexible
+
+   .. note::
+      We recommend ``channel_priority: flexible`` for now to avoid incompatibilities caused by 
+      packages in lower-priority channels. ``goats-infra`` should still be listed last so that it 
+      takes precedence. ``astroconda.gemini`` is required for the ``dragons`` dependency, while 
+      most other packages are resolved from ``conda-forge``.
+
+2. Create the GOATS conda environment:
+
+   .. code-block:: console
+
+      conda create -n goats-env python=3.12 goats
 
    .. note::
       If the environment creation fails, it may be due to an outdated version of Conda. 
       Upgrade to the latest version. If issues persist, consider reinstalling Conda via ``Miniforge`` as described :ref:`above <installing_miniforge>`.
-      
-      Refer :ref:`here <platform_specific_notes>` for macOS with Apple silicon chips and systems with Windows. 
-   
 
-2. Activate the conda environment:
+      Refer :ref:`here <platform_specific_notes>` for macOS with Apple silicon chips and systems with Windows.
 
-   .. code-block:: console
-
-      $ conda activate goats-env
-
-3. Install and run GOATS:
+3. Activate the conda environment:
 
    .. code-block:: console
 
-      $ goats install
-      $ goats run
+      conda activate goats-env
+
+4. Install GOATS:
+
+   .. code-block:: console
+
+      goats install
 
    .. note::
-      For more details on the ``goats`` command, see :ref:`goats_cli`.
+      During installation, you will be prompted to create a username and password. 
+      These credentials will be used to log in to the GOATS interface.
 
-   When executing ``goats install``, you will be prompted to create a username and password, which you will use to log into your GOATS interface. This interface (see :ref:`overview`) will automatically launch in your default web browser when issuing ``goats run``.
+      By default, this step will create a directory named **GOATS** in your current working directory. 
+      To use a custom location, pass the ``-d`` flag. For more options, see :ref:`goats_cli`.
 
-   The installation step will create a folder named **GOATS** in your current directory. This is the parent directory of your GOATS interface; you can specify a different parent directory by using the ``-d`` flag (see :ref:`goats_cli`).
+5. Run GOATS:
 
-4. To close your GOATS interface, simply press ``Ctrl+C`` in the terminal.
+   .. code-block:: console
+
+      goats run
+
+   .. note::
+      This command launches the GOATS interface in your default web browser. 
+      For an overview of the interface and its functionality, see :ref:`overview`.
+
+      For more details on the ``goats`` command and available subcommands, see :ref:`goats_cli`.
+
+6. To close your GOATS interface, simply press ``Ctrl+C`` in the terminal.
 
    .. note::
       To open your GOATS interface the next time, execute:
 
       .. code-block:: console
 
-         $ goats run -d /your/parent/directory/of/GOATS
+         goats run -d /your/parent/directory/of/GOATS
 
       within the conda environment you created for GOATS.
 
-5. When you are finished using GOATS, **deactivate the conda environment** by running:
+7. When you are finished using GOATS, **deactivate the conda environment** by running:
 
    .. code-block:: console
 
-      $ conda deactivate
+      conda deactivate
 
 .. _platform_specific_notes:
 
@@ -153,7 +178,7 @@ Currently, DRAGONS (one of the dependencies of GOATS) does not support macOS ARM
 
 .. code-block:: console
 
-   $ conda create --platform osx-64 -n goats-env python=3.12 goats -c https://gemini-hlsw.github.io/goats-infra/conda
+   conda create --platform osx-64 -n goats-env python=3.12 goats
 
 This ensures that dependencies are installed in a way that maintains compatibility with required packages.
 
@@ -161,10 +186,17 @@ Once the environment is created and activated, install and run GOATS normally:
 
 .. code-block:: console
 
-   $ goats install
-   $ goats run
+   goats install
+   goats run
 
 Since the entire Conda environment is running under ``osx-64``, GOATS will always execute in ``x86`` mode automatically.
+
+Updating GOATS
+==============
+
+GOATS is actively developed and regularly updated. When a new version is available, you should update using Conda to ensure compatibility with all dependencies.
+
+See :ref:`updating` for full instructions on how to update GOATS safely and correctly.
 
 
 

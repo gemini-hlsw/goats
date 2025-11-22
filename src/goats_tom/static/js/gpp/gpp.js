@@ -20,248 +20,19 @@ class GPPTemplate {
     const col1 = Utils.createElement("div", ["col-12"]);
     const p = Utils.createElement("p", ["mb-0", "fst-italic"]);
     p.textContent =
-      "Use the Gemini Program Platform (GPP) to browse your active programs and corresponding observations. Select a program to load its observations and autofill observation details. You can then either save the observation on GOATS without changes or edit the observation details and submit to Gemini. The latter will save the observation on GOATS automatically upon submission.";
+      "Use the Gemini Program Platform (GPP) to browse your active programs and corresponding observations. Select a program to load its observations and autofill observation details. You can then save the observation on GOATS without changes,  update the observation details and resubmit, or create a new observation for a ToO. Any updates or new observations are saved on GOATS automatically upon submission.";
     col1.append(p);
 
-    const col2 = Utils.createElement("div", ["col-lg-6"]);
-    col2.append(
-      this.#createSelect("program", "Active Programs", "Choose a program...")
-    );
-
-    const col3 = Utils.createElement("div", ["col-lg-6"]);
-    const observationSelect = this.#createSelect(
-      "observation",
-      "Active Observations",
-      "Choose an observation..."
-    );
-    col3.append(observationSelect);
-
-    // Create button toolbar.
-    const buttonToolbar = Utils.createElement("div", [
-      "d-flex",
-      "justify-content-between",
-    ]);
-    buttonToolbar.id = "buttonToolbar";
-    const left = Utils.createElement("div");
-    const right = Utils.createElement("div");
-
-    const actions = [
-      {
-        id: "saveButton",
-        color: "primary",
-        label: "Save",
-        parentElement: right,
-      },
-      {
-        id: "editButton",
-        color: "secondary",
-        label: "Edit",
-        parentElement: left,
-        classes: ["me-1"],
-      },
-      {
-        id: "editAndCreateNewButton",
-        color: "secondary",
-        label: "Edit and Create New Observation",
-        parentElement: left,
-      },
-    ];
-
-    actions.forEach(({ id, color, label, parentElement, classes = [] }) => {
-      const btn = Utils.createElement("button", ["btn", `btn-${color}`, ...classes]);
-      btn.textContent = label;
-      btn.id = id;
-      btn.type = "button";
-      btn.disabled = true;
-      parentElement.appendChild(btn);
-    });
-    buttonToolbar.append(left, right);
-
-    row.append(col1, col2, col3);
+    const div = Utils.createElement("div");
+    div.id = "programObservationsPanelContainer";
+    row.append(col1, div);
 
     // Create form container.
     const formContainer = Utils.createElement("div");
-    formContainer.id = "formContainer";
-    container.append(row, buttonToolbar, Utils.createElement("hr"), formContainer);
+    formContainer.id = "observationFormContainer";
+    container.append(row, Utils.createElement("hr"), formContainer);
 
     return container;
-  }
-
-  /**
-   * Create a form for a selected observation using shared and mode-specific fields.
-   * @param {!Object} observation - Observation data to render.
-   * @returns {!HTMLFormElement} A completed form element.
-   */
-  createObservationForm(observation) {
-    const form = Utils.createElement("form", ["row", "g-3"]);
-    const sharedFields = [...SHARED_FIELDS];
-    const mode = observation.observingMode?.mode;
-    const instrumentFields = FIELD_CONFIGS[mode];
-
-    if (!instrumentFields) {
-      console.warn(
-        `Unsupported observing mode: "${mode}". No instrument-specific fields will be rendered.`
-      );
-    }
-
-    const allFields = [...sharedFields, ...(instrumentFields ?? [])];
-
-    allFields.forEach((meta) => {
-      // Create section header.
-      if (meta.section) {
-        form.append(this.#createFormHeader(meta.section));
-        return;
-      }
-      // Get value.
-      const raw = Utils.getByPath(observation, meta.path);
-      const shouldShow = meta.display || raw != null;
-      if (!shouldShow) return;
-
-      // Format raw if formatter or lookup is provided.
-      const lookedUp = meta.lookup ? meta.lookup[raw] ?? raw : raw;
-      const formatted = meta.formatter ? meta.formatter(lookedUp) : lookedUp;
-
-      // Check if custom handler is attached.
-      if (meta.handler) {
-        const handler = this.#handlers[meta.handler];
-        if (typeof handler === "function") {
-          const elements = handler(meta, formatted);
-          elements.forEach((el) => form.append(el));
-        } else {
-          console.warn(
-            `Handler "${meta.handler}" not found for field "${meta.id}". Skipping.`
-          );
-        }
-        return;
-      }
-
-      // Handle normal field
-      form.append(
-        this.#createFormField({
-          value:
-            meta.type === "number" && formatted == null
-              ? ""
-              : formatted ?? "(No value)",
-          id: meta.id,
-          labelText: meta.labelText,
-          prefix: meta.prefix,
-          suffix: meta.suffix,
-          element: meta.element,
-          type: meta.type,
-          colSize: meta.colSize,
-        })
-      );
-    });
-
-    return form;
-  }
-
-  /**
-   * Create a section header element for form sections.
-   * @param {string} text - Header text content.
-   * @param {string} [level="h5"] - Heading level tag.
-   * @returns {!HTMLElement}
-   * @private
-   */
-  #createFormHeader(text, level = "h5") {
-    const h = Utils.createElement(level, ["mt-4", "mb-0"]);
-    h.textContent = text;
-    return h;
-  }
-
-  /**
-   * Wraps a form control with prefix/suffix in an input group if applicable.
-   * @param {!HTMLElement} control - The form element to wrap.
-   * @param {Object} options
-   * @param {string=} options.prefix - Optional prefix text.
-   * @param {string=} options.suffix - Optional suffix text.
-   * @returns {!HTMLElement}
-   * @private
-   */
-  #wrapWithGroup(control, { prefix, suffix }) {
-    if (!prefix && !suffix) return control;
-
-    const group = Utils.createElement("div", ["input-group"]);
-    if (prefix) {
-      const pre = Utils.createElement("span", ["input-group-text"]);
-      pre.textContent = prefix;
-      group.append(pre);
-    }
-    group.append(control);
-    if (suffix) {
-      const post = Utils.createElement("span", ["input-group-text"]);
-      post.textContent = suffix;
-      group.append(post);
-    }
-    return group;
-  }
-
-  /**
-   * Create a form field from metadata.
-   * @param {Object} options
-   * @param {*} options.value - Field value.
-   * @param {string} options.id - Field ID.
-   * @param {string=} options.labelText - Field label.
-   * @param {string=} options.prefix - Optional prefix.
-   * @param {string=} options.suffix - Optional suffix.
-   * @param {string=} options.element - Element type.
-   * @param {string=} options.type - Input type.
-   * @param {string=} options.colSize - Bootstrap column size.
-   * @returns {!HTMLElement}
-   * @private
-   */
-  #createFormField({
-    value,
-    id,
-    labelText = null,
-    prefix = null,
-    suffix = null,
-    element = "input",
-    type = "text",
-    colSize = "col-md-6",
-  }) {
-    const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
-    const col = Utils.createElement("div", [colSize]);
-    // Create label.
-    if (labelText) {
-      const label = Utils.createElement("label", ["form-label"]);
-      label.htmlFor = elementId;
-      label.textContent = labelText;
-      col.append(label);
-    }
-
-    // Create input.
-    let control;
-    if (element === "textarea") {
-      control = Utils.createElement("textarea", ["form-control"]);
-      control.rows = 3;
-    } else if (element === "input") {
-      control = Utils.createElement("input", ["form-control"]);
-      control.type = type;
-    } else {
-      console.error("Unsupported element:", element);
-      return col;
-    }
-    control.id = elementId;
-    control.value = value;
-    control.disabled = true;
-
-    // Wrap in input group if needed.
-    col.append(this.#wrapWithGroup(control, { prefix, suffix }));
-    return col;
-  }
-
-  /**
-   * Create an `<option>` element for a `<select>`.
-   * @param {{id:string,name:string}} data Program or observation metadata.
-   * @returns {!HTMLOptionElement}
-   */
-  createSelectOption(data) {
-    const option = Utils.createElement("option");
-    option.value = data.id;
-    option.textContent = `${data.id} - ${data.name ?? data.title}`;
-
-    return option;
   }
 
   /**
@@ -272,102 +43,6 @@ class GPPTemplate {
   #createContainer() {
     const container = Utils.createElement("div");
     return container;
-  }
-
-  /**
-   * Generates a `<select>` populated with a hidden placeholder option.
-   * @param {string} id  Prefix for the element ID.
-   * @param {string} labelText The text for the label.
-   * @param {string} optionHint  Placeholder text.
-   * @returns {!HTMLSelectElement}
-   * @private
-   */
-  #createSelect(id, labelText, optionHint) {
-    const label = Utils.createElement("label", ["form-label"]);
-    label.htmlFor = `${id}Select`;
-    label.textContent = labelText;
-
-    // Add inline spinner next to label.
-    const spinner = Utils.createElement("span", [
-      "spinner-border",
-      "spinner-border-sm",
-      "ms-2",
-    ]);
-    spinner.id = `${id}Loading`;
-    spinner.role = "status";
-    spinner.hidden = true;
-    label.appendChild(spinner);
-
-    const select = Utils.createElement("select", ["form-select"]);
-    select.id = `${id}Select`;
-    select.innerHTML = `<option value="" selected hidden>${optionHint}</option>`;
-    select.disabled = true;
-
-    const wrapper = Utils.createElement("div");
-    wrapper.append(label, select);
-
-    return wrapper;
-  }
-
-  /**
-   * Custom handlers for rendering advanced field types.
-   * @returns {Object<string, function(Object, *): HTMLElement[]>}
-   * @private
-   */
-  get #handlers() {
-    return {
-      handleBrightnessInputs: (meta, raw) => {
-        return raw.map(({ band, value, units }, idx) =>
-          this.#createFormField({
-            value,
-            id: `${meta.id}${idx}`,
-            prefix: band,
-            suffix: units,
-            type: meta.type,
-            colSize: meta.colSize,
-          })
-        );
-      },
-      handleSpatialOffsetsList: (meta, raw) => {
-        const values = raw.map((o) => o.arcseconds.toFixed(2));
-        return [
-          this.#createFormField({
-            value: values.join(", "),
-            id: meta.id,
-            labelText: meta.labelText,
-            suffix: meta.suffix,
-            colSize: meta.colSize,
-          }),
-        ];
-      },
-      handleWavelengthDithersList: (meta, raw) => {
-        const values = raw.map((o) => o.nanometers.toFixed(1));
-        return [
-          this.#createFormField({
-            value: values.join(", "),
-            id: meta.id,
-            labelText: meta.labelText,
-            suffix: meta.suffix,
-            colSize: meta.colSize,
-          }),
-        ];
-      },
-      handleExposureMode: (meta, raw) => {
-        const modeKey = Object.keys(raw).find((key) => raw[key] != null);
-        const modeLabels = {
-          signalToNoise: "Signal / Noise",
-          timeAndCount: "Time & Count",
-        };
-        const label = modeLabels[modeKey] ?? "(Unknown)";
-        return [
-          this.#createFormField({
-            value: label,
-            id: meta.id,
-            labelText: meta.labelText,
-          }),
-        ];
-      },
-    };
   }
 }
 
@@ -385,13 +60,17 @@ class GPPModel {
   #gppUrl = "gpp/";
   #gppProgramsUrl = `${this.#gppUrl}programs/`;
   #gppObservationsUrl = `${this.#gppUrl}observations/`;
+  #gppSaveNormalObservationUrl = `${this.#gppObservationsUrl}save-only/`;
+  #gppCreateTooObservationUrl = `${this.#gppObservationsUrl}create-and-save/`;
+  #gppUpdateNormalObservationUrl = `${this.#gppObservationsUrl}update-only/`;
   #gppPingUrl = `${this.#gppUrl}ping/`;
-  #observationsUrl = `observations/`;
 
   // Data-storing maps.
-  #observations = new Map();
+  #normalObservations = new Map();
+  #tooObservations = new Map();
   #programs = new Map();
   #activeObservation;
+  #activeProgram;
 
   constructor(options) {
     this.#options = options;
@@ -403,13 +82,15 @@ class GPPModel {
 
   /** Clears every cached observation and active observation. */
   clearObservations() {
-    this.#observations.clear();
+    this.#normalObservations.clear();
+    this.#tooObservations.clear();
     this.#activeObservation = null;
   }
 
   /** Clears every cached program. */
   clearPrograms() {
     this.#programs.clear();
+    this.#activeProgram = null;
   }
 
   /** Clears all cached entities (programs + observations). */
@@ -435,6 +116,60 @@ class GPPModel {
   }
 
   /**
+   * Creates a new ToO observation.
+   * @param {*} formData The form data to submit.
+   * @returns {Promise<{status: number, data: Object}>} A response object with status code and
+   * response data.
+   */
+  async createTooObservation(formData) {
+    // Append the target ID to the form data.
+    formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    return await this.#normalizeResponse(() =>
+      this.#api.post(this.#gppCreateTooObservationUrl, formData, {}, false)
+    );
+  }
+
+  /**
+   * Normalize an API call into a consistent structure.
+   * @param {() => Promise<any>} requestFn - A function that executes the request.
+   * @returns {Promise<{ status: number, data: Object }>}
+   */
+  async #normalizeResponse(requestFn) {
+    try {
+      const data = await requestFn();
+      return { status: 200, data };
+    } catch (error) {
+      return await this.#normalizeError(error);
+    }
+  }
+
+  /**
+   * Normalize an error response from fetch or API post/get call.
+   * @param {Response|any} error - The error object thrown.
+   * @returns {Promise<{ status: number, data: Object }>}
+   */
+  async #normalizeError(error) {
+    if (error instanceof Response) {
+      try {
+        const contentType = error.headers.get("Content-Type") || "";
+        const data = contentType.includes("application/json")
+          ? await error.json()
+          : { message: await error.text() };
+
+        return { status: error.status, data };
+      } catch {
+        return {
+          status: error.status,
+          data: { message: "Failed to parse error response." },
+        };
+      }
+    }
+
+    // Non-HTTP errors
+    return { status: 0, data: { message: String(error) } };
+  }
+
+  /**
    * Fetches all programs from the server and refreshes the cache.
    *
    * @async
@@ -457,26 +192,26 @@ class GPPModel {
   }
 
   /**
-   * Submits an observation to the backend API.
-   * @param {Object} observation The observation object to save.
-   * @returns {Promise<{status: number, data: Object}>} A response object with status code and response data.
+   * Updates on GPP a normal observation for the current target.
+   *
+   * @async
+   * @param {FormData} formData - The form data containing observation details.
+   * @returns {Promise<Object>} The normalized response from the API.
    */
-  async saveObservation(observation) {
-    // User isn't needed.
-    const data = {
-      target_id: this.#targetId,
-      facility: this.#facility,
-      // Need to pass in the instrument to select the correct form.
-      observation_type: observation.instrument,
-      observing_parameters: observation,
-    };
-    try {
-      const response = await this.#api.post(this.#observationsUrl, data);
-      return { status: 200, data: response };
-    } catch (error) {
-      const data = await error.json();
-      return { status: data.status, data: data };
-    }
+  async updateOnGppNormalObservation(formData) {
+    // Append the target ID to the form data.
+    formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    return await this.#normalizeResponse(() =>
+      this.#api.post(this.#gppUpdateNormalObservationUrl, formData, {}, false)
+    );
+  }
+
+  async saveNormalObservation(formData) {
+    // Append the target ID to the form data.
+    formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    return await this.#normalizeResponse(() =>
+      this.#api.post(this.#gppSaveNormalObservationUrl, formData, {}, false)
+    );
   }
 
   /**
@@ -487,30 +222,69 @@ class GPPModel {
    */
   async fetchObservations(programId) {
     this.clearObservations();
+
     try {
-      const response = await this.#api.get(
+      const { matches, hasMore } = await this.#api.get(
         `${this.#gppObservationsUrl}?program_id=${programId}`
       );
 
-      // Fill / refresh the Map.
-      const observations = response.matches;
+      const tooResults = matches?.too?.results ?? [];
+      const normalResults = matches?.normal?.results ?? [];
 
-      for (const observation of observations) {
-        this.#observations.set(observation.id, observation);
-      }
+      // Helper to bulk-fill a map from results.
+      const fillMap = (map, results) => {
+        for (const obs of results) {
+          map.set(obs.id, obs);
+        }
+      };
+
+      fillMap(this.#tooObservations, tooResults);
+      fillMap(this.#normalObservations, normalResults);
     } catch (error) {
       console.error("Error fetching observations:", error);
     }
   }
 
+  get tooObservationsCount() {
+    return this.#tooObservations.size;
+  }
+
+  get normalObservationsCount() {
+    return this.#normalObservations.size;
+  }
+
   /**
-   * Get an observation object that is already in the cache. Also sets the active
+   * Get a program object that is already in the cache. Also sets the active
+   * program to track the last retrieved.
+   * @param {string} programId
+   * @returns {Object|undefined}
+   */
+  getProgram(programId) {
+    const program = this.#programs.get(programId);
+    this.#activeProgram = program || null;
+    return program;
+  }
+
+  /**
+   * Get a too observation object that is already in the cache. Also sets the active
    * observation to track the last retrieved.
    * @param {string} observationId
    * @returns {Object|undefined}
    */
-  getObservation(observationId) {
-    const obs = this.#observations.get(observationId);
+  getTooObservation(observationId) {
+    const obs = this.#tooObservations.get(observationId);
+    this.#activeObservation = obs || null;
+    return obs;
+  }
+
+  /**
+   * Get a normal observation object that is already in the cache. Also sets the active
+   * observation to track the last retrieved.
+   * @param {string} observationId
+   * @returns {Object|undefined}
+   */
+  getNormalObservation(observationId) {
+    const obs = this.#normalObservations.get(observationId);
     this.#activeObservation = obs || null;
     return obs;
   }
@@ -524,28 +298,43 @@ class GPPModel {
   }
 
   /**
-   * All cached observations as an array.
+   * The last retrieved program from cache.
+   * @returns {Object|null}
+   */
+  get activeProgram() {
+    return this.#activeProgram;
+  }
+
+  /**
+   * All cached too observations as an array.
    * @type {!Array<!Object>}
    */
-  get observationsList() {
-    return Array.from(this.#observations.values());
+  get tooObservationsList() {
+    return Array.from(this.#tooObservations.values());
   }
 
   /**
-   * All cached observation IDs.
+   * All cached too observation IDs.
    * @type {!Array<string>}
    */
-  get observationsIds() {
-    return Array.from(this.#observations.keys());
+  get tooObservationsIds() {
+    return Array.from(this.#tooObservations.keys());
   }
 
   /**
-   * Look up a single program by its ID.
-   * @param {string} programId
-   * @returns {Object|undefined} The program, or `undefined` if not cached.
+   * All cached normal observations as an array.
+   * @type {!Array<!Object>}
    */
-  getProgram(programId) {
-    return this.#programs.get(programId);
+  get normalObservationsList() {
+    return Array.from(this.#normalObservations.values());
+  }
+
+  /**
+   * All cached normal observation IDs.
+   * @type {!Array<string>}
+   */
+  get normalObservationsIds() {
+    return Array.from(this.#normalObservations.keys());
   }
 
   /**
@@ -576,16 +365,9 @@ class GPPView {
   #template;
   #container;
   #parentElement;
-  #programSelect;
-  #observationSelect;
-  #form;
+  #form = null;
   #formContainer;
-  #buttonToolbar;
-  #editButton;
-  #saveButton;
-  #editAndCreateNewButton;
-  #observationLoading;
-  #programLoading;
+  #poPanel; // ProgramObservationsPanel instance.
 
   /**
    * Construct the view, inject the template, and attach it to the DOM.
@@ -599,18 +381,12 @@ class GPPView {
     this.#options = options;
 
     this.#container = this.#create();
-    this.#formContainer = this.#container.querySelector(`#formContainer`);
+    this.#formContainer = this.#container.querySelector(`#observationFormContainer`);
     this.#parentElement.appendChild(this.#container);
 
-    this.#programSelect = this.#container.querySelector(`#programSelect`);
-    this.#programLoading = this.#container.querySelector(`#programLoading`);
-    this.#observationSelect = this.#container.querySelector(`#observationSelect`);
-    this.#observationLoading = this.#container.querySelector(`#observationLoading`);
-    this.#buttonToolbar = this.#container.querySelector(`#buttonToolbar`);
-    this.#editButton = this.#buttonToolbar.querySelector("#editButton");
-    this.#saveButton = this.#buttonToolbar.querySelector("#saveButton");
-    this.#editAndCreateNewButton = this.#buttonToolbar.querySelector(
-      "#editAndCreateNewButton"
+    this.#poPanel = new ProgramObservationsPanel(
+      this.#container.querySelector(`#programObservationsPanelContainer`),
+      { debug: false }
     );
 
     // Bind the renders and callbacks.
@@ -628,81 +404,29 @@ class GPPView {
   }
 
   /**
-   * Re-populate the program <select> after new data arrive.
-   * @param {!Array<!Object>} programs
+   * Update the observation form with a normal observation.
+   * @param {Object} observation
    * @private
    */
-  #updatePrograms(programs) {
-    // Reset except for the default.
-    this.#programSelect.length = 1;
-
-    const frag = document.createDocumentFragment();
-    programs.forEach((p) => {
-      frag.appendChild(this.#template.createSelectOption(p));
+  #updateNormalObservation(observation) {
+    this.#form = new ObservationForm(this.#formContainer, {
+      observation: observation,
+      mode: "normal",
+      readOnly: false,
     });
-
-    this.#programSelect.appendChild(frag);
   }
 
   /**
-   * Re-populate the observation <select> after new data arrive.
-   * @param {!Array<!Object>} observations
+   * Update the observation form with a ToO observation.
+   * @param {Object} observation
    * @private
    */
-  #updateObservations(observations) {
-    // Reset except for the default.
-    this.#observationSelect.length = 1;
-
-    const frag = document.createDocumentFragment();
-    observations.forEach((o) => {
-      frag.appendChild(this.#template.createSelectOption(o));
+  #updateTooObservation(observation) {
+    this.#form = new ObservationForm(this.#formContainer, {
+      observation: observation,
+      mode: "too",
+      readOnly: false,
     });
-
-    this.#observationSelect.appendChild(frag);
-  }
-
-  /**
-   * Displays a disabled message in the program <select> indicating that
-   * no programs are available for the user. Retains the default placeholder.
-   * @private
-   */
-  #showNoPrograms() {
-    this.#programSelect.length = 1;
-
-    const option = Utils.createElement("option");
-    option.value = "None";
-    option.textContent = "No programs available";
-    option.disabled = true;
-
-    this.#programSelect.appendChild(option);
-  }
-
-  /**
-   * Displays a disabled message in the observation <select> indicating that
-   * no observations exist for the selected program. Retains the default placeholder.
-   * @private
-   */
-  #showNoObservations() {
-    this.#observationSelect.length = 1;
-
-    const option = Utils.createElement("option");
-    option.value = "None";
-    option.textContent = "No observations available";
-    option.disabled = true;
-
-    this.#observationSelect.appendChild(option);
-  }
-
-  /**
-   * Update other DOM bits that depend on the selected observation.
-   * (Placeholder for future work.)
-   * @param {!Object} observation
-   * @private
-   */
-  #updateObservation(observation) {
-    const form = this.#template.createObservationForm(observation);
-    this.#form = form;
-    this.#formContainer.append(this.#form);
   }
 
   /**
@@ -714,37 +438,25 @@ class GPPView {
     this.#form = null;
   }
 
-  /**
-   * Show or hide the loading spinner next to the "Active Programs" label
-   * and enable or disable the program <select> element accordingly.
-   * @param {boolean} isLoading - Whether to show the spinner and disable the select.
-   * @private
-   */
-  #toggleProgramsLoading(isLoading) {
-    this.#programSelect.disabled = isLoading;
-    this.#programLoading.hidden = !isLoading;
+  #showCreateNewObservation() {
+    this.#form = new ObservationForm(this.#formContainer, {
+      observation: observation,
+      mode: "too",
+      readOnly: false,
+    });
   }
 
   /**
-   * Show or hide the loading spinner next to the "Active Observations" label
-   * and enable or disable the observation <select> element accordingly.
-   * @param {boolean} isLoading - Whether to show the spinner and disable the select.
+   * Get the data from the observation form.
+   * @return {Object|null} The form data, or null if no form is present.
    * @private
    */
-  #toggleObservationsLoading(isLoading) {
-    this.#observationSelect.disabled = isLoading;
-    this.#observationLoading.hidden = !isLoading;
-  }
-
-  /**
-   * Enables or disables the main toolbar buttons.
-   * @param {boolean} disabled - Whether to disable or enable the buttons.
-   */
-  #toggleButtonToolbar(disabled) {
-    this.#saveButton.disabled = disabled;
-    // FIXME: Change the edit and edit and create new button later.
-    this.#editButton.disabled = true;
-    this.#editAndCreateNewButton.disabled = true;
+  #getFormData() {
+    if (this.#form) {
+      const formData = this.#form.getData();
+      return formData;
+    }
+    return null;
   }
 
   /**
@@ -754,42 +466,73 @@ class GPPView {
    */
   render(viewCmd, parameter) {
     switch (viewCmd) {
+      // Program renders.
       case "updatePrograms":
-        this.#updatePrograms(parameter.programs);
+        this.#poPanel.updatePrograms(parameter.programs);
         break;
-      case "updateObservations":
-        this.#updateObservations(parameter.observations);
+      case "programsLoading":
+        this.#poPanel.toggleProgramsLoading(true);
         break;
-      case "updateObservation":
-        this.#updateObservation(parameter.observation);
+      case "programsLoaded":
+        this.#poPanel.toggleProgramsLoading(false);
         break;
-      case "resetAndClearObservationSelect":
-        this.#observationSelect.length = 1;
+
+      // Normal observation renders.
+      case "updateNormalObservations":
+        this.#poPanel.updateNormalObservations(parameter.observations);
+        break;
+      case "resetNormalObservations":
+        this.#poPanel.clearNormalSelect();
         this.#clearObservationForm();
         break;
+      case "normalObservationsLoading":
+        this.#poPanel.toggleNormalLoading(true);
+        break;
+      case "normalObservationsLoaded":
+        this.#poPanel.toggleNormalLoading(false);
+        break;
+      case "updateNormalObservation":
+        this.#updateNormalObservation(parameter.observation);
+        break;
+
+      // ToO observation renders.
+      case "updateTooObservations":
+        this.#poPanel.updateTooObservations(parameter.observations);
+        break;
+      case "showCreateNewObservation":
+        this.#showCreateNewObservation();
+        break;
+      case "resetTooObservations":
+        this.#poPanel.clearTooSelect();
+        this.#clearObservationForm();
+        break;
+      case "tooObservationsLoading":
+        this.#poPanel.toggleTooLoading(true);
+        break;
+      case "tooObservationsLoaded":
+        this.#poPanel.toggleTooLoading(false);
+        break;
+      case "updateTooObservation":
+        this.#updateTooObservation(parameter.observation);
+        break;
+
+      // Observation helpers.
+      case "disableObservationButtons":
+        this.#poPanel.toggleAllButtons(true);
+        break;
+      case "enableObservationButtons":
+        this.#poPanel.toggleAllButtons(false);
+        break;
+
+      // Form renders.
       case "clearObservationForm":
         this.#clearObservationForm();
         break;
-      case "programsLoading":
-        this.#toggleProgramsLoading(true);
-        break;
-      case "programsLoaded":
-        this.#toggleProgramsLoading(false);
-        break;
-      case "observationsLoading":
-        this.#toggleObservationsLoading(true);
-        break;
-      case "observationsLoaded":
-        this.#toggleObservationsLoading(false);
-        break;
-      case "showNoPrograms":
-        this.#showNoPrograms();
-        break;
-      case "showNoObservations":
-        this.#showNoObservations();
-        break;
-      case "toggleButtonToolbar":
-        this.#toggleButtonToolbar(parameter.disabled);
+      case "getFormData":
+        return this.#getFormData();
+
+      default:
+        console.warn(`[GPPView] Unknown render command: ${viewCmd}`);
         break;
     }
   }
@@ -800,21 +543,25 @@ class GPPView {
    * @param {function()} handler
    */
   bindCallback(event, handler) {
+    const selector = `[data-action="${event}"]`;
     switch (event) {
       case "selectProgram":
-        Utils.on(this.#programSelect, "change", (e) => {
-          handler({ programId: e.target.value });
-        });
+        this.#poPanel.onProgramSelect((id) => handler({ programId: id }));
         break;
-      case "selectObservation":
-        Utils.on(this.#observationSelect, "change", (e) => {
-          handler({ observationId: e.target.value });
-        });
+      case "selectNormalObservation":
+        this.#poPanel.onNormalSelect((id) => handler({ observationId: id }));
+        break;
+      case "selectTooObservation":
+        this.#poPanel.onTooSelect((id) => handler({ observationId: id }));
+        break;
+      case "updateObservation":
+        this.#poPanel.onUpdate(handler);
         break;
       case "saveObservation":
-        Utils.on(this.#saveButton, "click", (e) => {
-          handler();
-        });
+        this.#poPanel.onSave(handler);
+        break;
+      case "createAndSaveTooObservation":
+        this.#poPanel.onCreateNew(handler);
         break;
     }
   }
@@ -828,6 +575,7 @@ class GPPController {
   #options;
   #model;
   #view;
+  #modal;
   #toast;
 
   /**
@@ -841,60 +589,337 @@ class GPPController {
     this.#view = view;
     this.#options = options;
     this.#toast = options.toast;
+    this.#modal = options.modal;
 
     // Bind the callbacks.
+    // Program callbacks.
     this.#view.bindCallback("selectProgram", (item) =>
       this.#selectProgram(item.programId)
     );
-    this.#view.bindCallback("selectObservation", (item) =>
-      this.#selectObservation(item.observationId)
-    );
+
+    // Normal observation callbacks.
+    this.#view.bindCallback("selectNormalObservation", (item) => {
+      this.#selectNormalObservation(item.observationId);
+    });
+    this.#view.bindCallback("updateObservation", () => {
+      this.#updateOnGppNormalObservation();
+    });
     this.#view.bindCallback("saveObservation", () => this.#saveObservation());
+
+    // ToO observation callbacks.
+    this.#view.bindCallback("selectTooObservation", (item) => {
+      this.#selectTooObservation(item.observationId);
+    });
+    this.#view.bindCallback("createAndSaveTooObservation", () =>
+      this.#createAndSaveTooObservation()
+    );
   }
 
   /**
-   * Handles the process of saving an observation and displaying a toast notification
-   * based on the result. Shows a warning if the observation has no reference,
-   * a success toast if saved successfully, or an error toast with details if it fails.
-   * @private
+   * Updates a normal observation in GPP.
+   * Shows progress and result modals, and refreshes the observations list.
    * @returns {Promise<void>}
+   * @private
    */
-  async #saveObservation() {
-    const observation = this.#model.activeObservation;
+  async #updateOnGppNormalObservation() {
+    const formData = this.#view.render("getFormData");
 
-    // Skip if no observation reference has been set aka null or undefined.
-    let notification = {};
-    if (observation?.reference?.label == null) {
-      notification = {
-        label: "Observation Not Saved",
-        message:
-          "Observation not saved, as no observation reference ID has been assigned.",
-        color: "warning",
-      };
-      this.#toast.show(notification);
+    if (formData == null) {
+      this.#showMissingFormModal(
+        "Missing Form Data",
+        "No form data available to update on GPP and save an observation."
+      );
+      // Don't refresh observations or disable buttons, just return.
       return;
     }
 
-    const response = await this.#model.saveObservation(observation);
+    // Show progress modal with spinner and message.
+    this.#showProgressModal(
+      "Updating Observation",
+      "Please wait while your observation is updated in GPP."
+    );
 
-    if (response.status === 200) {
-      notification = {
-        label: "Observation Saved Successfully",
-        message: `Observation ID ${observation.reference.label} has been saved to GOATS.`,
-        color: "success",
-      };
-    } else {
-      // Gracefully extract and format error messages.
-      const errorMessages = Object.values(response.data).flat().join(" ");
+    // Attempt to update the normal observation.
+    const { status, data } = await this.#model.updateOnGppNormalObservation(formData);
 
-      notification = {
-        label: "Observation Not Saved",
-        message:
-          errorMessages || "An unknown error occurred while saving the observation.",
-        color: "danger",
-      };
+    this.#handleObservationResponse(
+      "Observation Updated on GPP",
+      status,
+      data,
+      "Observation Update Result"
+    );
+
+    // Finally, refresh the observations list.
+    const programId = this.#model.activeProgram.id;
+    await this.#resetAndUpdateObservations(programId);
+  }
+
+  /**
+   * Creates and saves a new ToO observation.
+   * Uses ModalManager to show progress and results.
+   * @returns {Promise<void>} A promise that resolves when the operation is complete.
+   * @private
+   */
+  async #createAndSaveTooObservation() {
+    const formData = this.#view.render("getFormData");
+
+    if (formData == null) {
+      this.#showMissingFormModal(
+        "Missing Form Data",
+        "No form data available to create a new observation."
+      );
+      // Don't refresh observations or disable buttons, just return.
+      return;
     }
-    this.#toast.show(notification);
+
+    // Show progress modal with spinner and message.
+    this.#showProgressModal(
+      "Creating Observation",
+      "Please wait while your observation is created in GPP and added to GOATS."
+    );
+
+    // Attempt to create the ToO observation.
+    const { status, data } = await this.#model.createTooObservation(formData);
+
+    this.#handleObservationResponse(
+      "Observation Created and Saved",
+      status,
+      data,
+      "Observation Creation and Saved Result"
+    );
+
+    // Finally, refresh the observations list.
+    const programId = this.#model.activeProgram.id;
+    await this.#resetAndUpdateObservations(programId);
+  }
+
+  /**
+   * Handles the response from an observation creation or update request.
+   * Updates the modal with appropriate messages based on the response status and data.
+   * @param {string} titleSuccess - Title to display on success.
+   * @param {number} status - HTTP status code from the response.
+   * @param {Object} data - Response data object, may contain messages.
+   * @param {string} fallbackTitle - Title to display on failure or unexpected result.
+   * @param {?string} [id=null] - Optional observation ID to display.
+   * @returns {void}
+   * @private
+   */
+  #handleObservationResponse(titleSuccess, status, data, fallbackTitle, id = null) {
+    const isStructured = data?.messages && Array.isArray(data.messages);
+
+    if (status >= 200 && status < 300 && isStructured) {
+      this.#modal.update({
+        title: titleSuccess,
+        body: `
+        <div class="text-center">
+          <p class="fst-italic">Your observation has been successfully processed.</p>
+          ${id ? `<p><strong>Observation ID:</strong> ${id}</p>` : ""}
+          ${this.renderMessageTable(data.messages)}
+        </div>
+      `,
+      });
+    } else if (status >= 200 && status < 300) {
+      this.#modal.update({
+        title: titleSuccess,
+        body: `
+        <div class="text-center">
+          <p class="fst-italic">The operation succeeded, but the response format was unexpected.</p>
+          <pre class="bg-light p-3 rounded small text-wrap">
+            <code>${JSON.stringify(data, null, 2)}</code>
+          </pre>
+        </div>
+      `,
+      });
+    } else if (isStructured) {
+      this.#modal.update({
+        title: fallbackTitle,
+        body: `
+        <div class="text-center">
+          <p>The request was processed with status: ${data.status}.</p>
+          ${id ? `<p><strong>Observation ID:</strong> ${id}</p>` : ""}
+          ${this.renderMessageTable(data.messages)}
+        </div>
+      `,
+      });
+    } else {
+      this.#modal.update({
+        title: `Request Failed (${status})`,
+        body: `
+        <div class="text-center">
+          <p class="fst-italic">An error occurred.</p>
+          <pre class="bg-light p-3 rounded small text-wrap">
+            <code>${JSON.stringify(data, null, 2)}</code>
+          </pre>
+        </div>
+      `,
+      });
+    }
+  }
+
+  /**
+   * Shows a modal indicating that the observation form is missing or incomplete.
+   * @param {string} title - The title to display in the modal.
+   * @param {string} subtitle - The subtitle to display in the modal.
+   * @returns {void}
+   * @private
+   */
+  #showMissingFormModal(title, subtitle) {
+    this.#modal.show({
+      title,
+      body: `
+      <div class="text-center">
+        <p class="fst-italic">${subtitle}</p>
+        <p>Please fill out the observation form before submitting.</p>
+      </div>
+    `,
+      backdrop: "static",
+      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+    });
+  }
+
+  /**
+   * Shows a modal dialog indicating that a process is in progress.
+   * @private
+   * @param {string} title - The title to display in the modal.
+   * @param {string} subtitle - The subtitle or message to display below the spinner.
+   * @returns {void}
+   */
+  #showProgressModal(title, subtitle) {
+    this.#modal.show({
+      title,
+      body: `
+      <div class="text-center">
+        <div class="spinner-border mb-4" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="fst-italic">${subtitle}</p>
+        <p>This process can take a few minutes. Do not refresh the page, close this modal, or use the back or forward buttons until the operation completes.</p>
+      </div>
+    `,
+      backdrop: "static",
+      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+    });
+  }
+
+  /**
+   * Renders a status message table from a list of messages.
+   * @param {Array<Object>} messages - The messages array with `stage`, `status`, and `message`.
+   * @returns {string} - HTML string for the table.
+   */
+  renderMessageTable(messages) {
+    const rows = messages
+      .map(({ stage, status, message }, index) => {
+        let variant = "table-";
+        switch (status.toLowerCase()) {
+          case "success":
+            variant += "success";
+            break;
+          case "error":
+            variant += "danger";
+            break;
+          case "warning":
+            variant += "warning";
+            break;
+          default:
+            variant += "secondary";
+            break;
+        }
+
+        return `
+        <tr class="${variant}">
+          <td class="text-end">${index + 1}.</td>
+          <td class="text-start">${stage}</td>
+          <td>${status}</td>
+          <td class="text-start">${message}</td>
+        </tr>`;
+      })
+      .join("");
+
+    return `
+    <div class="table-responsive">
+      <table class="table table-striped">
+        <thead class="table-secondary">
+          <tr>
+            <th class="text-end" scope="col"></th>
+            <th class="text-start" scope="col">Stage</th>
+            <th scope="col">Status</th>
+            <th class="text-start" scope="col">Message</th>
+          </tr>
+        </thead>
+        <tbody class="table-group-divider">
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
+  }
+
+  /**
+   * Resets and updates both normal and ToO observation lists for the given program ID.
+   * @param {string} programId  Program identifier.
+   * @returns {Promise<void>}
+   * @private
+   */
+  async #resetAndUpdateObservations(programId) {
+    this.#view.render("disableObservationButtons");
+
+    // Reset the observation lists.
+    this.#view.render("resetNormalObservations");
+    this.#view.render("resetTooObservations");
+
+    // Show loading states.
+    this.#view.render("normalObservationsLoading");
+    this.#view.render("tooObservationsLoading");
+
+    // Fetch observations again.
+    await this.#model.fetchObservations(programId);
+
+    // Update both lists in one go.
+    this.#view.render("updateNormalObservations", {
+      observations: this.#model.normalObservationsList,
+    });
+    this.#view.render("updateTooObservations", {
+      observations: this.#model.tooObservationsList,
+    });
+
+    // Remove loading states.
+    this.#view.render("normalObservationsLoaded");
+    this.#view.render("tooObservationsLoaded");
+  }
+
+  async #saveObservation() {
+    // const observation = this.#model.activeObservation;
+
+    const formData = this.#view.render("getFormData");
+
+    if (formData == null) {
+      this.#showMissingFormModal(
+        "Missing Form Data",
+        "No form data available to save observation to GOATS."
+      );
+      // Don't refresh observations or disable buttons, just return.
+      return;
+    }
+
+    // Show progress modal with spinner and message.
+    this.#showProgressModal(
+      "Saving Observation to GOATS",
+      "Please wait while your observation is added to GOATS."
+    );
+
+    // Attempt to save the observation.
+    const { status, data } = await this.#model.saveNormalObservation(formData);
+
+    this.#handleObservationResponse(
+      "Observation Saved to GOATS",
+      status,
+      data,
+      "Observation Result"
+    );
+
+    // Finally, refresh the observations list.
+    const programId = this.#model.activeProgram.id;
+    await this.#resetAndUpdateObservations(programId);
   }
 
   /**
@@ -920,11 +945,7 @@ class GPPController {
 
     // Check if programs are available.
     const programsList = this.#model.programsList;
-    if (programsList.length === 0) {
-      this.#view.render("showNoPrograms");
-    } else {
-      this.#view.render("updatePrograms", { programs: programsList });
-    }
+    this.#view.render("updatePrograms", { programs: programsList });
     this.#view.render("programsLoaded");
   }
 
@@ -933,43 +954,26 @@ class GPPController {
    * @private
    */
   async #selectProgram(programId) {
-    this.#view.render("toggleButtonToolbar", { disabled: true });
-    this.#view.render("observationsLoading");
-    this.#view.render("resetAndClearObservationSelect");
-    await this.#model.fetchObservations(programId);
-    // Check if observations are available.
-    const observationsList = this.#model.observationsList;
-    if (observationsList.length === 0) {
-      this.#view.render("showNoObservations");
-    } else {
-      this.#view.render("updateObservations", {
-        observations: this.#model.observationsList,
-      });
-    }
-    this.#view.render("observationsLoaded");
+    // Set the active program in the model.
+    this.#model.getProgram(programId);
+    await this.#resetAndUpdateObservations(programId);
   }
 
-  /**
-   * Fired when the user picks an observation.
-   * @private
-   */
-  #selectObservation(observationId) {
+  #selectNormalObservation(observationId) {
     this.#view.render("clearObservationForm");
-    const observation = this.#model.getObservation(observationId);
-    this.#view.render("updateObservation", { observation });
-    this.#view.render("toggleButtonToolbar", { disabled: false });
+    const observation = this.#model.getNormalObservation(observationId);
+    this.#view.render("updateNormalObservation", { observation });
+  }
+
+  #selectTooObservation(observationId) {
+    this.#view.render("clearObservationForm");
+    const observation = this.#model.getTooObservation(observationId);
+    this.#view.render("updateTooObservation", { observation });
   }
 }
 
 /**
  * Application for interacting with the GPP.
- *
- * Usage:
- * ```js
- * const widget = new GPP(document.getElementById('placeholder'));
- * await widget.init();
- * ```
- *
  * @class
  */
 class GPP {
@@ -993,6 +997,7 @@ class GPP {
       ...options,
       api: window.api,
       toast: window.toast,
+      modal: window.modal,
       userId: dataset.userId,
       facility: dataset.facility,
       targetId: dataset.targetId,

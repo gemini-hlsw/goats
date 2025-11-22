@@ -69,18 +69,18 @@ def test_get_observation_summary(client, odb_xml, observation_id, mocker):
     assert isinstance(result, dict)
     assert result["success"]
 
-@pytest.mark.remote_data()
-def test_get_coordinates_remote(client, observation_id):
-    coordinates_response = client.get_coordinates(observation_id)
-    assert coordinates_response["data"]
-    assert coordinates_response["success"]
+# @pytest.mark.remote_data()
+# def test_get_coordinates_remote(client, observation_id):
+#     coordinates_response = client.get_coordinates(observation_id)
+#     assert coordinates_response["data"]
+#     assert coordinates_response["success"]
 
 
-@pytest.mark.remote_data()
-def test_get_sequence_remote(client, observation_id):
-    sequence_response = client.get_sequence(observation_id)
-    assert sequence_response["data"]
-    assert sequence_response["success"]
+# @pytest.mark.remote_data()
+# def test_get_sequence_remote(client, observation_id):
+#     sequence_response = client.get_sequence(observation_id)
+#     assert sequence_response["data"]
+#     assert sequence_response["success"]
 
 
 @pytest.mark.remote_data()

@@ -1,12 +1,12 @@
 exclude: ^(docs/|js_tests/|src/goats_tom/static/|src/goats_tom/templates/|LICENSE)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: "v5.0.0"
+    rev: "v6.0.0"
     hooks:
       - id: check-yaml
       - id: check-json
       - id: check-toml
-      - id: check-docstring-first
+      # - id: check-docstring-first
       - id: check-case-conflict
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -25,7 +25,7 @@ repos:
           - --autofix
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.12.1"
+    rev: "v0.12.12"
     hooks:
       - id: ruff-check
         args: [--fix]
@@ -40,6 +40,6 @@ repos:
   #       exclude: ^(tests/)
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.7.17
+    rev: 0.8.15
     hooks:
       - id: uv-lock

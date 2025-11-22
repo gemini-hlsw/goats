@@ -3,6 +3,163 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 25.11.3 (2025-11-07)
+============================
+
+No significant changes.
+
+
+Version 25.11.2 (2025-11-07)
+============================
+
+New Features
+------------
+
+- Added the link to Gemini Explore for observations with GPP-style IDs on the observation detail page. (`PR #488 <https://github.com/gemini-hlsw/goats/pull/488>`_)
+
+
+Version 25.11.1 (2025-11-07)
+============================
+
+New Features
+------------
+
+- Added rotating log file to GOATS so users can keep track of operations over time and better report issues. Log files are stored in the main GOATS directory as "goats.log", with a maximum size of 50 MB and up to two backup files. The console logging remains for real-time feedback during execution. (`PR #486 <https://github.com/gemini-hlsw/goats/pull/486>`_)
+
+
+Changes
+-------
+
+- Added ``/canonical/`` to GOA URL paths as specified in GOA API documentation. (`PR #486 <https://github.com/gemini-hlsw/goats/pull/486>`_)
+- Changed GOA query radius from 15 arcseconds to 3 arcminutes when querying for observation IDs near a target. (`PR #487 <https://github.com/gemini-hlsw/goats/pull/487>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed bug when downloaded folders of data from GOA. GOA now organizes data into structured folders, and the code now correctly handles this structure when downloading and processing the data. (`PR #486 <https://github.com/gemini-hlsw/goats/pull/486>`_)
+
+
+Version 25.11.0 (2025-11-06)
+============================
+
+New Features
+------------
+
+- Started UI work on allowing users to create new observations with GPP. (`PR #424 <https://github.com/gemini-hlsw/goats/pull/424>`_)
+- Developed brightnesses editor for users when creating new observation with GPP in GOATS. (`PR #425 <https://github.com/gemini-hlsw/goats/pull/425>`_)
+- Developed source profile editor for users when creating new observation with GPP in GOATS. (`PR #426 <https://github.com/gemini-hlsw/goats/pull/426>`_)
+- Developed constraints UI for users when creating new observation with GPP in GOATS. (`PR #427 <https://github.com/gemini-hlsw/goats/pull/427>`_)
+- Developed approved config dropdown UI for users when creating new observation with GPP in GOATS. (`PR #428 <https://github.com/gemini-hlsw/goats/pull/428>`_)
+- Updated UI to split GPP application to support creating new observations from approved ToO configurations. (`PR #432 <https://github.com/gemini-hlsw/goats/pull/432>`_)
+- Support approved ToO configurations in GPP application with new dropdown options. This sets up the frontend to handle ToO observation creation wtih GPP in the near future. (`PR #435 <https://github.com/gemini-hlsw/goats/pull/435>`_)
+- Added a new Exposure Mode editor widget that supports both "Signal / Noise" and "Time & Count" configurations for the GPP application. (`PR #438 <https://github.com/gemini-hlsw/goats/pull/438>`_)
+- Added support for the "Position Angle Constraint" input. The angle input is now only shown for relevant modes (e.g., Allow 180° Flip, Average Parallactic). (`PR #439 <https://github.com/gemini-hlsw/goats/pull/439>`_)
+- Added a new `--version` flag to the `goats` CLI to display the installed version. (`PR #441 <https://github.com/gemini-hlsw/goats/pull/441>`_)
+- Exposed `GOATS_VERSION` in the template context to display the installed version in the footer. (`PR #442 <https://github.com/gemini-hlsw/goats/pull/442>`_)
+- Added the installed GOATS version to the footer. (`PR #443 <https://github.com/gemini-hlsw/goats/pull/443>`_)
+- Added to the UI right ascension and declination in the GPP interface for observations that have that data available. (`PR #444 <https://github.com/gemini-hlsw/goats/pull/444>`_)
+- Added `apply-update` command to the GOATS CLI to run database migrations after upgrading GOATS. Refactored client logic for clarity. (`PR #450 <https://github.com/gemini-hlsw/goats/pull/450>`_)
+- Added API endpoint for creating Target of Opportunities (ToO) in GPP. Includes cloning existing targets/observations and managing workflow states. (`PR #453 <https://github.com/gemini-hlsw/goats/pull/453>`_)
+- Added ToO observation creation and submission capability with error handling and toast notifications. (`PR #454 <https://github.com/gemini-hlsw/goats/pull/454>`_)
+- Added support for unpacking user-supplied data in the `GPPTooViewSet` create method and introduced serializers for new input types. The API endpoint handles brightnesses, elevation ranges, and exposure modes. These changes bring us closer to enabling the submission of ToOs to GPP. (`PR #456 <https://github.com/gemini-hlsw/goats/pull/456>`_)
+- Added a version check in `goats run` to warn when GOATS is outdated. (`PR #457 <https://github.com/gemini-hlsw/goats/pull/457>`_)
+- Added support for GMOS-N and GMOS-S Long Slit instruments in ToO submissions: GOATS now validates and formats instrument-specific parameters (e.g., central wavelength, dithers, spatial offsets) through a new serializer and registry system integrated with GPP ToO requests. (`PR #459 <https://github.com/gemini-hlsw/goats/pull/459>`_)
+- Implemented new source profile and SED serializers to support structured handling of source profile data in GPP requests. (`PR #460 <https://github.com/gemini-hlsw/goats/pull/460>`_)
+- Added hidden fields in GPP observation forms to support additional metadata without displaying them to users: Sets up being able to create ToOs with GPP. (`PR #464 <https://github.com/gemini-hlsw/goats/pull/464>`_)
+- Introduced serializers for cloning GPP targets and observations, enabling deserializing and serializing through the ToO form with proper validation of input data. (`PR #465 <https://github.com/gemini-hlsw/goats/pull/465>`_)
+- Implemented workflow state handling for GPP observations: Added serializer to validate and convert workflow state selections, enabling users to view and update observation workflow states in the ToO form. (`PR #466 <https://github.com/gemini-hlsw/goats/pull/466>`_)
+- Added payload-building support for creating Target of Opportunity (ToO) observations in GPP.  
+  This update introduces new serializers for sidereal targets and observing modes, improves instrument-specific data handling, and standardizes field names for clarity. (`PR #467 <https://github.com/gemini-hlsw/goats/pull/467>`_)
+- Refactored the GPP serializers to provide a solid foundation for Target of Opportunity (ToO) creation and observation cloning. This update improves how data is validated and formatted before being sent to GPP. ToO creation is possible, but not yet fully integrated into the UI. (`PR #469 <https://github.com/gemini-hlsw/goats/pull/469>`_)
+- Added retry mechanism for setting workflow state for a newly created ToO observation in the GPP application to improve user experience. (`PR #470 <https://github.com/gemini-hlsw/goats/pull/470>`_)
+- Updated GPP application to save created ToO GPP observation to GOATS DB. (`PR #471 <https://github.com/gemini-hlsw/goats/pull/471>`_)
+- Refactored the ToO creation flow to return structured responses with stage-level status reporting and improved error handling. The workflow state update now includes extended retry timing and no longer blocks saving the observation if the update fails. (`PR #474 <https://github.com/gemini-hlsw/goats/pull/474>`_)
+- Introduced a new ModalManager to handle Target of Opportunity (ToO) observation creation, replacing toast notifications with modal dialogs to provide clearer feedback during long-running operations. The update added progress indicators and structured result tables for ToO creation, improved backend response messages with readable stage and status labels, and included new methods for managing observation button states and tracking active programs. (`PR #475 <https://github.com/gemini-hlsw/goats/pull/475>`_)
+- Added periodic version checking so GOATS automatically detects and alerts when a newer version is available. (`PR #476 <https://github.com/gemini-hlsw/goats/pull/476>`_)
+- Added an update alert to the banner to notify users when GOATS is outdated. (`PR #480 <https://github.com/gemini-hlsw/goats/pull/480>`_)
+- Updated the link to the GOATS documentation in the navbar: The link now points to the documentation for the installed version of GOATS. If the installed version cannot be determined, it falls back to the latest version of the documentation. (`PR #481 <https://github.com/gemini-hlsw/goats/pull/481>`_)
+- Displayed the update command in `goats run` to guide users on how to upgrade. (`PR #483 <https://github.com/gemini-hlsw/goats/pull/483>`_)
+
+
+Changes
+-------
+
+- Modified GPP API response to separate ToO and normal observations into different lists. This will support upcoming UI changes for ToO handling in the GOATS GPP interface. (`PR #433 <https://github.com/gemini-hlsw/goats/pull/433>`_)
+- Refactored the observation form UI to use a structured `ObservationForm` class and modular editors for elevation range, source profiles, and brightness inputs. Field-level control for read-only and mode-based visibility is now supported. (`PR #437 <https://github.com/gemini-hlsw/goats/pull/437>`_)
+- Reworded "Edit" to "Update On GPP & Save" to clarify the actions performed by the GPP interface on GOATS. (`PR #440 <https://github.com/gemini-hlsw/goats/pull/440>`_)
+- The Position Angle angle control now only appears when the selected Position Angle Mode requires an explicit angle (``ALLOW_180_FLIP``, ``PARALLACTIC_OVERRIDE``, or ``FIXED``); it is hidden in other modes to reduce clutter. Read-only views now correctly prevent edits across the form—text fields are read-only. (`PR #445 <https://github.com/gemini-hlsw/goats/pull/445>`_)
+- Removed unnecessary fields ``resolution`` and ``wavelength interval`` fields from the GPP form as these are not easily accessible for supported instruments. (`PR #446 <https://github.com/gemini-hlsw/goats/pull/446>`_)
+- Updated program labels to display the user-friendly Program ID directly (replacing the previous label format) for clearer identification across the GPP UI. (`PR #452 <https://github.com/gemini-hlsw/goats/pull/452>`_)
+- Refactored Source Profile to handle unsupported profiles and SEDs, and clean up SED rendering logic. Users can now view raw data for unsupported types. (`PR #485 <https://github.com/gemini-hlsw/goats/pull/485>`_)
+
+
+Bug Fixes
+---------
+
+- The exposure mode name was changed from "Fixed Exposure" to "Time & Count" across serializers and tests. (`PR #474 <https://github.com/gemini-hlsw/goats/pull/474>`_)
+
+
+Other
+-----
+
+- Updated ``pre-commit`` hook versions to stay up-to-date. (`PR #423 <https://github.com/gemini-hlsw/goats/pull/423>`_)
+
+
+Documentation
+-------------
+
+- Updated dev documentation for handoff to next developer. (`PR #423 <https://github.com/gemini-hlsw/goats/pull/423>`_)
+- Added section on updating dependencies to developer guide. (`PR #449 <https://github.com/gemini-hlsw/goats/pull/449>`_)
+- Add documentation for maintaining ``conda-forge`` feedstocks for developers. (`PR #451 <https://github.com/gemini-hlsw/goats/pull/451>`_)
+- Updated documentation to include the new `apply-update` GOATS CLI command. (`PR #455 <https://github.com/gemini-hlsw/goats/pull/455>`_)
+- Added updating guide and update documentation link in CLI. (`PR #482 <https://github.com/gemini-hlsw/goats/pull/482>`_)
+
+
+Version 25.9.0 (2025-09-11)
+===========================
+
+Documentation
+-------------
+
+- Updated installation instructions to have channel priority be flexible to resolve issue with ``linux-64``. (`PR #422 <https://github.com/gemini-hlsw/goats/pull/422>`_)
+
+
+Version 25.8.4 (2025-08-29)
+===========================
+
+New Features
+------------
+
+- Updated the conda installation instructions to include adding the correct channels. (`PR #416 <https://github.com/gemini-hlsw/goats/pull/416>`_)
+
+
+Version 25.8.3 (2025-08-28)
+===========================
+
+Documentation
+-------------
+
+- Fixed typos in user doc. (`PR #415 <https://github.com/gemini-hlsw/goats/pull/415>`_)
+
+
+Version 25.8.2 (2025-08-28)
+===========================
+
+Changes
+-------
+
+- Improved UI for tables when no data to display. Also hide empty select box when no observation groups. (`PR #414 <https://github.com/gemini-hlsw/goats/pull/414>`_)
+
+
+Documentation
+-------------
+
+- Updated deployment guide about PRs on ``goats-infra``. (`PR #411 <https://github.com/gemini-hlsw/goats/pull/411>`_)
+- Added ``copybutton`` to documentation to improve UI for users for code blocks. (`PR #412 <https://github.com/gemini-hlsw/goats/pull/412>`_)
+- Updated collab list and made minor fixes in user doc. (`PR #413 <https://github.com/gemini-hlsw/goats/pull/413>`_)
+
+
 Version 25.8.1 (2025-08-28)
 ===========================
 
@@ -439,7 +596,7 @@ Bug Fixes
   
 
 GOATS 24.12.0 (2024-12-21)
-=========================-
+==========================
 
 
 
@@ -522,7 +679,7 @@ Bug Fixes
   
 
 GOATS 24.11.0 (2024-11-27)
-=========================-
+==========================
 
 
 
@@ -609,7 +766,7 @@ Bug Fixes
   
 
 GOATS 24.10.0 (2024-10-29)
-=========================-
+==========================
 
 
 
@@ -1168,7 +1325,7 @@ Bug Fixes
   
 
 GOATS 24.04.0 (2024-04-26)
-=========================-
+==========================
 
 
 
@@ -1216,7 +1373,7 @@ Changes
   
 
 GOATS 24.03.0 (2024-03-25)
-=========================-
+==========================
 
 
 
@@ -1253,7 +1410,7 @@ New Features
   
 
 GOATS 24.02.0 (2024-02-26)
-=========================-
+==========================
 
 
 
@@ -1290,7 +1447,7 @@ Bug Fixes
   
 
 GOATS 24.01.0 (2024-01-26)
-=========================-
+==========================
 
 
 
@@ -1341,7 +1498,7 @@ Bug Fixes
   
 
 GOATS 23.12.0 (2023-12-22)
-=========================-
+==========================
 
 
 
@@ -1404,7 +1561,7 @@ Bug Fixes
   
 
 GOATS 23.11.0 (2023-11-27)
-=========================-
+==========================
 
 
 
@@ -1473,7 +1630,7 @@ Enhancements
   
 
 GOATS 23.10.0 (2023-10-26)
-=========================-
+==========================
 
 
 
@@ -1534,7 +1691,7 @@ Other
   
 
 GOATS 23.09.0 (2023-09-25)
-=========================-
+==========================
 
 
 
@@ -1592,7 +1749,7 @@ Changes
   
 
 GOATS 23.08.0 (2023-08-25)
-=========================-
+==========================
 
 
 

@@ -17,14 +17,23 @@
     {% observation_distribution filter.qs %}
     <form action="" method="GET">
     <div class="row">
-      <div class="col">
-        <button type="submit" name="action" value="add" class="btn btn-primary">Add</button>
-        <button type="submit" name="action" value="remove" class="btn btn-danger">Remove </button>
-        Selected observations from group
-        {{ filter.form.observationgroup }}
-      </div>
+      <div class="col d-flex align-items-center gap-2">
+  <button type="submit" name="action" value="add" class="btn btn-primary">
+    Add
+  </button>
+  <button type="submit" name="action" value="remove" class="btn btn-danger">
+    Remove
+  </button>
+  <span>Selected observations from group:</span>
+  {% if filter.form.observationgroup.field.queryset %}
+    <div>
+      {{ filter.form.observationgroup }}
     </div>
-
+  {% else %}
+    <span class="text-muted fst-italic">No groups available</span>
+  {% endif %}
+  </div>
+    </div>
     <table class="table">
       <thead>
         <tr>

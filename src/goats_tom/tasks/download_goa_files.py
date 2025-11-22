@@ -10,11 +10,12 @@ import time
 import astrodata
 import dramatiq
 from django.conf import settings
-from django.core import serializers
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
 from dramatiq.middleware import TimeLimitExceeded
 from requests.exceptions import HTTPError
 from tom_dataproducts.models import DataProduct
+from tom_observations.models import ObservationRecord
 
 from goats_tom.astroquery import Observations as GOA
 from goats_tom.models import DataProductMetadata, Download, GOALogin
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
     max_retries=0, time_limit=getattr(settings, "DRAMATIQ_ACTOR_TIME_LIMIT", 86400000)
 )
 def download_goa_files(
-    serialized_observation_record: str,
+    observation_record_pk: int,
     query_params: dict,
     user: int,
 ) -> None:
@@ -42,8 +43,8 @@ def download_goa_files(
 
     Parameters
     ----------
-    serialized_observation_record : `str`
-        A JSON serialized string of the observation record object.
+    observation_record_pk : `int`
+        The primary key of the observation record.
     query_params : `dict`
         A dictionary containing additional parameters for querying and downloading
         files.
@@ -60,18 +61,35 @@ def download_goa_files(
     """
     try:
         # Allow page to refresh before displaying notification.
-        print("Running background task.")
+        logger.info("Starting background GOA download task.")
         time.sleep(2)
 
         download_state = DownloadState()
 
         # Only ever one observation record passed.
-        observation_record = list(
-            serializers.deserialize("json", serialized_observation_record),
-        )[0].object
+        try:
+            observation_record = ObservationRecord.objects.get(pk=observation_record_pk)
+        except ObjectDoesNotExist:
+            logger.error(
+                "Observation record with pk=%s not found. Aborting GOA download.",
+                observation_record_pk,
+            )
+            download_state.update_and_send(status="Failed.", error=True)
+            NotificationInstance.create_and_send(
+                label="Observation record not found.",
+                message="Observation record not found. Cannot start download.",
+                color="danger",
+            )
+            raise
         target = observation_record.target
         facility = observation_record.facility
         observation_id = observation_record.observation_id
+        logger.debug(
+            "Using Observation record: target=%s, facility=%s, observation id=%s",
+            target,
+            facility,
+            observation_id,
+        )
 
         # Create Download record at the start
         download = Download.objects.create(
@@ -79,6 +97,7 @@ def download_goa_files(
             status="Running",
             unique_id=download_state.unique_id,
         )
+        logger.debug("Created new Download record: %s", download.pk)
 
         NotificationInstance.create_and_send(
             message="Download started.",
@@ -90,22 +109,25 @@ def download_goa_files(
         prop_data_msg = "Proprietary data will not be downloaded."
         try:
             goa_credentials = GOALogin.objects.get(user=user)
+            logger.debug("Found GOA credentials for user=%s", user)
+
             # Login to GOA.
             GOA.login(goa_credentials.username, goa_credentials.password)
-
             if not GOA.authenticated():
                 raise PermissionError
+            logger.info("Successfully authenticated with GOA.")
         except GOALogin.DoesNotExist:
-            logger.warning(f"GOA login credentials not found. {prop_data_msg}")
+            logger.warning("GOA login credentials not found. %s", prop_data_msg)
         except PermissionError:
             logger.warning(
-                f"GOA login failed. Re-enter login credentials. {prop_data_msg}"
+                "GOA login failed. Re-enter login credentials. %s", prop_data_msg
             )
 
         # Get target path.
         target_facility_path = (
             settings.MEDIA_ROOT / target.name / facility / observation_id
         )
+        logger.debug("Target facility path: %s", target_facility_path)
 
         # Set default args and kwargs if not provided in query_params.
         args = query_params.get("args", ())
@@ -113,6 +135,7 @@ def download_goa_files(
 
         # Determine what to do with calibration data.
         download_calibration = kwargs.pop("download_calibrations", None)
+        logger.debug("Download calibration mode: %s", download_calibration)
 
         # Create blank mapping.
         name_reduction_map = {}
@@ -123,13 +146,16 @@ def download_goa_files(
         # Query GOA for science tarfile.
         if download_calibration != "only":
             try:
-                print(f"{observation_id}: Downloading science files...")
+                logger.info("[%s] Downloading science files...", observation_id)
 
                 download_state.update_and_send(
                     status="Downloading science files...",
                     downloaded_bytes=0,
                 )
                 file_list = GOA.query_criteria(*args, **kwargs)
+                logger.debug(
+                    "[%s] GOA query returned %d files.", observation_id, len(file_list)
+                )
                 # Create the mapping.
                 name_reduction_map = create_name_reduction_map(file_list)
                 sci_out = GOA.get_files(
@@ -141,8 +167,17 @@ def download_goa_files(
                 )
                 sci_files = sci_out["downloaded_files"]
                 num_files_omitted += sci_out["num_files_omitted"]
+                logger.info(
+                    "[%s] Downloaded %d science files (%d omitted).",
+                    observation_id,
+                    len(sci_files),
+                    sci_out["num_files_omitted"],
+                )
             except tarfile.ReadError:
-                print("Error unpacking downloaded science files, skipping.")
+                logger.exception(
+                    "[%s] Error unpacking downloaded science files: ",
+                    observation_id,
+                )
                 NotificationInstance.create_and_send(
                     label=f"{observation_id}",
                     message="Error unpacking science tar file. Try again.",
@@ -152,7 +187,7 @@ def download_goa_files(
         if download_calibration != "no":
             try:
                 if kwargs.get("progid"):
-                    print(f"{observation_id}: Downloading calibration files...")
+                    logger.info("[%s] Downloading calibration files...", observation_id)
                     download_state.update_and_send(
                         status="Downloading calibration files...",
                         downloaded_bytes=0,
@@ -166,10 +201,22 @@ def download_goa_files(
                     )
                     cal_files = cal_out["downloaded_files"]
                     num_files_omitted += cal_out["num_files_omitted"]
+                    logger.info(
+                        "[%s] Downloaded %d calibration files (%d omitted).",
+                        observation_id,
+                        len(cal_files),
+                        cal_out["num_files_omitted"],
+                    )
                 else:
-                    print("No observation ID provided, skipping calibration.")
+                    logger.debug(
+                        "[%s] No progid in kwargs; skipping calibration.",
+                        observation_id,
+                    )
             except tarfile.ReadError:
-                print("Error unpacking downloaded calibration files, skipping.")
+                logger.exception(
+                    "[%s] Error unpacking downloaded calibration files: ",
+                    observation_id,
+                )
                 NotificationInstance.create_and_send(
                     label=f"{observation_id}",
                     message="Error unpacking calibration tar file. Try again.",
@@ -182,16 +229,25 @@ def download_goa_files(
 
         # Handle case if GOA found nothing and did not create folder.
         if not target_facility_path.exists():
+            logger.warning(
+                "[%s] Target path not created; no files downloaded.", observation_id
+            )
             download.finish()
             return
 
         downloaded_files = set(sci_files + cal_files)
         num_files_downloaded = len(downloaded_files)
+        logger.info(
+            "[%s] Processing %d downloaded files.", observation_id, num_files_downloaded
+        )
 
         # Now lead by the files in the folder.
         for file_name in downloaded_files:
             file_path = target_facility_path / file_name
             if file_path.suffix != ".fits":
+                logger.debug(
+                    "[%s] Skipping non-FITS file: %s", observation_id, file_path
+                )
                 continue
 
             product_id = str(file_path.relative_to(settings.MEDIA_ROOT))
@@ -208,6 +264,9 @@ def download_goa_files(
 
             if candidates.exists():
                 # If we have candidates, just grab the first one.
+                logger.debug(
+                    "[%s] Existing DataProduct found for %s", observation_id, product_id
+                )
                 dp = candidates.first()
             else:
                 # Otherwise, create a new DataProduct.
@@ -230,14 +289,21 @@ def download_goa_files(
                     DataProductMetadata.objects.create(
                         dataproduct=dp, processed=processed
                     )
-                    logger.info("Saved new dataproduct from tarfile: %s", dp.data)
+                    logger.info(
+                        "[%s] Created new DataProduct: %s (processed=%s)",
+                        observation_id,
+                        dp.data.name,
+                        processed,
+                    )
                 except IntegrityError:
-                    logger.error(
-                        "There already exists a data product '%s', skipping.",
+                    logger.warning(
+                        "[%s] DataProduct already exists for %s, skipping.",
+                        observation_id,
                         file_path.name,
                     )
 
         GOA.logout()
+        logger.debug("[%s] Logged out of GOA.", observation_id)
 
         # Update downloaded and omitted data.
         download.num_files_downloaded = num_files_downloaded
@@ -255,8 +321,9 @@ def download_goa_files(
             label=f"{observation_id}",
             color="success",
         )
-        print("Done.")
+        logger.info("[%s] Download complete. %s", observation_id, message)
     except TimeLimitExceeded:
+        logger.exception("[%s] Task time limit exceeded.", observation_id)
         download.finish(message="Background task time limit hit.", error=True)
         download_state.update_and_send(status="Failed.", error=True)
         NotificationInstance.create_and_send(
@@ -266,6 +333,7 @@ def download_goa_files(
         )
         raise
     except HTTPError as e:
+        logger.exception("[%s] HTTP error during GOA download: ", observation_id)
         download.finish(message=str(e), error=True)
         download_state.update_and_send(status="Failed.", error=True)
         NotificationInstance.create_and_send(
@@ -275,6 +343,7 @@ def download_goa_files(
         )
         raise
     except Exception as e:
+        logger.exception("[%s] Unexpected error during GOA download: ", observation_id)
         # Catch all other exceptions.
         download.finish(message=str(e), error=True)
         download_state.update_and_send(status="Failed.", error=True)

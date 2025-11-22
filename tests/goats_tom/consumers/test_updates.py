@@ -25,6 +25,7 @@ async def test_notification_message_handling():
             "color": "red",
             "label": "Alert",
             "message": "Test notification message",
+            "autohide": True
         },
     )
 
@@ -36,6 +37,7 @@ async def test_notification_message_handling():
         "color": "red",
         "label": "Alert",
         "message": "Test notification message",
+        "autohide": True,
     }
     assert response == expected_response, "Incorrect response received"
 

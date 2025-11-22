@@ -1,11 +1,8 @@
-# Standard library imports.
-
-# Related third party imports.
-
-# Local application/library specific imports.
 from typing import Any
 
 from django import template
+
+from goats_tom.facilities.gemini import GOA_OBSERVING_STATES
 
 from ..forms import GOAQueryForm
 
@@ -35,6 +32,7 @@ def render_goa_query_form(context: template.context.RequestContext) -> dict[str,
         "observationrecord": observationrecord,
         "object": observationrecord,
         "target": observationrecord.target,
+        "completed_states": GOA_OBSERVING_STATES,
     }
 
 

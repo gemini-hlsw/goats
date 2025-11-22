@@ -1,0 +1,1 @@
+Enabled getting status from GPP for observations with GPP IDs. Improved error logging when fetching observation status fails. Updated template to reflect new status options for enabling GOA data retrieval.

@@ -77,6 +77,9 @@ class API {
    * @returns {Promise<Object>} - A promise resolving to the response data.
    */
   post(endpoint, body, options = {}, stringify = true) {
+    console.log("Posting to:", endpoint);
+    console.log("With body:", body);
+    console.log("Stringify body:", stringify);
     return this.request(endpoint, {
       ...options,
       method: "POST",

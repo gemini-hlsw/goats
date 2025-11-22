@@ -16,11 +16,27 @@
     {% if editable %}
       <p>{% update_observation_id_form object %}</p>
     {% endif %}
-    {% if object.url %}
     <p class="my-auto pb-3">
-      <a class="btn btn-outline-primary {% if object.facility == 'GEM' %}disabled{% endif %}" href="{{ object.url }}" target="_blank">View at Observatory »</a>
+      {% if object.facility != "GEM" %}
+        {% if object.url %}
+          <a
+            class="btn btn-outline-primary"
+            href="{{ object.url }}"
+            target="_blank"
+          >
+            View at Observatory »
+          </a>
+        {% endif %}
+      {% else %}
+        <a
+          class="btn btn-outline-primary {% if not gpp_url %}disabled{% endif %}"
+          href="{{ gpp_url|default:'#' }}"
+          target="_blank"
+        >
+          View at Observatory »
+        </a>
+      {% endif %}
     </p>
-    {% endif %}
     <p class="my-auto"><strong>Created:</strong> {{ object.created }} <strong>Modified:</strong> {{ object.modified }}</p>
     <p class="my-auto"><strong>Status:</strong> {{ object.status }}</p>
   </div>
