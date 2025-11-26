@@ -1,7 +1,22 @@
 import pytest
 
-from goats_tom.serializers.gpp.instruments import GMOSSouthLongSlitSerializer
+from goats_tom.serializers.gpp.instruments import GMOSNorthLongSlitSerializer
 
+@pytest.fixture(autouse=True)
+def mock_exposure_mode_serializer(mocker):
+    """
+    Automatically mock ExposureModeSerializer inside GMOS serializers so GMOS tests
+    do not need to include exposure-mode fields.
+    """
+    mocker.patch(
+        "goats_tom.serializers.gpp.instruments.gmos._base_gmos.ExposureModeSerializer.is_valid",
+        return_value=True,
+    )
+
+    mocker.patch(
+        "goats_tom.serializers.gpp.instruments.gmos._base_gmos.ExposureModeSerializer.format_gpp",
+        return_value=None,
+    )
 
 @pytest.mark.parametrize(
     "input_data",
@@ -20,9 +35,9 @@ from goats_tom.serializers.gpp.instruments import GMOSSouthLongSlitSerializer
         },
     ],
 )
-def test_gmos_south_longslit_valid_inputs(input_data: dict[str, str]) -> None:
+def test_gmos_north_longslit_valid_inputs(input_data: dict[str, str], mocker) -> None:
     """Test that valid inputs are accepted."""
-    serializer = GMOSSouthLongSlitSerializer(data=input_data)
+    serializer = GMOSNorthLongSlitSerializer(data=input_data)
     assert serializer.is_valid(), serializer.errors
 
 
@@ -46,24 +61,24 @@ def test_gmos_south_longslit_valid_inputs(input_data: dict[str, str]) -> None:
         ),
     ],
 )
-def test_gmos_south_longslit_invalid_inputs(
-    input_data: dict[str, str], expected_field: str, expected_error: str
+def test_gmos_north_longslit_invalid_inputs(
+    input_data: dict[str, str], expected_field: str, expected_error: str, mocker
 ) -> None:
     """Test that invalid inputs raise expected validation errors."""
-    serializer = GMOSSouthLongSlitSerializer(data=input_data)
+    serializer = GMOSNorthLongSlitSerializer(data=input_data)
     assert not serializer.is_valid()
     assert expected_field in serializer.errors
     assert expected_error in str(serializer.errors[expected_field][0])
 
 
-def test_format_gpp_outputs_structured_data() -> None:
+def test_format_gpp_outputs_structured_data(mocker) -> None:
     """Test that format_gpp returns correctly structured GPP-compatible output."""
     input_data = {
         "centralWavelengthInput": "750.5",
         "wavelengthDithersInput": "0.0, 8.0, -8.0",
         "spatialOffsetsInput": "0.0, 15.0, -15.0",
     }
-    serializer = GMOSSouthLongSlitSerializer(data=input_data)
+    serializer = GMOSNorthLongSlitSerializer(data=input_data)
     assert serializer.is_valid(), serializer.errors
 
     expected = {
@@ -82,24 +97,18 @@ def test_format_gpp_outputs_structured_data() -> None:
     assert serializer.format_gpp() == expected
 
 
-def test_to_pydantic_outputs_valid_model() -> None:
+def test_to_pydantic_outputs_valid_model(mocker) -> None:
     """Test that to_pydantic returns a valid Pydantic model."""
     input_data = {
         "centralWavelengthInput": "750.5",
         "wavelengthDithersInput": "1.0, -1.0",
         "spatialOffsetsInput": "5.0, -5.0",
     }
-    serializer = GMOSSouthLongSlitSerializer(data=input_data)
+    serializer = GMOSNorthLongSlitSerializer(data=input_data)
     assert serializer.is_valid(), serializer.errors
     model = serializer.to_pydantic()
     assert model.model_dump(exclude_none=True) == {
         "central_wavelength": {"nanometers": 750.5},
-        "explicit_wavelength_dithers": [
-            {"nanometers": 1.0},
-            {"nanometers": -1.0},
-        ],
-        "explicit_offsets": [
-            {"arcseconds": 5.0},
-            {"arcseconds": -5.0},
-        ],
+        "explicit_wavelength_dithers": [{"nanometers": 1.0}, {"nanometers": -1.0}],
+        "explicit_offsets": [{"arcseconds": 5.0}, {"arcseconds": -5.0}],
     }

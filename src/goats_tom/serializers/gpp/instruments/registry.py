@@ -10,8 +10,10 @@ from gpp_client.api.enums import ObservingModeType
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
-from .gmos_north_long_slit import GMOSNorthLongSlitSerializer
-from .gmos_south_long_slit import GMOSSouthLongSlitSerializer
+from goats_tom.serializers.gpp.instruments import (
+    GMOSNorthLongSlitSerializer,
+    GMOSSouthLongSlitSerializer,
+)
 
 
 class InstrumentRegistry:

@@ -1,5 +1,6 @@
 __all__ = ["GPPLoginView"]
 
+import logging
 from typing import Any
 
 from asgiref.sync import async_to_sync
@@ -10,6 +11,8 @@ from goats_tom.forms import GPPLoginForm
 from goats_tom.models import GPPLogin
 
 from .base import BaseLoginView
+
+logger = logging.getLogger(__name__)
 
 
 class GPPLoginView(BaseLoginView):
@@ -38,21 +41,13 @@ class GPPLoginView(BaseLoginView):
             otherwise.
         """
         token = kwargs.get("token")
-        client = GPPClient(url=settings.GPP_URL, token=token)
+        client = GPPClient(env=settings.GPP_ENV, token=token)
 
-        # FIXME: Hack until we get fix in GPP client.
-        query = """
-            {
-                __schema {
-                    queryType {
-                        name
-                    }
-                }
-            }
-        """
         try:
-            response = async_to_sync(client._client.execute)(query)
-            response.raise_for_status()
+            is_reachable, error = async_to_sync(client.is_reachable)()
+            if not is_reachable:
+                logger.debug(f"GPP endpoint is not reachable: {error}")
+                raise Exception(error)
         except Exception:
             return False
         return True

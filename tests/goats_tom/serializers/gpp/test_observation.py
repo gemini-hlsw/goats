@@ -22,9 +22,6 @@ def minimal_input():
         "wavelengthDithersInput": "0.0, 1.0",
         "posAngleConstraintModeSelect": "FIXED",
         "posAngleConstraintAngleInput": 180.0,
-        "exposureModeSelect": "Signal / Noise",
-        "snInput": 100.0,
-        "snWavelengthInput": 750.0,
         "imageQualitySelect": ImageQualityPreset.ONE_POINT_ZERO.value,
         "cloudExtinctionSelect": CloudExtinctionPreset.ONE_POINT_ZERO.value,
         "skyBackgroundSelect": SkyBackground.DARK.value,
@@ -45,7 +42,6 @@ def patched_subserializers():
             "goats_tom.serializers.gpp.observation.ConstraintSetSerializer"
         ) as MockCS,
         patch("goats_tom.serializers.gpp.observation.PosAngleSerializer") as MockPA,
-        patch("goats_tom.serializers.gpp.observation.ExposureModeSerializer") as MockEM,
     ):
         om = MockOM.return_value
         om.is_valid.return_value = True
@@ -61,12 +57,6 @@ def patched_subserializers():
         pa.is_valid.return_value = True
         pa.format_gpp.return_value = {"mode": "FIXED", "angle": {"degrees": 180.0}}
 
-        em = MockEM.return_value
-        em.is_valid.return_value = True
-        em.format_gpp.return_value = {
-            "signalToNoise": {"value": 100.0, "wavelength": {"nanometers": 750.0}}
-        }
-
         yield
 
 
@@ -79,10 +69,6 @@ def test_valid_observation_format_gpp(minimal_input, patched_subserializers):
     assert "observingMode" in formatted
     assert "constraintSet" in formatted
     assert "posAngleConstraint" in formatted
-    assert (
-        formatted["scienceRequirements"]["exposureTimeMode"]["signalToNoise"]["value"]
-        == 100.0
-    )
 
 
 @pytest.mark.parametrize(
@@ -90,7 +76,6 @@ def test_valid_observation_format_gpp(minimal_input, patched_subserializers):
     [
         ("hiddenObservingModeInput", "INVALID", "is not a valid choice"),
         ("posAngleConstraintModeSelect", None, "This field is required."),
-        ("snInput", None, "Both S/N value and wavelength are required"),
     ],
 )
 def test_invalid_required_fields(field, value, expected_error, minimal_input):

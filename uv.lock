@@ -1337,7 +1337,7 @@ requires-dist = [
     { name = "djangorestframework", specifier = ">=3.16.1,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
-    { name = "gpp-client", specifier = "==25.10.4" },
+    { name = "gpp-client", specifier = "==25.11.0.dev1" },
     { name = "marshmallow", specifier = ">=3.26.1,<4" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
@@ -1374,7 +1374,7 @@ notebook = [{ name = "ipykernel", specifier = ">=7.1.0" }]
 
 [[package]]
 name = "gpp-client"
-version = "25.10.4"
+version = "25.11.0.dev1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1386,9 +1386,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5f/40/b9c88354076c0cbfcd27092528832a2ff17eb8ef6826e3d2ef99e957990d/gpp_client-25.10.4.tar.gz", hash = "sha256:5da976fbec91ae85de115e7364ab31fab98e17e1d14a17287114e8cbf8f5f9af", size = 136766, upload-time = "2025-10-29T21:34:34.273Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/fa/42c262aae828ba145177ec9b3375a3d3ab28ef50e150ce8b927c69bb9d62/gpp_client-25.11.0.dev1.tar.gz", hash = "sha256:d41a70d62b8a563585fc207e32df976d207a95b503ffceecf8e44465bd1937d8", size = 143639, upload-time = "2025-11-25T22:17:43.602Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/25/b0b170881dae2d69acb509145b31119a7bf1ac636b1fc37b6f37fd61d7b9/gpp_client-25.10.4-py3-none-any.whl", hash = "sha256:6f4ae82d549d6e043dd8ef3b6f38ed1da46f00d6bac1990be341107b531f1de5", size = 162785, upload-time = "2025-10-29T21:34:32.664Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/ca/c6412cb1cb8c51464b70c9d22f3dc3fcb69a2733f3230cb7a676a250e1c3/gpp_client-25.11.0.dev1-py3-none-any.whl", hash = "sha256:e6ced2ec652a8f5d0c73dd8ef649d1400597f43ee56339ac0b47fd14b6b952a2", size = 174059, upload-time = "2025-11-25T22:17:42.298Z" },
 ]
 
 [[package]]

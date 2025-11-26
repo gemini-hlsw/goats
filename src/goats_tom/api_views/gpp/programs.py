@@ -45,7 +45,7 @@ class GPPProgramViewSet(
 
         # Setup client to communicate with GPP.
         try:
-            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
             director = GPPDirector(client)
             programs = async_to_sync(director.goats.program.get_all)()
 
@@ -84,7 +84,7 @@ class GPPProgramViewSet(
 
         # Setup client to communicate with GPP.
         try:
-            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
             program = async_to_sync(client.program.get_by_id)(program_id=program_id)
 
             return Response(program)

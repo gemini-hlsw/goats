@@ -367,7 +367,7 @@ CORS_ORIGIN_REGEX_WHITELIST = [
 # 'plotly', 'plotly_white', 'plotly_dark', 'ggplot2', 'seaborn', 'simple_white', 'none'
 PLOTLY_THEME = "plotly_dark"
 
-GPP_URL = "test"
+GPP_ENV = "DEVELOPMENT"
 
 try:
     from local_settings import *  # noqa
