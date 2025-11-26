@@ -1,7 +1,6 @@
 from .constraint_set import ConstraintSetSerializer
 from .context import ContextSerializer
 from .elevation_range import ElevationRangeSerializer
-from .exposure_mode import ExposureModeSerializer
 from .observation import ObservationSerializer
 from .observing_mode import ObservingModeSerializer
 from .pos_angle import PosAngleSerializer
@@ -11,7 +10,6 @@ from .target import TargetSerializer
 from .workflow_state import WorkflowStateSerializer
 
 __all__ = [
-    "ExposureModeSerializer",
     "ElevationRangeSerializer",
     "SourceProfileSerializer",
     "WorkflowStateSerializer",

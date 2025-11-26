@@ -42,12 +42,12 @@ class GPPStatusMixin(BaseStatusMixin):
         user = request.user
         credentials = user.gpplogin
 
-        url = settings.GPP_URL
-        if not url:
-            raise MissingCredentialsError("Missing GPP URL in settings")
+        env = settings.GPP_ENV
+        if not env:
+            raise MissingCredentialsError("Missing GPP environment in settings")
         return {
             "token": credentials.token,
-            "url": url,
+            "env": env,
         }
 
     def check_service(self, credentials: dict, *args, **kwargs) -> tuple[Status, str]:
@@ -64,7 +64,7 @@ class GPPStatusMixin(BaseStatusMixin):
         tuple[Status, str]
             A tuple containing the service status and a message.
         """
-        client = GPPClient(token=credentials["token"], url=credentials["url"])
+        client = GPPClient(token=credentials["token"], env=credentials["env"])
         reachable, error = async_to_sync(client.is_reachable)()
         if reachable:
             return Status.OK, "GPP service is reachable."

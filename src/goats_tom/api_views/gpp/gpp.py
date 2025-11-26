@@ -36,7 +36,7 @@ class GPPViewSet(viewsets.GenericViewSet):
             )
 
         credentials = request.user.gpplogin
-        client = GPPClient(token=credentials.token, url=settings.GPP_URL)
+        client = GPPClient(token=credentials.token, env=settings.GPP_ENV)
         reachable, error = async_to_sync(client.is_reachable)()
 
         if reachable:

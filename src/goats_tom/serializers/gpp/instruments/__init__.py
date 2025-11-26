@@ -1,5 +1,4 @@
-from .gmos_north_long_slit import GMOSNorthLongSlitSerializer
-from .gmos_south_long_slit import GMOSSouthLongSlitSerializer
+from .gmos import GMOSNorthLongSlitSerializer, GMOSSouthLongSlitSerializer
 from .registry import (
     InstrumentRegistry,
 )

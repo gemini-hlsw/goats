@@ -121,4 +121,4 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-GPP_URL = "test"
+GPP_ENV = "DEVELOPMENT"

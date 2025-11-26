@@ -225,9 +225,8 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
                     )
                 # Get GPP credentials from user profile.
                 credentials = self.user.gpplogin
-                url = settings.GPP_URL
                 # Create GPP client.
-                client = GPPClient(token=credentials.token, url=url)
+                client = GPPClient(token=credentials.token, env=settings.GPP_ENV)
                 workflow_state_summary = async_to_sync(client.workflow_state.get_by_id)(
                     observation_reference=observation_id
                 )

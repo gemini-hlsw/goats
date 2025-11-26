@@ -316,7 +316,7 @@ const GMOS_NORTH_LONG_SLIT_FIELDS = [
   },
   {
     labelText: "Spatial Offsets",
-    path: "observingMode.gmosNorthLongSlit.spatialOffsets",
+    path: "observingMode.gmosNorthLongSlit.offsets",
     id: "spatialOffsets",
     suffix: "arcsec",
     handler: "handleSpatialOffsetsList",
@@ -338,7 +338,7 @@ const GMOS_NORTH_LONG_SLIT_FIELDS = [
   },
   {
     labelText: "Exposure Mode",
-    path: "scienceRequirements.exposureTimeMode",
+    path: "observingMode.gmosNorthLongSlit.exposureTimeMode",
     id: "exposureMode",
     handler: "handleExposureMode",
   },
@@ -411,7 +411,7 @@ const GMOS_SOUTH_LONG_SLIT_FIELDS = [
   },
   {
     labelText: "Spatial Offsets",
-    path: "observingMode.gmosSouthLongSlit.spatialOffsets",
+    path: "observingMode.gmosSouthLongSlit.offsets",
     id: "spatialOffsets",
     suffix: "arcsec",
     handler: "handleSpatialOffsetsList",
@@ -433,7 +433,7 @@ const GMOS_SOUTH_LONG_SLIT_FIELDS = [
   },
   {
     labelText: "Exposure Mode",
-    path: "scienceRequirements.exposureTimeMode",
+    path: "observingMode.gmosSouthLongSlit.exposureTimeMode",
     id: "exposureMode",
     handler: "handleExposureMode",
   },
