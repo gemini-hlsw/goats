@@ -1,0 +1,68 @@
+"""
+Settings loader for GOATS.
+
+This module assembles the complete Django settings for a GOATS installation by
+combining multiple layers in a strict, well-defined order.
+
+Django evaluates GOATS settings through this loader. The layers effectively load
+in the following sequence:
+
+1. base.py
+      - Versioned GOATS defaults.
+      - Maintained by GOATS and updated on upgrade.
+      - This file internally imports dynamic.py and generated.py.
+
+2. dynamic.py  (imported inside base.py)
+      - Regenerated on every GOATS upgrade.
+      - Contains version-specific metadata only (for example, GOATS_VERSION).
+
+3. generated.py  (imported inside base.py)
+      - Created by the GOATS installer.
+      - Contains machine-specific such as:
+        SECRET_KEY, REDIS_HOST, REDIS_PORT, MEDIA_ROOT, TARGET_TYPE, etc.
+      - Intended to remain stable across upgrades.
+
+4. environments/<env>.py
+      - Optional environment-specific overrides.
+      - Selected using the GOATS_ENV environment variable.
+      - Defaults to "development".
+
+5. local.py
+      - User overrides.
+      - Never touched by GOATS and safe to modify.
+
+Usage
+-----
+To select an environment:
+
+    GOATS_ENV=production python manage.py runserver
+    GOATS_ENV=cli goats run
+
+In most installations, only local.py is modified.
+"""
+
+import os
+
+from .base import *
+
+# Determine GOATS environment.
+env = os.getenv("GOATS_ENV", "development").lower()
+
+try:
+    if env == "development":
+        from .environments.development import *
+    elif env == "production":
+        from .environments.production import *
+    elif env == "cli":
+        from .environments.cli import *
+    # For unknown values, we currently do nothing. You can switch this
+    # to raising an error if you want strict behavior.
+except ImportError:
+    # Environment files are optional; missing files are ignored.
+    pass
+
+# User-specific overrides, never managed by GOATS.
+try:
+    from .local import *
+except ImportError:
+    pass
