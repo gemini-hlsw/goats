@@ -1,13 +1,15 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 from astropy.table import Table
-from rest_framework.test import APIRequestFactory, force_authenticate
-from rest_framework import status
-from guardian.shortcuts import assign_perm
-from goats_tom.api_views.target import TargetViewSet
-from goats_tom.tests.factories import UserFactory, GOALoginFactory
-from tom_targets.tests.factories import SiderealTargetFactory
 from django.urls import reverse
+from guardian.shortcuts import assign_perm
+from rest_framework import status
+from rest_framework.test import APIRequestFactory, force_authenticate
+from tom_targets.tests.factories import SiderealTargetFactory
+
+from goats_tom.api_views.target import TargetViewSet
+from goats_tom.tests.factories import GOALoginFactory, UserFactory
 
 
 @pytest.mark.django_db

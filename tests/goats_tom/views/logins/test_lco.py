@@ -1,9 +1,12 @@
 from unittest.mock import patch
-from goats_tom.tests.factories import UserFactory
+
 from django.test import TestCase
 from django.urls import reverse
+
 from goats_tom.models import LCOLogin
+from goats_tom.tests.factories import UserFactory
 from goats_tom.views import LCOLoginView
+
 
 class TestLCOLoginView(TestCase):
     def setUp(self):

@@ -2,12 +2,13 @@
 
 
 import pytest
+from django.http import HttpRequest, HttpResponse
 from django.test.client import RequestFactory
+
 from goats_tom.middleware.tns import (
     TNSCredentialsMiddleware,
     current_tns_creds,
 )
-from django.http import HttpRequest, HttpResponse
 from goats_tom.tests.factories import TNSLoginFactory
 
 

@@ -1,7 +1,9 @@
 import pytest
 from rest_framework.exceptions import ValidationError
 
-from goats_tom.serializers.gpp.instruments.gmos.exposure_mode import ExposureModeSerializer
+from goats_tom.serializers.gpp.instruments.gmos.exposure_mode import (
+    ExposureModeSerializer,
+)
 
 
 @pytest.mark.parametrize(

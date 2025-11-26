@@ -1,14 +1,13 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from rest_framework.response import Response
-from rest_framework.request import Request
 from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
+
+import pytest
+from rest_framework.request import Request
 
 from goats_tom.api_views.status.mixins.base import (
     BaseStatusMixin,
-    Status,
-    StatusPayload,
     MissingCredentialsError,
+    Status,
     register_status,
     status_mixins,
 )

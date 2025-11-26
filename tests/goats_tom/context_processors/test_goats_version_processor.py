@@ -1,15 +1,16 @@
 import re
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
-from django.template import Template, RequestContext
-from django.test import RequestFactory
+import pytest
 from django.core.cache import caches
+from django.template import RequestContext, Template
+from django.test import RequestFactory
 
 from goats_tom.context_processors.goats_version_processor import (
-    goats_version_info_processor,
     get_goats_version,
+    goats_version_info_processor,
 )
+
 
 class TestGoatsVersionProcessor:
     """Tests for the `goats_version_info_processor` context processor."""

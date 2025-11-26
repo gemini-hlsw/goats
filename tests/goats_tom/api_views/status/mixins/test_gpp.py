@@ -1,8 +1,14 @@
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 from django.conf import settings
 from rest_framework.request import Request
-from goats_tom.api_views.status.mixins.gpp import GPPStatusMixin, MissingCredentialsError
+
+from goats_tom.api_views.status.mixins.gpp import (
+    GPPStatusMixin,
+    MissingCredentialsError,
+)
+
 
 @pytest.fixture
 def mock_request():

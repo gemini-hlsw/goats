@@ -1,8 +1,11 @@
-import pytest
 from unittest.mock import MagicMock
-from rest_framework.test import APIRequestFactory
+
+import pytest
 from rest_framework import status
+from rest_framework.test import APIRequestFactory
+
 from goats_tom.api_views.status.status import StatusViewSet
+
 
 @pytest.fixture
 def api_rf():

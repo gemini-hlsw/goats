@@ -2,6 +2,7 @@ import pytest
 
 from goats_tom.serializers.gpp.instruments import GMOSNorthLongSlitSerializer
 
+
 @pytest.fixture(autouse=True)
 def mock_exposure_mode_serializer(mocker):
     """
