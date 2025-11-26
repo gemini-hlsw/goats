@@ -11,6 +11,13 @@ class Config:
     redis_port: int = 6379
     django_port: int = 8000
     addrport_regex_pattern: str = r"^(?:(?P<host>[^:]+):)?(?P<port>[0-9]+)$"
+    selective_exclude = [
+        "**",  # exclude everything
+        "!{{ project_name }}/settings/__init__.py",
+        "!{{ project_name }}/settings/base.py",
+        "!{{ project_name }}/settings/dynamic.py",
+        "!{{ project_name }}/settings/environments/**",
+    ]
 
     def __post_init__(self) -> None:
         """Creates the full address."""

@@ -1,0 +1,44 @@
+_min_copier_version: "9.11.0"
+_templates_suffix: ".jinja"
+
+project_name:
+  type: str
+  help: "Name of the Django project folder (outer and inner)."
+  default: "GOATS"
+
+secret_key:
+  type: str
+  help: "Django secret key."
+  default: ""
+
+redis_host:
+  type: str
+  default: "localhost"
+
+redis_port:
+  type: int
+  default: 6379
+
+media_root:
+  type: str
+  default: "data"
+
+target_type:
+  type: str
+  default: "SIDEREAL"
+  help: "Deployment target type."
+
+hints_enabled:
+  type: bool
+  default: false
+  help: "Whether hints are enabled."
+
+create_date:
+  type: str
+  default: ""
+  help: "Date of project creation."
+
+goats_version:
+  type: str
+  default: ""
+  help: "Version of GOATS. Will be updated automatically."
