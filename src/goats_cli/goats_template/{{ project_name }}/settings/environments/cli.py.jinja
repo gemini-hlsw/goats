@@ -1,0 +1,23 @@
+"""
+CLI environment overrides for GOATS.
+
+This module is loaded when GOATS_ENV=cli. It replaces Django's logging
+configuration with a minimal, silent setup so that management commands invoked
+by the GOATS CLI (such as migrations and createsuperuser) produce no logging
+noise or file output.
+
+This environment should never be used for running the application server.
+
+User-specific adjustments (if needed) belong in local.py rather than this file.
+"""
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": True,
+    "handlers": {
+        "null": {"class": "logging.NullHandler"},
+    },
+    "loggers": {
+        "": {"handlers": ["null"], "level": "CRITICAL"},
+    },
+}
