@@ -27,6 +27,8 @@ updates:
           - "tom-tns"
           - "tomtoolkit"
           - "apscheduler"
+          - "typer"
+          - "copier"
       development-dependencies:
         patterns:
           - "pytest*"
