@@ -199,4 +199,8 @@ GOATS is actively developed and regularly updated. When a new version is availab
 See :ref:`updating` for full instructions on how to update GOATS safely and correctly.
 
 
+.. toctree::
+   :maxdepth: 1
+   :hidden:
 
+   updating.rst
