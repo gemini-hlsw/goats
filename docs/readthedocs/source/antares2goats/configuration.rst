@@ -21,6 +21,7 @@ Follow these steps to generate or retrieve your token from *GOATS*:
 1. Log in to *GOATS*.
 2. Click your username in the top-right corner, then select **Users**.
 3. Locate your username in the list.
+4. Click Manage.
 
 .. figure:: _images/generate_token.png
    :width: 100%
@@ -29,7 +30,7 @@ Follow these steps to generate or retrieve your token from *GOATS*:
 
    The **Users** panel to generate authentication tokens for different accounts.
 
-4. Click **Generate** to create a new token for the appropriate account.
+5. Click **antares2goats** to create a new token for the appropriate account.
 
 .. figure:: _images/token_display.png
    :width: 100%
@@ -38,4 +39,4 @@ Follow these steps to generate or retrieve your token from *GOATS*:
 
    Example of a newly generated token. It appears only once.
 
-5. Copy this token and paste it into the **Options** panel of the extension. If needed, regenerate it later to invalidate the old token and create a new one.
+6. Copy this token and paste it into the **Options** panel of the extension. If needed, regenerate it later to invalidate the old token and create a new one.
