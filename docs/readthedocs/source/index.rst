@@ -48,7 +48,6 @@ GOATS relies on the following components -
    :caption: Table of Contents
 
    installation.rst
-   updating.rst
    overview.rst
    functionalities.rst
    acknowledgment.rst

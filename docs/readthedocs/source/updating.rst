@@ -1,7 +1,7 @@
 .. _updating:
 
-Updating
-========
+Updating GOATS
+==============
 
 This guide explains how to update GOATS to the latest version.  
 The update process is simple and takes just a few minutes.
@@ -49,17 +49,22 @@ Automatic Version Check
 GOATS checks for newer versions every time you run ``goats run``. If your version is outdated, a warning like the following will appear:
 
 .. code-block:: text
+   
+    WARNING: A new version of GOATS is available: 25.11.3 (current: 25.11.0)
+    GOATS interacts with several external services (e.g., GPP, GOA, TNS)
+    which may evolve over time. Using an outdated version can result in
+    unexpected behavior or failed operations due to API changes or
+    incompatible features.
 
-   A new version of GOATS is available: 25.11.0 (current: 25.10.1)
+    Update steps:
+       • Stop GOATS
+       • Run: conda update goats
+       • Start GOATS again
 
-   GOATS interacts with several external services (e.g., GPP, GOA, TNS)
-       which may evolve over time. Using an outdated version can result in
-       unexpected behavior or failed operations due to API changes or
-       incompatible features.
+    ➤ For more details, visit https://goats.readthedocs.io/en/stable/updating.html
 
-   ➤ Visit https://goats.readthedocs.io/en/stable/updating.html for update instructions
+    Press Enter to continue at your own risk, or Ctrl+C to cancel...
 
-   Press Enter to continue at your own risk, or Ctrl+C to cancel...
 
 If your version is current, GOATS will confirm:
 
