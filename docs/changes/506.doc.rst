@@ -1,0 +1,1 @@
+Updated “Getting your token” documentation for the `antares2goats`.
