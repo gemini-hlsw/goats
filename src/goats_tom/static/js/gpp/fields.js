@@ -258,6 +258,13 @@ const SHARED_FIELDS = [
     path: "constraintSet.elevationRange",
     handler: "handleElevationRange",
   },
+  //Timing Windows section
+  { section : "Scheduling Windows" },
+  {
+   path: "timingWindows",
+   handler: "handleSchedulingWindowsInputs",
+  },
+
   { section: "Configuration" },
   {
     labelText: "Position Angle",

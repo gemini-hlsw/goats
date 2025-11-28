@@ -103,6 +103,14 @@ class ObservationForm {
         });
         return [div];
       },
+      handleSchedulingWindowsInputs: (meta, raw) => {
+        const div = Utils.createElement("div", "mt-3");
+        new SchedulingWindowsEditor(div, {
+          data: raw ?? [],
+          readOnly: this.#readOnly,
+          });
+        return [div];
+      },
       handleSpatialOffsetsList: (meta, raw) => {
         const values = raw?.map((o) => o.arcseconds.toFixed(2)) ?? [];
         return [this.#createFormField({ ...meta, value: values.join(", ") })];
