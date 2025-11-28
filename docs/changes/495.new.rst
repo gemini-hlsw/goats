@@ -1,1 +1,0 @@
-Added a service status dashboard for monitoring backend services, including real-time status checks and visual indicators for service health.

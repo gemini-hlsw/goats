@@ -1,1 +1,0 @@
-Reorganized the user documentation to correctly place the “Updating” section.

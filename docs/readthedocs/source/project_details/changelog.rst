@@ -3,6 +3,35 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 25.11.4 (2025-11-28)
+============================
+
+New Features
+------------
+
+- Added a service status dashboard for monitoring backend services, including real-time status checks and visual indicators for service health. (`PR #495 <https://github.com/gemini-hlsw/goats/pull/495>`_)
+- Added the ability to update observation on GPP and save to GOATS database from GPP application. (`PR #496 <https://github.com/gemini-hlsw/goats/pull/496>`_)
+- Enabled getting status from GPP for observations with GPP IDs. Improved error logging when fetching observation status fails. Updated template to reflect new status options for enabling GOA data retrieval. (`PR #497 <https://github.com/gemini-hlsw/goats/pull/497>`_)
+- Added hook to handle PINHOLE and RONCHI observation types in DRAGONS. Also improved error handling and user feedback during DRAGONS run initialization. Made initialization atomic to prevent partial data creation on failure for a DRAGONS run. (`PR #498 <https://github.com/gemini-hlsw/goats/pull/498>`_)
+
+
+Changes
+-------
+
+- Enabled saving existing GPP observations to the GOATS database. This update consolidated Target of Opportunity functionality into the main ``GPPObservationViewSet`` with new action-based endpoints for creating, saving, and updating observations. (`PR #493 <https://github.com/gemini-hlsw/goats/pull/493>`_)
+- Changed GPP application to a 2-step process to update on GPP and save to GOATS DB separately. Updating an observation on GPP will happen more frequently than saving to GOATS DB, so this change allows for more flexibility and reduces unnecessary writes to the GOATS database. (`PR #500 <https://github.com/gemini-hlsw/goats/pull/500>`_)
+- Changed to use the development branch as the default for ``gpp-client``. This allows users to be able to use ToO features and modify exposure times. Updated the ``settings.py`` file to use the new ``GPP_ENV`` variable to set the environment for the ``gpp-client``. Instead of providing a URL, users can now specify the environment directly (e.g., 'DEVELOPMENT', 'STAGING', 'PRODUCTION'). This change simplifies configuration and improves clarity when setting up the client for different environments. (`PR #504 <https://github.com/gemini-hlsw/goats/pull/504>`_)
+
+
+Documentation
+-------------
+
+- Added documentation for deployment process with walkthrough of publishing GOATS ``25.11.3`` to Conda. (`PR #490 <https://github.com/gemini-hlsw/goats/pull/490>`_)
+- Updated documentation to reflect that the version and sha256 are updated automatically by the script in ``goats-infra/update_release_sha.py``. (`PR #494 <https://github.com/gemini-hlsw/goats/pull/494>`_)
+- Updated “Getting your token” documentation for the `antares2goats`. (`PR #506 <https://github.com/gemini-hlsw/goats/pull/506>`_)
+- Reorganized the user documentation to correctly place the “Updating” section. (`PR #507 <https://github.com/gemini-hlsw/goats/pull/507>`_)
+
+
 Version 25.11.3 (2025-11-07)
 ============================
 
