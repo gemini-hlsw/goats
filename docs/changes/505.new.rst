@@ -1,0 +1,1 @@
+Added a static Scheduling Window form layout and a static table for scheduling windows in the UI.
