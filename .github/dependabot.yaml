@@ -26,6 +26,7 @@ updates:
           - "numpydoc"
           - "tom-tns"
           - "tomtoolkit"
+          - "apscheduler"
       development-dependencies:
         patterns:
           - "pytest*"
