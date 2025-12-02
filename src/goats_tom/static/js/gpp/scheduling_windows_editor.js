@@ -13,22 +13,15 @@ class SchedulingWindowsEditor {
   /** @type {HTMLElement} */
   #list;
 
-  /** @type {boolean} */
-  #readOnly = false;
-
   /**
    * Construct a scheduling windows editor UI.
    *
    * @param {HTMLElement} parentElement - The parent element to render into.
-   * @param {{ readOnly?: boolean }} [options] - Optional configuration.
-   * @param {boolean} [options.readOnly=false] - Whether the editor should start in readonly mode.
    */
-  constructor(parentElement, {data = {} , readOnly = false } = {}) {
+  constructor(parentElement, {data = {} } = {}) {
     if (!(parentElement instanceof HTMLElement)) {
       throw new Error("SchedulingWindowsEditor expects an HTMLElement as the parent.");
     }
-
-    this.#readOnly = readOnly;
 
     this.#container = Utils.createElement("div", ["d-flex", "flex-column"]);
     parentElement.appendChild(this.#container);
@@ -64,10 +57,6 @@ class SchedulingWindowsEditor {
     ]);
     addBtn.type = "button";
     addBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
-
-    if (this.#readOnly) {
-      addBtn.classList.add("d-none");
-    }
 
     addBtn.addEventListener("click", () => {
       // Placeholder hook for future behavior (add new scheduling window row)
