@@ -1,27 +1,76 @@
+const WINDOW_KINDS = Object.freeze({
+  INCLUDE: "Include",
+  EXCLUDE: "Exclude",
+});
+
 /**
- * Class representing a UI for configuring scheduling windows.
+ * Format a duration in seconds into a human-readable string.
  *
- * Currently this is a dummy UI only: it does not persist or emit data.
+ * Examples:
+ *  - 3660  → "1 hour, 1 minute"
+ *  - 86400 → "1 day"
+ *
+ * @param {number|null|undefined} seconds - Duration in seconds.
+ * @returns {string} Human-readable duration or empty string if invalid.
+ */
+function formatDuration(seconds) {
+  if (seconds == null || isNaN(seconds)) return "";
+
+  const abs = Math.abs(seconds);
+
+  const days = Math.floor(abs / 86400);
+  const hours = Math.floor((abs % 86400) / 3600);
+  const minutes = Math.floor((abs % 3600) / 60);
+  const secs = Math.floor(abs % 60);
+
+  const parts = [];
+
+  if (days > 0) {
+    parts.push(`${days} day${days === 1 ? "" : "s"}`);
+  }
+  if (hours > 0) {
+    parts.push(`${hours} hour${hours === 1 ? "" : "s"}`);
+  }
+  if (minutes > 0) {
+    parts.push(`${minutes} minute${minutes === 1 ? "" : "s"}`);
+  }
+  if (secs > 0 && parts.length === 0) {
+    parts.push(`${secs} second${secs === 1 ? "" : "s"}`);
+  }
+
+  return parts.join(", ");
+}
+
+/**
+ * Editor component for managing a list of scheduling windows.
+ *
+ * Renders:
+ *  - A list of existing windows with Include/Exclude badges.
+ *  - Controls to define a new window (type, start time, mode, repeat).
+ *  - An "Add" button (currently stub only).
  */
 class SchedulingWindowsEditor {
-  /** @type {HTMLElement} */
   #container;
-
-  /** @type {HTMLElement} */
   #tableBox;
-
-  /** @type {HTMLElement} */
   #list;
+  #timingWindows;
 
   /**
    * Construct a scheduling windows editor UI.
    *
    * @param {HTMLElement} parentElement - The parent element to render into.
+   * @param {{data?: Array<Object>}} [options] - Initial configuration.
+   * @param {Array<Object>} [options.data=[]] - Initial list of timing windows.
+   * @throws {Error} If parentElement is not an HTMLElement.
    */
-  constructor(parentElement, {data = {} } = {}) {
+  constructor(parentElement, { data = [] } = {}) {
     if (!(parentElement instanceof HTMLElement)) {
-      throw new Error("SchedulingWindowsEditor expects an HTMLElement as the parent.");
+      throw new Error(
+        "SchedulingWindowsEditor expects an HTMLElement as the parent.",
+      );
     }
+
+    this.#timingWindows = Array.isArray(data) ? [...data] : [];
 
     this.#container = Utils.createElement("div", ["d-flex", "flex-column"]);
     parentElement.appendChild(this.#container);
@@ -41,11 +90,9 @@ class SchedulingWindowsEditor {
     ]);
     this.#tableBox.append(this.#list);
 
-    // Static example rows (dummy content).
-    this.#addRow("Include", "2025-Sep-12 @ 02:46 UTC for 2 days");
-    this.#addRow("Exclude", "2025-Sep-13 @ 05:00 UTC through 2025-Sep-23 @ 05:00 UTC");
+    const separator = Utils.createElement("hr", ["my-1"]);
+    this.#tableBox.append(separator);
 
-    this.#tableBox.append(this.#separator());
     this.#tableBox.append(this.#buildTypeControls());
     this.#tableBox.append(this.#buildFromAndModeControls());
 
@@ -53,76 +100,186 @@ class SchedulingWindowsEditor {
       "btn",
       "btn-outline-primary",
       "align-self-start",
-      "mt-2",
     ]);
     addBtn.type = "button";
     addBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
-
     addBtn.addEventListener("click", () => {
-      // Placeholder hook for future behavior (add new scheduling window row)
+      // TODO: hook to open modal or create a new window from current controls
+    });
+    this.#tableBox.append(addBtn);
+
+    this.#renderList();
+  }
+
+  /**
+   * Re-render the list of existing timing windows.
+   *
+   * @private
+   */
+  #renderList() {
+    this.#list.innerHTML = "";
+
+    if (this.#timingWindows.length > 0) {
+      this.#timingWindows.forEach((tw, index) => {
+        const message = this.#buildMessage(tw);
+        this.#addRow(index, tw.inclusion, message);
+      });
+    } else {
+      this.#addRow(null, null, "No time windows have been defined");
+    }
+  }
+
+  /**
+   * Build the human-readable summary message for a timing window.
+   *
+   * @private
+   * @param {Object} tw - Timing window object.
+   * @returns {string} Summary message describing the timing window.
+   */
+  #buildMessage(tw) {
+    const start = tw.startUtc ?? "";
+    let message = start.replace(" ", " @ ") + " UTC";
+
+    if (!tw.end) {
+      message += " forever";
+    } else if (tw.end.atUtc) {
+      const endMessage = tw.end.atUtc.replace(" ", " @ ") + " UTC";
+      message += ` through ${endMessage}`;
+    } else if (tw.end.after && !tw.end.repeat) {
+      const endMessage = formatDuration(tw.end.after.seconds);
+      message += ` for ${endMessage}`;
+    } else if (tw.end.after && tw.end.repeat) {
+      const periodText = formatDuration(tw.end.repeat.period.seconds);
+      const times = tw.end.repeat.times;
+
+      if (times == null) {
+        message += ` repeat forever with a period of ${periodText}`;
+      } else if (times === 1) {
+        message += ` repeat once after ${periodText}`;
+      } else {
+        message += ` repeat ${times} times with a period of ${periodText}`;
+      }
+    }
+
+    return message;
+  }
+
+  /**
+   * Add a visual row for a timing window or the empty-state message.
+   *
+   * @private
+   * @param {number|null} index - Index of the timing window in the array, or null for the empty state.
+   * @param {string|null} kind - Window kind ("Include" / "Exclude"), case-insensitive.
+   * @param {string} message - Human-readable summary.
+   */
+  #addRow(index, kind, message) {
+    if (!kind) {
+      const messageHTML = Utils.createElement("div", ["text-muted", "ps-1"]);
+      messageHTML.textContent = message;
+      this.#list.append(messageHTML);
+      return;
+    }
+
+    const key = (kind || "").toUpperCase();
+    const normalizedKind = WINDOW_KINDS[key];
+
+    const row = Utils.createElement("div", ["input-group", "mb-1"]);
+    row.dataset.index = index;
+
+    const badge = Utils.createElement("span", [
+      "input-group-text",
+      normalizedKind === "Include" ? "text-bg-success" : "text-bg-danger",
+    ]);
+    badge.textContent = normalizedKind;
+
+    const summary = Utils.createElement("span", ["form-control"]);
+    summary.textContent = message;
+
+    const removeBtn = Utils.createElement("button", ["btn", "btn-danger"]);
+    removeBtn.type = "button";
+    removeBtn.innerHTML = `<i class="fa-solid fa-minus"></i>`;
+    removeBtn.title = "Remove";
+    removeBtn.addEventListener("click", () => {
+      const rowIndex = row.dataset.index;
+      if (rowIndex != null) {
+        const numericIndex = Number(rowIndex);
+        this.#removeTimingWindowAt(numericIndex);
+      }
     });
 
-    this.#tableBox.append(addBtn);
+    row.append(badge, summary, removeBtn);
+    this.#list.append(row);
   }
 
   /**
-   * Create and append a static summary row to the list.
+   * Append a timing window to the internal list and re-render.
    *
    * @private
-   * @param {"Include"|"Exclude"} kind - Rule type.
-   * @param {string} text - Human-readable summary of the rule.
+   * @param {Object} tw - Timing window definition object.
    */
-  #addRow(kind, text) {
-  const row = Utils.createElement("div", [
-    "input-group",
-    "mb-1",
-  ]);
-
-  const badge = Utils.createElement("span", [
-    "input-group-text",
-    kind === "Include" ? "text-bg-success" : "text-bg-danger",
-  ]);
-  badge.textContent = kind;
-  
-    const summary = Utils.createElement("span", [
-    "form-control",
-  ]);
-  summary.textContent = text; 
-
-  const removeBtn = Utils.createElement("button", [
-    "btn",
-    "btn-danger",
-  ]);
-  removeBtn.type = "button";
-  removeBtn.innerHTML = `<i class="fa-solid fa-minus"></i>`;
-  removeBtn.title = "Remove";
-  removeBtn.addEventListener("click", () => {});
-
-  row.append(badge, summary, removeBtn);
-  this.#list.append(row);
-}
-  /**
-   * Create a horizontal separator between summary and controls.
-   *
-   * @private
-   * @returns {HTMLElement}
-   */
-  #separator() {
-    return Utils.createElement("hr", ["my-2"]);
+  #addTimingWindows(tw) {
+    this.#timingWindows.push(tw);
+    this.#renderList();
   }
 
   /**
-   * Build the type controls (Include / Exclude).
+   * Remove a timing window at the given index and re-render.
+   *
+   * Safely does nothing if the index is out of bounds.
    *
    * @private
-   * @returns {HTMLElement}
+   * @param {number} index - Index of the timing window to remove.
+   */
+  #removeTimingWindowAt(index) {
+    if (index < 0 || index >= this.#timingWindows.length) return;
+
+    this.#timingWindows.splice(index, 1);
+    this.#renderList();
+  }
+
+  /**
+   * Create a radio button group option.
+   *
+   * @private
+   * @param {string} group - Name of the radio group.
+   * @param {string} text - Label text and value.
+   * @param {boolean} checked - Whether the radio should start checked.
+   * @returns {HTMLLabelElement} A label containing the radio input and its text.
+   */
+  #radio(group, text, checked) {
+    const wrapper = Utils.createElement("label", [
+      "form-check",
+      "d-flex",
+      "align-items-center",
+      "gap-2",
+      "mb-0",
+    ]);
+
+    const input = Utils.createElement("input", ["form-check-input"]);
+    input.type = "radio";
+    input.name = group;
+    input.value = text;
+    input.checked = checked;
+
+    const label = Utils.createElement("span", ["form-check-label"]);
+    label.textContent = text;
+
+    wrapper.append(input, label);
+    return wrapper;
+  }
+
+  /**
+   * Build the Include/Exclude type controls (radio group).
+   *
+   * @private
+   * @returns {HTMLDivElement} A container with type radios.
    */
   #buildTypeControls() {
     const group = Utils.createElement("div", [
       "d-flex",
       "align-items-center",
       "gap-3",
-      "flex-wrap",
+      "px-2",
     ]);
 
     group.append(
@@ -134,9 +291,13 @@ class SchedulingWindowsEditor {
   }
 
   /**
-   * Build the "from" datetime and mode (Forever / Through / For + repeat) controls.
+   * Build the "From" datetime and mode controls block (Forever / Through / For + repeat).
+   *
+   * Also wires up the dynamic behavior to show/hide sections
+   * depending on the selected mode and the "repeat" checkbox.
+   *
    * @private
-   * @returns {HTMLElement}
+   * @returns {HTMLDivElement} A container with all mode controls.
    */
   #buildFromAndModeControls() {
     const row = Utils.createElement("div", [
@@ -146,16 +307,17 @@ class SchedulingWindowsEditor {
       "flex-wrap",
     ]);
 
-    // Left side: "from" datetime + UTC badge
+    // Left side: "From" datetime + UTC badge
     const fromGroup = Utils.createElement("div", [
       "d-flex",
       "align-items-center",
       "gap-2",
       "flex-wrap",
+      "px-2",
     ]);
 
     const fromLabel = Utils.createElement("span", ["text-muted"]);
-    fromLabel.textContent = "from";
+    fromLabel.textContent = "From";
 
     const fromInput = Utils.createElement("input", [
       "form-control",
@@ -186,7 +348,8 @@ class SchedulingWindowsEditor {
       "align-items-center",
       "gap-2",
     ]);
-    foreverRow.append(this.#radio("mode", "Forever", true));
+    const foreverRadio = this.#radio("mode", "Forever", true);
+    foreverRow.append(foreverRadio);
     modeCol.append(foreverRow);
 
     // Through
@@ -196,7 +359,15 @@ class SchedulingWindowsEditor {
       "gap-2",
       "flex-wrap",
     ]);
-    throughRow.append(this.#radio("mode", "Through", false));
+    const throughRadio = this.#radio("mode", "Through", false);
+    throughRow.append(throughRadio);
+
+    const throughInputs = Utils.createElement("div", [
+      "d-flex",
+      "align-items-center",
+      "gap-2",
+      "flex-wrap",
+    ]);
 
     const throughInput = Utils.createElement("input", [
       "form-control",
@@ -212,7 +383,8 @@ class SchedulingWindowsEditor {
     ]);
     throughUtcBadge.textContent = "UTC";
 
-    throughRow.append(throughInput, throughUtcBadge);
+    throughInputs.append(throughInput, throughUtcBadge);
+    throughRow.append(throughInputs);
     modeCol.append(throughRow);
 
     // For
@@ -222,22 +394,31 @@ class SchedulingWindowsEditor {
       "gap-2",
       "flex-wrap",
     ]);
-    forRow.append(this.#radio("mode", "For", false));
+    const forRadio = this.#radio("mode", "For", false);
+    forRow.append(forRadio);
+
+    const forInputs = Utils.createElement("div", [
+      "d-flex",
+      "align-items-center",
+      "gap-2",
+      "flex-wrap",
+    ]);
 
     const forInput = Utils.createElement("input", [
       "form-control",
       "form-control-sm",
     ]);
-    forInput.style.maxWidth = "80px";
+    forInput.style.maxWidth = "60px";
     forInput.value = "48:00";
 
     const forSuffix = Utils.createElement("span", ["text-muted"]);
     forSuffix.textContent = "hours";
 
-    forRow.append(forInput, forSuffix);
+    forInputs.append(forInput, forSuffix);
+    forRow.append(forInputs);
     modeCol.append(forRow);
 
-    // Repeat block (indented under "For")
+    // Repeat block (only makes sense for "For")
     const repeatBlock = Utils.createElement("div", [
       "d-flex",
       "flex-column",
@@ -254,7 +435,7 @@ class SchedulingWindowsEditor {
 
     const repeatCheckbox = Utils.createElement("input");
     repeatCheckbox.type = "checkbox";
-    repeatCheckbox.checked = true;
+    repeatCheckbox.checked = false;
 
     const repeatLabel = Utils.createElement("span", ["text-muted"]);
     repeatLabel.textContent = "Repeat with a period of";
@@ -263,16 +444,20 @@ class SchedulingWindowsEditor {
       "form-control",
       "form-control-sm",
     ]);
-    repeatPeriodInput.style.maxWidth = "110px";
+    repeatPeriodInput.style.maxWidth = "75px";
     repeatPeriodInput.value = "60:00:00";
-    
+
     const repeatSuffix = Utils.createElement("span", ["text-muted"]);
     repeatSuffix.textContent = "hours";
-   
-    repeatRow.append(repeatCheckbox, repeatLabel, repeatPeriodInput, repeatSuffix);
+
+    repeatRow.append(
+      repeatCheckbox,
+      repeatLabel,
+      repeatPeriodInput,
+      repeatSuffix,
+    );
     repeatBlock.append(repeatRow);
 
-    // Repeat: Forever
     const repeatForever = Utils.createElement("label", [
       "form-check",
       "d-flex",
@@ -296,7 +481,6 @@ class SchedulingWindowsEditor {
     repeatForever.append(repeatForeverInput, repeatForeverLabel);
     repeatBlock.append(repeatForever);
 
-    // Repeat: Times
     const repeatTimes = Utils.createElement("label", [
       "form-check",
       "d-flex",
@@ -311,13 +495,11 @@ class SchedulingWindowsEditor {
     repeatTimesInput.type = "radio";
     repeatTimesInput.name = "repeatMode";
 
-    const timesCountInput = Utils.createElement("input", [
-      "form-control",
-      "form-control-sm",
-    ]);
-    timesCountInput.style.maxWidth = "70px";
+    const timesCountInput = Utils.createElement("input", ["form-control"]);
+    timesCountInput.style.maxWidth = "50px";
     timesCountInput.type = "number";
-    timesCountInput.value = "3";
+    timesCountInput.value = "1";
+    timesCountInput.min = "1";
 
     const timesLabel = Utils.createElement("span", ["form-check-label"]);
     timesLabel.textContent = "times";
@@ -326,39 +508,64 @@ class SchedulingWindowsEditor {
     repeatBlock.append(repeatTimes);
 
     modeCol.append(repeatBlock);
-
     row.append(fromGroup, modeCol);
+
+    const hideThroughInputs = () => throughInputs.classList.add("d-none");
+    const showThroughInputs = () => throughInputs.classList.remove("d-none");
+
+    const hideForInputs = () => forInputs.classList.add("d-none");
+    const showForInputs = () => forInputs.classList.remove("d-none");
+
+    const hideRepeatBlock = () => repeatBlock.classList.add("d-none");
+    const showRepeatBlock = () => repeatBlock.classList.remove("d-none");
+
+    const updateModeVisibility = (modeValue) => {
+      const isForever = modeValue === "Forever";
+      const isThrough = modeValue === "Through";
+      const isFor = modeValue === "For";
+
+      if (isThrough) {
+        showThroughInputs();
+      } else {
+        hideThroughInputs();
+      }
+
+      if (isFor) {
+        showForInputs();
+        showRepeatBlock();
+      } else {
+        hideForInputs();
+        hideRepeatBlock();
+      }
+
+      if (isForever) {
+        hideThroughInputs();
+        hideForInputs();
+        hideRepeatBlock();
+      }
+    };
+
+    const updateRepeatVisibility = (enabled) => {
+      repeatForever.classList.toggle("d-none", !enabled);
+      repeatTimes.classList.toggle("d-none", !enabled);
+    };
+
+    const modeRadios = row.querySelectorAll('input[name="mode"]');
+    modeRadios.forEach((radio) => {
+      radio.addEventListener("change", (event) => {
+        if (event.target.checked) {
+          updateModeVisibility(event.target.value);
+        }
+      });
+    });
+
+    updateModeVisibility("Forever");
+
+    repeatCheckbox.addEventListener("change", (event) => {
+      updateRepeatVisibility(event.target.checked);
+    });
+    updateRepeatVisibility(repeatCheckbox.checked);
+
     return row;
   }
-
-  /**
-   * Create a Bootstrap-style radio input with label.
-   *
-   * @private
-   * @param {string} group - Radio group name (shared `name` attribute).
-   * @param {string} text - Label text.
-   * @param {boolean} checked - Whether the radio should start checked.
-   * @returns {HTMLElement}
-   */
-  #radio(group, text, checked) {
-    const wrapper = Utils.createElement("label", [
-      "form-check",
-      "d-flex",
-      "align-items-center",
-      "gap-2",
-      "mb-0",
-    ]);
-
-    const input = Utils.createElement("input", ["form-check-input"]);
-    input.type = "radio";
-    input.name = group;
-    input.checked = checked;
-
-    const label = Utils.createElement("span", ["form-check-label"]);
-    label.textContent = text;
-
-    wrapper.append(input, label);
-    return wrapper;
-  }
 }
-
