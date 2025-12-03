@@ -95,7 +95,7 @@
     <input type="hidden" name="facility" value="{{ object.facility }}">
     <div class="row">
       <div class="col text-center">
-        {% if object.status not in completed_states %}
+        {% if object.status.lower not in completed_states %}
           <a 
             href="{% url 'targets:detail' pk=object.target.id %}?update_status=True"
             title="Update status of observations for target"

@@ -557,10 +557,14 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         # Set workflow state.
         logger.debug("Setting workflow state for updated GPP observation")
         try:
-            new_workflow_state = self._set_workflow_state_with_retry(
-                client=client,
+            new_workflow_state = async_to_sync(
+                client.workflow_state.update_by_id_with_retry
+            )(
                 observation_id=gpp_observation_id,
                 workflow_state=workflow_state,
+                max_attempts=55,
+                initial_delay=5,
+                retry_delay=1,
             )
             messages.append(
                 StageMessage(
