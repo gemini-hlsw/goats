@@ -137,7 +137,6 @@ class RecipeReductionsManagerView {
   }
 
   _update(data) {
-    console.log("CALLED UPDATE")
     // First, remove all HTML elements associated with the entries in the map.
     while (this.parentElement.firstChild) {
       this.parentElement.removeChild(this.parentElement.firstChild);

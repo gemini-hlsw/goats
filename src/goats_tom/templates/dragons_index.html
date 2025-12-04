@@ -82,6 +82,26 @@
 
       this.initialized = false;
       document.addEventListener("updateRun", this._updateRun.bind(this));
+      document.addEventListener("resetRun", this._resetRun.bind(this));
+    }
+
+    _resetRun(event) {
+      if (!this.initialized) return;
+
+      // Remove DOM contents for each manager section.
+      document.getElementById("recipesAndFilesManagerContainer").innerHTML = "";
+      document.getElementById("caldbContainer").innerHTML = "";
+      document.getElementById("processedFilesContainer").innerHTML = "";
+      document.getElementById("recipeReductionsContainer").innerHTML = "";
+
+      // Drop references.
+      this.recipesAndFilesManager = null;
+      this.caldb = null;
+      this.processedFiles = null;
+      this.recipeReductionsManager = null;
+
+      // Mark app as uninitialized so updateRun will rebuild fresh.
+      this.initialized = false;
     }
 
     _updateRun(event) {
