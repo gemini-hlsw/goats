@@ -1,22 +1,33 @@
-const WINDOW_KINDS = Object.freeze({
-  INCLUDE: "Include",
-  EXCLUDE: "Exclude",
+const MODES = Object.freeze({
+  FOREVER: "Forever",
+  THROUGH: "Through",
+  FOR: "For",
 });
+
+const REPEAT_MODES = Object.freeze({
+  FOREVER: "Forever",
+  TIMES: "Times",
+});
+
+/**
+ * Return current UTC datetime formatted for <input type="datetime-local">.
+ *
+ * @returns {string} Datetime string in "YYYY-MM-DDTHH:MM"
+ */
+function getNowForDatetimeLocalUtc() {
+  return new Date().toISOString().slice(0, 16);
+}
 
 /**
  * Format a duration in seconds into a human-readable string.
  *
- * Examples:
- *  - 3660  → "1 hour, 1 minute"
- *  - 86400 → "1 day"
- *
  * @param {number|null|undefined} seconds - Duration in seconds.
  * @returns {string} Human-readable duration or empty string if invalid.
  */
-function formatDuration(seconds) {
-  if (seconds == null || isNaN(seconds)) return "";
+function secondsToHumanReadableString(seconds) {
+  if (seconds == null || Number.isNaN(Number(seconds))) return "";
 
-  const abs = Math.abs(seconds);
+  const abs = Math.abs(Number(seconds));
 
   const days = Math.floor(abs / 86400);
   const hours = Math.floor((abs % 86400) / 3600);
@@ -47,23 +58,32 @@ function formatDuration(seconds) {
  * Renders:
  *  - A list of existing windows with Include/Exclude badges.
  *  - Controls to define a new window (type, start time, mode, repeat).
- *  - An "Add" button (currently stub only).
  */
 class SchedulingWindowsEditor {
+  /** @type {HTMLElement} */
   #container;
+  /** @type {HTMLElement} */
   #tableBox;
+  /** @type {HTMLElement} */
   #list;
+  /** @type {Array<Object>} */
   #timingWindows;
+  /** @type {string} */
+  #idPrefix;
 
   /**
    * Construct a scheduling windows editor UI.
    *
    * @param {HTMLElement} parentElement - The parent element to render into.
-   * @param {{data?: Array<Object>}} [options] - Initial configuration.
+   * @param {{data?: Array<Object>, idPrefix?: string}} [options]
    * @param {Array<Object>} [options.data=[]] - Initial list of timing windows.
+   * @param {string} [options.idPrefix="scheduling-windows"] - Prefix for element ids.
    * @throws {Error} If parentElement is not an HTMLElement.
    */
-  constructor(parentElement, { data = [] } = {}) {
+  constructor(
+    parentElement,
+    { data = [], idPrefix = "scheduling-windows" } = {},
+  ) {
     if (!(parentElement instanceof HTMLElement)) {
       throw new Error(
         "SchedulingWindowsEditor expects an HTMLElement as the parent.",
@@ -71,6 +91,7 @@ class SchedulingWindowsEditor {
     }
 
     this.#timingWindows = Array.isArray(data) ? [...data] : [];
+    this.#idPrefix = idPrefix;
 
     this.#container = Utils.createElement("div", ["d-flex", "flex-column"]);
     parentElement.appendChild(this.#container);
@@ -83,11 +104,7 @@ class SchedulingWindowsEditor {
     ]);
     this.#container.append(this.#tableBox);
 
-    this.#list = Utils.createElement("div", [
-      "d-flex",
-      "flex-column",
-      "gap-2",
-    ]);
+    this.#list = Utils.createElement("div", ["d-flex", "flex-column", "gap-2"]);
     this.#tableBox.append(this.#list);
 
     const separator = Utils.createElement("hr", ["my-1"]);
@@ -95,6 +112,9 @@ class SchedulingWindowsEditor {
 
     this.#tableBox.append(this.#buildTypeControls());
     this.#tableBox.append(this.#buildFromAndModeControls());
+
+    // Wire behavior once controls are in the DOM
+    this.#wireModeBehavior();
 
     const addBtn = Utils.createElement("button", [
       "btn",
@@ -104,7 +124,9 @@ class SchedulingWindowsEditor {
     addBtn.type = "button";
     addBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
     addBtn.addEventListener("click", () => {
-      // TODO: hook to open modal or create a new window from current controls
+      // TODO: hook to collect form and add a new timing window
+      // const tw = this.#collectTimingWindowFromForm();
+      // this.#addTimingWindow(tw);
     });
     this.#tableBox.append(addBtn);
 
@@ -138,18 +160,20 @@ class SchedulingWindowsEditor {
    */
   #buildMessage(tw) {
     const start = tw.startUtc ?? "";
-    let message = start.replace(" ", " @ ") + " UTC";
+    let message = `${start.replace(" ", " @ ")} UTC`;
 
     if (!tw.end) {
       message += " forever";
     } else if (tw.end.atUtc) {
-      const endMessage = tw.end.atUtc.replace(" ", " @ ") + " UTC";
+      const endMessage = `${tw.end.atUtc.replace(" ", " @ ")} UTC`;
       message += ` through ${endMessage}`;
     } else if (tw.end.after && !tw.end.repeat) {
-      const endMessage = formatDuration(tw.end.after.seconds);
+      const endMessage = secondsToHumanReadableString(tw.end.after.seconds);
       message += ` for ${endMessage}`;
     } else if (tw.end.after && tw.end.repeat) {
-      const periodText = formatDuration(tw.end.repeat.period.seconds);
+      const periodText = secondsToHumanReadableString(
+        tw.end.repeat.period.seconds,
+      );
       const times = tw.end.repeat.times;
 
       if (times == null) {
@@ -180,19 +204,21 @@ class SchedulingWindowsEditor {
       return;
     }
 
-    const key = (kind || "").toUpperCase();
-    const normalizedKind = WINDOW_KINDS[key];
+    const normalizedKind = Utils.capitalizeFirstLetter(kind);
 
     const row = Utils.createElement("div", ["input-group", "mb-1"]);
     row.dataset.index = index;
 
     const badge = Utils.createElement("span", [
       "input-group-text",
-      normalizedKind === "Include" ? "text-bg-success" : "text-bg-danger",
+      normalizedKind === "Include" ? "bg-success-subtle" : "bg-danger-subtle",
     ]);
     badge.textContent = normalizedKind;
 
-    const summary = Utils.createElement("span", ["form-control"]);
+    const summary = Utils.createElement("span", [
+      "form-control",
+      "fw-semibold",
+    ]);
     summary.textContent = message;
 
     const removeBtn = Utils.createElement("button", ["btn", "btn-danger"]);
@@ -200,11 +226,8 @@ class SchedulingWindowsEditor {
     removeBtn.innerHTML = `<i class="fa-solid fa-minus"></i>`;
     removeBtn.title = "Remove";
     removeBtn.addEventListener("click", () => {
-      const rowIndex = row.dataset.index;
-      if (rowIndex != null) {
-        const numericIndex = Number(rowIndex);
-        this.#removeTimingWindowAt(numericIndex);
-      }
+      const rowIndex = Number(row.dataset.index);
+      this.#removeTimingWindowAt(rowIndex);
     });
 
     row.append(badge, summary, removeBtn);
@@ -217,7 +240,7 @@ class SchedulingWindowsEditor {
    * @private
    * @param {Object} tw - Timing window definition object.
    */
-  #addTimingWindows(tw) {
+  #addTimingWindow(tw) {
     this.#timingWindows.push(tw);
     this.#renderList();
   }
@@ -231,6 +254,7 @@ class SchedulingWindowsEditor {
    * @param {number} index - Index of the timing window to remove.
    */
   #removeTimingWindowAt(index) {
+    if (!Number.isInteger(index)) return;
     if (index < 0 || index >= this.#timingWindows.length) return;
 
     this.#timingWindows.splice(index, 1);
@@ -244,25 +268,21 @@ class SchedulingWindowsEditor {
    * @param {string} group - Name of the radio group.
    * @param {string} text - Label text and value.
    * @param {boolean} checked - Whether the radio should start checked.
-   * @returns {HTMLLabelElement} A label containing the radio input and its text.
+   * @returns {HTMLDivElement} A wrapper containing the radio and label.
    */
   #radio(group, text, checked) {
-    const wrapper = Utils.createElement("label", [
-      "form-check",
-      "d-flex",
-      "align-items-center",
-      "gap-2",
-      "mb-0",
-    ]);
+    const wrapper = Utils.createElement("div", ["form-check", "mb-0"]);
 
     const input = Utils.createElement("input", ["form-check-input"]);
     input.type = "radio";
     input.name = group;
     input.value = text;
     input.checked = checked;
+    input.id = `${this.#idPrefix}-${group}-${text}`;
 
-    const label = Utils.createElement("span", ["form-check-label"]);
+    const label = Utils.createElement("label", ["form-check-label"]);
     label.textContent = text;
+    label.setAttribute("for", input.id);
 
     wrapper.append(input, label);
     return wrapper;
@@ -275,49 +295,51 @@ class SchedulingWindowsEditor {
    * @returns {HTMLDivElement} A container with type radios.
    */
   #buildTypeControls() {
-    const group = Utils.createElement("div", [
-      "d-flex",
-      "align-items-center",
-      "gap-3",
-      "px-2",
-    ]);
-
+    const group = Utils.createElement("div", ["input-group", "gap-3", "px-2"]);
     group.append(
       this.#radio("type", "Include", true),
       this.#radio("type", "Exclude", false),
     );
-
     return group;
   }
 
-  /**
-   * Build the "From" datetime and mode controls block (Forever / Through / For + repeat).
-   *
-   * Also wires up the dynamic behavior to show/hide sections
-   * depending on the selected mode and the "repeat" checkbox.
-   *
-   * @private
-   * @returns {HTMLDivElement} A container with all mode controls.
-   */
   #buildFromAndModeControls() {
     const row = Utils.createElement("div", [
       "d-flex",
+      "flex-wrap",
       "align-items-start",
       "gap-3",
-      "flex-wrap",
-    ]);
-
-    // Left side: "From" datetime + UTC badge
-    const fromGroup = Utils.createElement("div", [
-      "d-flex",
-      "align-items-center",
-      "gap-2",
-      "flex-wrap",
       "px-2",
     ]);
 
-    const fromLabel = Utils.createElement("span", ["text-muted"]);
-    fromLabel.textContent = "From";
+    const fromGroup = this.#buildFromControls();
+    const modeGroup = this.#buildModeControls();
+
+    row.append(fromGroup, modeGroup);
+    return row;
+  }
+
+  /**
+   * Build the "From" block: label + datetime-local + UTC badge.
+   *
+   * @private
+   * @returns {HTMLDivElement} fromContainer
+   */
+  #buildFromControls() {
+    const fromContainer = Utils.createElement("div", [
+      "input-group",
+      "input-group-sm",
+      "w-auto",
+    ]);
+
+    const inputId = `${this.#idPrefix}-from`;
+
+    const label = Utils.createElement("label", [
+      "input-group-text",
+      "text-muted",
+    ]);
+    label.textContent = "From";
+    label.setAttribute("for", inputId);
 
     const fromInput = Utils.createElement("input", [
       "form-control",
@@ -325,101 +347,131 @@ class SchedulingWindowsEditor {
     ]);
     fromInput.type = "datetime-local";
     fromInput.style.maxWidth = "170px";
-    fromInput.value = "2025-09-12T02:46";
+    fromInput.value = getNowForDatetimeLocalUtc();
+    frominput.name = "startUtc";
+    frominput.id = inputId;
 
-    const fromUtcBadge = Utils.createElement("span", [
-      "badge",
-      "text-bg-secondary",
-    ]);
-    fromUtcBadge.textContent = "UTC";
+    const badge = Utils.createElement("span", ["input-group-text"]);
+    badge.textContent = "UTC";
 
-    fromGroup.append(fromLabel, fromInput, fromUtcBadge);
+    fromContainer.append(label, fromInput, badge);
+    return fromContainer;
+  }
 
-    // Right side: modes column
-    const modeCol = Utils.createElement("div", [
+  /**
+   * Build the right-hand side mode controls: Forever / Through / For + Repeat.
+   *
+   * @private
+   * @returns {HTMLDivElement} modeContainer
+   */
+  #buildModeControls() {
+    const modeContainer = Utils.createElement("div", [
       "d-flex",
       "flex-column",
-      "gap-2",
+      "gap-3",
     ]);
 
-    // Forever
-    const foreverRow = Utils.createElement("div", [
+    modeContainer.append(this.#buildForeverRow());
+    modeContainer.append(this.#buildThroughRow());
+    modeContainer.append(this.#buildForRow());
+    modeContainer.append(this.#buildRepeatBlock());
+
+    return modeContainer;
+  }
+
+  /**
+   * Build the "Forever" row: radio only.
+   *
+   * @private
+   * @returns {HTMLDivElement}
+   */
+  #buildForeverRow() {
+    const row = Utils.createElement("div", [
       "d-flex",
-      "align-items-center",
+      "align-items-start",
       "gap-2",
     ]);
-    const foreverRadio = this.#radio("mode", "Forever", true);
-    foreverRow.append(foreverRadio);
-    modeCol.append(foreverRow);
+    const foreverRadio = this.#radio("mode", MODES.FOREVER, true);
+    row.append(foreverRadio);
+    return row;
+  }
 
-    // Through
-    const throughRow = Utils.createElement("div", [
-      "d-flex",
-      "align-items-center",
-      "gap-2",
-      "flex-wrap",
-    ]);
-    const throughRadio = this.#radio("mode", "Through", false);
-    throughRow.append(throughRadio);
-
-    const throughInputs = Utils.createElement("div", [
-      "d-flex",
-      "align-items-center",
-      "gap-2",
-      "flex-wrap",
+  #buildThroughRow() {
+    const row = Utils.createElement("div", [
+      "input-group",
+      "input-group-sm",
+      "w-auto",
     ]);
 
-    const throughInput = Utils.createElement("input", [
+    const radio = this.#radio("mode", MODES.THROUGH, false);
+    row.append(radio);
+    radio.classList.add("me-2");
+
+    const inputsWrapper = Utils.createElement("div", [
+      "input-group",
+      "input-group-sm",
+      "w-auto",
+    ]);
+
+    const input = Utils.createElement("input", [
       "form-control",
       "form-control-sm",
     ]);
-    throughInput.type = "datetime-local";
-    throughInput.style.maxWidth = "170px";
-    throughInput.value = "2025-09-15T00:00";
+    input.type = "datetime-local";
+    input.style.maxWidth = "170px";
+    input.name = "endAtUtc";
 
-    const throughUtcBadge = Utils.createElement("span", [
-      "badge",
-      "text-bg-secondary",
-    ]);
-    throughUtcBadge.textContent = "UTC";
+    const badge = Utils.createElement("span", ["input-group-text"]);
+    badge.textContent = "UTC";
 
-    throughInputs.append(throughInput, throughUtcBadge);
-    throughRow.append(throughInputs);
-    modeCol.append(throughRow);
+    inputsWrapper.append(input, badge);
+    row.append(inputsWrapper);
 
-    // For
-    const forRow = Utils.createElement("div", [
-      "d-flex",
-      "align-items-center",
-      "gap-2",
-      "flex-wrap",
-    ]);
-    const forRadio = this.#radio("mode", "For", false);
-    forRow.append(forRadio);
+    return row;
+  }
 
-    const forInputs = Utils.createElement("div", [
-      "d-flex",
-      "align-items-center",
-      "gap-2",
-      "flex-wrap",
+  /**
+   * Build the "For" row: radio + duration input + suffix.
+   *
+   * @private
+   * @returns {HTMLDivElement}
+   */
+  #buildForRow() {
+    const row = Utils.createElement("div", [
+      "input-group",
+      "input-group-sm",
+      "w-auto",
     ]);
 
-    const forInput = Utils.createElement("input", [
+    const radio = this.#radio("mode", MODES.FOR, false);
+    row.append(radio);
+    radio.classList.add("me-2");
+
+    const inputsWrapper = Utils.createElement("div", [
+      "input-group",
+      "input-group-sm",
+      "w-auto",
+    ]);
+
+    const input = Utils.createElement("input", [
       "form-control",
       "form-control-sm",
     ]);
-    forInput.style.maxWidth = "60px";
-    forInput.value = "48:00";
+    input.style.maxWidth = "60px";
+    input.value = "48:00";
+    input.name = "durationHours";
 
-    const forSuffix = Utils.createElement("span", ["text-muted"]);
-    forSuffix.textContent = "hours";
+    const suffix = Utils.createElement("span", ["input-group-text"]);
+    suffix.textContent = "hours";
 
-    forInputs.append(forInput, forSuffix);
-    forRow.append(forInputs);
-    modeCol.append(forRow);
+    inputsWrapper.append(input, suffix);
+    row.append(inputsWrapper);
 
-    // Repeat block (only makes sense for "For")
-    const repeatBlock = Utils.createElement("div", [
+    return row;
+  }
+
+  #buildRepeatBlock() {
+    const block = Utils.createElement("div", [
       "d-flex",
       "flex-column",
       "gap-1",
@@ -427,130 +479,236 @@ class SchedulingWindowsEditor {
 
     const repeatRow = Utils.createElement("div", [
       "d-flex",
-      "align-items-center",
-      "gap-2",
-      "flex-wrap",
-      "ms-4",
+      "align-items-start",
+      "gap-1",
+      "px-4",
     ]);
 
-    const repeatCheckbox = Utils.createElement("input");
-    repeatCheckbox.type = "checkbox";
-    repeatCheckbox.checked = false;
+    const checkbox = Utils.createElement("input", ["form-check-input"]);
+    checkbox.type = "checkbox";
+    checkbox.checked = false;
+    checkbox.name = "repeatEnabled";
+    checkbox.classList.add("me-2");
 
-    const repeatLabel = Utils.createElement("span", ["text-muted"]);
-    repeatLabel.textContent = "Repeat with a period of";
+    const checkboxId = `${this.#idPrefix}-repeat-enabled`;
+    checkbox.id = checkboxId;
 
-    const repeatPeriodInput = Utils.createElement("input", [
+    const label = Utils.createElement("label", ["form-check-label", "me-2"]);
+    label.textContent = "Repeat with a period of";
+    label.setAttribute("for", checkboxId);
+
+    const periodGroup = Utils.createElement("div", [
+      "input-group",
+      "input-group-sm",
+      "w-auto",
+    ]);
+
+    const periodInput = Utils.createElement("input", [
       "form-control",
       "form-control-sm",
     ]);
-    repeatPeriodInput.style.maxWidth = "75px";
-    repeatPeriodInput.value = "60:00:00";
+    periodInput.style.maxWidth = "75px";
+    periodInput.name = "repeatPeriod";
+    periodInput.id = `${this.#idPrefix}-repeat-period`;
 
-    const repeatSuffix = Utils.createElement("span", ["text-muted"]);
-    repeatSuffix.textContent = "hours";
+    const suffix = Utils.createElement("span", ["input-group-text"]);
+    suffix.textContent = "hours";
 
-    repeatRow.append(
-      repeatCheckbox,
-      repeatLabel,
-      repeatPeriodInput,
-      repeatSuffix,
-    );
-    repeatBlock.append(repeatRow);
+    periodGroup.append(periodInput, suffix);
+    repeatRow.append(checkbox, label, periodGroup);
+    block.append(repeatRow);
 
-    const repeatForever = Utils.createElement("label", [
+    // Forever repeat
+    const foreverRow = Utils.createElement("div", [
       "form-check",
-      "d-flex",
-      "align-items-center",
-      "gap-2",
       "mb-0",
       "ms-5",
     ]);
-    const repeatForeverInput = Utils.createElement("input", [
-      "form-check-input",
-    ]);
-    repeatForeverInput.type = "radio";
-    repeatForeverInput.name = "repeatMode";
-    repeatForeverInput.checked = true;
+    const foreverInput = Utils.createElement("input", ["form-check-input"]);
+    foreverInput.type = "radio";
+    foreverInput.name = "repeatMode";
+    foreverInput.value = REPEAT_MODES.FOREVER;
+    foreverInput.checked = true;
+    foreverInput.id = `${this.#idPrefix}-repeat-forever`;
 
-    const repeatForeverLabel = Utils.createElement("span", [
-      "form-check-label",
-    ]);
-    repeatForeverLabel.textContent = "Forever";
+    const foreverLabel = Utils.createElement("label", ["form-check-label"]);
+    foreverLabel.textContent = "Forever";
+    foreverLabel.setAttribute("for", foreverInput.id);
 
-    repeatForever.append(repeatForeverInput, repeatForeverLabel);
-    repeatBlock.append(repeatForever);
+    foreverRow.append(foreverInput, foreverLabel);
+    block.append(foreverRow);
 
-    const repeatTimes = Utils.createElement("label", [
-      "form-check",
+    // Times repeat
+    const timesRow = Utils.createElement("div", [
       "d-flex",
-      "align-items-center",
-      "gap-2",
+      "align-items-start",
       "mb-0",
       "ms-5",
     ]);
-    const repeatTimesInput = Utils.createElement("input", [
+    const timesRadio = Utils.createElement("input", [
       "form-check-input",
+      "me-2",
     ]);
-    repeatTimesInput.type = "radio";
-    repeatTimesInput.name = "repeatMode";
+    timesRadio.type = "radio";
+    timesRadio.name = "repeatMode";
+    timesRadio.value = REPEAT_MODES.TIMES;
+    timesRadio.id = `${this.#idPrefix}-repeat-times`;
 
-    const timesCountInput = Utils.createElement("input", ["form-control"]);
+    const timesGroup = Utils.createElement("div", [
+      "input-group",
+      "input-group-sm",
+      "w-auto",
+    ]);
+
+    const timesCountInput = Utils.createElement("input", [
+      "form-control",
+      "form-control-sm",
+    ]);
     timesCountInput.style.maxWidth = "50px";
     timesCountInput.type = "number";
-    timesCountInput.value = "1";
     timesCountInput.min = "1";
+    timesCountInput.name = "repeatTimes";
+    timesCountInput.id = `${this.#idPrefix}-repeat-times-count`;
 
-    const timesLabel = Utils.createElement("span", ["form-check-label"]);
+    const timesLabel = Utils.createElement("label", ["input-group-text"]);
     timesLabel.textContent = "times";
+    timesLabel.setAttribute("for", timesCountInput.id);
 
-    repeatTimes.append(repeatTimesInput, timesCountInput, timesLabel);
-    repeatBlock.append(repeatTimes);
+    timesGroup.append(timesCountInput, timesLabel);
+    timesRow.append(timesRadio, timesGroup);
+    block.append(timesRow);
 
-    modeCol.append(repeatBlock);
-    row.append(fromGroup, modeCol);
+    return block;
+  }
 
-    const hideThroughInputs = () => throughInputs.classList.add("d-none");
-    const showThroughInputs = () => throughInputs.classList.remove("d-none");
+  /**
+   * Wire dynamic behavior for mode + repeat controls.
+   *
+   * @private
+   */
+  #wireModeBehavior() {
+    const modeRadios = this.#container.querySelectorAll('input[name="mode"]');
 
-    const hideForInputs = () => forInputs.classList.add("d-none");
-    const showForInputs = () => forInputs.classList.remove("d-none");
+    const throughInput = this.#container.querySelector(
+      'input[name="endAtUtc"]',
+    );
+    const throughRow = throughInput
+      ? throughInput.closest(".input-group")
+      : null;
 
-    const hideRepeatBlock = () => repeatBlock.classList.add("d-none");
-    const showRepeatBlock = () => repeatBlock.classList.remove("d-none");
+    const forInput = this.#container.querySelector(
+      'input[name="durationHours"]',
+    );
+    const forRow = forInput ? forInput.closest(".input-group") : null;
+
+    const repeatCheckbox = this.#container.querySelector(
+      'input[name="repeatEnabled"]',
+    );
+    const repeatBlock = repeatCheckbox
+      ? repeatCheckbox.closest(".d-flex.flex-column") ||
+        repeatCheckbox.closest("div")
+      : null;
+
+    const repeatPeriodInput = this.#container.querySelector(
+      'input[name="repeatPeriod"]',
+    );
+
+    const repeatModeRadios =
+      this.#container.querySelectorAll('input[name="repeatMode"]') || [];
+
+    const repeatForeverInput = Array.from(repeatModeRadios).find(
+      (r) => r.value === REPEAT_MODES.FOREVER,
+    );
+    const repeatTimesInput = Array.from(repeatModeRadios).find(
+      (r) => r.value === REPEAT_MODES.TIMES,
+    );
+
+    const repeatForeverLabel = repeatForeverInput
+      ? repeatForeverInput.closest("label")
+      : null;
+    const repeatTimesLabel = repeatTimesInput
+      ? repeatTimesInput.closest("label")
+      : null;
+
+    const timesCountInput = this.#container.querySelector(
+      'input[name="repeatTimes"]',
+    );
+
+    const hideEl = (el) => el && el.classList.add("d-none");
+    const showEl = (el) => el && el.classList.remove("d-none");
 
     const updateModeVisibility = (modeValue) => {
-      const isForever = modeValue === "Forever";
-      const isThrough = modeValue === "Through";
-      const isFor = modeValue === "For";
+      const isForever = modeValue === MODES.FOREVER;
+      const isThrough = modeValue === MODES.THROUGH;
+      const isFor = modeValue === MODES.FOR;
 
       if (isThrough) {
-        showThroughInputs();
+        showEl(throughRow);
+        if (throughInput && !throughInput.value) {
+          throughInput.value = getNowForDatetimeLocalUtc();
+        }
       } else {
-        hideThroughInputs();
+        hideEl(throughRow);
       }
 
       if (isFor) {
-        showForInputs();
-        showRepeatBlock();
+        showEl(forRow);
+        showEl(repeatBlock);
       } else {
-        hideForInputs();
-        hideRepeatBlock();
+        hideEl(forRow);
+        hideEl(repeatBlock);
       }
 
       if (isForever) {
-        hideThroughInputs();
-        hideForInputs();
-        hideRepeatBlock();
+        hideEl(throughRow);
+        hideEl(forRow);
+        hideEl(repeatBlock);
+      }
+    };
+
+    const updateTimesInputState = () => {
+      if (!repeatCheckbox || !timesCountInput || !repeatTimesInput) return;
+
+      const repeatEnabled = repeatCheckbox.checked;
+      const timesSelected = repeatTimesInput.checked;
+      const shouldEnableTimes = repeatEnabled && timesSelected;
+
+      timesCountInput.disabled = !shouldEnableTimes;
+
+      if (shouldEnableTimes && !timesCountInput.value) {
+        timesCountInput.value = "1";
+      } else if (!shouldEnableTimes) {
+        timesCountInput.value = "";
       }
     };
 
     const updateRepeatVisibility = (enabled) => {
-      repeatForever.classList.toggle("d-none", !enabled);
-      repeatTimes.classList.toggle("d-none", !enabled);
+      if (repeatForeverLabel) {
+        repeatForeverLabel.classList.toggle("d-none", !enabled);
+      }
+      if (repeatTimesLabel) {
+        repeatTimesLabel.classList.toggle("d-none", !enabled);
+      }
+
+      if (repeatBlock) {
+        const repeatInputs = repeatBlock.querySelectorAll("input");
+        repeatInputs.forEach((input) => {
+          if (input === repeatCheckbox) return;
+          input.disabled = !enabled;
+        });
+      }
+
+      if (repeatPeriodInput) {
+        if (enabled && !repeatPeriodInput.value) {
+          repeatPeriodInput.value = "60:00:00";
+        } else if (!enabled) {
+          repeatPeriodInput.value = "";
+        }
+      }
+
+      updateTimesInputState();
     };
 
-    const modeRadios = row.querySelectorAll('input[name="mode"]');
     modeRadios.forEach((radio) => {
       radio.addEventListener("change", (event) => {
         if (event.target.checked) {
@@ -559,13 +717,22 @@ class SchedulingWindowsEditor {
       });
     });
 
-    updateModeVisibility("Forever");
+    if (repeatCheckbox) {
+      repeatCheckbox.addEventListener("change", (event) => {
+        updateRepeatVisibility(event.target.checked);
+      });
+    }
 
-    repeatCheckbox.addEventListener("change", (event) => {
-      updateRepeatVisibility(event.target.checked);
-    });
-    updateRepeatVisibility(repeatCheckbox.checked);
+    if (repeatTimesInput) {
+      repeatTimesInput.addEventListener("change", updateTimesInputState);
+    }
+    if (repeatForeverInput) {
+      repeatForeverInput.addEventListener("change", updateTimesInputState);
+    }
 
-    return row;
+    // Initial state
+    updateModeVisibility(MODES.FOREVER);
+    updateRepeatVisibility(repeatCheckbox ? repeatCheckbox.checked : false);
+    updateTimesInputState();
   }
 }
