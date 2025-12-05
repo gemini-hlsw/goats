@@ -73,16 +73,25 @@ class RecipeReductionModel {
     }
   }
 
-  /**
-   * Asynchronously updates the function definition of a recipe by sending a PATCH request.
-   * @param {number} recipeId The unique identifier of the recipe.
-   * @param {string|null} functionDefinition The new function definition to update, or null to
-   * reset.
-   * @returns {Promise<Object|null>} The updated recipe object if successful, or null if an error
-   * occurs.
-   */
-  async updateFunctionDefinitionAndUparms(functionDefinition = null, uparms = null) {
-    const data = { function_definition: functionDefinition, uparms };
+  async updateRecipeOptions(
+    functionDefinition = null,
+    uparms = null,
+    reductionMode = null,
+    drpkg = null,
+    additionalFiles = null,
+    ucals = null,
+    suffix = null
+  ) {
+    const data = {
+      function_definition: functionDefinition,
+      uparms,
+      reduction_mode: reductionMode,
+      drpkg,
+      additional_files: additionalFiles,
+      ucals,
+      suffix,
+    };
+
     try {
       const response = await this.api.patch(
         `${this.recipesUrl}${this.recipeId}/`,
@@ -90,7 +99,7 @@ class RecipeReductionModel {
       );
       return response;
     } catch (error) {
-      console.error("Error updating function definition and uparms:", error);
+      console.error("Error updating DRAGONS recipe options:", error);
     }
   }
 
@@ -384,79 +393,254 @@ class RecipeReductionTemplate {
    * @param {HTMLElement} accordionBody The accordion section where the editor and buttons will be appended.
    */
   _createRecipeAccordionItem(accordionBody, data) {
-    const uparmsInput = this._createUparms(data);
+    const advancedOptions = this._createAdvancedOptions(data);
     const editorDiv = this._createEditor(data);
     const editorButtons = this._createEditorButtons();
 
-    accordionBody.append(uparmsInput, editorDiv, editorButtons);
+    accordionBody.append(advancedOptions, editorDiv, editorButtons);
   }
 
   /**
-   * Creates the user parameters input section as part of an accordion item.
-   * This section allows users to input or modify parameters related to the recipe.
-   * @param {Object} data - Data associated with the specific recipe, used for setting initial
-   * values.
-   * @returns {HTMLElement} The user parameters section element.
+   * Creates the advanced DRAGONS options section.
+   * These map directly to reduce_data() arguments.
+   * @param {Object} data - Data associated with the recipe.
+   * @returns {HTMLElement}
    * @private
    */
-  _createUparms(data) {
-    // Create a container.
-    const div = Utils.createElement("div", "mb-3");
-    const row = Utils.createElement("div", ["row", "g-3"]);
-    const labelCol = Utils.createElement("div", ["col-sm-3"]);
-    const inputCol = Utils.createElement("div", ["col-sm-9"]);
+  _createAdvancedOptions(data) {
+    const container = Utils.createElement("div", "mb-3");
+    const row = Utils.createElement("div", ["row", "g-3", "mb-3"]);
 
-    // Create a label element.
+    const filesLabelCol = Utils.createElement("div", ["col-sm-4"]);
+    const filesInputCol = Utils.createElement("div", ["col-sm-8"]);
+
+    const filesId = this._createId(data, "AdditionalFiles");
+    const filesLabel = Utils.createElement("label", ["col-form-label"]);
+    filesLabel.textContent = "Additional Files";
+    filesLabel.htmlFor = filesId;
+
+    const filesInfo = this._createInfoPopover(
+      `
+    <p>Provide additional FITS files to include in the reduction.</p>
+    <p>Paths must be <strong>relative to the target directory</strong>, e.g.:</p>
+    <code>['M81/GN-2021A-DD-102-9/test1.fits', 'M81/GN-2021A-DD-102-9/test2.fits']</code>
+    <p>Use comma-separated values inside <code>[...]</code>.</p>
+    `,
+      "Add Extra Input Files"
+    );
+
+    const filesInput = Utils.createElement("input", ["form-control"]);
+    filesInput.id = filesId;
+    filesInput.type = "text";
+    filesInput.placeholder = "['M81/GN-2021A-DD-102-9/test.fits']";
+    filesInput.value = data.additional_files;
+    filesInput.disabled = true;
+
+    filesLabelCol.append(filesLabel, filesInfo);
+    filesInputCol.append(filesInput);
+    //filesRow.append(filesLabelCol, filesInputCol);
+
+    const modeLabelCol = Utils.createElement("div", ["col-sm-4"]);
+    const modeInputCol = Utils.createElement("div", ["col-sm-8"]);
+
+    const modeId = this._createId(data, "Mode");
+    const modeLabel = Utils.createElement("label", ["col-form-label"]);
+    modeLabel.textContent = "Reduction Mode";
+    modeLabel.htmlFor = modeId;
+
+    const modeInfo = this._createInfoPopover(
+      `
+    <p>Select the DRAGONS reduction mode.</p>
+    <ul>
+      <li><strong>sq</strong> - science-quality (default)</li>
+      <li><strong>ql</strong> - quick look (disabled)</li>
+      <li><strong>qa</strong> - quality assurance (disabled)</li>
+    </ul>
+    `,
+      "Select Reduction Mode"
+    );
+
+    const modeSelect = Utils.createElement("select", ["form-select"]);
+    modeSelect.id = modeId;
+    const optSq = new Option("sq (science-quality)", "sq", true, true);
+    const optQl = new Option("ql (quick-look)", "ql");
+    const optQa = new Option("qa (quality-assurance)", "qa");
+    optQl.disabled = true;
+    optQa.disabled = true;
+    modeSelect.append(optSq, optQl, optQa);
+    modeSelect.disabled = true;
+    modeSelect.value = data.reduction_mode;
+
+    modeLabelCol.append(modeLabel, modeInfo);
+    modeInputCol.append(modeSelect);
+    //modeRow.append(modeLabelCol, modeInputCol);
+
+    const drpkgRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
+    const drpkgLabelCol = Utils.createElement("div", ["col-sm-4"]);
+    const drpkgInputCol = Utils.createElement("div", ["col-sm-8"]);
+
+    const drpkgId = this._createId(data, "Dprkg");
+    const drpkgLabel = Utils.createElement("label", ["col-form-label"]);
+    drpkgLabel.textContent = "DR Package";
+    drpkgLabel.htmlFor = drpkgId;
+
+    const drpkgInfo = this._createInfoPopover(
+      `
+    <p>The DR package selects which instrument reduction library to use.</p>
+    <p>Currently, only <code>geminidr</code> is supported.</p>
+    `,
+      "Select DR Package"
+    );
+
+    const drpkgSelect = Utils.createElement("select", ["form-select"]);
+    drpkgSelect.id = drpkgId;
+    drpkgSelect.append(new Option("geminidr", "geminidr", true, true));
+    drpkgSelect.disabled = true;
+    drpkgSelect.value = data.drpkg;
+
+    drpkgLabelCol.append(drpkgLabel, drpkgInfo);
+    drpkgInputCol.append(drpkgSelect);
+    //drpkgRow.append(drpkgLabelCol, drpkgInputCol);
+
+    const uparmsRow = Utils.createElement("div", ["row", "g-3"]);
+    const uparmsLabelCol = Utils.createElement("div", ["col-sm-4"]);
+    const uparmsInputCol = Utils.createElement("div", ["col-sm-8"]);
+
     const uparmsId = this._createId(data, "Uparms");
-    const label = Utils.createElement("label", ["col-form-label"]);
-    label.textContent = "Optional Parameters";
-    label.htmlFor = uparmsId;
+    const uparmsLabel = Utils.createElement("label", ["col-form-label"]);
+    uparmsLabel.textContent = "Optional Parameters";
+    uparmsLabel.htmlFor = uparmsId;
 
-    // Create information popover button with an icon for uparms.
-    const infoButton = Utils.createElement("a", ["link-primary", "ms-1"]);
-    infoButton.setAttribute("type", "button");
-    infoButton.setAttribute("tabindex", "0");
-    infoButton.setAttribute("data-bs-trigger", "focus");
-    infoButton.setAttribute("data-bs-toggle", "popover");
-    infoButton.setAttribute("data-bs-placement", "top");
-    infoButton.setAttribute("data-bs-html", "true");
-    infoButton.setAttribute("data-bs-title", "Set Parameter Values");
-    infoButton.setAttribute("data-bs-custom-class", "custom-tooltip");
-    infoButton.setAttribute(
-      "data-bs-content",
+    const uparmsInfoButton = this._createInfoPopover(
       `
     <p>Use this input field to set parameter values for primitives in the recipe.</p>
     <p>Input should be formatted as follows:</p>
     <ul>
-    <li><code>[('primitive1_name:parameter1_name', parameter1_value), ('primitive2_name:parameter2_name', parameter2_value)]</code></li>
-    <li>If the primitive name is omitted, e.g., <code>('parameter_name', parameter_value)</code>, the parameter value will be applied to all primitives in the recipe that use this parameter.</li>
+      <li><code>[('primitive1_name:parameter1_name', parameter1_value), ('primitive2_name:parameter2_name', parameter2_value)]</code></li>
+      <li>If the primitive name is omitted, e.g., <code>('parameter_name', parameter_value)</code>, the parameter value will be applied to all primitives in the recipe that use this parameter.</li>
     </ul>
-    <p>While direct modifications to the recipe can be made using the code block below, it is generally recommended to set parameters using this input field for ease and accuracy.<p/>
-  `
+    <p>While direct modifications to the recipe can be made using the code block below, it is generally recommended to set parameters using this input field for ease and accuracy.</p>
+    `,
+      "Set Parameter Values"
     );
 
-    // Create icon element.
+    const uparmsInput = Utils.createElement("input", ["form-control"]);
+    uparmsInput.type = "text";
+    uparmsInput.id = uparmsId;
+    uparmsInput.placeholder = "[('primitive:parameter', value)]";
+    uparmsInput.value = data.uparms;
+    uparmsInput.disabled = true;
+    this.uparms = uparmsInput;
+
+    uparmsInputCol.append(uparmsInput);
+    uparmsLabelCol.append(uparmsLabel, uparmsInfoButton);
+    //uparmsRow.append(uparmsLabelCol, uparmsInputCol);
+
+    const ucalsRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
+    const ucalsLabelCol = Utils.createElement("div", ["col-sm-4"]);
+    const ucalsInputCol = Utils.createElement("div", ["col-sm-8"]);
+
+    const ucalsId = this._createId(data, "Ucals");
+    const ucalsLabel = Utils.createElement("label", ["col-form-label"]);
+    ucalsLabel.textContent = "Calibration Overrides";
+    ucalsLabel.htmlFor = ucalsId;
+
+    const ucalsInfo = this._createInfoPopover(
+      `
+    <p>Specify manual calibration files using a dictionary.</p>
+    <p>Example:</p>
+    <code>{ 'bias': 'M81/.../bias.fits', 'flat': 'M81/.../flat.fits' }</code>
+    <p>Leave empty to use DRAGONS default calibrations.</p>
+    `,
+      "Specify Calibration Overrides"
+    );
+
+    const ucalsInput = Utils.createElement("input", ["form-control", "monospace"]);
+    ucalsInput.id = ucalsId;
+    ucalsInput.type = "text";
+    ucalsInput.placeholder = "{ 'flat': 'path/to/file.fits' }";
+    ucalsInput.disabled = true;
+    ucalsInput.value = data.ucals;
+
+    ucalsLabelCol.append(ucalsLabel, ucalsInfo);
+    ucalsInputCol.append(ucalsInput);
+    //ucalsRow.append(ucalsLabelCol, ucalsInputCol);
+
+    const suffixRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
+    const suffixLabelCol = Utils.createElement("div", ["col-sm-4"]);
+    const suffixInputCol = Utils.createElement("div", ["col-sm-8"]);
+
+    const suffixId = this._createId(data, "Suffix");
+    const suffixLabel = Utils.createElement("label", ["col-form-label"]);
+    suffixLabel.textContent = "Output Suffix";
+    suffixLabel.htmlFor = suffixId;
+
+    const suffixInfo = this._createInfoPopover(
+      `
+    <p>An optional suffix to append to all reduced output files.</p>
+    <p>Example:</p>
+    <code>_custom</code>
+    <p>Leave empty for DRAGONS' default behavior.</p>
+    `,
+      "Set Output Suffix"
+    );
+
+    const suffixInput = Utils.createElement("input", ["form-control"]);
+    suffixInput.id = suffixId;
+    suffixInput.type = "text";
+    suffixInput.placeholder = "_mysuffix";
+    suffixInput.disabled = true;
+    suffixInput.value = data.suffix;
+
+    suffixLabelCol.append(suffixLabel, suffixInfo);
+    suffixInputCol.append(suffixInput);
+    //suffixRow.append(suffixLabelCol, suffixInputCol);
+
+    row.append(
+      filesLabelCol,
+      filesInputCol,
+      modeLabelCol,
+      modeInputCol,
+      drpkgLabelCol,
+      drpkgInputCol,
+      uparmsLabelCol,
+      uparmsInputCol,
+      ucalsLabelCol,
+      ucalsInputCol,
+      suffixLabelCol,
+      suffixInputCol
+    );
+
+    container.append(row);
+    return container;
+  }
+
+  /**
+   * Creates a help popover link with a standard info icon.
+   * @param {string} content - HTML content for the popover.
+   * @param {string|null} [title=null] - Optional popover title.
+   * @returns {HTMLElement} The anchor element with popover initialized.
+   * @private
+   */
+  _createInfoPopover(content, title = null) {
+    const info = Utils.createElement("a", ["link-primary", "ms-1"]);
+    info.setAttribute("type", "button");
+    info.setAttribute("tabindex", "0");
+    info.setAttribute("data-bs-trigger", "focus");
+    info.setAttribute("data-bs-toggle", "popover");
+    info.setAttribute("data-bs-placement", "top");
+    info.setAttribute("data-bs-html", "true");
+    info.setAttribute("data-bs-custom-class", "custom-tooltip");
+    if (title) {
+      info.setAttribute("data-bs-title", title);
+    }
+    info.setAttribute("data-bs-content", content.trim());
+
     const icon = Utils.createElement("i", ["fa-solid", "fa-circle-info"]);
-    infoButton.appendChild(icon);
+    info.appendChild(icon);
 
-    new bootstrap.Popover(infoButton);
-
-    // Create an input element.
-    const input = Utils.createElement("input", ["form-control"]);
-    input.type = "text";
-    input.id = uparmsId;
-    input.placeholder = "[('primitive:parameter', value)]";
-    input.value = data.uparms;
-    input.disabled = true;
-    this.uparms = input;
-
-    // Append the label and input to the container.
-    inputCol.appendChild(input);
-    labelCol.append(label, infoButton);
-    row.append(labelCol, inputCol);
-    div.appendChild(row);
-
-    return div;
+    new bootstrap.Popover(info);
+    return info;
   }
 
   /**
@@ -498,6 +682,13 @@ class RecipeReductionView {
     this.resetButton = null;
     this.helpButton = null;
     this.isEditMode = false;
+    // Advanced options inputs.
+    this.uparmsInput = null;
+    this.modeSelect = null;
+    this.drpkgSelect = null;
+    this.filesInput = null;
+    this.ucalsInput = null;
+    this.suffixInput = null;
   }
 
   /**
@@ -584,6 +775,11 @@ class RecipeReductionView {
   _updateRecipe(data) {
     this.editor.setValue(data.active_function_definition, -1);
     this.uparmsInput.value = data.uparms;
+    this.ucalsInput.value = data.ucals;
+    this.suffixInput.value = data.suffix;
+    this.drpkgSelect.value = data.drpkg;
+    this.modeSelect.value = data.reduction_mode;
+    this.filesInput.value = data.additional_files;
   }
 
   /**
@@ -595,6 +791,19 @@ class RecipeReductionView {
     this.editOrSaveButton.textContent = "Save";
     this.editor.container.classList.remove("editor-disabled");
     this.uparmsInput.disabled = false;
+    console.log(
+      this.uparmsInput,
+      this.ucalsInput,
+      this.suffixInput,
+      this.modeSelect,
+      this.drpkgSelect,
+      this.filesInput
+    );
+    this.ucalsInput.disabled = false;
+    this.suffixInput.disabled = false;
+    this.drpkgSelect.disabled = false;
+    this.modeSelect.disabled = false;
+    this.filesInput.disabled = false;
   }
 
   /**
@@ -606,6 +815,11 @@ class RecipeReductionView {
     this.editOrSaveButton.textContent = "Edit";
     this.editor.container.classList.add("editor-disabled");
     this.uparmsInput.disabled = true;
+    this.ucalsInput.disabled = true;
+    this.suffixInput.disabled = true;
+    this.drpkgSelect.disabled = true;
+    this.modeSelect.disabled = true;
+    this.filesInput.disabled = true;
   }
 
   /**
@@ -655,6 +869,11 @@ class RecipeReductionView {
     this.resetButton = this.container.querySelector('[data-action="resetRecipe"]');
     this.helpButton = this.container.querySelector('[data-action="helpRecipe"]');
     this.uparmsInput = this.container.querySelector(`#recipe${data.id}Uparms`);
+    this.ucalsInput = this.container.querySelector(`#recipe${data.id}Ucals`);
+    this.suffixInput = this.container.querySelector(`#recipe${data.id}Suffix`);
+    this.drpkgSelect = this.container.querySelector(`#recipe${data.id}Dprkg`);
+    this.modeSelect = this.container.querySelector(`#recipe${data.id}Mode`);
+    this.filesInput = this.container.querySelector(`#recipe${data.id}AdditionalFiles`);
     this.parentElement = parentElement;
     this.parentElement.appendChild(this.container);
   }
@@ -719,6 +938,11 @@ class RecipeReductionView {
           handler({
             uparms: this.uparmsInput.value,
             functionDefinition: this.editor.getValue(),
+            reductionMode: this.modeSelect.value,
+            drpkg: this.drpkgSelect.value,
+            additionalFiles: this.filesInput.value,
+            ucals: this.ucalsInput.value,
+            suffix: this.suffixInput.value,
           });
         });
         break;
@@ -774,7 +998,15 @@ class RecipeReductionController {
     this.view.bindCallback("stopReduce", () => this._stopReduce());
     this.view.bindCallback("startReduce", () => this._startReduce());
     this.view.bindCallback("editOrSaveRecipe", (item) =>
-      this._editOrSaveRecipe(item.uparms, item.functionDefinition)
+      this._editOrSaveRecipe(
+        item.uparms,
+        item.functionDefinition,
+        item.reductionMode,
+        item.drpkg,
+        item.additionalFiles,
+        item.ucals,
+        item.suffix
+      )
     );
     this.view.bindCallback("resetRecipe", () => this._resetRecipe());
     this.view.bindCallback("helpRecipe", () => this._helpRecipe());
@@ -799,21 +1031,28 @@ class RecipeReductionController {
     this.view.render("startReduce", { data });
   }
 
-  /**
-   * Handles the logic for editing or saving recipe details.
-   * @param {string} uparms - Updated parameters for the recipe.
-   * @param {string} functionDefinition - Updated function definition for the recipe.
-   * @private
-   */
-  async _editOrSaveRecipe(uparms, functionDefinition) {
+  async _editOrSaveRecipe(
+    uparms,
+    functionDefinition,
+    reductionMode,
+    drpkg,
+    additionalFiles,
+    ucals,
+    suffix
+  ) {
     this.model.isEditMode = !this.model.isEditMode;
     if (this.model.isEditMode) {
       this.view.render("enableEditRecipe");
     } else {
       this.view.render("disableSaveRecipe");
-      const data = await this.model.updateFunctionDefinitionAndUparms(
+      const data = await this.model.updateRecipeOptions(
         functionDefinition,
-        uparms
+        uparms,
+        reductionMode,
+        drpkg,
+        additionalFiles,
+        ucals,
+        suffix
       );
       this.view.render("updateRecipe", { data });
     }
@@ -824,7 +1063,7 @@ class RecipeReductionController {
    * @private
    */
   async _resetRecipe() {
-    const data = await this.model.updateFunctionDefinitionAndUparms();
+    const data = await this.model.updateRecipeOptions();
     this.view.render("updateRecipe", { data });
   }
 

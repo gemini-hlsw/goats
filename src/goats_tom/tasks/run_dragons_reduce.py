@@ -50,7 +50,6 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
     """
     try:
         # Get the reduction to run in the background.
-        print("Running background reduce task.")
         # Generate a unique module name to avoid conflicts in sys.modules.
         unique_id = uuid.uuid4()
         module_name = f"dynamic_recipes_{unique_id}"
@@ -112,6 +111,42 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
                 r.uparms = ast.literal_eval(recipe.uparms)
             except Exception:
                 raise Exception("Failed to parse provided uparms.")
+
+        if recipe.reduction_mode:
+            r.mode = recipe.reduction_mode
+        if recipe.drpkg:
+            r.drpkg = recipe.drpkg
+        if recipe.suffix is not None:
+            r.suffix = recipe.suffix
+        # Calibration overrides (user entered text).
+        if recipe.ucals is not None:
+            try:
+                parsed_ucals = ast.literal_eval(recipe.ucals)
+
+                if not isinstance(parsed_ucals, dict):
+                    raise ValueError("ucals must be a dictionary.")
+
+                r.ucals = parsed_ucals
+
+            except Exception:
+                raise Exception("Failed to parse ucals, needs to be a dictionary.")
+        # Additional files (user entered text).
+        if recipe.additional_files is not None:
+            try:
+                parsed_files = ast.literal_eval(recipe.additional_files)
+
+                if not isinstance(parsed_files, list):
+                    raise ValueError("additional_files must be a list.")
+
+                # Convert each to an absolute path.
+                additional_file_paths = [
+                    str(settings.MEDIA_ROOT / path) for path in parsed_files
+                ]
+
+                file_paths.extend(additional_file_paths)
+
+            except Exception:
+                raise Exception("Failed to parse additional_files, needs to be a list.")
 
         r.files.extend(file_paths)
 
@@ -192,4 +227,3 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
         # Cleanup dynamically created module.
         if module_name in sys.modules:
             del sys.modules[module_name]
-            print(f"Module {module_name} removed from sys.modules.")

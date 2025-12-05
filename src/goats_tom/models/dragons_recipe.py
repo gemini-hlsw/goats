@@ -6,6 +6,20 @@ from typing import Any
 
 from django.db import models
 
+REDUCTION_MODE_SQ = "sq"
+REDUCTION_MODE_QL = "ql"
+REDUCTION_MODE_QA = "qa"
+
+REDUCTION_MODE_CHOICES = (
+    (REDUCTION_MODE_SQ, "Science-quality (sq)"),
+    (REDUCTION_MODE_QL, "Quick look (ql)"),
+    (REDUCTION_MODE_QA, "Quality assurance (qa)"),
+)
+
+DRPKG_GEMINIDR = "geminidr"
+
+DRPKG_CHOICES = ((DRPKG_GEMINIDR, "geminidr"),)
+
 
 class DRAGONSRecipe(models.Model):
     """Represents a DRAGONS recipe modification linked to a base recipe and a
@@ -55,6 +69,43 @@ class DRAGONSRecipe(models.Model):
         blank=True,
         null=True,
         help_text="The uparms to apply to the recipe.",
+    )
+    reduction_mode = models.CharField(
+        max_length=4,
+        choices=REDUCTION_MODE_CHOICES,
+        default=REDUCTION_MODE_SQ,
+        help_text="DRAGONS reduction mode passed to reduce_data(mode=...).",
+    )
+    drpkg = models.CharField(
+        max_length=32,
+        choices=DRPKG_CHOICES,
+        default=DRPKG_GEMINIDR,
+        help_text="Data reduction package passed to reduce_data(drpkg=...).",
+    )
+    additional_files = models.TextField(
+        editable=True,
+        blank=True,
+        null=True,
+        help_text=(
+            "Additional FITS files to pass to reduce_data(files=...), "
+            "stored as a list of paths relative to the target directory."
+        ),
+    )
+    ucals = models.TextField(
+        editable=True,
+        blank=True,
+        null=True,
+        help_text=(
+            "Calibration overrides passed to reduce_data(ucals=...), "
+            "stored as a mapping of calibration type to file path."
+        ),
+    )
+    suffix = models.CharField(
+        max_length=64,
+        blank=True,
+        default=None,
+        null=True,
+        help_text="Optional suffix passed to reduce_data(suffix=...).",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     modified_at = models.DateTimeField(auto_now=True)
@@ -190,7 +241,7 @@ class DRAGONSRecipe(models.Model):
             A list of groups aka descriptors from the associated first file.
 
         """
-        first_file = self.recipe.recipes_module.files.fileter(
+        first_file = self.recipe.recipes_module.files.filter(
             observation_type=self.observation_type
         ).first()
 
