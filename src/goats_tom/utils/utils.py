@@ -14,6 +14,7 @@ __all__ = [
 
 import importlib
 import inspect
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,8 @@ from recipe_system.utils.errors import ModeError, RecipeNotFound
 from rest_framework import status
 from tom_dataproducts.models import DataProduct, ReducedDatum
 from tom_observations.models import ObservationRecord
+
+logger = logging.getLogger(__name__)
 
 
 def delete_associated_data_products(
@@ -248,11 +251,6 @@ def get_recipes_and_primitives(tags: set, instrument: str) -> dict[str, Any]:
     `dict[str, Any]`
         A dictionary containing recipes keyed by their names, each with details such as
         the recipe's function definition, module, and whether it is the default recipe.
-
-    Raises
-    ------
-    RecipeNotFound, ModeError
-        Raised if no applicable recipe is found or there's an error in processing modes.
     """
     recipes = {}
 
@@ -287,10 +285,14 @@ def get_recipes_and_primitives(tags: set, instrument: str) -> dict[str, Any]:
                     "recipes_module": recipe_module,
                 }
 
-        except (RecipeNotFound, ModeError) as e:
-            print(f"Error parsing recipes and primitives: {e}")
+        except (RecipeNotFound, ModeError):
+            logger.debug(
+                "No recipe found for instrument %s: with tags: %s and mode: %s",
+                instrument,
+                tags,
+                mode,
+            )
             continue
-
     return {"recipes": recipes}
 
 

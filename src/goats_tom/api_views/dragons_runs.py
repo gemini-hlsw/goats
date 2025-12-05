@@ -87,6 +87,7 @@ class DRAGONSRunsViewSet(
                 exc = APIException(f"Failed to initialize DRAGONS run: {str(e)}")
                 exc.status_code = 500
                 raise exc from e
+        logger.info("DRAGONS run initialized successfully.")
 
     def _initialize(self, dragons_run: DRAGONSRun) -> None:
         """Initializes everything.
@@ -106,6 +107,11 @@ class DRAGONSRunsViewSet(
         ----------
         dragons_run : `DRAGONSRun`
             The DRAGONS run instance for which recipes are being initialized.
+
+        Raises
+        ------
+        RuntimeError
+            If no files in the observation are compatible with DRAGONS.
 
         """
         # Create the output directory.
@@ -128,10 +134,15 @@ class DRAGONSRunsViewSet(
             observation_record=dragons_run.observation_record,
         )
 
+        # Store count of processible files to determine if run is valid.
+        processible_files = 0
+
         for data_product in data_products:
+            logger.debug("Processing data product: %s", data_product.get_file_name())
+            recipes_module_for_file = None
             # Get the tags and instrument.
             ad = astrodata.open(data_product.data.path)
-            tags = ad.tags
+            tags = set(ad.tags)
             # TODO: Should we store lowercase for instrument and observation_type?
             instrument = ad.instrument(generic=True)
             # TODO: Is there a better place for this?
@@ -165,11 +176,18 @@ class DRAGONSRunsViewSet(
                 tags, instrument.lower()
             )
 
-            recipes_module = None
+            # Check if any recipes were found.
+            if not recipes_and_primitives["recipes"]:
+                logger.warning(
+                    "Skipping file %s, as it is not supported by DRAGONS and no "
+                    "recipes were found. ",
+                    data_product.get_file_name(),
+                )
+                continue
 
             # Create or update recipes in the database.
             for recipe_name, details in recipes_and_primitives["recipes"].items():
-                recipes_module, _ = RecipesModule.objects.get_or_create(
+                recipes_module_for_file, _ = RecipesModule.objects.get_or_create(
                     name=details["recipes_module"],
                     instrument=instrument,
                     version=dragons_run.version,
@@ -178,7 +196,7 @@ class DRAGONSRunsViewSet(
                 # Create or fetch the base recipe.
                 base_recipe, _ = BaseRecipe.objects.get_or_create(
                     name=recipe_name,
-                    recipes_module=recipes_module,
+                    recipes_module=recipes_module_for_file,
                     defaults={"function_definition": details["function_definition"]},
                 )
 
@@ -211,23 +229,23 @@ class DRAGONSRunsViewSet(
                         logger.warning("Error accessing descriptor %s", descriptor)
                         pass
 
-            if recipes_module is None:
-                raise ValueError(
-                    f"No recipes found, instrument {instrument} may not be "
-                    "supported by DRAGONS."
-                )
-
             # Create a file for this run using the recipes module last retrieved.
             DRAGONSFile.objects.create(
                 dragons_run=dragons_run,
                 data_product=data_product,
-                recipes_module=recipes_module,
+                recipes_module=recipes_module_for_file,
                 observation_type=observation_type,
                 object_name=object_name,
                 observation_class=observation_class,
                 astrodata_descriptors=astrodata_descriptors,
                 product_id=data_product.get_file_name(),
                 url=data_product.data.url,
+            )
+            processible_files += 1
+
+        if processible_files == 0:
+            raise RuntimeError(
+                "No files in this observation are compatible with DRAGONS."
             )
 
     def retrieve(self, request: HttpRequest, *args, **kwargs) -> Response:
