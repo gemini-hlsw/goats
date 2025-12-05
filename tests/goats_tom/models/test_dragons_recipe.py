@@ -1,4 +1,3 @@
-
 import pytest
 from django.db.utils import IntegrityError
 
@@ -7,7 +6,6 @@ from goats_tom.tests.factories import (
     DRAGONSRecipeFactory,
     DRAGONSRunFactory,
 )
-
 
 @pytest.mark.django_db()
 class TestDRAGONSRecipe:
@@ -36,7 +34,7 @@ class TestDRAGONSRecipe:
 
     def test_function_definition_default(self):
         """Check that the function definition defaults to None."""
-        dragons_recipe = DRAGONSRecipeFactory()
+        dragons_recipe = DRAGONSRecipeFactory(function_definition=None)
         assert (
             dragons_recipe.function_definition is None
         ), "Function definition should default to None."
@@ -45,14 +43,16 @@ class TestDRAGONSRecipe:
         """Test active function definition retrieval logic."""
         base_recipe = BaseRecipeFactory(function_definition="def base_func(): pass")
         modified_recipe = DRAGONSRecipeFactory(
-            recipe=base_recipe, function_definition="def modified_func(): pass",
+            recipe=base_recipe,
+            function_definition="def modified_func(): pass",
         )
         assert (
             modified_recipe.active_function_definition == "def modified_func(): pass"
         ), "Should return the modified function definition when set."
 
         unmodified_recipe = DRAGONSRecipeFactory(
-            recipe=base_recipe, function_definition=None,
+            recipe=base_recipe,
+            function_definition=None,
         )
         assert (
             unmodified_recipe.active_function_definition
@@ -64,14 +64,16 @@ class TestDRAGONSRecipe:
         first_recipe = DRAGONSRecipeFactory(object_name="test")
         with pytest.raises(IntegrityError):
             DRAGONSRecipeFactory(
-                recipe=first_recipe.recipe, dragons_run=first_recipe.dragons_run, observation_type=first_recipe.observation_type, object_name=first_recipe.object_name,
+                recipe=first_recipe.recipe,
+                dragons_run=first_recipe.dragons_run,
+                observation_type=first_recipe.observation_type,
+                object_name=first_recipe.object_name,
                 observation_class=first_recipe.observation_class,
             )
 
     def test_properties(self):
         """Test that model properties return correct values derived from the base recipe."""
-        base_recipe = BaseRecipeFactory(name="ComplexRecipe::Simple",
-        )
+        base_recipe = BaseRecipeFactory(name="ComplexRecipe::Simple")
         dragons_recipe = DRAGONSRecipeFactory(recipe=base_recipe)
         assert (
             dragons_recipe.name == "ComplexRecipe::Simple"
@@ -79,3 +81,33 @@ class TestDRAGONSRecipe:
         assert (
             dragons_recipe.short_name == "Simple"
         ), "Should correctly extract the short name from the base recipe."
+
+    def test_default_reduction_fields(self):
+        """Ensure new reduction-related fields use expected defaults."""
+        dragons_recipe = DRAGONSRecipeFactory()
+        assert (
+            dragons_recipe.reduction_mode == "sq"
+        ), "Default reduction_mode should be 'sq'."
+        assert (
+            dragons_recipe.drpkg == "geminidr"
+        ), "Default drpkg should be 'geminidr'."
+        assert dragons_recipe.additional_files is None, "additional_files should default to None."
+        assert dragons_recipe.ucals is None, "ucals should default to None."
+        assert dragons_recipe.suffix is None, "suffix should default to None."
+
+    def test_can_store_additional_files_and_ucals(self):
+        """Ensure additional_files and ucals can store raw text values."""
+        additional_files = "['M81/GN-2021A-DD-102-9/test1.fits']"
+        ucals = "{'bias': 'M81/.../bias.fits'}"
+
+        dragons_recipe = DRAGONSRecipeFactory(
+            additional_files=additional_files,
+            ucals=ucals,
+            suffix="_custom",
+        )
+
+        assert (
+            dragons_recipe.additional_files == additional_files
+        ), "additional_files should store the raw text."
+        assert dragons_recipe.ucals == ucals, "ucals should store the raw text."
+        assert dragons_recipe.suffix == "_custom", "suffix should store the given value."

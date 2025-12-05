@@ -13,6 +13,8 @@ class RecipeReductionModel {
     this._recipeId = null;
     this._currentReduceData = null;
     this.isEditMode = false;
+    this.defaultReductionMode = "sq";
+    this.defaultDrpkg = "geminidr";
   }
 
   /**
@@ -73,6 +75,19 @@ class RecipeReductionModel {
     }
   }
 
+  /**
+   * Updates the recipe options with the provided parameters.
+   * @param {string|null} functionDefinition - The new function definition for the recipe.
+   * @param {string|null} uparms - Optional parameters for the recipe.
+   * @param {string|null} reductionMode - The reduction mode to be used.
+   * @param {string|null} drpkg - The data reduction package to be used.
+   * @param {string|null} additionalFiles - Additional files to be included in the reduction.
+   * @param {string|null} ucals - Calibration overrides for the reduction.
+   * @param {string|null} suffix - Suffix to append to output files.
+   * @returns {Promise<Object>} A promise that resolves with the updated recipe options.
+   * @throws {Error} If the API request fails, an error is logged to the console.
+   * @async
+   */
   async updateRecipeOptions(
     functionDefinition = null,
     uparms = null,
@@ -82,11 +97,15 @@ class RecipeReductionModel {
     ucals = null,
     suffix = null
   ) {
+    // Apply defaults if caller sends null.
+    const resolvedReductionMode = reductionMode ?? this.defaultReductionMode;
+    const resolvedDrpkg = drpkg ?? this.defaultDrpkg;
+
     const data = {
       function_definition: functionDefinition,
       uparms,
-      reduction_mode: reductionMode,
-      drpkg,
+      reduction_mode: resolvedReductionMode,
+      drpkg: resolvedDrpkg,
       additional_files: additionalFiles,
       ucals,
       suffix,
@@ -421,12 +440,18 @@ class RecipeReductionTemplate {
 
     const filesInfo = this._createInfoPopover(
       `
-    <p>Provide additional FITS files to include in the reduction.</p>
-    <p>Paths must be <strong>relative to the target directory</strong>, e.g.:</p>
-    <code>['M81/GN-2021A-DD-102-9/test1.fits', 'M81/GN-2021A-DD-102-9/test2.fits']</code>
-    <p>Use comma-separated values inside <code>[...]</code>.</p>
-    `,
-      "Add Extra Input Files"
+      <p><strong>Additional Files</strong> are extra FITS files to include in the
+      reduction run. These files are simply appended to the input list and do
+      <strong>not</strong> change the selected recipe or primitives.</p>
+
+      <p>Provide a Python-style list of paths <strong>relative to the target
+      directory</strong>, for example:</p>
+
+      <code>['M81/GN-2021A-DD-102-9/test1.fits', 'M81/.../test2.fits']</code>
+
+      <p>Use comma-separated values inside <code>[...]</code>.</p>
+      `,
+      "Additional Input Files"
     );
 
     const filesInput = Utils.createElement("input", ["form-control"]);
@@ -450,14 +475,15 @@ class RecipeReductionTemplate {
 
     const modeInfo = this._createInfoPopover(
       `
-    <p>Select the DRAGONS reduction mode.</p>
-    <ul>
-      <li><strong>sq</strong> - science-quality (default)</li>
-      <li><strong>ql</strong> - quick look (disabled)</li>
-      <li><strong>qa</strong> - quality assurance (disabled)</li>
-    </ul>
-    `,
-      "Select Reduction Mode"
+      <p>Select the DRAGONS reduction mode:</p>
+      <ul>
+        <li><strong>sq</strong> - Science Quality (default)</li>
+        <li><strong>qa</strong> - Quality Assessment</li>
+        <li><strong>ql</strong> - Quick Look (in development)</li>
+      </ul>
+      <p>This value becomes <code>Reduce.mode</code>.</p>
+      `,
+      "Reduction Mode"
     );
 
     const modeSelect = Utils.createElement("select", ["form-select"]);
@@ -486,10 +512,14 @@ class RecipeReductionTemplate {
 
     const drpkgInfo = this._createInfoPopover(
       `
-    <p>The DR package selects which instrument reduction library to use.</p>
-    <p>Currently, only <code>geminidr</code> is supported.</p>
-    `,
-      "Select DR Package"
+      <p><strong>drpkg</strong> selects which DRAGONS recipe+primitive library to use.</p>
+
+      <p>The default is <code>geminidr</code>, the Gemini reduction package.</p>
+
+      <p>Advanced users may point to alternate libraries during instrument or
+      third-party development.</p>
+      `,
+      "Data Reduction Package"
     );
 
     const drpkgSelect = Utils.createElement("select", ["form-select"]);
@@ -500,9 +530,7 @@ class RecipeReductionTemplate {
 
     drpkgLabelCol.append(drpkgLabel, drpkgInfo);
     drpkgInputCol.append(drpkgSelect);
-    //drpkgRow.append(drpkgLabelCol, drpkgInputCol);
 
-    const uparmsRow = Utils.createElement("div", ["row", "g-3"]);
     const uparmsLabelCol = Utils.createElement("div", ["col-sm-4"]);
     const uparmsInputCol = Utils.createElement("div", ["col-sm-8"]);
 
@@ -517,7 +545,7 @@ class RecipeReductionTemplate {
     <p>Input should be formatted as follows:</p>
     <ul>
       <li><code>[('primitive1_name:parameter1_name', parameter1_value), ('primitive2_name:parameter2_name', parameter2_value)]</code></li>
-      <li>If the primitive name is omitted, e.g., <code>('parameter_name', parameter_value)</code>, the parameter value will be applied to all primitives in the recipe that use this parameter.</li>
+      <li>If the primitive name is omitted, e.g., <code>[('parameter_name', parameter_value)]</code>, the parameter value will be applied to all primitives in the recipe that use this parameter.</li>
     </ul>
     <p>While direct modifications to the recipe can be made using the code block below, it is generally recommended to set parameters using this input field for ease and accuracy.</p>
     `,
@@ -534,9 +562,7 @@ class RecipeReductionTemplate {
 
     uparmsInputCol.append(uparmsInput);
     uparmsLabelCol.append(uparmsLabel, uparmsInfoButton);
-    //uparmsRow.append(uparmsLabelCol, uparmsInputCol);
 
-    const ucalsRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
     const ucalsLabelCol = Utils.createElement("div", ["col-sm-4"]);
     const ucalsInputCol = Utils.createElement("div", ["col-sm-8"]);
 
@@ -547,26 +573,32 @@ class RecipeReductionTemplate {
 
     const ucalsInfo = this._createInfoPopover(
       `
-    <p>Specify manual calibration files using a dictionary.</p>
-    <p>Example:</p>
-    <code>{ 'bias': 'M81/.../bias.fits', 'flat': 'M81/.../flat.fits' }</code>
-    <p>Leave empty to use DRAGONS default calibrations.</p>
-    `,
-      "Specify Calibration Overrides"
+      <p><strong>ucals</strong> manually override DRAGONS' calibration selection.
+      This value is passed directly to <code>Reduce.ucals</code>.</p>
+
+      <p>Provide a Python-style dictionary mapping calibration type to a FITS file
+      path <strong>relative to the target directory</strong>.</p>
+
+      <p>Example:</p>
+      <code>{ 'processed_bias': 'M81/.../master_bias.fits',
+              'processed_flat': 'M81/.../master_flat.fits' }</code>
+
+      <p>Leave empty (or <code>None</code>) to use the default calibration manager
+      behavior.</p>
+      `,
+      "Calibration Overrides (ucals)"
     );
 
     const ucalsInput = Utils.createElement("input", ["form-control", "monospace"]);
     ucalsInput.id = ucalsId;
     ucalsInput.type = "text";
-    ucalsInput.placeholder = "{ 'flat': 'path/to/file.fits' }";
+    ucalsInput.placeholder = "{ 'processed_flat': 'path/to/file.fits' }";
     ucalsInput.disabled = true;
     ucalsInput.value = data.ucals;
 
     ucalsLabelCol.append(ucalsLabel, ucalsInfo);
     ucalsInputCol.append(ucalsInput);
-    //ucalsRow.append(ucalsLabelCol, ucalsInputCol);
 
-    const suffixRow = Utils.createElement("div", ["row", "g-3", "mb-3"]);
     const suffixLabelCol = Utils.createElement("div", ["col-sm-4"]);
     const suffixInputCol = Utils.createElement("div", ["col-sm-8"]);
 
@@ -594,7 +626,6 @@ class RecipeReductionTemplate {
 
     suffixLabelCol.append(suffixLabel, suffixInfo);
     suffixInputCol.append(suffixInput);
-    //suffixRow.append(suffixLabelCol, suffixInputCol);
 
     row.append(
       filesLabelCol,

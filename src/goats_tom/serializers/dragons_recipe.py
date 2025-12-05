@@ -77,7 +77,6 @@ class DRAGONSRecipeSerializer(serializers.ModelSerializer):
         ]
         # Flag to track if any data has been changed.
         changed = False
-
         for field in fields_to_update:
             if field in validated_data:
                 new_value = validated_data[field]

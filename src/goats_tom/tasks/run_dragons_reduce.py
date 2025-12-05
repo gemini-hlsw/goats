@@ -1,4 +1,6 @@
-"""Run DRAGONS reduction in background."""
+"""
+Run DRAGONS reduction in background.
+"""
 
 __all__ = ["run_dragons_reduce"]
 
@@ -9,6 +11,7 @@ import sys
 import time
 import types
 import uuid
+from typing import Any
 
 import dramatiq
 import matplotlib
@@ -26,27 +29,54 @@ matplotlib.use("Agg", force=True)
 logger = logging.getLogger(__name__)
 
 
+def _safe_literal(value: str, label: str, expected_type: type | None = None) -> Any:
+    """
+    Safely parse a string literal to a specified type.
+
+    Parameters
+    ----------
+    value : str
+        The string representation of the value to parse.
+    label : str
+        A label for the value, used in error messages.
+    expected_type : type, optional
+        The expected type of the parsed value. If provided, the function
+        will check that the parsed value matches this type.
+
+    Returns
+    -------
+    Any
+        The parsed value of the expected type."""
+    try:
+        parsed = ast.literal_eval(value)
+    except Exception:
+        raise Exception(f"Failed to parse {label}.")
+    if expected_type is not None and not isinstance(parsed, expected_type):
+        raise Exception(f"{label} must be {expected_type.__name__}.")
+    return parsed
+
+
 @dramatiq.actor(
     max_retries=0, time_limit=getattr(settings, "DRAMATIQ_ACTOR_TIME_LIMIT", 86400000)
 )
 def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
-    """Executes a reduction process in the background.
+    """
+    Executes a reduction process in the background.
 
     This function handles the entire process of setting up and executing a reduction,
     including notification handling, file management, and executing the reduction logic.
 
     Parameters
     ----------
-    reduce_id : `int`
+    reduce_id : int
         The ID of the DRAGONSReduce instance to be processed.
-    file_ids : `list[int]`
+    file_ids : list[int]
         A list of file IDs to limit to. If empty, use all files.
 
     Raises
     ------
-    `DoesNotExist`
+    DoesNotExist
         Raised if the DRAGONSReduce instance does not exist.
-
     """
     try:
         # Get the reduction to run in the background.
@@ -105,48 +135,40 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
         # Get error if passing in Path.
         r.config_file = str(run.get_config_file())
 
-        # Set the recipe uparms.
+        # Set the recipe parameters if provided.
         if recipe.uparms is not None:
-            try:
-                r.uparms = ast.literal_eval(recipe.uparms)
-            except Exception:
-                raise Exception("Failed to parse provided uparms.")
+            parsed_uparms = _safe_literal(recipe.uparms, "uparms")
+            print(parsed_uparms)
+            r.uparms = parsed_uparms
 
-        if recipe.reduction_mode:
+        if recipe.reduction_mode is not None:
             r.mode = recipe.reduction_mode
-        if recipe.drpkg:
+
+        if recipe.drpkg is not None:
             r.drpkg = recipe.drpkg
+
         if recipe.suffix is not None:
             r.suffix = recipe.suffix
-        # Calibration overrides (user entered text).
+
         if recipe.ucals is not None:
-            try:
-                parsed_ucals = ast.literal_eval(recipe.ucals)
+            parsed_ucals = _safe_literal(recipe.ucals, "ucals", dict)
+            # Update paths to be absolute.
+            for cal_type, path in parsed_ucals.items():
+                full_path = str(settings.MEDIA_ROOT / path)
+                parsed_ucals[cal_type] = full_path
+            print(parsed_ucals)
+            r.ucals = parsed_ucals
 
-                if not isinstance(parsed_ucals, dict):
-                    raise ValueError("ucals must be a dictionary.")
-
-                r.ucals = parsed_ucals
-
-            except Exception:
-                raise Exception("Failed to parse ucals, needs to be a dictionary.")
-        # Additional files (user entered text).
         if recipe.additional_files is not None:
-            try:
-                parsed_files = ast.literal_eval(recipe.additional_files)
-
-                if not isinstance(parsed_files, list):
-                    raise ValueError("additional_files must be a list.")
-
-                # Convert each to an absolute path.
-                additional_file_paths = [
-                    str(settings.MEDIA_ROOT / path) for path in parsed_files
-                ]
-
-                file_paths.extend(additional_file_paths)
-
-            except Exception:
-                raise Exception("Failed to parse additional_files, needs to be a list.")
+            parsed_files = _safe_literal(
+                recipe.additional_files, "additional_files", list
+            )
+            # Convert each to an absolute path.
+            additional_file_paths = [
+                str(settings.MEDIA_ROOT / path) for path in parsed_files
+            ]
+            print(additional_file_paths)
+            file_paths.extend(additional_file_paths)
 
         r.files.extend(file_paths)
 
