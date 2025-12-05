@@ -1,6 +1,7 @@
 """Serializers for `DRAGONSRecipe`."""
 
 __all__ = ["DRAGONSRecipeSerializer", "DRAGONSRecipeFilterSerializer"]
+
 from rest_framework import serializers
 
 from goats_tom.models import DRAGONSRecipe
@@ -26,6 +27,11 @@ class DRAGONSRecipeSerializer(serializers.ModelSerializer):
             "uparms",
             "observation_class",
             "dragons_run",
+            "reduction_mode",
+            "drpkg",
+            "additional_files",
+            "ucals",
+            "suffix",
         )
         read_only_fields = (
             "id",
@@ -60,10 +66,17 @@ class DRAGONSRecipeSerializer(serializers.ModelSerializer):
             The updated `DRAGONSRecipe` instance.
 
         """
-        fields_to_update = ["uparms", "function_definition"]
+        fields_to_update = [
+            "uparms",
+            "function_definition",
+            "reduction_mode",
+            "drpkg",
+            "additional_files",
+            "ucals",
+            "suffix",
+        ]
         # Flag to track if any data has been changed.
         changed = False
-
         for field in fields_to_update:
             if field in validated_data:
                 new_value = validated_data[field]
