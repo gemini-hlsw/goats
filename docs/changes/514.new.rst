@@ -1,0 +1,1 @@
+Added advanced feature support for DRAGONS. Users can now pass additional files, change the ``ucals`` parameter, modify the ``suffix`` of the output files, and support for changing the ``drpkg`` and ``mode`` parameters in the future.

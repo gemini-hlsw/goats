@@ -24,3 +24,9 @@ class DRAGONSRecipeFactory(factory.django.DjangoModelFactory):
     observation_type = factory.Iterator(["bias", "flat", "object", "arc"])
     observation_class = factory.Iterator(["partnerCal", "science"])
     object_name = factory.Faker("word")
+
+    reduction_mode = "sq"
+    drpkg = "geminidr"
+    additional_files = None
+    ucals = None
+    suffix = None
