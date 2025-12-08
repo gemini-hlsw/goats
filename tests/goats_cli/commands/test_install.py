@@ -139,7 +139,7 @@ def test_install_cli_basic_flow(cli_runner, tmp_path, base_mocks):
     assert data_arg["project_name"] == "GOATS"
     assert data_arg["redis_host"] == "localhost"
     assert data_arg["redis_port"] == 6379
-    assert "media_root" not in data_arg
+    assert data_arg["media_root"] == str(project_path_arg / "data")
 
     # Superuser creation called once.
     base_mocks["subprocess_run"].assert_called_once()
