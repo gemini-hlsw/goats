@@ -5,6 +5,7 @@ from django.test import TestCase
 from goats_tom.tests.factories import TNSLoginFactory, UserFactory
 
 
+
 class TestTNSLogin(TestCase):
 
     def setUp(self):

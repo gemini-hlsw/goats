@@ -5,6 +5,7 @@ from django.test import TestCase
 from goats_tom.tests.factories import LCOLoginFactory, UserFactory
 
 
+
 class TestLCOLogin(TestCase):
 
     def setUp(self):

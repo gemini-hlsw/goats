@@ -1,5 +1,6 @@
-import dramatiq
+import types
 import pytest
+import dramatiq
 from apscheduler.triggers.cron import CronTrigger
 
 MODULE = "goats_scheduler.scheduling.cron"

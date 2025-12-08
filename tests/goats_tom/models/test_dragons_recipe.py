@@ -7,7 +7,6 @@ from goats_tom.tests.factories import (
     DRAGONSRunFactory,
 )
 
-
 @pytest.mark.django_db()
 class TestDRAGONSRecipe:
     """Test suite for the DRAGONSRecipe model."""

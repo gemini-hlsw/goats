@@ -1,6 +1,5 @@
 from goats_tom.forms import AstroDatalabLoginForm
 
-
 class TestAstroDatalabLoginForm:
     def test_valid_form(self):
         form = AstroDatalabLoginForm(data={"username": "astro_user", "password": "test"})

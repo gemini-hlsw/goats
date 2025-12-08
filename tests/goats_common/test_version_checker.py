@@ -1,10 +1,10 @@
+import pytest
 from json import JSONDecodeError
 from unittest.mock import Mock
-
+from requests import Timeout, RequestException, HTTPError
 import requests
-from requests import HTTPError, RequestException, Timeout
 
-from goats_common.version_checker import PACKAGE_NAME, VersionChecker
+from goats_common.version_checker import VersionChecker, PACKAGE_NAME
 
 
 def _fake_response(json_payload=None, status_code=200, json_raises=None) -> requests.Response:

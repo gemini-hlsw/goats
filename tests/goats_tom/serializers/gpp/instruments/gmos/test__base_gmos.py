@@ -1,4 +1,6 @@
+import pytest
 from unittest.mock import Mock
+from rest_framework import serializers
 
 from goats_tom.serializers.gpp.instruments.gmos._base_gmos import _BaseGMOSSerializer
 

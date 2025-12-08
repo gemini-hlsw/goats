@@ -1,12 +1,9 @@
 from unittest.mock import patch
-
+from goats_tom.tests.factories import UserFactory
 from django.test import TestCase
 from django.urls import reverse
-
 from goats_tom.models import TNSLogin
-from goats_tom.tests.factories import UserFactory
 from goats_tom.views import TNSLoginView
-
 
 class TestTNSLoginView(TestCase):
     def setUp(self):

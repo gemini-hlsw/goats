@@ -1,16 +1,17 @@
 """Test module for a DRAGONS run."""
 
-from unittest.mock import patch
-
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 from tom_observations.tests.factories import ObservingRecordFactory
 from tom_targets.tests.factories import SiderealTargetFactory
+from unittest.mock import MagicMock, patch
 
 from goats_tom.api_views import DRAGONSRunsViewSet
-from goats_tom.models import DRAGONSRun
-from goats_tom.tests.factories import DataProductFactory, DRAGONSRunFactory, UserFactory
+from goats_tom.models import DRAGONSRun, DRAGONSRecipe, DRAGONSFile
+from goats_tom.tests.factories import DRAGONSRunFactory, UserFactory, DataProductFactory
+from unittest.mock import patch, MagicMock
+from goats_tom.models import DRAGONSRun, DRAGONSFile, DRAGONSRecipe
 
 
 class TestDRAGONSRunViewSet(APITestCase):
