@@ -229,6 +229,8 @@ def install(
             shutil.rmtree(project_path)
         output.success("Previous GOATS installation removed.")
 
+    output.success("Installation preparation complete.")
+
     output.section("Creating GOATS Project")
 
     # Create project directory.
