@@ -10,7 +10,7 @@ The screenshots below show exactly what users will see.
 ``goats``
 ---------
 
-.. image:: images/cli-goats.png
+.. image:: ../images/cli-goats.png
    :alt: GOATS CLI main help output
    :align: center
 
@@ -26,7 +26,7 @@ Displays the installed GOATS CLI version.
 ``goats install``
 -----------------
 
-.. image:: images/cli-install-goats.png
+.. image:: ../images/cli-install-goats.png
    :alt: GOATS install command screenshot
    :align: center
 
@@ -51,7 +51,7 @@ Typical steps for users:
 ``goats run``
 -------------
 
-.. image:: images/cli-run-goats.png
+.. image:: ../images/cli-run-goats.png
    :alt: GOATS run command screenshot
    :align: center
 
