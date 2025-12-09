@@ -450,7 +450,6 @@ class SchedulingWindowsEditor {
     input.name = "endAtUtc";
     input.id = `${this.#idPrefix}-end-at-utc`;
 
-
     const badge = Utils.createElement("span", ["input-group-text"]);
     badge.textContent = "UTC";
 
@@ -621,24 +620,24 @@ class SchedulingWindowsEditor {
    */
   #wireModeBehavior() {
     const modeRadios = this.#container.querySelectorAll('input[name="mode"]');
-  
+
     const throughInput = this.#container.querySelector(
       `#${this.#idPrefix}-end-at-utc`,
     );
     const throughInputs = throughInput
       ? throughInput.closest(".input-group")
       : null;
-  
+
     const forInput = this.#container.querySelector(
       `#${this.#idPrefix}-duration`,
     );
     const forInputs = forInput ? forInput.closest(".input-group") : null;
-  
+
     // Repeat
     const repeatCheckbox = this.#container.querySelector(
       `#${this.#idPrefix}-repeat-enabled`,
     );
-  
+
     const repeatBlock = repeatCheckbox
       ? repeatCheckbox.closest(".d-flex.flex-column") ||
         repeatCheckbox.closest("div")
@@ -647,33 +646,33 @@ class SchedulingWindowsEditor {
     const repeatSubRows = repeatBlock
       ? repeatBlock.querySelectorAll(".tw-repeat-subrow")
       : [];
-  
+
     const repeatPeriodInput = this.#container.querySelector(
       `#${this.#idPrefix}-repeat-period`,
     );
-  
+
     const repeatModeRadios =
       this.#container.querySelectorAll('input[name="repeatMode"]') || [];
-  
+
     const repeatForeverInput = Array.from(repeatModeRadios).find(
       (r) => r.value === REPEAT_MODES.FOREVER,
     );
     const repeatTimesInput = Array.from(repeatModeRadios).find(
       (r) => r.value === REPEAT_MODES.TIMES,
     );
-  
+
     const timesCountInput = this.#container.querySelector(
       `#${this.#idPrefix}-repeat-times-count`,
     );
-  
+
     const hideEl = (el) => el && el.classList.add("d-none");
     const showEl = (el) => el && el.classList.remove("d-none");
-  
+
     const updateModeVisibility = (modeValue) => {
       const isForever = modeValue === MODES.FOREVER;
       const isThrough = modeValue === MODES.THROUGH;
       const isFor = modeValue === MODES.FOR;
-  
+
       if (isThrough) {
         showEl(throughInputs);
         if (throughInput && !throughInput.value) {
@@ -682,7 +681,7 @@ class SchedulingWindowsEditor {
       } else {
         hideEl(throughInputs);
       }
-  
+
       if (isFor) {
         showEl(forInputs);
         showEl(repeatBlock);
@@ -690,35 +689,35 @@ class SchedulingWindowsEditor {
         hideEl(forInputs);
         hideEl(repeatBlock);
       }
-  
+
       if (isForever) {
         hideEl(throughInputs);
         hideEl(forInputs);
         hideEl(repeatBlock);
       }
     };
-  
+
     const updateTimesInputState = () => {
       if (!repeatCheckbox || !timesCountInput || !repeatTimesInput) return;
-  
+
       const repeatEnabled = repeatCheckbox.checked;
       const timesSelected = repeatTimesInput.checked;
       const shouldEnableTimes = repeatEnabled && timesSelected;
-  
+
       timesCountInput.disabled = !shouldEnableTimes;
-  
+
       if (shouldEnableTimes && !timesCountInput.value) {
         timesCountInput.value = "1";
       } else if (!shouldEnableTimes) {
         timesCountInput.value = "";
       }
     };
-  
+
     const updateRepeatVisibility = (enabled) => {
       repeatSubRows.forEach((row) => {
         row.classList.toggle("d-none", !enabled);
       });
-      
+
       if (repeatBlock) {
         const repeatInputs = repeatBlock.querySelectorAll("input");
         repeatInputs.forEach((input) => {
@@ -726,7 +725,7 @@ class SchedulingWindowsEditor {
           input.disabled = !enabled;
         });
       }
-  
+
       if (repeatPeriodInput) {
         if (enabled && !repeatPeriodInput.value) {
           repeatPeriodInput.value = "60:00:00";
@@ -734,10 +733,10 @@ class SchedulingWindowsEditor {
           repeatPeriodInput.value = "";
         }
       }
-  
+
       updateTimesInputState();
     };
-  
+
     modeRadios.forEach((radio) => {
       radio.addEventListener("change", (event) => {
         if (event.target.checked) {
@@ -745,108 +744,59 @@ class SchedulingWindowsEditor {
         }
       });
     });
-  
+
     if (repeatCheckbox) {
       repeatCheckbox.addEventListener("change", (event) => {
         updateRepeatVisibility(event.target.checked);
       });
     }
-  
+
     if (repeatTimesInput) {
       repeatTimesInput.addEventListener("change", updateTimesInputState);
     }
     if (repeatForeverInput) {
       repeatForeverInput.addEventListener("change", updateTimesInputState);
     }
-  
+
     updateModeVisibility(MODES.FOREVER);
     updateRepeatVisibility(repeatCheckbox ? repeatCheckbox.checked : false);
     updateTimesInputState();
   }
-  /** 
+  /**
    * Build a timing window object from the current form controls.
    *
    * @private
    * @returns {{inclusion: string, startUtc: string, end: (null|Object)}} Timing window object.
    */
-    #collectTimingWindowFromForm() {
-    const typeInput = this.#container.querySelector('input[name="type"]:checked');
+  #collectTimingWindowFromForm() {
+    const typeInput = this.#container.querySelector(
+      'input[name="type"]:checked',
+    );
+
     const inclusion = typeInput?.value?.toUpperCase() ?? "INCLUDE";
 
-    const fromInput = this.#container.querySelector(
-      `#${this.#idPrefix}-from`,
-    );
-    const startUtcRaw = fromInput?.value ?? "";
-    const startUtc = startUtcRaw;
+    const fromInput = this.#container.querySelector(`#${this.#idPrefix}-from`);
+    const startUtc = fromInput?.value ?? "";
 
-    const modeInput = this.#container.querySelector('input[name="mode"]:checked');
+    const modeInput = this.#container.querySelector(
+      'input[name="mode"]:checked',
+    );
     const mode = modeInput?.value ?? MODES.FOREVER;
 
     let end = null;
 
-    if (mode === MODES.FOREVER) {
-      end = null;
-    } else if (mode === MODES.THROUGH) {
-      const throughInput = this.#container.querySelector(
-        `#${this.#idPrefix}-end-at-utc`,
-      );
-      const atRaw = throughInput?.value ?? "";
-
-      if (atRaw) {
-        end = {
-          atUtc: atRaw,
-        };
-      } else {
+    switch (mode) {
+      case MODES.FOREVER:
+        end = this.#buildEndForever();
+        break;
+      case MODES.THROUGH:
+        end = this.#buildEndThrough();
+        break;
+      case MODES.FOR:
+        end = this.#buildEndFor();
+        break;
+      default:
         end = null;
-      }
-    } else if (mode === MODES.FOR) {
-      const forInput = this.#container.querySelector(
-        `#${this.#idPrefix}-duration`,
-      );
-      const durationSeconds = parseDurationToSeconds(forInput?.value ?? "");
-
-      const repeatCheckbox = this.#container.querySelector(
-        `#${this.#idPrefix}-repeat-enabled`,
-      );
-      const repeatEnabled = repeatCheckbox?.checked ?? false;
-
-      let repeat = null;
-
-      if (repeatEnabled) {
-        const repeatModeInput = this.#container.querySelector(
-          'input[name="repeatMode"]:checked',
-        );
-        const repeatMode = repeatModeInput?.value ?? REPEAT_MODES.FOREVER;
-
-        const periodInput = this.#container.querySelector(
-          `#${this.#idPrefix}-repeat-period`,
-        );
-        const periodSeconds = parseDurationToSeconds(periodInput?.value ?? "");
-
-        let times = null;
-        if (repeatMode === REPEAT_MODES.TIMES) {
-          const timesInput = this.#container.querySelector(
-            `#${this.#idPrefix}-repeat-times-count`,
-          );
-          const timesValue = Number(timesInput?.value ?? "");
-          times =
-            Number.isFinite(timesValue) && timesValue > 0 ? timesValue : null;
-        }
-
-        repeat = {
-          times,
-          period: {
-            seconds: periodSeconds,
-          },
-        };
-      }
-
-      end = {
-        after: {
-          seconds: durationSeconds,
-        },
-        repeat,
-      };
     }
 
     return {
@@ -855,12 +805,102 @@ class SchedulingWindowsEditor {
       end,
     };
   }
+  /**
+   * Build `end` for Forever mode.
+   *
+   * @private
+   * @returns {null}
+   */
+  #buildEndForever() {
+    return null;
+  }
 
+  /**
+   * Build `end` for Through mode.
+   *
+   * @private
+   * @returns {null|{atUtc: string}}
+   */
+  #buildEndThrough() {
+    const throughInput = /** @type {HTMLInputElement|null} */ (
+      this.#container.querySelector(`#${this.#idPrefix}-end-at-utc`)
+    );
+    const atRaw = throughInput?.value ?? "";
+
+    if (!atRaw) return null;
+
+    return { atUtc: atRaw };
+  }
+
+  /**
+   * Build `repeat` block for For mode, if enabled.
+   *
+   * @private
+   * @returns {null|{times: (number|null), period: {seconds: number}}}
+   */
+  #buildRepeat() {
+    const repeatCheckbox = /** @type {HTMLInputElement|null} */ (
+      this.#container.querySelector(`#${this.#idPrefix}-repeat-enabled`)
+    );
+    const repeatEnabled = repeatCheckbox?.checked ?? false;
+    if (!repeatEnabled) return null;
+
+    const repeatModeInput = /** @type {HTMLInputElement|null} */ (
+      this.#container.querySelector('input[name="repeatMode"]:checked')
+    );
+    const repeatMode = repeatModeInput?.value ?? REPEAT_MODES.FOREVER;
+
+    const periodInput = /** @type {HTMLInputElement|null} */ (
+      this.#container.querySelector(`#${this.#idPrefix}-repeat-period`)
+    );
+    const periodRaw = periodInput?.value ?? "";
+    const periodSeconds = parseDurationToSeconds(periodRaw);
+
+    let times = null;
+    if (repeatMode === REPEAT_MODES.TIMES) {
+      const timesInput = /** @type {HTMLInputElement|null} */ (
+        this.#container.querySelector(`#${this.#idPrefix}-repeat-times-count`)
+      );
+      const timesRaw = timesInput?.value ?? "";
+      const timesValue = Number(timesRaw);
+      times = Number.isFinite(timesValue) && timesValue > 0 ? timesValue : null;
+    }
+
+    return {
+      times,
+      period: {
+        seconds: periodSeconds,
+      },
+    };
+  }
+
+  /**
+   * Build `end` for For mode.
+   *
+   * @private
+   * @returns {{after: {seconds: number}, repeat: (null|{times: (number|null), period: {seconds: number}})}}
+   */
+  #buildEndFor() {
+    const durationInput = /** @type {HTMLInputElement|null} */ (
+      this.#container.querySelector(`#${this.#idPrefix}-duration`)
+    );
+    const durationRaw = durationInput?.value ?? "";
+    const durationSeconds = parseDurationToSeconds(durationRaw);
+
+    const repeat = this.#buildRepeat();
+
+    return {
+      after: {
+        seconds: durationSeconds,
+      },
+      repeat,
+    };
+  }
   getValues() {
     return this.#timingWindows.map((tw) => ({
       inclusion: tw.inclusion,
       startUtc: tw.startUtc,
-      end: tw.end ? JSON.parse(JSON.stringify(tw.end)) : null,
+      end: tw.end ? structuredClone(tw.end) : null,
     }));
   }
 }
