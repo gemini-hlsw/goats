@@ -8,6 +8,35 @@ const REPEAT_MODES = Object.freeze({
   FOREVER: "Forever",
   TIMES: "Times",
 });
+/**
+ * Parse a duration string "HH", "HH:MM" or "HH:MM:SS" into seconds.
+ *
+ * @param {string} text
+ * @returns {number}
+ */
+function parseDurationToSeconds(text) {
+  if (!text) return 0;
+
+  const parts = text.split(":").map(Number);
+  if (parts.some((n) => Number.isNaN(n))) return 0;
+
+  if (parts.length === 1) {
+    const [hours] = parts;
+    return hours * 3600;
+  }
+
+  if (parts.length === 2) {
+    const [hours, minutes] = parts;
+    return hours * 3600 + minutes * 60;
+  }
+
+  if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  return 0;
+}
 
 /**
  * Return current UTC datetime formatted for <input type="datetime-local">.
@@ -124,9 +153,8 @@ class SchedulingWindowsEditor {
     addBtn.type = "button";
     addBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
     addBtn.addEventListener("click", () => {
-      // TODO: hook to collect form and add a new timing window
-      // const tw = this.#collectTimingWindowFromForm();
-      // this.#addTimingWindow(tw);
+      const tw = this.#collectTimingWindowFromForm();
+      this.#addTimingWindow(tw);
     });
     this.#tableBox.append(addBtn);
 
@@ -420,6 +448,8 @@ class SchedulingWindowsEditor {
     input.type = "datetime-local";
     input.style.maxWidth = "170px";
     input.name = "endAtUtc";
+    input.id = `${this.#idPrefix}-end-at-utc`;
+
 
     const badge = Utils.createElement("span", ["input-group-text"]);
     badge.textContent = "UTC";
@@ -460,6 +490,7 @@ class SchedulingWindowsEditor {
     input.style.maxWidth = "60px";
     input.value = "48:00";
     input.name = "durationHours";
+    input.id = `${this.#idPrefix}-duration`;
 
     const suffix = Utils.createElement("span", ["input-group-text"]);
     suffix.textContent = "hours";
@@ -481,7 +512,7 @@ class SchedulingWindowsEditor {
       "d-flex",
       "align-items-start",
       "gap-1",
-      "pr-4",
+      "ms-4",
     ]);
 
     const checkbox = Utils.createElement("input", ["form-check-input"]);
@@ -523,6 +554,7 @@ class SchedulingWindowsEditor {
       "form-check",
       "mb-0",
       "ms-5",
+      "tw-repeat-subrow",
     ]);
     const foreverInput = Utils.createElement("input", ["form-check-input"]);
     foreverInput.type = "radio";
@@ -544,6 +576,7 @@ class SchedulingWindowsEditor {
       "align-items-start",
       "mb-0",
       "ms-5",
+      "tw-repeat-subrow",
     ]);
     const timesRadio = Utils.createElement("input", [
       "form-check-input",
@@ -588,108 +621,104 @@ class SchedulingWindowsEditor {
    */
   #wireModeBehavior() {
     const modeRadios = this.#container.querySelectorAll('input[name="mode"]');
-
+  
     const throughInput = this.#container.querySelector(
-      'input[name="endAtUtc"]',
+      `#${this.#idPrefix}-end-at-utc`,
     );
-    const throughRow = throughInput
+    const throughInputs = throughInput
       ? throughInput.closest(".input-group")
       : null;
-
+  
     const forInput = this.#container.querySelector(
-      'input[name="durationHours"]',
+      `#${this.#idPrefix}-duration`,
     );
-    const forRow = forInput ? forInput.closest(".input-group") : null;
-
+    const forInputs = forInput ? forInput.closest(".input-group") : null;
+  
+    // Repeat
     const repeatCheckbox = this.#container.querySelector(
-      'input[name="repeatEnabled"]',
+      `#${this.#idPrefix}-repeat-enabled`,
     );
+  
     const repeatBlock = repeatCheckbox
       ? repeatCheckbox.closest(".d-flex.flex-column") ||
         repeatCheckbox.closest("div")
       : null;
 
+    const repeatSubRows = repeatBlock
+      ? repeatBlock.querySelectorAll(".tw-repeat-subrow")
+      : [];
+  
     const repeatPeriodInput = this.#container.querySelector(
-      'input[name="repeatPeriod"]',
+      `#${this.#idPrefix}-repeat-period`,
     );
-
+  
     const repeatModeRadios =
       this.#container.querySelectorAll('input[name="repeatMode"]') || [];
-
+  
     const repeatForeverInput = Array.from(repeatModeRadios).find(
       (r) => r.value === REPEAT_MODES.FOREVER,
     );
     const repeatTimesInput = Array.from(repeatModeRadios).find(
       (r) => r.value === REPEAT_MODES.TIMES,
     );
-
-    const repeatForeverLabel = repeatForeverInput
-      ? repeatForeverInput.closest("label")
-      : null;
-    const repeatTimesLabel = repeatTimesInput
-      ? repeatTimesInput.closest("label")
-      : null;
-
+  
     const timesCountInput = this.#container.querySelector(
-      'input[name="repeatTimes"]',
+      `#${this.#idPrefix}-repeat-times-count`,
     );
-
+  
     const hideEl = (el) => el && el.classList.add("d-none");
     const showEl = (el) => el && el.classList.remove("d-none");
-
+  
     const updateModeVisibility = (modeValue) => {
       const isForever = modeValue === MODES.FOREVER;
       const isThrough = modeValue === MODES.THROUGH;
       const isFor = modeValue === MODES.FOR;
-
+  
       if (isThrough) {
-        showEl(throughRow);
+        showEl(throughInputs);
         if (throughInput && !throughInput.value) {
           throughInput.value = getNowForDatetimeLocalUtc();
         }
       } else {
-        hideEl(throughRow);
+        hideEl(throughInputs);
       }
-
+  
       if (isFor) {
-        showEl(forRow);
+        showEl(forInputs);
         showEl(repeatBlock);
       } else {
-        hideEl(forRow);
+        hideEl(forInputs);
         hideEl(repeatBlock);
       }
-
+  
       if (isForever) {
-        hideEl(throughRow);
-        hideEl(forRow);
+        hideEl(throughInputs);
+        hideEl(forInputs);
         hideEl(repeatBlock);
       }
     };
-
+  
     const updateTimesInputState = () => {
       if (!repeatCheckbox || !timesCountInput || !repeatTimesInput) return;
-
+  
       const repeatEnabled = repeatCheckbox.checked;
       const timesSelected = repeatTimesInput.checked;
       const shouldEnableTimes = repeatEnabled && timesSelected;
-
+  
       timesCountInput.disabled = !shouldEnableTimes;
-
+  
       if (shouldEnableTimes && !timesCountInput.value) {
         timesCountInput.value = "1";
       } else if (!shouldEnableTimes) {
         timesCountInput.value = "";
       }
     };
-
+  
     const updateRepeatVisibility = (enabled) => {
-      if (repeatForeverLabel) {
-        repeatForeverLabel.classList.toggle("d-none", !enabled);
-      }
-      if (repeatTimesLabel) {
-        repeatTimesLabel.classList.toggle("d-none", !enabled);
-      }
-
+      repeatSubRows.forEach((row) => {
+        row.classList.toggle("d-none", !enabled);
+      });
+      
       if (repeatBlock) {
         const repeatInputs = repeatBlock.querySelectorAll("input");
         repeatInputs.forEach((input) => {
@@ -697,7 +726,7 @@ class SchedulingWindowsEditor {
           input.disabled = !enabled;
         });
       }
-
+  
       if (repeatPeriodInput) {
         if (enabled && !repeatPeriodInput.value) {
           repeatPeriodInput.value = "60:00:00";
@@ -705,10 +734,10 @@ class SchedulingWindowsEditor {
           repeatPeriodInput.value = "";
         }
       }
-
+  
       updateTimesInputState();
     };
-
+  
     modeRadios.forEach((radio) => {
       radio.addEventListener("change", (event) => {
         if (event.target.checked) {
@@ -716,23 +745,122 @@ class SchedulingWindowsEditor {
         }
       });
     });
-
+  
     if (repeatCheckbox) {
       repeatCheckbox.addEventListener("change", (event) => {
         updateRepeatVisibility(event.target.checked);
       });
     }
-
+  
     if (repeatTimesInput) {
       repeatTimesInput.addEventListener("change", updateTimesInputState);
     }
     if (repeatForeverInput) {
       repeatForeverInput.addEventListener("change", updateTimesInputState);
     }
-
-    // Initial state
+  
     updateModeVisibility(MODES.FOREVER);
     updateRepeatVisibility(repeatCheckbox ? repeatCheckbox.checked : false);
     updateTimesInputState();
+  }
+  /** 
+   * Build a timing window object from the current form controls.
+   *
+   * @private
+   * @returns {{inclusion: string, startUtc: string, end: (null|Object)}} Timing window object.
+   */
+    #collectTimingWindowFromForm() {
+    const typeInput = this.#container.querySelector('input[name="type"]:checked');
+    const inclusion = typeInput?.value?.toUpperCase() ?? "INCLUDE";
+
+    const fromInput = this.#container.querySelector(
+      `#${this.#idPrefix}-from`,
+    );
+    const startUtcRaw = fromInput?.value ?? "";
+    const startUtc = startUtcRaw;
+
+    const modeInput = this.#container.querySelector('input[name="mode"]:checked');
+    const mode = modeInput?.value ?? MODES.FOREVER;
+
+    let end = null;
+
+    if (mode === MODES.FOREVER) {
+      end = null;
+    } else if (mode === MODES.THROUGH) {
+      const throughInput = this.#container.querySelector(
+        `#${this.#idPrefix}-end-at-utc`,
+      );
+      const atRaw = throughInput?.value ?? "";
+
+      if (atRaw) {
+        end = {
+          atUtc: atRaw,
+        };
+      } else {
+        end = null;
+      }
+    } else if (mode === MODES.FOR) {
+      const forInput = this.#container.querySelector(
+        `#${this.#idPrefix}-duration`,
+      );
+      const durationSeconds = parseDurationToSeconds(forInput?.value ?? "");
+
+      const repeatCheckbox = this.#container.querySelector(
+        `#${this.#idPrefix}-repeat-enabled`,
+      );
+      const repeatEnabled = repeatCheckbox?.checked ?? false;
+
+      let repeat = null;
+
+      if (repeatEnabled) {
+        const repeatModeInput = this.#container.querySelector(
+          'input[name="repeatMode"]:checked',
+        );
+        const repeatMode = repeatModeInput?.value ?? REPEAT_MODES.FOREVER;
+
+        const periodInput = this.#container.querySelector(
+          `#${this.#idPrefix}-repeat-period`,
+        );
+        const periodSeconds = parseDurationToSeconds(periodInput?.value ?? "");
+
+        let times = null;
+        if (repeatMode === REPEAT_MODES.TIMES) {
+          const timesInput = this.#container.querySelector(
+            `#${this.#idPrefix}-repeat-times-count`,
+          );
+          const timesValue = Number(timesInput?.value ?? "");
+          times =
+            Number.isFinite(timesValue) && timesValue > 0 ? timesValue : null;
+        }
+
+        repeat = {
+          times,
+          period: {
+            seconds: periodSeconds,
+          },
+        };
+      }
+
+      end = {
+        after: {
+          seconds: durationSeconds,
+        },
+        repeat,
+      };
+    }
+
+    return {
+      inclusion,
+      startUtc,
+      end,
+    };
+  }
+
+  getValues() {
+    return this.#timingWindows.map((tw) => ({
+      inclusion: tw.inclusion,
+      startUtc: tw.startUtc,
+      end: tw.end ? JSON.parse(JSON.stringify(tw.end)) : null,
+    }));
   }
 }
