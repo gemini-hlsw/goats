@@ -154,6 +154,9 @@ class SchedulingWindowsEditor {
     addBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
     addBtn.addEventListener("click", () => {
       const tw = this.#collectTimingWindowFromForm();
+      const valid = this.#validateAndMarkErrors(tw);
+      if (!valid) return;
+
       this.#addTimingWindow(tw);
     });
     this.#tableBox.append(addBtn);
@@ -863,7 +866,7 @@ class SchedulingWindowsEditor {
       );
       const timesRaw = timesInput?.value ?? "";
       const timesValue = Number(timesRaw);
-      times = Number.isFinite(timesValue) && timesValue > 0 ? timesValue : null;
+      times = Number.isFinite(timesValue) ? timesValue : null;
     }
 
     return {
@@ -896,6 +899,121 @@ class SchedulingWindowsEditor {
       repeat,
     };
   }
+  /**
+   * Toggle error style on a form input (no feedback text).
+   *
+   * @private
+   * @param {HTMLElement|null} el
+   * @param {boolean} isError
+   */
+  #markFieldError(el, isError) {
+    if (!el) return;
+    el.classList.toggle("is-invalid", isError);
+  }
+  /**
+   * Validate the start time field.
+   *
+   * @param {{ startUtc: string }} tw - Timing window object.
+   * @returns {boolean} True if valid.
+   */
+  #validateStart(tw) {
+    const startInput = this.#container.querySelector('input[name="startUtc"]');
+    const value = tw.startUtc;
+    const d = value ? new Date(value) : null;
+    const err = !(d && !Number.isNaN(d.getTime()));
+
+    this.#markFieldError(startInput, err);
+    return !err;
+  }
+
+  /**
+   * Validate the "Through" mode end time.
+   *
+   * @param {{ startUtc: string, end: { atUtc?: string } | null }} tw - Timing window object.
+   * @returns {boolean} True if valid.
+   */
+  #validateThrough(tw) {
+    const start = tw.startUtc ? new Date(tw.startUtc) : null;
+
+    const endInput = this.#container.querySelector('input[name="endAtUtc"]');
+    const endRaw = tw.end?.atUtc ?? "";
+    const end = endRaw ? new Date(endRaw) : null;
+
+    const err = !(start && end && end > start);
+    this.#markFieldError(endInput, err);
+
+    return !err;
+  }
+
+  /**
+   * Validate the "For" mode duration and repeat.
+   *
+   * @param {{ end: { after?: { seconds: number }, repeat?: { period: { seconds: number }, times: (number|null) } } | null }} tw
+   * @returns {boolean} True if valid.
+   */
+  #validateForAndRepeat(tw) {
+    let ok = true;
+
+    const durationInput = this.#container.querySelector(
+      'input[name="durationHours"]',
+    );
+    const durationSeconds = parseDurationToSeconds(durationInput?.value ?? "");
+
+    const durErr = !(Number.isFinite(durationSeconds) && durationSeconds > 0);
+    this.#markFieldError(durationInput, durErr);
+    ok &&= !durErr;
+
+    const repeatEnabled =
+      this.#container.querySelector('input[name="repeatEnabled"]')?.checked ??
+      false;
+
+    if (repeatEnabled && tw.end?.repeat) {
+      const periodInput = this.#container.querySelector(
+        'input[name="repeatPeriod"]',
+      );
+      const pSeconds = tw.end.repeat.period.seconds;
+
+      const pErr = !(Number.isFinite(pSeconds) && pSeconds > 0);
+      this.#markFieldError(periodInput, pErr);
+      ok &&= !pErr;
+
+      if (tw.end.repeat.times != null) {
+        const timesInput = this.#container.querySelector(
+          'input[name="repeatTimes"]',
+        );
+        const times = tw.end.repeat.times;
+
+        const tErr = !(Number.isInteger(times) && times > 0);
+        this.#markFieldError(timesInput, tErr);
+        ok &&= !tErr;
+      }
+    }
+
+    return ok;
+  }
+
+  /**
+   * Validate a timing window and mark invalid inputs.
+   *
+   * @param {Object} tw - Timing window object.
+   * @returns {boolean} True if valid.
+   */
+  #validateAndMarkErrors(tw) {
+    let ok = this.#validateStart(tw);
+
+    const mode =
+      this.#container.querySelector('input[name="mode"]:checked')?.value ??
+      MODES.FOREVER;
+
+    if (mode === MODES.THROUGH) {
+      ok &&= this.#validateThrough(tw);
+    } else if (mode === MODES.FOR) {
+      ok &&= this.#validateForAndRepeat(tw);
+    }
+
+    return ok;
+  }
+
   getValues() {
     return this.#timingWindows.map((tw) => ({
       inclusion: tw.inclusion,
