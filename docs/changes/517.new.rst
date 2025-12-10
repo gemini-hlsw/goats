@@ -1,0 +1,1 @@
+GOATS now updates its project settings in a safer and more predictable way. Upgrades no longer overwrite user-owned configuration, and template-managed settings are refreshed automatically when running ``goats run``. Users can now safely place all personal or site-specific configuration inside ``local.py``, which is never overwritten and is fully isolated for custom settings.
