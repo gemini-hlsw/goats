@@ -7,6 +7,7 @@ class ObservationForm {
   #handlers;
   #readOnly;
   #mode;
+  #schedulingWindowsEditor;
 
   /**
    * Create an ObservationForm.
@@ -105,7 +106,7 @@ class ObservationForm {
       },
       handleSchedulingWindowsInputs: (meta, raw) => {
         const div = Utils.createElement("div", "mt-3");
-        new SchedulingWindowsEditor(div, {
+        this.#schedulingWindowsEditor = new SchedulingWindowsEditor(div, {
           data: raw ?? [],
           readOnly: this.#readOnly,
           });
@@ -459,6 +460,8 @@ class ObservationForm {
   getData() {
     if (!this.#form) return null;
     const formData = new FormData(this.#form);
+    const timingWindows = this.#schedulingWindowsEditor.getValues();
+    formData.append("timingWindows", JSON.stringify(timingWindows))
     return formData;
   }
 }
