@@ -13,6 +13,7 @@ from goats_tom.serializers.gpp._base_gpp import _BaseGPPSerializer
 from goats_tom.serializers.gpp.constraint_set import ConstraintSetSerializer
 from goats_tom.serializers.gpp.observing_mode import ObservingModeSerializer
 from goats_tom.serializers.gpp.pos_angle import PosAngleSerializer
+from goats_tom.serializers.gpp.schedulingWindows import SchedulingWindowsSerializer
 
 
 class ObservationSerializer(_BaseGPPSerializer):
@@ -51,6 +52,9 @@ class ObservationSerializer(_BaseGPPSerializer):
         self._pos_angle_serializer = PosAngleSerializer(data=data)
         self._pos_angle_serializer.is_valid(raise_exception=True)
 
+        self._scheduling_windows_serializer = SchedulingWindowsSerializer(data=data)
+        self._scheduling_windows_serializer.is_valid(raise_exception=True)
+
         return internal
 
     def format_gpp(self) -> dict[str, Any] | None:
@@ -80,5 +84,9 @@ class ObservationSerializer(_BaseGPPSerializer):
         pos_angle_data = self._pos_angle_serializer.format_gpp()
         if pos_angle_data is not None:
             result["posAngleConstraint"] = pos_angle_data
+
+        scheduling_windows_data = self._scheduling_windows_serializer.format_gpp()
+        if scheduling_windows_data is not None:
+            result["timingWindows"] = scheduling_windows_data
 
         return result if result else None
