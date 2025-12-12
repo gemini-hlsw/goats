@@ -1,0 +1,1 @@
+Applied patches for per-request and per-user credentials for SOAR and LCO observatories. Users will now have their correct proposals loaded based on their own credentials when submitting an observation request. GOATS app startup has also been refactored to make it easier for testing and not apply patches multiple times.
