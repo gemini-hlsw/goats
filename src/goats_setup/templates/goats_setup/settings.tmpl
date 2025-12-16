@@ -77,6 +77,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "goats_tom.middleware.UserScopedCacheMiddleware",
     "goats_tom.middleware.TNSCredentialsMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -250,6 +251,8 @@ CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
         "LOCATION": tempfile.gettempdir(),
+        "KEY_FUNCTION": "goats_tom.cache.proposals_keyfunc.user_scoped_proposals_key",
+
     },
     "redis": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
