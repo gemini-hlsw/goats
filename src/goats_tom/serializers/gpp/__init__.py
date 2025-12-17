@@ -4,6 +4,7 @@ from .elevation_range import ElevationRangeSerializer
 from .observation import ObservationSerializer
 from .observing_mode import ObservingModeSerializer
 from .pos_angle import PosAngleSerializer
+from .scheduling_windows import SchedulingWindowsSerializer
 from .sidereal import SiderealSerializer
 from .source_profile import SourceProfileSerializer
 from .target import TargetSerializer
@@ -20,4 +21,5 @@ __all__ = [
     "PosAngleSerializer",
     "ConstraintSetSerializer",
     "ObservationSerializer",
+    "SchedulingWindowsSerializer",
 ]

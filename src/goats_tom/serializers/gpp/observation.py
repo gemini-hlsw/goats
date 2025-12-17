@@ -13,7 +13,7 @@ from goats_tom.serializers.gpp._base_gpp import _BaseGPPSerializer
 from goats_tom.serializers.gpp.constraint_set import ConstraintSetSerializer
 from goats_tom.serializers.gpp.observing_mode import ObservingModeSerializer
 from goats_tom.serializers.gpp.pos_angle import PosAngleSerializer
-from goats_tom.serializers.gpp.schedulingWindows import SchedulingWindowsSerializer
+from goats_tom.serializers.gpp.scheduling_windows import SchedulingWindowsSerializer
 
 
 class ObservationSerializer(_BaseGPPSerializer):

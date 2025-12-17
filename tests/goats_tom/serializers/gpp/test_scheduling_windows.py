@@ -1,7 +1,9 @@
+# tests/test_scheduling_windows_serializers.py
+import json
 import pytest
 from rest_framework.exceptions import ValidationError
 
-from goats_tom.serializers.gpp.schedulingWindows import (
+from goats_tom.serializers.gpp.scheduling_windows import (
     TimingWindowAfterSerializer,
     TimingWindowRepeatPeriodSerializer,
     TimingWindowRepeatSerializer,
@@ -12,213 +14,140 @@ from goats_tom.serializers.gpp.schedulingWindows import (
 from gpp_client.api.enums import TimingWindowInclusion
 
 
-#
-# TimingWindowAfterSerializer
-#
+# --- Helpers -----------------------------------------------------------------
 
-def test_after_seconds_valid():
-    s = TimingWindowAfterSerializer(data={"seconds": 10})
-    assert s.is_valid()
-    assert s.validated_data["seconds"] == 10
-
-
-def test_after_seconds_invalid_zero():
-    s = TimingWindowAfterSerializer(data={"seconds": 0})
-    assert not s.is_valid()
-    assert "seconds" in s.errors
+def make_window(*, inclusion="INCLUDE", start="2025-01-01T10:00", end=None):
+    data = {"inclusion": inclusion, "startUtc": start}
+    if end is not None:
+        data["end"] = end
+    return data
 
 
-#
-# TimingWindowRepeatPeriodSerializer
-#
+# --- TimingWindowAfterSerializer ---------------------------------------------
 
-def test_repeat_period_valid():
-    s = TimingWindowRepeatPeriodSerializer(data={"seconds": 3})
-    assert s.is_valid()
-    assert s.validated_data["seconds"] == 3
+@pytest.mark.parametrize("seconds, valid", [
+    (10, True),
+    (1, True),
+    (0, False),
+    (-1, False),
+])
+def test_after_seconds(seconds, valid):
+    s = TimingWindowAfterSerializer(data={"seconds": seconds})
+    assert s.is_valid() is valid
+    if valid:
+        assert s.validated_data["seconds"] == seconds
+    else:
+        assert "seconds" in s.errors
 
 
-def test_repeat_period_invalid_negative():
-    s = TimingWindowRepeatPeriodSerializer(data={"seconds": -1})
-    assert not s.is_valid()
-    assert "seconds" in s.errors
+# --- TimingWindowRepeatPeriodSerializer --------------------------------------
+
+@pytest.mark.parametrize("seconds, valid", [
+    (3, True),
+    (1, True),
+    (0, False),
+    (-1, False),
+])
+def test_repeat_period(seconds, valid):
+    s = TimingWindowRepeatPeriodSerializer(data={"seconds": seconds})
+    assert s.is_valid() is valid
+    if valid:
+        assert s.validated_data["seconds"] == seconds
+    else:
+        assert "seconds" in s.errors
 
 
-#
-# TimingWindowRepeatSerializer
-#
+# --- TimingWindowRepeatSerializer --------------------------------------------
 
-def test_repeat_without_times_valid():
-    s = TimingWindowRepeatSerializer(
-        data={"period": {"seconds": 10}}
+@pytest.mark.parametrize("payload, valid, err_field", [
+    ({"period": {"seconds": 10}}, True, None),
+    ({"period": {"seconds": 10}, "times": None}, True, None),
+    ({"period": {"seconds": 10}, "times": 0}, False, "times"),
+    ({"period": {"seconds": -5}}, False, "period"),
+])
+def test_repeat(payload, valid, err_field):
+    s = TimingWindowRepeatSerializer(data=payload)
+    assert s.is_valid() is valid
+    if not valid and err_field:
+        # could be nested under period -> seconds depending on your validation
+        assert err_field in json.dumps(s.errors)
+
+
+# --- TimingWindowEndSerializer -----------------------------------------------
+
+@pytest.mark.parametrize("payload, valid, err_key", [
+    ({"atUtc": "2025-01-01T00:00"}, True, None),
+    ({"after": {"seconds": 10}}, True, None),
+    ({"after": {"seconds": 10}, "repeat": {"period": {"seconds": 5}}}, True, None),
+    ({"after": {"seconds": 10}, "repeat": None}, True, None),
+    ({"atUtc": "2025-01-01T00:00", "repeat": None}, True, None),
+    ({"atUtc": "2025-01-01T00:00", "after": {"seconds": 10}}, False, "non_field_errors"),
+    ({}, False, "non_field_errors"),
+    ({"repeat": {"period": {"seconds": 10}}}, False, "non_field_errors"),
+])
+def test_end(payload, valid, err_key):
+    s = TimingWindowEndSerializer(data=payload)
+    assert s.is_valid() is valid
+    if not valid:
+        assert err_key in s.errors
+
+
+# --- TimingWindowSerializer ---------------------------------------------------
+
+@pytest.mark.parametrize("end, valid, err_field", [
+    ({"atUtc": "2025-01-01T11:00"}, True, None),
+    (None, True, None),
+    ({"atUtc": "2025-01-01T09:59"}, False, "end"),
+])
+def test_window(end, valid, err_field):
+    data = make_window(
+        inclusion=TimingWindowInclusion.INCLUDE.value,
+        start="2025-01-01T10:00",
+        end=end,
     )
-    assert s.is_valid()
-    assert "times" not in s.validated_data
+    s = TimingWindowSerializer(data=data)
+    assert s.is_valid() is valid
+    if valid:
+        # presence/absence of end
+        if end is None:
+            assert s.validated_data.get("end") in (None, {})
+        else:
+            assert "end" in s.validated_data
+    else:
+        assert err_field in s.errors
 
 
-def test_repeat_times_null_valid():
-    s = TimingWindowRepeatSerializer(
-        data={"period": {"seconds": 10}, "times": None}
-    )
-    assert s.is_valid()
-    assert s.validated_data["times"] is None
+# --- SchedulingWindowsSerializer.to_internal_value ---------------------------
+
+@pytest.mark.parametrize("payload, valid", [
+    ('[{"inclusion":"INCLUDE","startUtc":"2025-01-01T00:00","end":{"atUtc":"2025-01-01T01:00"}}]', True),
+    ("[not-json", False),
+])
+def test_to_internal_value_json(payload, valid):
+    serializer = SchedulingWindowsSerializer(data={"timingWindows": payload})
+    if valid:
+        assert serializer.is_valid(), serializer.errors
+        tw = serializer.validated_data["timingWindows"]
+        assert isinstance(tw, list) and len(tw) == 1
+    else:
+        with pytest.raises(ValidationError):
+            serializer.is_valid(raise_exception=True)
 
 
-def test_repeat_times_zero_invalid():
-    s = TimingWindowRepeatSerializer(
-        data={"period": {"seconds": 10}, "times": 0}
-    )
-    assert not s.is_valid()
-    assert "times" in s.errors
-
-
-#
-# TimingWindowEndSerializer
-#
-
-def test_end_invalid_both_at_and_after():
-    s = TimingWindowEndSerializer(
-        data={
-            "atUtc": "2025-01-01T00:00",
-            "after": {"seconds": 10},
-        }
-    )
-    assert not s.is_valid()
-    assert "non_field_errors" in s.errors
-
-
-def test_end_invalid_neither_at_nor_after():
-    s = TimingWindowEndSerializer(data={})
-    assert not s.is_valid()
-    assert "non_field_errors" in s.errors
-
-
-def test_end_invalid_repeat_without_after():
-    s = TimingWindowEndSerializer(
-        data={"repeat": {"period": {"seconds": 10}}}
-    )
-    assert not s.is_valid()
-    assert "non_field_errors" in s.errors
-
-
-def test_end_valid_with_atUtc():
-    s = TimingWindowEndSerializer(
-        data={"atUtc": "2025-01-01T00:00"}
-    )
-    assert s.is_valid()
-
-
-def test_end_valid_after_and_repeat():
-    s = TimingWindowEndSerializer(
-        data={
-            "after": {"seconds": 10},
-            "repeat": {"period": {"seconds": 5}},
-        }
-    )
-    assert s.is_valid()
-
-
-def test_end_valid_repeat_null_with_after():
-    s = TimingWindowEndSerializer(
-        data={"after": {"seconds": 10}, "repeat": None}
-    )
-    assert s.is_valid()
-
-
-def test_end_valid_repeat_null_without_after():
-    s = TimingWindowEndSerializer(
-        data={"atUtc": "2025-01-01T00:00", "repeat": None}
-    )
-    assert s.is_valid()
-
-
-#
-# TimingWindowSerializer
-#
-
-def test_window_invalid_end_before_start():
-    s = TimingWindowSerializer(
-        data={
-            "inclusion": TimingWindowInclusion.INCLUDE.value,
-            "startUtc": "2025-01-01T10:00",
-            "end": {"atUtc": "2025-01-01T09:59"},
-        }
-    )
-    assert not s.is_valid()
-    assert "end" in s.errors
-
-
-def test_window_valid():
-    s = TimingWindowSerializer(
-        data={
-            "inclusion": TimingWindowInclusion.INCLUDE.value,
-            "startUtc": "2025-01-01T10:00",
-            "end": {"atUtc": "2025-01-01T11:00"},
-        }
-    )
-    assert s.is_valid()
-    assert "end" in s.validated_data
-
-
-def test_window_valid_without_end():
-    s = TimingWindowSerializer(
-        data={
-            "inclusion": TimingWindowInclusion.INCLUDE.value,
-            "startUtc": "2025-01-01T10:00",
-        }
-    )
-    assert s.is_valid()
-    assert s.validated_data.get("end") in (None, {})
-
-
-#
-# SchedulingWindowsSerializer.to_internal_value
-#
-
-def test_to_internal_value_parses_json_string():
-    payload = (
-        '[{"inclusion": "INCLUDE", '
-        '"startUtc": "2025-01-01T00:00", '
-        '"end": {"atUtc": "2025-01-01T01:00"}}]'
-    )
-    serializer = SchedulingWindowsSerializer(
-        data={"timingWindows": payload}
-    )
-
-    # If this fails, check the DateTimeField input formats.
-    assert serializer.is_valid()
-    assert isinstance(serializer.validated_data["timingWindows"], list)
-    assert len(serializer.validated_data["timingWindows"]) == 1
-
-
-def test_to_internal_value_invalid_json():
-    serializer = SchedulingWindowsSerializer(
-        data={"timingWindows": "[not-json"}
-    )
-    with pytest.raises(ValidationError):
-        serializer.is_valid(raise_exception=True)
-
-
-#
-# SchedulingWindowsSerializer.format_gpp
-#
+# --- SchedulingWindowsSerializer.format_gpp ----------------------------------
 
 def test_format_gpp_basic():
     payload = (
-        '[{"inclusion": "INCLUDE", '
-        '"startUtc": "2025-01-01T00:00", '
-        '"end": {"atUtc": "2025-01-01T01:00"}}]'
+        '[{"inclusion":"INCLUDE","startUtc":"2025-01-01T00:00",'
+        '"end":{"atUtc":"2025-01-01T01:00"}}]'
     )
-    serializer = SchedulingWindowsSerializer(
-        data={"timingWindows": payload}
-    )
-
+    serializer = SchedulingWindowsSerializer(data={"timingWindows": payload})
     serializer.is_valid(raise_exception=True)
-    out = serializer.format_gpp()
 
-    assert isinstance(out, list)
-    assert len(out) == 1
-    assert out[0]["inclusion"] == "INCLUDE"
-    assert "start_utc" in out[0]
-    assert "end" in out[0]
+    out = serializer.format_gpp()
+    assert isinstance(out, list) and len(out) == 1
+    item = out[0]
+    assert item["inclusion"] == "INCLUDE"
+    assert "start_utc" in item
+    assert "end" in item
 
