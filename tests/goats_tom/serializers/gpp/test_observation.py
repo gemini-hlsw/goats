@@ -29,6 +29,7 @@ def minimal_input():
         "elevationRangeSelect": "Air Mass",
         "airMassMinimumInput": 1.0,
         "airMassMaximumInput": 2.0,
+        "timingWindows": "[]"
     }
 
 
