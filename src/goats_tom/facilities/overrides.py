@@ -1,4 +1,9 @@
+"""
+Facility overrides for TOMToolkit to support per-user API keys.
+"""
+
 __all__ = ["LCOFacility", "SOARFacility"]
+
 import logging
 from typing import Any, Optional
 
