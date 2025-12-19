@@ -1,6 +1,10 @@
+import logging
+
 from django.apps import AppConfig
 
 from goats_tom.middleware.tns import current_tns_creds
+
+logger = logging.getLogger(__name__)
 
 
 class GOATSTomConfig(AppConfig):
