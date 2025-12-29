@@ -50,6 +50,7 @@ Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 
 [dependency-groups]
 dev = [
+    "apscheduler>=3.11.1",
     "factory-boy>=3.3.3",
     "pytest>=9.0.0",
     "pytest-asyncio>=1.3.0",
