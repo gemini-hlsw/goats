@@ -1359,7 +1359,7 @@ dev = [
     { name = "towncrier", specifier = ">=25.8.0" },
 ]
 docs = [
-    { name = "furo", specifier = ">=2025.9.25" },
+    { name = "furo", specifier = ">=2025.12.19" },
     { name = "sphinx", specifier = ">=8.2.3" },
     { name = "sphinx-autobuild", specifier = ">=2025.8.25" },
     { name = "sphinx-copybutton", specifier = ">=0.5.2" },
