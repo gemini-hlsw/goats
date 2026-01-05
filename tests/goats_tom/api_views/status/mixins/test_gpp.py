@@ -15,13 +15,13 @@ def mock_request():
 def test_get_credentials_success(mock_request):
     """Test get_credentials when credentials are present and valid."""
     mock_request.user.gpplogin = Mock(token="test_token")
-    with patch.object(settings, "GPP_URL", "https://example.com"):
+    with patch.object(settings, "GPP_ENV", "DEVELOPMENT"):
         mixin = GPPStatusMixin()
         credentials = mixin.get_credentials(mock_request)
 
     assert credentials == {
         "token": "test_token",
-        "url": "https://example.com",
+        "env": "DEVELOPMENT",
     }
 
 
@@ -34,13 +34,13 @@ def test_get_credentials_missing_gpplogin(mock_request):
         mixin.get_credentials(mock_request)
 
 
-def test_get_credentials_missing_gpp_url(mock_request):
-    """Test get_credentials when GPP_URL is missing in settings."""
+def test_get_credentials_missing_gpp_env(mock_request):
+    """Test get_credentials when GPP_ENV is missing in settings."""
     mock_request.user.gpplogin = Mock(token="test_token")
-    with patch.object(settings, "GPP_URL", None):
+    with patch.object(settings, "GPP_ENV", None):
         mixin = GPPStatusMixin()
 
         with pytest.raises(
-            MissingCredentialsError, match="Missing GPP URL in settings"
+            MissingCredentialsError, match="Missing GPP environment in settings"
         ):
             mixin.get_credentials(mock_request)

@@ -3,7 +3,6 @@
 __all__ = ["GPPObservationViewSet"]
 
 import logging
-import time
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, List
@@ -11,7 +10,6 @@ from typing import Any, List
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from gpp_client import GPPClient, GPPDirector
-from gpp_client.api.enums import ObservationWorkflowState
 from gpp_client.api.input_types import (
     TargetEnvironmentInput,
 )
@@ -191,7 +189,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
 
         try:
             # Setup client to communicate with GPP.
-            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
             director = GPPDirector(client)
             if program_id is not None:
                 logger.debug(
@@ -286,7 +284,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
 
         # Setup client to communicate with GPP.
         try:
-            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
             observation = async_to_sync(client.observation.get_by_id)(
                 observation_id=observation_id
             )
@@ -445,7 +443,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         logger.debug("Serializing data for GPP observation update")
         try:
             # Setup client to communicate with GPP.
-            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
 
             # Validate and extract required IDs for observation update.
             context_serializer = ContextSerializer(data=normalized_data)
@@ -559,10 +557,14 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         # Set workflow state.
         logger.debug("Setting workflow state for updated GPP observation")
         try:
-            new_workflow_state = self._set_workflow_state_with_retry(
-                client=client,
+            new_workflow_state = async_to_sync(
+                client.workflow_state.update_by_id_with_retry
+            )(
                 observation_id=gpp_observation_id,
                 workflow_state=workflow_state,
+                max_attempts=55,
+                initial_delay=5,
+                retry_delay=1,
             )
             messages.append(
                 StageMessage(
@@ -647,7 +649,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         logger.debug("Serializing data for GPP observation creation")
         try:
             # Setup client to communicate with GPP.
-            client = GPPClient(url=settings.GPP_URL, token=credentials.token)
+            client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
 
             # Validate and extract required IDs for observation creation.
             context_serializer = ContextSerializer(data=normalized_data)
@@ -749,10 +751,14 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         # Set workflow state.
         logger.debug("Setting workflow state for new GPP observation")
         try:
-            new_workflow_state = self._set_workflow_state_with_retry(
-                client=client,
+            new_workflow_state = async_to_sync(
+                client.workflow_state.update_by_id_with_retry
+            )(
                 observation_id=new_observation_id,
                 workflow_state=workflow_state,
+                max_attempts=55,
+                initial_delay=5,
+                retry_delay=1,
             )
             messages.append(
                 StageMessage(
@@ -812,83 +818,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             )
 
         return self._build_structured_response(messages=messages, data=data)
-
-    def _set_workflow_state_with_retry(
-        self,
-        client: GPPClient,
-        observation_id: str,
-        workflow_state: ObservationWorkflowState,
-        *,
-        max_attempts: int = 55,
-        initial_delay: float = 5.0,
-        retry_delay: float = 1.0,
-    ) -> dict[str, Any]:
-        """
-        Attempt to set the workflow state, retrying if the observation is not ready.
-
-        There is an initial delay before starting attempts, followed by retries with a
-        delay. The initial delay is required as the workflow state won't be ready to be
-        set immediately after cloning.
-
-        Parameters
-        ----------
-        client : GPPClient
-            The GPP client instance.
-        observation_id : str
-            The ID of the observation whose workflow state should be updated.
-        workflow_state : ObservationWorkflowState
-            The desired workflow state.
-        max_attempts : int, default=55
-            Maximum number of retry attempts.
-        initial_delay : float, default=5.0
-            Initial delay in seconds before first attempt.
-        retry_delay : float, default=1.0
-            Delay in seconds between retry attempts.
-
-        Returns
-        -------
-        dict[str, Any]
-            The result of the successful workflow state update.
-
-        Raises
-        ------
-        RuntimeError
-            If the workflow state could not be set after all retry attempts.
-        ValueError
-            If the requested transition is invalid (non-retryable).
-        Exception
-            If a non-retryable error occurs.
-        """
-        # Initial delay before starting attempts since we know the observation won't be
-        # ready immediately.
-        time.sleep(initial_delay)
-
-        for attempt in range(1, max_attempts + 1):
-            try:
-                result = async_to_sync(client.workflow_state.update_by_id)(
-                    observation_id=observation_id,
-                    workflow_state=workflow_state,
-                )
-                return result
-            except RuntimeError:
-                # This is the only retryable case: calculation state not READY.
-                logger.debug(
-                    "Attempt %d/%d: Observation %s not ready "
-                    "for workflow state change. Retrying in %.1f seconds...",
-                    attempt,
-                    max_attempts,
-                    observation_id,
-                    retry_delay,
-                )
-                time.sleep(retry_delay)
-            except ValueError:
-                # Invalid transition, do not retry.
-                raise
-            except Exception:
-                # All other exceptions are treated as non-retryable.
-                raise
-
-        raise RuntimeError("Failed to set workflow state after multiple retries.")
 
     def _create_goats_observation(
         self,

@@ -1,0 +1,1 @@
+Added dynamic field toggling by window type and automatic loading of existing scheduling windows into the table.

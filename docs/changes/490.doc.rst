@@ -1,1 +1,0 @@
-Added documentation for deployment process with walkthrough of publishing GOATS ``25.11.3`` to Conda.

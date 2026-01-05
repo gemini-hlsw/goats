@@ -1,1 +1,0 @@
-Added the ability to update observation on GPP and save to GOATS database from GPP application.

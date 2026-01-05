@@ -20,7 +20,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "apscheduler>=3.11.0",
+    "apscheduler>=3.11.2",
     "astropy>=6.0,<7",
     "astroquery>=0.4.11",
     "channels-redis>=4.3.0,<5",
@@ -32,14 +32,14 @@ dependencies = [
     "djangorestframework>=3.16.1,<4",
     "dramatiq-abort>=1.2.1",
     "dramatiq[redis,watch]>=1.18.0,<2",
-    "gpp-client==25.10.4",
+    "gpp-client==25.12.0.dev1",
     "marshmallow>=3.26.1,<4",
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
     "tom-tns>=0.3.2",
     "tomtoolkit==2.26.2",
 ]
-version = "25.11.3"
+version = "25.11.4"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
@@ -51,18 +51,18 @@ Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 [dependency-groups]
 dev = [
     "factory-boy>=3.3.3",
-    "pytest>=8.4.2",
-    "pytest-asyncio>=1.2.0",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
     "pytest-django>=4.11.1",
     "pytest-mock>=3.15.1",
     "pytest-remotedata>=0.4.1",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.14.3",
+    "ruff>=0.14.8",
     "towncrier>=25.8.0",
 ]
 docs = [
-    "furo>=2025.9.25",
+    "furo>=2025.12.19",
     "sphinx>=8.2.3",
     "sphinx-autobuild>=2025.8.25",
     "sphinx-copybutton>=0.5.2",

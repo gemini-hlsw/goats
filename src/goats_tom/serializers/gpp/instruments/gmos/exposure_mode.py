@@ -9,7 +9,7 @@ from typing import Any
 from gpp_client.api.input_types import ExposureTimeModeInput
 from rest_framework import serializers
 
-from ._base_gpp import _BaseGPPSerializer
+from goats_tom.serializers.gpp._base_gpp import _BaseGPPSerializer
 
 
 class ExposureModeSerializer(_BaseGPPSerializer):

@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 TERMINAL_OBSERVING_STATES = ["TRIGGERED", "ON_HOLD"]
-GOA_OBSERVING_STATES = ["Observed", "Ongoing", "Completed"]
+GOA_OBSERVING_STATES = ["observed", "ongoing", "completed"]
 
 # Units of flux and wavelength for converting to Specutils Spectrum1D objects
 FLUX_CONSTANT = (1 * u.erg) / (u.cm**2 * u.second * u.angstrom)
@@ -211,7 +211,22 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
     def get_observing_sites(self):
         return SITES
 
+    def update_observation_status(self, observation_id):
+        records = ObservationRecord.objects.filter(observation_id=observation_id)
+        if not records:
+            raise Exception("No records exist for that observation id")
+        status = self.get_observation_status(observation_id)
+        for record in records:
+            record.status = status["state"]
+            record.scheduled_start = status["scheduled_start"]
+            record.scheduled_end = status["scheduled_end"]
+            # Update parameters with any new ones from status.
+            record.parameters = {**record.parameters, **status["parameters"]}
+            record.save()
+
     def get_observation_status(self, observation_id):
+        parameters: dict[str, Any] = {}
+
         try:
             # Here we need to either query the OCS or GPP to get the status.
             if is_gpp_id(observation_id):
@@ -225,14 +240,15 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
                     )
                 # Get GPP credentials from user profile.
                 credentials = self.user.gpplogin
-                url = settings.GPP_URL
                 # Create GPP client.
-                client = GPPClient(token=credentials.token, url=url)
+                client = GPPClient(token=credentials.token, env=settings.GPP_ENV)
                 workflow_state_summary = async_to_sync(client.workflow_state.get_by_id)(
                     observation_reference=observation_id
                 )
-
                 state = workflow_state_summary["workflow"]["value"]["state"]
+                # Save parameters needed for building Explore URL.
+                parameters["gpp_id"] = workflow_state_summary["id"]
+                parameters["gpp_program_id"] = workflow_state_summary["program"]["id"]
                 state = ObservationWorkflowState(state).value.capitalize()
             else:
                 logger.debug("Fetching observation status from OCS.")
@@ -248,7 +264,12 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
             )
             state = "Error"
 
-        return {"state": state, "scheduled_start": None, "scheduled_end": None}
+        return {
+            "state": state,
+            "scheduled_start": None,
+            "scheduled_end": None,
+            "parameters": parameters,
+        }
 
     def get_flux_constant(self) -> u:
         """Returns the astropy quantity that a facility uses for its spectral flux

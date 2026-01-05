@@ -1,1 +1,0 @@
-Added hook to handle PINHOLE and RONCHI observation types in DRAGONS. Also improved error handling and user feedback during DRAGONS run initialization. Made initialization atomic to prevent partial data creation on failure for a DRAGONS run. 

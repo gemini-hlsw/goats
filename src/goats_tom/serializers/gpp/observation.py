@@ -9,11 +9,11 @@ from typing import Any
 from gpp_client.api.input_types import ObservationPropertiesInput
 from rest_framework import serializers
 
-from ._base_gpp import _BaseGPPSerializer
-from .constraint_set import ConstraintSetSerializer
-from .exposure_mode import ExposureModeSerializer
-from .observing_mode import ObservingModeSerializer
-from .pos_angle import PosAngleSerializer
+from goats_tom.serializers.gpp._base_gpp import _BaseGPPSerializer
+from goats_tom.serializers.gpp.constraint_set import ConstraintSetSerializer
+from goats_tom.serializers.gpp.observing_mode import ObservingModeSerializer
+from goats_tom.serializers.gpp.pos_angle import PosAngleSerializer
+from goats_tom.serializers.gpp.scheduling_windows import SchedulingWindowsSerializer
 
 
 class ObservationSerializer(_BaseGPPSerializer):
@@ -52,8 +52,8 @@ class ObservationSerializer(_BaseGPPSerializer):
         self._pos_angle_serializer = PosAngleSerializer(data=data)
         self._pos_angle_serializer.is_valid(raise_exception=True)
 
-        self._exposure_mode_serializer = ExposureModeSerializer(data=data)
-        self._exposure_mode_serializer.is_valid(raise_exception=True)
+        self._scheduling_windows_serializer = SchedulingWindowsSerializer(data=data)
+        self._scheduling_windows_serializer.is_valid(raise_exception=True)
 
         return internal
 
@@ -85,9 +85,8 @@ class ObservationSerializer(_BaseGPPSerializer):
         if pos_angle_data is not None:
             result["posAngleConstraint"] = pos_angle_data
 
-        exposure_mode_data = self._exposure_mode_serializer.format_gpp()
-        if exposure_mode_data is not None:
-            result["scienceRequirements"] = {}
-            result["scienceRequirements"]["exposureTimeMode"] = exposure_mode_data
+        scheduling_windows_data = self._scheduling_windows_serializer.format_gpp()
+        if scheduling_windows_data is not None:
+            result["timingWindows"] = scheduling_windows_data
 
         return result if result else None

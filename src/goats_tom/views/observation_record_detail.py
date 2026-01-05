@@ -64,9 +64,12 @@ class ObservationRecordDetailView(BaseObservationRecordDetailView):
             obs_id = observation_record.parameters.get("gpp_id")
             if program_id and obs_id:
                 return f"https://explore.gemini.edu/{program_id}/observation/{obs_id}"
-        except Exception:
+            else:
+                raise KeyError("Missing gpp_program_id or gpp_id in parameters")
+        except Exception as exc:
             logger.exception(
-                "Failed to build GPP URL for observation %s",
+                "Failed to build GPP URL for observation %s: %s",
                 observation_record.observation_id,
+                exc,
             )
         return None

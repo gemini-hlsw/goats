@@ -543,10 +543,6 @@ class RunSetupView {
     this.runTable.reset();
   }
 
-  _deleteRun() {
-    // Logic here needs to reset everything to default.
-  }
-
   /**
    * Renders the view based on the given command and parameters.
    * @param {string} viewCmd - The command to render (e.g., "loading", "loaded", "update").
@@ -578,9 +574,6 @@ class RunSetupView {
         break;
       case "resetRunTable":
         this._resetRunTable();
-        break;
-      case "deleteRun":
-        this._deleteRun();
         break;
     }
   }
@@ -639,6 +632,11 @@ class RunSetupView {
           handler({ runId });
         });
         break;
+      case "resetRun":
+        document.addEventListener("resetRun", () => {
+          handler();
+        });
+        break;
     }
   }
 }
@@ -688,13 +686,14 @@ class RunSetupController {
     }
     try {
       await this.model.deleteRun();
-      window.location.reload();
+      await this.model.fetchRuns();
+      this.view.render("update", { data: this.model.data });
+      this.view.render("resetForm");
+      this.view.render("resetRunTable");
+      this._resetRun();
     } catch (error) {
       console.error("Error deleting the run:", error);
     }
-    // FIXME: Refreshing the page is just a quick hack to reset everything, this should
-    // be better when there is time to properly handle deleting a run.
-    // this.view.render("deleteRun");
   }
 
   /**
@@ -717,6 +716,8 @@ class RunSetupController {
   async submitNewRunForm(formData) {
     formData.append("observation_record", this.model.observationRecordId);
     this.view.render("loading");
+    // Tell other components to reset as new run may have been created and reset.
+    this._resetRun();
     await Utils.ensureMinimumDuration(await this.model.submitForm(formData));
     await this.model.fetchRuns();
     this.view.render("update", { data: this.model.data });
@@ -729,6 +730,12 @@ class RunSetupController {
     const event = new CustomEvent("updateRun", {
       detail: { runId },
     });
+    // Dispatch the event globally on the document.
+    document.dispatchEvent(event);
+  }
+
+  _resetRun() {
+    const event = new CustomEvent("resetRun");
     // Dispatch the event globally on the document.
     document.dispatchEvent(event);
   }
