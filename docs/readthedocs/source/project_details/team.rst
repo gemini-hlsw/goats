@@ -9,7 +9,8 @@ Core Team
 ---------
 
 - **Monika Soraisam** — GOATS Lead Scientist (Gemini / NOIRLab)
-- **Dan Avner** — GOATS Lead Engineer (NOIRLab)
+- **Miguel Alberto Gómez** - GOATS Lead Engineer (NOIRLab)
+- **Dan Avner** — GPP Client & GPP Resource Lead Engineer (NOIRLab)
 - **Bill Vacca** — Head of Science User Support (Gemini / NOIRLab)
 
 Collaborators (Alphabetical)
