@@ -25,10 +25,10 @@ dependencies = [
     "astroquery>=0.4.11",
     "channels-redis>=4.3.0,<5",
     "channels[daphne]>=4.0,<5",
-    "click>=8.3.0,<9",
-    "django>=4.2.24,<5",
+    "click>=8.3.1,<9",
+    "django>=4.2.26,<5",
     "django-cors-headers>=4.9.0",
-    "django-dramatiq>=0.14.0",
+    "django-dramatiq>=0.15.0",
     "djangorestframework>=3.16.1,<4",
     "dramatiq-abort>=1.2.1",
     "dramatiq[redis,watch]>=1.18.0,<2",
@@ -36,8 +36,8 @@ dependencies = [
     "marshmallow>=3.26.1,<4",
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
-    "tom-tns>=0.3.2",
-    "tomtoolkit==2.28.0",
+    "tom-tns>=0.3.4",
+    "tomtoolkit==2.28.1",
 ]
 version = "25.11.4"
 

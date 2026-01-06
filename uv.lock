@@ -1330,10 +1330,10 @@ requires-dist = [
     { name = "astroquery", specifier = ">=0.4.11" },
     { name = "channels", extras = ["daphne"], specifier = ">=4.0,<5" },
     { name = "channels-redis", specifier = ">=4.3.0,<5" },
-    { name = "click", specifier = ">=8.3.0,<9" },
-    { name = "django", specifier = ">=4.2.24,<5" },
+    { name = "click", specifier = ">=8.3.1,<9" },
+    { name = "django", specifier = ">=4.2.26,<5" },
     { name = "django-cors-headers", specifier = ">=4.9.0" },
-    { name = "django-dramatiq", specifier = ">=0.14.0" },
+    { name = "django-dramatiq", specifier = ">=0.15.0" },
     { name = "djangorestframework", specifier = ">=3.16.1,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
@@ -1341,8 +1341,8 @@ requires-dist = [
     { name = "marshmallow", specifier = ">=3.26.1,<4" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
-    { name = "tom-tns", specifier = ">=0.3.2" },
-    { name = "tomtoolkit", specifier = "==2.28.0" },
+    { name = "tom-tns", specifier = ">=0.3.4" },
+    { name = "tomtoolkit", specifier = "==2.28.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -3401,14 +3401,14 @@ wheels = [
 
 [[package]]
 name = "tom-tns"
-version = "0.3.3"
+version = "0.3.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "tomtoolkit" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2d/0a/7c87d61d7219e7ff7008da76493cc3d7ff80efb15580b36dc46c10bbe752/tom_tns-0.3.3.tar.gz", hash = "sha256:d5be2c5efe52d087d7d603a16f66f1928d2ba70b035a7522cd9270bd19c965d0", size = 32490, upload-time = "2025-11-22T01:00:43.121Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ab/6e/e3fddde1a278731f10054104761ba7b1a42479b4cd6549a88924aaebd406/tom_tns-0.3.4.tar.gz", hash = "sha256:628470d5b50625dfa700ca27c7db793000f3ffc94fc90d3cba620bd765e3aca3", size = 32535, upload-time = "2025-11-22T01:09:58.36Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/54/64/6db9db1b6834ecce19759cf5c5619af1062570f6f2abd48970d25c53969b/tom_tns-0.3.3-py3-none-any.whl", hash = "sha256:3100307cf0943616909a64b6d354e241026adae0479bc76672b303006ec76c3c", size = 35893, upload-time = "2025-11-22T01:00:41.574Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/5f/251fdc60991f573b7ede2835a4d3ce38f4eb8da37251c6cd7f0ee1037c8d/tom_tns-0.3.4-py3-none-any.whl", hash = "sha256:88e4a0b95525f34d03c0bbbac42176f9e5df28776482ef6b32f7422dae47b0fb", size = 35959, upload-time = "2025-11-22T01:09:56.764Z" },
 ]
 
 [[package]]
@@ -3422,7 +3422,7 @@ wheels = [
 
 [[package]]
 name = "tomtoolkit"
-version = "2.28.0"
+version = "2.28.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "astroplan" },
@@ -3452,9 +3452,9 @@ dependencies = [
     { name = "requests" },
     { name = "specutils" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f7/22/4add8c5e1f9fe815dd5b39fb75dbc217a69ca7b4b35a096f3222c68770c4/tomtoolkit-2.28.0.tar.gz", hash = "sha256:613ba888155f2d88b33c4e650c2bee0f5328f4025ce35c042f39adda478c95a6", size = 11800770, upload-time = "2025-11-22T01:00:18.39Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/76/21abbc1c4d5c8fef9f3d95c3c1bb0f75bf9965cadc49b6b1cd11c196d926/tomtoolkit-2.28.1.tar.gz", hash = "sha256:1cd0b25221a2605ddaa793fd8664bdeb91e3f9690a80da490a882a5a6f3ef445", size = 11801396, upload-time = "2025-12-15T23:54:14.568Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/93/79/44d9bede0872feef7000e98d31c9057b8aca6997e00f6654aca6ab8a37b3/tomtoolkit-2.28.0-py3-none-any.whl", hash = "sha256:0df85aaa710c001d63a8b233c2fff246916596b3b355a19a5cc950cb55fee1c7", size = 1446911, upload-time = "2025-11-22T01:00:16.041Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/ee/0b05d62d644b381e6342f0fd812ee5685e198f3d8a0b58c87a1323330a9d/tomtoolkit-2.28.1-py3-none-any.whl", hash = "sha256:15df9b2244ae73e6a8701232a07c80295e7cfd122b3a4f6aab85e0f17d232cff", size = 1447512, upload-time = "2025-12-15T23:54:12.571Z" },
 ]
 
 [[package]]
