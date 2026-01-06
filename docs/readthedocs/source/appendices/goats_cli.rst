@@ -3,95 +3,70 @@
 GOATS Command Line Interface
 ============================
 
-The GOATS Command Line Interface (CLI) provides an efficient way to install and manage your
-GOATS project/interface. You can get detailed help on each command using the ``--help`` option.
-Below you can find the breakdown of the primary commands and options.
+The GOATS CLI provides everything you need to install a new GOATS project and run
+it locally. All commands support ``--help`` and display clear, colorized output.
+The screenshots below show exactly what users will see.
 
 ``goats``
 ---------
 
-.. code-block:: console
+.. image:: ../images/cli-goats.png
+   :alt: GOATS CLI main help output
+   :align: center
 
-    Usage: goats [OPTIONS] COMMAND [ARGS]...
+Running ``goats`` with no arguments lists the available commands and options.
+From here, users can install a new GOATS project or start an existing one.
 
-    Gemini Observation and Analysis of Targets System (GOATS).
+``goats --version``
+-------------------
 
-    You can run each subcommand with its own options and arguments. For details
-    on a specific command, type `goats COMMAND --help`.
-
-    Options:
-      --version   Show the version and exit.
-      --help      Show this message and exit.
-
-    Commands:
-      apply-update   Update the local project after upgrading GOATS.
-      install        Installs GOATS and configures Redis server.
-      run            Starts the webserver, Redis server, and workers for GOATS.
-
-
-``goats apply-update``
-----------------------
-
-.. code-block:: console
-
-    Usage: goats apply-update [OPTIONS]
-
-    Update the local project after upgrading GOATS.
-
-    Options:
-      -p, --project-name TEXT   Specify a custom project name. Default is 'GOATS'.
-      -d, --directory PATH      Specify the parent directory where GOATS is installed.
-                                Default is the current directory.
-      --help                    Show this message and exit.
+Displays the installed GOATS CLI version.
 
 
 ``goats install``
 -----------------
 
-.. code-block:: console
+.. image:: ../images/cli-install-goats.png
+   :alt: GOATS install command screenshot
+   :align: center
 
-    Usage: goats install [OPTIONS]
+Use this command to create a complete GOATS project in the directory of your
+choice.
 
-    Installs GOATS and configures Redis server.
+What it does:
 
-    Options:
-      -p, --project-name TEXT   Specify a custom project name. Default is 'GOATS'.
-      -d, --directory PATH      Specify the parent directory where GOATS will be
-                                installed. Default is the current directory.
-      --overwrite               Overwrite the existing project, if it exists.
-                                Default is False.
-      -m, --media-dir PATH      Path for saving downloaded media.
-      --redis-addrport TEXT     Specify the Redis server IP address and port number.
-                                Examples: 6379, localhost:6379, 192.168.1.5:6379.
-                                Providing only a port number (e.g., 6379) binds to
-                                localhost.
-      --ci                      Run install in non-interactive CI mode (no prompts).
-      --help                    Show this message and exit.
+- Creates a ready-to-run Django-based GOATS project.  
+- Sets up project files, Redis configuration, and the initial database.  
+- Lets you choose a custom media directory, or defaults internally.  
+- Creates a superuser (interactive or headless).  
+- Can overwrite an existing installation if ``--overwrite`` is provided.
+
+Typical steps for users:
+
+1. Run ``goats install``.  
+2. Follow prompts to finalize setup.  
+3. Use the printed “Next steps” to start GOATS.
 
 
 ``goats run``
 -------------
 
-.. code-block:: console
+.. image:: ../images/cli-run-goats.png
+   :alt: GOATS run command screenshot
+   :align: center
 
-    Usage: goats run [OPTIONS]
+Starts your complete local GOATS environment with one command.
 
-    Starts the webserver, Redis server, and workers for GOATS.
+What it does:
+- Supports custom host/port, number of workers, and browser preference.  
+- Checks for port conflicts and verifies Redis is installed.  
+- Syncs any template-managed GOATS files so your project stays current.  
+- Starts Redis, the Django development server, background workers, and the scheduler.  
+- Automatically opens your browser when the system is responsive.  
+- Cleanly shuts everything down when you press ``Ctrl+C``.
 
-    Options:
-      -p, --project-name TEXT   Specify a custom project name. Default is 'GOATS'.
-      -d, --directory PATH      Specify the parent directory where GOATS is installed.
-                                Default is the current directory.
-      -w, --workers INTEGER     Number of workers to spawn for background tasks.
-      --addrport TEXT           Specify the IP address and port number to serve GOATS.
-                                Examples: 8000, 0.0.0.0:8000, 192.168.1.5:8000.
-                                Providing only a port number (e.g., 8000) binds to
-                                127.0.0.1.
-      --redis-addrport TEXT     Specify the Redis server IP address and port number.
-                                Examples: 6379, localhost:6379, 192.168.1.5:6379.
-                                Providing only a port number (e.g., 6379) binds to
-                                localhost.
-      -b, --browser [google-chrome|firefox|mozilla|chromium|chrome|chromium-browser|default]
-                                Specify the browser to open GOATS in.
-      --help                    Show this message and exit.
+Typical steps:
 
+1. Run ``goats run``.  
+2. GOATS opens automatically in your browser.  
+3. Press ``Ctrl+C`` to shut it all down.

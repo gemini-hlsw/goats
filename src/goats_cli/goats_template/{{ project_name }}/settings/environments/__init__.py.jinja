@@ -1,0 +1,15 @@
+"""
+Environment-specific settings for GOATS.
+
+This package contains optional overrides applied after base.py, dynamic.py,
+and generated.py have loaded. The loader in settings/__init__.py selects one of
+these modules based on the GOATS_ENV environment variable:
+
+    GOATS_ENV=development   →   development.py
+    GOATS_ENV=production    →   production.py
+    GOATS_ENV=cli           →   cli.py
+
+These modules SHOULD NOT define a full settings configuration. They exist only
+to override or replace values defined in the base layer. Users should not modify
+this directory; instead, user-level customizations belong in local.py.
+"""

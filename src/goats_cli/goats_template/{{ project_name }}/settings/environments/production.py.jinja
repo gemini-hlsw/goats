@@ -1,0 +1,12 @@
+"""
+Production environment overrides for GOATS.
+
+This module is loaded when GOATS_ENV=production. It enforces secure defaults and
+tightens logging verbosity for real deployments.
+
+User-specific adjustments (if needed) belong in local.py rather than this file.
+"""
+
+DEBUG = False
+
+GPP_ENV = "PRODUCTION"
