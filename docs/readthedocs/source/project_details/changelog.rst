@@ -3,6 +3,15 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.1.1 (2026-01-07)
+===========================
+
+New Features
+------------
+
+- Applied patches for per-request and per-user credentials for SOAR and LCO observatories. Users will now have their correct proposals loaded based on their own credentials when submitting an observation request. GOATS app startup has also been refactored to make it easier for testing and not apply patches multiple times. (`PR #525 <https://github.com/gemini-hlsw/goats/pull/525>`_)
+
+
 Version 26.1.0 (2026-01-07)
 ===========================
 
