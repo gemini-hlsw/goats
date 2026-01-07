@@ -1,1 +1,0 @@
-Added an accordion folding option to the GPP form to collapse and expand sections.

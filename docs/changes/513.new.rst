@@ -1,1 +1,0 @@
-When a DRAGONS run is deleted or created from the UI, the application resets gracefully and provides appropriate user feedback.
