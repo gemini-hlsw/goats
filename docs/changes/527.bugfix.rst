@@ -1,0 +1,1 @@
+Fixed the observation creation context so forms receive the correct user data.
