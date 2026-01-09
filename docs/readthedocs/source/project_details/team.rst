@@ -8,30 +8,31 @@ The GOATS project is developed and maintained by a collaborative team of scienti
 Core Team
 ---------
 
-- **Monika Soraisam** — GOATS Lead Scientist (Gemini / NOIRLab)
-- **Miguel Alberto Gómez** - GOATS Lead Engineer (NOIRLab)
-- **Dan Avner** — GPP Client & GPP Resource Lead Engineer (NOIRLab)
-- **Bill Vacca** — Head of Science User Support (Gemini / NOIRLab)
+- **Monika Soraisam** --- GOATS Lead Scientist (Gemini / NOIRLab)
+- **Miguel Alberto Gómez** --- GOATS Lead Engineer (Jan 2026--present, NOIRLab)
+- **Dan Avner** --- GPP Client & GPP Resource Lead Engineer (Jan 2026--present, NOIRLab)
+  | GOATS Lead Engineer (July 2023--Dec 2025)
+- **Bill Vacca** --- Head of Science User Support (Gemini / NOIRLab)
 
 Collaborators (Alphabetical)
 ----------------------------
 
-- **César Briceño** — SOAR Director (MSO / NOIRLab)
-- **Nicolás Esquivel** — Software Engineer (NOIRLab)
-- **Paul Hirst** — Observatory Scientist (Gemini / NOIRLab)
-- **Kathleen Labrie** — Observatory Scientist (Gemini / NOIRLab)
-- **Tom Matheson** — Astronomer (CSDC / NOIRLab)
-- **Bryan Miller** — Astronomer (Gemini / NOIRLab)
-- **Chadd Myers** — Software Engineer (NOIRLab)
-- **Robert Nikutta** — Scientist (CSDC / NOIRLab)
-- **Arturo Núñez** — Head of Software Engineering (NOIRLab)
-- **Chris Simpson** — Senior Scientific Programmer (Gemini / NOIRLab)
-- **Olesja Smirnova** — Scientific Programmer (Gemini / NOIRLab)
-- **Andy Stephens** — Scientist (Gemini / NOIRLab)
-- **D.J. Teal** — Software Engineer (NOIRLab)
-- **Sergio Troncoso** — Software Engineer (NOIRLab)
-- **James Turner** — Observatory Scientist (Gemini / NOIRLab)
-- **Sebastián Vicencio** — Software Engineer (NOIRLab)
+- **César Briceño** --- SOAR Director (MSO / NOIRLab)
+- **Nicolás Esquivel** --- Software Engineer (NOIRLab)
+- **Paul Hirst** --- Observatory Scientist (Gemini / NOIRLab)
+- **Kathleen Labrie** --- Observatory Scientist (Gemini / NOIRLab)
+- **Tom Matheson** --- Astronomer (CSDC / NOIRLab)
+- **Bryan Miller** --- Astronomer (Gemini / NOIRLab)
+- **Chadd Myers** --- Software Engineer (NOIRLab)
+- **Robert Nikutta** --- Scientist (CSDC / NOIRLab)
+- **Arturo Núñez** --- Head of Software Engineering (NOIRLab)
+- **Chris Simpson** --- Senior Scientific Programmer (Gemini / NOIRLab)
+- **Olesja Smirnova** --- Scientific Programmer (Gemini / NOIRLab)
+- **Andy Stephens** --- Scientist (Gemini / NOIRLab)
+- **D.J. Teal** --- Software Engineer (NOIRLab)
+- **Sergio Troncoso** —--- Software Engineer (NOIRLab)
+- **James Turner** --- Observatory Scientist (Gemini / NOIRLab)
+- **Sebastián Vicencio** --- Software Engineer (NOIRLab)
 
 Others
 ------
