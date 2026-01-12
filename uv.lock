@@ -1337,7 +1337,7 @@ requires-dist = [
     { name = "djangorestframework", specifier = ">=3.16.1,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
-    { name = "gpp-client", specifier = "==26.1.0.dev3" },
+    { name = "gpp-client", specifier = "==26.1.0.dev4" },
     { name = "marshmallow", specifier = ">=3.26.1,<4" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
@@ -1374,7 +1374,7 @@ notebook = [{ name = "ipykernel", specifier = ">=7.1.0" }]
 
 [[package]]
 name = "gpp-client"
-version = "26.1.0.dev3"
+version = "26.1.0.dev4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1386,9 +1386,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/60/d4/b56a6a4481e75b914c1648b1f23e43eebae25a3edc6f60266d53b736ad96/gpp_client-26.1.0.dev3.tar.gz", hash = "sha256:9f915c1afa7c15ea2dfc4c995bbdb380a4661c3f10a32461d418352b4a3fa250", size = 145462, upload-time = "2026-01-08T19:20:44.732Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/aa/a7c01d7d7a027c678969152cf070e4cc5dd80e82c23787152dbcfcd2945a/gpp_client-26.1.0.dev4.tar.gz", hash = "sha256:7ed53dfc012c687ede5041aedd4f45059063a12bf2124b26a4b29353d52a1553", size = 145462, upload-time = "2026-01-12T13:07:43.275Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/c4/83a17cd6b2b891538d5c315a3d42a98678d946d46d3a8070ee68b078d0ef/gpp_client-26.1.0.dev3-py3-none-any.whl", hash = "sha256:baf30af3dc017ec2db1a48fc1220b338166ac92800ea1d08b1105af70a92e83b", size = 175974, upload-time = "2026-01-08T19:20:42.98Z" },
+    { url = "https://files.pythonhosted.org/packages/b1/04/4f9543a04bd7101fc1bf623d41e3c56ea59ea0bf710c26950b7775d73d14/gpp_client-26.1.0.dev4-py3-none-any.whl", hash = "sha256:b76d648900de1c87a1c9849221a23ef410d497522d9b44f67d41100f057f020d", size = 175954, upload-time = "2026-01-12T13:07:41.729Z" },
 ]
 
 [[package]]
