@@ -2,13 +2,15 @@
 Facility overrides for TOMToolkit to support per-user API keys.
 """
 
-__all__ = ["LCOFacility", "SOARFacility"]
+__all__ = ["LCOFacility", "SOARFacility", "BLANCOFacility"]
 
 import logging
 from typing import Any, Optional
 
 from django.contrib.auth.models import User
 from django.utils.functional import cached_property
+from tom_observations.facilities.blanco import BLANCOFacility as BaseBLANCOFacility
+from tom_observations.facilities.blanco import BLANCOSettings
 from tom_observations.facilities.lco import LCOFacility as BaseLCOFacility
 from tom_observations.facilities.lco import LCOSettings
 from tom_observations.facilities.soar import SOARFacility as BaseSOARFacility
@@ -95,6 +97,14 @@ class UserAwareSOARSettings(UserTokenMixin, SOARSettings):
     credential_attr = "lcologin"
 
 
+class UserAwareBLANCOSettings(UserTokenMixin, BLANCOSettings):
+    """
+    Settings wrapper that pulls API keys from ``user.lcologin.token``.
+    """
+
+    credential_attr = "lcologin"
+
+
 class UserAwareFacilityMixin:
     """
     Mixin for a facility class that wires `request.user` into its
@@ -162,3 +172,12 @@ class SOARFacility(UserAwareFacilityMixin, BaseSOARFacility):
 
     logger.debug("Defining SOARFacility with UserAwareSOARSettings")
     settings_cls = UserAwareSOARSettings
+
+
+class BLANCOFacility(UserAwareFacilityMixin, BaseBLANCOFacility):
+    """
+    BLANCO facility with per-user API keys.
+    """
+
+    logger.debug("Defining BLANCOFacility with UserAwareBLANCOSettings")
+    settings_cls = UserAwareBLANCOSettings
