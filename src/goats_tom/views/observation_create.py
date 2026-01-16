@@ -47,17 +47,13 @@ class ObservationCreateView(BaseObservationCreateView):
                 (self.get_cadence_strategy_form(), observation_form_class),
                 {},
             )
-
-            form_kwargs = {"initial": form_data}
-            facility_settings = getattr(facility, "facility_settings", None)
-            if facility_settings is not None:
-                form_kwargs["facility_settings"] = facility_settings
-
             observation_type_choices.append(
                 (
                     observation_type,
-                    observation_form_class(**form_kwargs),
-                ),
+                    observation_form_class(
+                        initial=form_data, facility_settings=facility.facility_settings
+                    ),
+                )
             )
         context["observation_type_choices"] = observation_type_choices
 
