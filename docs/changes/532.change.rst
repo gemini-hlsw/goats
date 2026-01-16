@@ -1,0 +1,1 @@
+Changed the Science Band field to a drop-down that displays available bands with their remaining time.
