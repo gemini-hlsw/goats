@@ -1,0 +1,1 @@
+Fixed form validation by correctly injecting the authenticated user.
