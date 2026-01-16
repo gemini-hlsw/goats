@@ -57,7 +57,6 @@ def apply_ocs_patches() -> None:
     from tom_common.exceptions import ImproperCredentialsException  # noqa: PLC0415
     from tom_observations.facilities.ocs import (  # noqa: PLC0415
         OCSBaseForm,
-        OCSBaseObservationForm,
         make_request,
     )
 
@@ -161,39 +160,6 @@ def apply_ocs_patches() -> None:
         self._cached_proposals = cached_proposals
         return cached_proposals
 
-    def patched_validate_at_facility(self):
-        from tom_observations.facility import get_service_class  # noqa: PLC0415
-
-        user = getattr(getattr(self, "facility_settings", None), "_user", None)
-
-        facility_cls = get_service_class(self.cleaned_data["facility"])
-        facility = facility_cls()
-
-        if (
-            user
-            and getattr(user, "is_authenticated", False)
-            and hasattr(facility, "set_user")
-        ):
-            facility.set_user(user)
-
-        payload = self.observation_payload()
-
-        logger.debug(
-            f"validate_at_facility: {facility.__class__.__name__} for user '{user}'",
-        )
-
-        response = facility.validate_observation(payload)
-
-        if response.get("request_durations", {}).get("duration"):
-            duration = response["request_durations"]["duration"]
-            self.validation_message = (
-                f"This observation is valid with a duration of {duration} seconds."
-            )
-
-        if response.get("errors"):
-            self.add_error(None, self._flatten_error_dict(response["errors"]))
-
-    OCSBaseObservationForm.validate_at_facility = patched_validate_at_facility
     OCSBaseForm._goats_patched = True  # type: ignore[attr-defined]
     OCSBaseForm._get_instruments = patched__get_instruments
     OCSBaseForm.proposal_choices = patched_proposal_choices

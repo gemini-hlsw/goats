@@ -1,7 +1,6 @@
 import importlib
 from dataclasses import dataclass
 from typing import Any
-from types import SimpleNamespace
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
@@ -358,58 +357,3 @@ def test_ocs_proposals_improper_credentials_returns_no_proposals_found(
     assert out == [(0, "No proposals found")]
     make_request.assert_called_once()
     assert cache_set.call_count == 0
-
-@pytest.mark.parametrize(
-    "is_authenticated, should_call_set_user",
-    [
-        (True, True),     # usuario autenticado → se llama set_user
-        (False, False),   # usuario no autenticado → NO se llama
-    ],
-)
-def test_validate_at_facility_user_injection(
-    monkeypatch,
-    mocker,
-    is_authenticated,
-    should_call_set_user,
-):
-    """
-    Validate that facility.set_user(user) is called only when:
-    - user exists
-    - user.is_authenticated is True
-    - facility implements set_user
-    """
-    from tom_observations.facilities.ocs import OCSBaseObservationForm
-    from goats_tom.patches import apply_ocs_patches
-
-    apply_ocs_patches()
-
-    created = {}
-
-    class DummyFacility:
-        def __init__(self):
-            created["inst"] = self
-            self.set_user = mocker.Mock()
-            self.validate_observation = mocker.Mock(return_value={})
-
-    monkeypatch.setattr(
-        "tom_observations.facility.get_service_class",
-        lambda _facility: DummyFacility,
-        raising=True,
-    )
-
-    # Construimos el form sin pasar por __init__ del framework
-    form = object.__new__(OCSBaseObservationForm)
-
-    user = SimpleNamespace(is_authenticated=is_authenticated)
-    form.facility_settings = SimpleNamespace(_user=user)
-    form.cleaned_data = {"facility": "FAKE"}
-    form.observation_payload = mocker.Mock(return_value={"payload": 1})
-    form.add_error = mocker.Mock()
-    form._flatten_error_dict = mocker.Mock()
-
-    form.validate_at_facility()
-
-    if should_call_set_user:
-        created["inst"].set_user.assert_called_once_with(user)
-    else:
-        created["inst"].set_user.assert_not_called()
