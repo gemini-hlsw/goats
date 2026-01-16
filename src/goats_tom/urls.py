@@ -47,11 +47,6 @@ router.register(r"status", api_views.StatusViewSet, basename="status")
 # TODO: Make unified path formats.
 
 urlpatterns = [
-    path(
-        "observations/<str:facility>/create/",
-        views.ObservationCreateView.as_view(),
-        name="create",
-    ),
     path("status/", views.status_view, name="status"),
     path("astro-data-lab/", views.AstroDatalabView.as_view(), name="astro-data-lab"),
     path("api/", include(router.urls)),
