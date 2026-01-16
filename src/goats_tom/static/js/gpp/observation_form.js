@@ -120,6 +120,16 @@ class ObservationForm {
         const values = raw?.map((o) => o.nanometers.toFixed(1)) ?? [];
         return [this.#createFormField({ ...meta, value: values.join(", ") })];
       },
+      handleScienceBand: (meta, raw) => {
+        const div = Utils.createElement("div", "col-lg-6");
+        if (!observation) return [div];
+        const allocations = Utils.getByPath(observation, meta.allocationsPath);
+        const timeCharge = Utils.getByPath(observation, meta.timeChargePath);
+        new ScienceBandEditor(div,{
+          data: [raw ?? null , allocations,  timeCharge]
+        });
+        return [div];
+      }
     };
 
     if (observation) {
@@ -209,7 +219,8 @@ class ObservationForm {
        if (meta.handler) {
          const handler = this.#handlers[meta.handler];
          if (handler) {
-           handler(meta, raw).forEach((el) => currentSectionBody.append(el));
+           const elements = handler(meta, raw)?? [];
+           elements.forEach((el) => currentSectionBody.append(el));
          }
          return;
        }

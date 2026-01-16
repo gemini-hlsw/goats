@@ -150,4 +150,3 @@ def test_format_gpp_basic():
     assert item["inclusion"] == "INCLUDE"
     assert "start_utc" in item
     assert "end" in item
-
