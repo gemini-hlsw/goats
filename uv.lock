@@ -1292,6 +1292,7 @@ dependencies = [
     { name = "numpydoc" },
     { name = "tom-tns" },
     { name = "tomtoolkit" },
+    { name = "urllib3" },
 ]
 
 [package.dev-dependencies]
@@ -1343,6 +1344,7 @@ requires-dist = [
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
     { name = "tom-tns", specifier = ">=0.3.4" },
     { name = "tomtoolkit", specifier = "==2.29.0" },
+    { name = "urllib3", specifier = ">=2.6.3" },
 ]
 
 [package.metadata.requires-dev]
