@@ -136,6 +136,7 @@ class ScienceBandEditor {
       item.type = "button";
       item.dataset.value = value;
       item.classList.add(
+        "ps-2",
         "dropdown-item",
         "d-flex",
         "justify-content-between",
@@ -148,7 +149,7 @@ class ScienceBandEditor {
       const right = Utils.createElement("span");
       right.classList.add("text-muted");
       right.style.fontWeight = "500";
-      right.textContent = `remains ${this.#remainingFor(band, programTime)} hrs`;
+      right.textContent = `${this.#remainingFor(band, programTime)} hr remaining`;
 
       item.appendChild(left);
       item.appendChild(right);
