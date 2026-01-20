@@ -1,0 +1,1 @@
+The text showing the remaining hours next to the band options has been updated for better wording. 
