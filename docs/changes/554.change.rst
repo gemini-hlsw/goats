@@ -1,0 +1,1 @@
+Improved parameter display for template-based observation creation and added a collapsible toggle to view details on demand.
