@@ -90,15 +90,43 @@
   </div>
   {% endif %}
   {% if object.facility != "GEM" %}
-  <div class="col-md-4">
-    <h4>Request Parameters</h4>
+  <div class="col-md-12">
+  <h4>Request Parameters</h4>
+
+<div class="row align-items-center mb-3">
+  <div class="col-md-12">
+
+
     {% observationtemplate_from_record object %}
-    <dl class="row">
-      {% for k,v in object.parameters.items %}
-      <dt class="col-sm-6">{{ k }}</dt>
-      <dd class="col-sm-6">{{ v }}</dt>
+    <button
+      class="btn btn-outline-primary ms-2"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#all-parameters"
+      aria-expanded="false"
+      aria-controls="all-parameters"
+      onclick="this.innerText =
+        this.innerText.includes('Show')
+        ? 'Hide request parameters'
+        : 'Show request parameters'"
+    >
+      Show request parameters
+    </button>
+
+  </div>
+</div>
+
+<div id="all-parameters" class="collapse">
+  <div class="card card-body">
+    <dl class="row mb-0">
+      {% for k, v in object.parameters.items %}
+        <dt class="col-sm-5 fw-semibold text-nowrap">{{ k }}</dt>
+        <dd class="col-sm-7 text-muted mb-2">{{ v }}</dd>
       {% endfor %}
     </dl>
+  </div>
+</div>
+
   </div>
   {% endif %}
 </div>
