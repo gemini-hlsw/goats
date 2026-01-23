@@ -1,4 +1,4 @@
-{% load bootstrap4 %} {% include 'tom_dataproducts/partials/js9_scripts.html' %}
+{% load bootstrap4 tom_overrides %} {% include 'tom_dataproducts/partials/js9_scripts.html' %}
 <h4>Data</h4>
 <div class="row g-3">
   <div class="col-12">
@@ -31,6 +31,7 @@
             <th></th>
           </tr>
         </thead>
+        {% define_data_product_type products %}
         <tbody id="manageDataTBody">
           {% for product in products %}
           <tr data-file="{{ product.product_id }}">
@@ -76,7 +77,7 @@
             </td>
             <td>
               <a href="{{ product.data.url }}" target="_blank"
-                >{{ product.product_id }}</a
+                >{{ product }}</a
               >
             </td>
             <td>

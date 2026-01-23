@@ -1,5 +1,5 @@
 {% extends 'tom_common/base.html' %}
-{% load bootstrap4 static cache %}
+{% load bootstrap4 static cache tom_overrides %}
 {% block title %} Data Product List {% endblock %}
 {% block additional_css %}
 <link rel="stylesheet" href="{% static 'tom_observations/css/main.css' %}">
@@ -23,6 +23,7 @@
           <th>Type</th>
         </tr>
       </thead>
+      {% define_data_product_type object_list %}
       <tbody>
         {% for product in object_list %}
         <tr>
