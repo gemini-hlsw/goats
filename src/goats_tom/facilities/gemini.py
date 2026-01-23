@@ -12,6 +12,7 @@ from astropy import units as u
 from bs4 import BeautifulSoup
 from django import forms
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from gpp_client import GPPClient
 from gpp_client.api.enums import ObservationWorkflowState, ObservingModeType
@@ -23,6 +24,7 @@ from tom_observations.facility import (
 from tom_observations.models import ObservationRecord
 
 from goats_tom.astroquery import Observations as GOA
+from goats_tom.context.user_context import get_current_user_id
 from goats_tom.ocs import OCSClient
 from goats_tom.utils import is_gpp_id
 
@@ -226,7 +228,6 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
 
     def get_observation_status(self, observation_id):
         parameters: dict[str, Any] = {}
-
         try:
             # Here we need to either query the OCS or GPP to get the status.
             if is_gpp_id(observation_id):
@@ -234,12 +235,19 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
                 # The download button should be enabled for ONGOING or COMPLETED.
                 logger.debug("Fetching observation status from GPP.")
                 # Make sure user is provided.
-                if self.user is None:
+                uid = get_current_user_id()
+                if uid is None:
                     raise Exception(
-                        "User must be provided to fetch observation status from GPP."
+                        "User context required to fetch observation status."
                     )
                 # Get GPP credentials from user profile.
-                credentials = self.user.gpplogin
+                UserModel = get_user_model()
+                try:
+                    user = UserModel.objects.select_related("gpplogin").get(pk=uid)
+                except UserModel.DoesNotExist:
+                    raise Exception(f"User {uid} does not exist")
+
+                credentials = user.gpplogin
                 # Create GPP client.
                 client = GPPClient(token=credentials.token, env=settings.GPP_ENV)
                 workflow_state_summary = async_to_sync(client.workflow_state.get_by_id)(
