@@ -119,7 +119,7 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
         "OPTIONS": {
             "timeout": 20,
-        }
+        },
     }
 }
 
@@ -129,7 +129,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("{{ REDIS_HOST }}", {{ REDIS_PORT }})],
+            "hosts": [("{{ REDIS_HOST }}", {{REDIS_PORT}})],
         },
     },
 }
@@ -257,8 +257,8 @@ CACHES = {
         "LOCATION": CACHE_REDIS_URL,
         "KEY_PREFIX": "goats",
         "TIMEOUT": None,
-      }
-   }
+    },
+}
 
 
 # Default primary key field type
@@ -303,7 +303,6 @@ TOM_FACILITY_CLASSES = [
     "goats_tom.facilities.LCOFacility",
     "goats_tom.facilities.SOARFacility",
     "goats_tom.facilities.BLANCOFacility",
-
 ]
 
 TOM_ALERT_CLASSES = [
@@ -394,6 +393,10 @@ SHOW_PAGINATION_INFO = True
 
 # Set the GPP environment (DEVELOPMENT, STAGING, or PRODUCTION)
 GPP_ENV = "PRODUCTION"
+
+# Set the ANATARES environment (DEVELOPMENT or PRODUCTION).
+ANTARES_ENV = "DEVELOPMENT"
+ANTARES_TIMEOUT = 60 # Timeout for requests to ANTARES in seconds.
 
 try:
     from local_settings import *  # noqa
