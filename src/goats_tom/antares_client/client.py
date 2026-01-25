@@ -15,6 +15,7 @@ __all__ = ["search", "get_by_id"]
 
 import datetime
 import json
+import logging
 from collections import defaultdict
 from io import StringIO
 from typing import Any, Dict, Iterator, List, Optional, Type
@@ -30,6 +31,10 @@ from marshmallow import fields, post_load
 from marshmallow_jsonapi import Schema
 from marshmallow_jsonapi import fields as jfields
 from typing_extensions import TypedDict
+
+from goats_tom.antares_client.config import ANTARESConfig
+
+logger = logging.getLogger(__name__)
 
 
 def mjd_to_datetime(mjd):
@@ -61,12 +66,6 @@ QueryParams = TypedDict(
         # "filter": None  # RESERVED
     },
 )
-
-
-config = {
-    "ANTARES_API_BASE_URL": "https://api.antares.noirlab.edu/v1/",
-    "API_TIMEOUT": 60,
-}
 
 
 class AlertGravWaveEvent(TypedDict):
@@ -190,22 +189,21 @@ class Locus:
 
     def _fetch_alerts(self) -> List[Alert]:
         alerts = _list_resources(
-            config["ANTARES_API_BASE_URL"]
-            + "/".join(("loci", self.locus_id, "alerts")),
+            ANTARESConfig.get_api_url() + "/".join(("loci", self.locus_id, "alerts")),
             _AlertSchema,
         )
         return list(alerts)
 
     def _fetch_lightcurve(self) -> pd.DataFrame:
         locus = _get_resource(
-            config["ANTARES_API_BASE_URL"] + "/".join(("loci", self.locus_id)),
+            ANTARESConfig.get_api_url() + "/".join(("loci", self.locus_id)),
             _LocusSchema,
         )
         return locus.lightcurve
 
     def _fetch_catalog_objects(self) -> dict:
         catalog_matches = _list_resources(
-            config["ANTARES_API_BASE_URL"]
+            ANTARESConfig.get_api_url()
             + "/".join(("loci", self.locus_id, "catalog-matches")),
             _CatalogEntrySchema,
         )
@@ -332,7 +330,7 @@ def _list_all_resources(
     url: str, schema_cls: Type[Schema], params: Optional[QueryParams] = None
 ) -> Iterator[Any]:
     while True:
-        response = requests.get(url, params=params, timeout=config["API_TIMEOUT"])
+        response = requests.get(url, params=params, timeout=ANTARESConfig.get_timeout())
         if response.status_code >= 400:
             raise AntaresException(response.json())
         yield from schema_cls(many=True, partial=True).load(response.json())
@@ -345,7 +343,7 @@ def _list_all_resources(
 def _get_resource(
     url: str, schema_cls: Type[Schema], params: Optional[QueryParams] = None
 ) -> Optional[Any]:
-    response = requests.get(url, params=params, timeout=config["API_TIMEOUT"])
+    response = requests.get(url, params=params, timeout=ANTARESConfig.get_timeout())
     if response.status_code == 404:
         return None
     if response.status_code >= 400:
@@ -356,7 +354,7 @@ def _get_resource(
 def _list_resources(
     url: str, schema_cls: Type[Schema], params: Optional[QueryParams] = None
 ) -> Iterator[Any]:
-    response = requests.get(url, params=params, timeout=config["API_TIMEOUT"])
+    response = requests.get(url, params=params, timeout=ANTARESConfig.get_timeout())
     if response.status_code >= 400:
         raise AntaresException(response.json())
     yield from schema_cls(many=True, partial=True).load(response.json())
@@ -423,7 +421,7 @@ def search(query: Dict) -> Iterator[Locus]:
     Iterator over Locus objects
     """
     return _list_all_resources(
-        urljoin(config["ANTARES_API_BASE_URL"], "loci"),
+        urljoin(ANTARESConfig.get_api_url(), "loci"),
         _LocusListingSchema,
         params={
             "sort": "-properties.newest_alert_observation_time",
@@ -443,6 +441,6 @@ def get_by_id(locus_id: str) -> Optional[Locus]:
     Locus or None
     """
     return _get_resource(
-        urljoin(config["ANTARES_API_BASE_URL"], f"loci/{locus_id}"),
+        urljoin(ANTARESConfig.get_api_url(), f"loci/{locus_id}"),
         _LocusSchema,
     )
