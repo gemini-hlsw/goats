@@ -1,91 +1,112 @@
-"""Module that overrides spectroscopy processor for GOATS."""
+"""
+GOATS spectroscopy processor override.
 
-__all__ = ["SpectroscopyProcessor"]
+Robust FITS handling:
+- Finds a 1D spectrum from IMAGE or BINTABLE HDUs
+- Builds spectral axis from WCS (when valid) or linear params (CRVAL/CRPIX/CDELT)
+- Normalizes/infers spectral units; never leaves spectral axis unitless
+- Infers flux units; falls back to DEFAULT_FLUX_CONSTANT
+- Infers facility and DATE-OBS, with simple TELESCOP-based mapping
+"""
 
+from __future__ import annotations
+
+import logging
+import mimetypes
 from datetime import datetime
 
 from astropy import units as u
 from astropy.io import fits
 from astropy.time import Time
-from astropy.wcs import WCS
 from specutils import Spectrum1D
+from tom_dataproducts.exceptions import InvalidFileFormatException
 from tom_dataproducts.models import DataProduct
 from tom_dataproducts.processors.spectroscopy_processor import (
     SpectroscopyProcessor as BaseSpectroscopyProcessor,
 )
-from tom_observations.facility import get_service_class, get_service_classes
+
+from goats_tom.serializers import SpectrumSerializer
+
+from .fits_utils import (
+    _build_wcs_or_axis,
+    _first_1d_hdu,
+    _guess_flux_unit_from_header,
+    _infer_facility_and_date,
+    _scan_bintable_for_spectrum,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class SpectroscopyProcessor(BaseSpectroscopyProcessor):
-    """Custom logic for GOATS processing. This is taken from TOMToolkit."""
+    """GOATS override with robust FITS support."""
+
+    def process_data(self, data_product: DataProduct):
+        mimetype = mimetypes.guess_type(data_product.data.path)[0]
+        if mimetype in self.FITS_MIMETYPES:
+            spectrum, obs_date, source_id = self._process_spectrum_from_fits(
+                data_product
+            )
+        elif mimetype in self.PLAINTEXT_MIMETYPES:
+            spectrum, obs_date, source_id = self._process_spectrum_from_plaintext(
+                data_product
+            )
+        else:
+            raise InvalidFileFormatException("Unsupported file type")
+
+        serialized_spectrum = SpectrumSerializer().serialize(spectrum)
+        return [(obs_date, serialized_spectrum, source_id)]
 
     def _process_spectrum_from_fits(
         self, dataproduct: DataProduct
     ) -> tuple[Spectrum1D, datetime, str]:
-        """Processes a FITS file to extract the spectrum.
+        path = dataproduct.data.path
 
-        Parameters
-        ----------
-        dataproduct : `DataProduct`
-            The data product object containing the path to the FITS file.
+        # 1) If a BINTABLE spectrum exists, prefer it (explicit spectral axis/units)
+        with fits.open(path, memmap=False) as hdul:
+            bt = _scan_bintable_for_spectrum(hdul)
+        if bt is not None:
+            flux, spectral_axis, hdr = bt
+            flux_unit = _guess_flux_unit_from_header(hdr, u.one)
+            # facility/date from the primary header (safer), fallback to table hdr
+            with fits.open(path, memmap=False) as hdul:
+                primary_header = hdul[0].header if len(hdul) else hdr
+            date_obs, source_id, flux_unit = _infer_facility_and_date(
+                dataproduct, primary_header, flux_unit
+            )
+            if flux_unit is None:
+                flux_unit = self.DEFAULT_FLUX_CONSTANT
+            spec = Spectrum1D(flux=flux * flux_unit, spectral_axis=spectral_axis)
+            return spec, Time(date_obs).to_datetime(), source_id
 
-        Returns
-        -------
-        `tuple[Spectrum1D, Time, str]`
-            A tuple containing the spectrum object, observation date and time, and the
-            name of the facility that processed the FITS file.
-        """
-        # Get flux and primary header using fits.getdata.
-        flux, primary_header = fits.getdata(dataproduct.data.path, header=True)
+        # 2) Otherwise, find first 1D IMAGE HDU
+        flux, primary_header = _first_1d_hdu(path)
 
-        naxis = primary_header.get("NAXIS")
-        if naxis is not None and naxis == 2:
-            raise ValueError("Cannot plot FITS image data (NAXIS=2).")
+        # 3) Spectral axis via WCS or linear reconstruction
+        mode, w = _build_wcs_or_axis(primary_header, flux.size)
 
-        dim = len(flux.shape)
-        if dim == 3:
-            flux = flux[0, 0, :]
-        elif flux.shape[0] == 2:
-            flux = flux[0, :]
-        if primary_header["CUNIT1"] == "deg":
-            # Loop through header keywords.
-            for key, value in primary_header.items():
-                if "WAT" in key and value is not None:
-                    if "label=Wavelength units=" in value:
-                        primary_header["CUNIT1"] = value.split("units=")[-1].strip()
-                        break
+        # 4) Flux units
+        flux_unit = None
+        bu = primary_header.get("BUNIT")
+        if bu:
+            try:
+                flux_unit = u.Unit(bu)
+            except Exception:
+                logger.warning(
+                    "Unrecognized BUNIT=%r; falling back to DEFAULT_FLUX_CONSTANT", bu
+                )
 
-        wcs = WCS(header=primary_header, naxis=1)
-
-        # Get the flux unit and convert to astropy unit.
-        flux_unit = primary_header.get("BUNIT")
-        if flux_unit is not None:
-            flux_unit = u.Unit(flux_unit)
-
-        # Initialize facility information.
-        facility_name = "UNKNOWN"
-        date_obs = datetime.now()
-
-        # Open the FITS file to check all headers for the facility.
-        with fits.open(dataproduct.data.path) as hdul:
-            for hdu in hdul:
-                header = hdu.header
-                for facility_class in get_service_classes():
-                    facility = get_service_class(facility_class)()
-                    if facility.is_fits_facility(header):
-                        facility_name = facility_class
-                        if flux_unit is None:
-                            flux_unit = facility.get_flux_constant()
-                        date_obs = facility.get_date_obs_from_fits_header(header)
-                        break
-                if facility_name != "UNKNOWN":
-                    break  # Stop checking if a valid facility is found.
-
-        # Use a default flux unit if none was determined.
+        # 5) Facility/date and official flux unit if available
+        date_obs, source_id, flux_unit = _infer_facility_and_date(
+            dataproduct, primary_header, flux_unit
+        )
         if flux_unit is None:
             flux_unit = self.DEFAULT_FLUX_CONSTANT
 
-        # Create a Spectrum1D object with the flux and WCS.
-        spectrum = Spectrum1D(flux=flux * flux_unit, wcs=wcs)
+        # 6) Build Spectrum1D
+        if mode == "wcs":
+            spectrum = Spectrum1D(flux=flux * flux_unit, wcs=w)
+        else:
+            spectrum = Spectrum1D(flux=flux * flux_unit, spectral_axis=w)
 
-        return spectrum, Time(date_obs).to_datetime(), facility_name
+        return spectrum, Time(date_obs).to_datetime(), source_id
