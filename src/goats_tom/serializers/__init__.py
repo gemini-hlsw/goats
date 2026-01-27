@@ -16,6 +16,7 @@ from .dragons_run import DRAGONSRunFilterSerializer, DRAGONSRunSerializer
 from .header import HeaderSerializer
 from .recipes_module import RecipesModuleSerializer
 from .run_processor import RunProcessorSerializer
+from .spectrum import SpectrumSerializer
 
 __all__ = [
     "DRAGONSRecipeFilterSerializer",
@@ -37,4 +38,5 @@ __all__ = [
     "Antares2GoatsSerializer",
     "HeaderSerializer",
     "AstroDatalabSerializer",
+    "SpectrumSerializer",
 ]
