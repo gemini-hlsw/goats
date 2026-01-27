@@ -72,8 +72,7 @@ class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
             # Fetch alert based on the parsed query.
             alert = list(broker_class.fetch_alerts(serializer.validated_data))[0]
             # Convert the generic alert into target format.
-            generic_alert = broker_class.to_generic_alert(alert)
-            target, extras, aliases = generic_alert.to_target()
+            target, extras, aliases = broker_class.to_target(alert)
             target.save(extras=extras, names=aliases)
 
         elif "esquery" in serializer.validated_data:
