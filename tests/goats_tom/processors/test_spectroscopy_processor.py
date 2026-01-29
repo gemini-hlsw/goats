@@ -1,50 +1,99 @@
-import shutil
-from datetime import datetime
-from pathlib import Path
+"""Tests for goats_tom.processors.spectroscopy_processor."""
 
+from __future__ import annotations
+
+import pytest
+from unittest.mock import MagicMock, patch, PropertyMock
+import numpy as np
 from astropy.io import fits
-from django.conf import settings
-from django.test import TestCase
-from specutils import Spectrum1D
+from astropy import units as u
+from datetime import datetime
 
-from goats_tom.processors import SpectroscopyProcessor
-from goats_tom.tests.factories import DataProductFactory
+from goats_tom.processors.spectroscopy_processor import SpectroscopyProcessor
+from tom_dataproducts.models import DataProduct
 
+@pytest.fixture
+def mock_dataproduct():
+    dp = MagicMock(spec=DataProduct)
+    dp.data.path = "/path/to/test.fits"
+    return dp
 
-class TestSpectroscopyProcessor(TestCase):
-    """Tests for the `SpectroscopyProcessor` class."""
+@pytest.fixture
+def processor():
+    return SpectroscopyProcessor()
 
-    def setUp(self):
-        """Set up test environment."""
-        # Path to the test FITS file within the temporary MEDIA_ROOT.
-        self.test_fits_path = Path(__file__).parent.parent.parent / "data" / "test_files" / "S20210219S0075_1D.fits"
+class TestSpectroscopyProcessor:
+    
+    @patch("goats_tom.processors.spectroscopy_processor.mimetypes.guess_type")
+    @patch("goats_tom.processors.spectroscopy_processor.fits.getdata")
+    @patch("goats_tom.processors.spectroscopy_processor.fits_utils")
+    @patch("goats_tom.processors.spectroscopy_processor.SpectrumSerializer")
+    def test_process_fits_array(self, mock_serializer, mock_utils, mock_getdata, mock_guess, processor, mock_dataproduct):
+        # Setup
+        mock_guess.return_value = ("application/fits", None)
+        
+        flux_data = np.ones((10,))
+        header = fits.Header({"CUNIT1": "Angstrom"})
+        mock_getdata.return_value = (flux_data, header)
+        
+        # Mock utils
+        mock_utils.get_flux_unit_from_header.return_value = None
+        mock_utils.reduce_flux_array.return_value = flux_data
+        mock_utils.fix_header_cunit1.return_value = u.Angstrom
+        mock_utils.detect_facility.return_value = ("TestFacility", datetime(2023, 1, 1), u.Jy)
+        
+        # Run
+        result = processor.process_data(mock_dataproduct)
+        
+        # Verify
+        assert len(result) == 1
+        obs_date, params, source_id = result[0]
+        assert obs_date == datetime(2023, 1, 1)
+        assert source_id == "TestFacility"
+        
+        # Verify calls
+        mock_utils.reduce_flux_array.assert_called_once()
+        mock_utils.fix_header_cunit1.assert_called_once() # Called before WCS creation in array path
+        
+    
+    @patch("goats_tom.processors.spectroscopy_processor.mimetypes.guess_type")
+    @patch("goats_tom.processors.spectroscopy_processor.fits.getdata")
+    @patch("goats_tom.processors.spectroscopy_processor.fits_utils")
+    @patch("goats_tom.processors.spectroscopy_processor.SpectrumSerializer")
+    def test_process_fits_table(self, mock_serializer, mock_utils, mock_getdata, mock_guess, processor, mock_dataproduct):
+        # Setup
+        mock_guess.return_value = ("application/fits", None)
+        
+        # Create structured array for table
+        dt = np.dtype([('wavelength', 'f8'), ('flux', 'f8')])
+        table_data = np.zeros((10,), dtype=dt)
+        table_data['wavelength'] = np.arange(10)
+        table_data['flux'] = np.ones(10)
+        header = fits.Header()
+        
+        mock_getdata.return_value = (table_data, header)
+        
+        mock_utils.get_flux_unit_from_header.return_value = u.erg / u.cm**2 / u.s / u.AA
+        mock_utils.fix_header_cunit1.return_value = u.Angstrom
+        mock_utils.detect_facility.return_value = ("TableFacility", datetime(2023, 2, 1), None)
+        
+        # Run
+        result = processor.process_data(mock_dataproduct)
+        
+        assert result[0][0] == datetime(2023, 2, 1)
+        assert result[0][2] == "TableFacility"
+        
+        # Verify fix_header_cunit1 called for wavelength unit
+        mock_utils.fix_header_cunit1.assert_called()
 
-        # Copy the test FITS file to the temporary media root.
-        self.temp_fits_path = Path(settings.MEDIA_ROOT) / "S20210219S0075_1D.fits"
-        shutil.copy(self.test_fits_path, self.temp_fits_path)
-
-        # Use the factory to create a DataProduct with the copied FITS file.
-        self.data_product = DataProductFactory(data=str(self.temp_fits_path))
-
-        # Initialize the `SpectroscopyProcessor`.
-        self.processor = SpectroscopyProcessor()
-
-    def test_process_spectrum_from_fits(self):
-        """Test `_process_spectrum_from_fits` processes the FITS file correctly."""
-        # Run the `_process_spectrum_from_fits` method.
-        spectrum, date_obs, facility_name = self.processor._process_spectrum_from_fits(self.data_product)
-
-        # Load the FITS header for validation.
-        with fits.open(self.temp_fits_path) as hdul:
-            header = hdul[0].header
-            expected_flux_unit = header.get("BUNIT")
-        print(facility_name)
-        # Assert the returned values.
-        self.assertIsInstance(spectrum, Spectrum1D, "Spectrum should be a Spectrum1D instance.")
-        self.assertIsInstance(date_obs, datetime, "Date observation should be a datetime instance.")
-        self.assertIsInstance(facility_name, str, "Facility name should be a string.")
-        self.assertNotEqual(facility_name, "UNKNOWN", "Facility name should not be UNKNOWN if a match is found.")
-
-        # Validate the flux unit.
-        if expected_flux_unit:
-            self.assertEqual(spectrum.flux.unit.to_string(), expected_flux_unit, "Flux unit mismatch.")
+    @patch("goats_tom.processors.spectroscopy_processor.mimetypes.guess_type")
+    @patch("goats_tom.processors.spectroscopy_processor.fits.getdata")
+    def test_missing_required_columns(self, mock_getdata, mock_guess, processor, mock_dataproduct):
+        mock_guess.return_value = ("application/fits", None)
+        
+        dt = np.dtype([('random_col', 'f8')])
+        data = np.zeros((5,), dtype=dt)
+        mock_getdata.return_value = (data, fits.Header())
+        
+        with pytest.raises(ValueError, match="plottable spectrum"):
+            processor.process_data(mock_dataproduct)

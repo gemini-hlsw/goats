@@ -1,103 +1,99 @@
-import numpy as np
+"""Tests for goats_tom.processors.fits_utils."""
+
+from __future__ import annotations
+
 import pytest
-from astropy import units as u
+from unittest.mock import MagicMock, patch
+import numpy as np
 from astropy.io import fits
-from astropy.wcs import WCS
-from goats_tom.processors.fits_utils import (
-    _build_wcs_or_axis,
-    _ensure_1d_flux_array,
-    _guess_flux_unit_from_header,
-    _guess_wave_unit_from_header,
-    _normalize_cunit1,
-)
+from astropy import units as u
+from datetime import datetime
+
+from goats_tom.processors import fits_utils
 
 
-class TestFitsUtils:
-    """Tests for the fits_utils module."""
+@pytest.fixture
+def mock_header():
+    return fits.Header()
 
-    def test_normalize_cunit1(self):
-        """Test _normalize_cunit1 normalizes units correctly."""
-        # Standard alias
-        hdr = fits.Header({"CUNIT1": "angstrom"})
-        _normalize_cunit1(hdr)
-        assert hdr["CUNIT1"] == "Angstrom"
 
-        # Singular form support for known keys
-        hdr = fits.Header({"CUNIT1": "micron"})
-        _normalize_cunit1(hdr)
-        assert hdr["CUNIT1"] == "um"
+class TestGetFluxUnit:
+    def test_from_bunit(self, mock_header):
+        mock_header["BUNIT"] = "Jy"
+        unit = fits_utils.get_flux_unit_from_header(mock_header)
+        assert unit == u.Jy
 
-        # WAT hint fallback
-        hdr = fits.Header({"CUNIT1": "deg", "WAT1_001": "wtype=linear label=Wavelength units=angstroms"})
-        _normalize_cunit1(hdr)
-        assert hdr["CUNIT1"] == "Angstrom"
+    def test_invalid_unit(self, mock_header):
+        mock_header["BUNIT"] = "invalid_unit"
+        unit = fits_utils.get_flux_unit_from_header(mock_header)
+        assert unit is None
 
-    def test_guess_wave_unit_from_header(self):
-        """Test _guess_wave_unit_from_header."""
-        # CUNIT1 present
-        hdr = fits.Header({"CUNIT1": "nm"})
-        unit = _guess_wave_unit_from_header(hdr)
+
+class TestFixHeaderCunit1:
+    def test_existing_valid(self, mock_header):
+        mock_header["CUNIT1"] = "nm"
+        unit = fits_utils.fix_header_cunit1(mock_header)
         assert unit == u.nm
+        assert mock_header["CUNIT1"] == "nm"
 
-        # Fallback to CTYPE1
-        hdr = fits.Header({"CTYPE1": "WAVELENGTH"})
-        unit = _guess_wave_unit_from_header(hdr)
+    def test_deg_with_wat(self, mock_header):
+        mock_header["CUNIT1"] = "deg"
+        mock_header["WAT1_001"] = "wtype=linear label=Wavelength units=Angstrom"
+        unit = fits_utils.fix_header_cunit1(mock_header)
         assert unit == u.Angstrom
+        assert mock_header["CUNIT1"] == "Angstrom"
 
-        # Frequency
-        hdr = fits.Header({"CTYPE1": "FREQ"})
-        unit = _guess_wave_unit_from_header(hdr)
-        assert unit == u.Hz
+    def test_missing_sets_default(self, mock_header):
+        unit = fits_utils.fix_header_cunit1(mock_header)
+        assert unit == u.Angstrom
+        assert mock_header["CUNIT1"] == "Angstrom"
 
-    def test_ensure_1d_flux_array(self):
-        """Test _ensure_1d_flux_array coercions."""
-        # 1D
-        data = np.array([1, 2, 3])
-        assert np.array_equal(_ensure_1d_flux_array(data), data)
 
-        # 2D (1, N)
-        data = np.array([[1, 2, 3]])
-        assert np.array_equal(_ensure_1d_flux_array(data), [1, 2, 3])
+class TestReduceFluxArray:
+    def test_1d(self, mock_header):
+        flux = np.ones((10,))
+        reduced = fits_utils.reduce_flux_array(flux, mock_header)
+        assert reduced.shape == (10,)
 
-        # 2D (N, 1)
-        data = np.array([[1], [2], [3]])
-        assert np.array_equal(_ensure_1d_flux_array(data), [1, 2, 3])
+    def test_3d_reduction(self, mock_header):
+        flux = np.ones((1, 1, 10))
+        reduced = fits_utils.reduce_flux_array(flux, mock_header)
+        assert reduced.shape == (10,)
 
-        # 3D (1, 1, N)
-        data = np.array([[[1, 2, 3]]])
-        assert np.array_equal(_ensure_1d_flux_array(data), [1, 2, 3])
+    def test_2xN_reduction(self, mock_header):
+        flux = np.ones((2, 10))
+        reduced = fits_utils.reduce_flux_array(flux, mock_header)
+        assert reduced.shape == (10,)
 
-        # Error
-        with pytest.raises(ValueError):
-            _ensure_1d_flux_array(np.zeros((3, 3)))
+    def test_image_rejection(self, mock_header):
+        mock_header["NAXIS"] = 2
+        flux = np.ones((10, 10))
+        with pytest.raises(ValueError, match="plottable spectrum"):
+            fits_utils.reduce_flux_array(flux, mock_header)
 
-    def test_build_wcs_or_axis(self):
-        """Test _build_wcs_or_axis logic."""
-        # Valid WCS (CUNIT1 present)
-        hdr = fits.Header({
-            "NAXIS": 1, "NAXIS1": 10,
-            "CRVAL1": 4000, "CRPIX1": 1, "CDELT1": 10,
-            "CUNIT1": "Angstrom", "CTYPE1": "WAVE"
-        })
-        n = 10
-        mode, res = _build_wcs_or_axis(hdr, n)
-        
-        if mode == "wcs":
-            assert isinstance(res, WCS)
-        else:
-            # Fallback
-            assert isinstance(res, u.Quantity)
-            assert res.unit == u.Angstrom
-            assert res[0].value == 4000
 
-    def test_guess_flux_unit_from_header(self):
-        """Test scanning for BUNIT."""
-        hdr = fits.Header({"BUNIT": "erg/s/cm2/Angstrom"})
-        unit = _guess_flux_unit_from_header(hdr, u.one)
-        # astropy might parse this string differently or as a composite
-        assert unit.is_equivalent(u.erg / u.s / u.cm**2 / u.Angstrom)
+class TestDetectFacility:
+    @patch("goats_tom.processors.fits_utils.fits.open")
+    @patch("goats_tom.processors.fits_utils.get_service_classes")
+    @patch("goats_tom.processors.fits_utils.get_service_class")
+    def test_detect_known_facility(
+        self, mock_get_cls, mock_get_classes, mock_fits_open
+    ):
+        mock_hdul = MagicMock()
+        mock_header = fits.Header({"TELESCOP": "TEST_TELESCOPE"})
+        mock_hdul.__enter__.return_value = [MagicMock(header=mock_header)]
+        mock_fits_open.return_value = mock_hdul
 
-        # Fallback
-        hdr = fits.Header({})
-        unit = _guess_flux_unit_from_header(hdr, u.one)
-        assert unit == u.one
+        mock_get_classes.return_value = ["TestFacility"]
+        mock_facility = MagicMock()
+        mock_facility.is_fits_facility.return_value = True
+        mock_facility.get_flux_constant.return_value = u.Jy
+        mock_facility.get_date_obs_from_fits_header.return_value = datetime(2022, 1, 1)
+
+        mock_get_cls.return_value = lambda: mock_facility
+
+        name, date, unit = fits_utils.detect_facility("dummy.fits")
+
+        assert name == "TestFacility"
+        assert date == datetime(2022, 1, 1)
+        assert unit == u.Jy
