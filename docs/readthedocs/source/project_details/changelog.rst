@@ -3,6 +3,40 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.2.0 (2026-02-03)
+===========================
+
+Changes
+-------
+
+- Changed the Science Band field to a drop-down that displays available bands with their remaining time. (`PR #532 <https://github.com/gemini-hlsw/goats/pull/532>`_)
+- Made the Blanco button visible and operational. (`PR #533 <https://github.com/gemini-hlsw/goats/pull/533>`_)
+- Replaced per-user overrides with centralized credential injection for consistent and secure API key handling. (`PR #541 <https://github.com/gemini-hlsw/goats/pull/541>`_)
+- The text showing the remaining hours next to the band options has been updated for better wording. (`PR #550 <https://github.com/gemini-hlsw/goats/pull/550>`_)
+- Improved parameter display for template-based observation creation and added a collapsible toggle to view details on demand. (`PR #554 <https://github.com/gemini-hlsw/goats/pull/554>`_)
+- Updated the “Fetch from GOA” UI text to display the correct search radius. (`PR #558 <https://github.com/gemini-hlsw/goats/pull/558>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed an issue where LCO data downloaded and saved in GOATS did not display the full path. (`PR #549 <https://github.com/gemini-hlsw/goats/pull/549>`_)
+- Fixed an issue where LCO/GEM observation status did not update correctly. (`PR #552 <https://github.com/gemini-hlsw/goats/pull/552>`_)
+
+
+Other
+-----
+
+- Updated the GPP client to the required version for compatibility. (`PR #529 <https://github.com/gemini-hlsw/goats/pull/529>`_)
+- Refactored the logic for extracting spectra from FITS files to improve clarity and maintainability. (`PR #557 <https://github.com/gemini-hlsw/goats/pull/557>`_)
+
+
+Documentation
+-------------
+
+- Updated team info in user documentation. (`PR #528 <https://github.com/gemini-hlsw/goats/pull/528>`_)
+
+
 Version 26.1.1 (2026-01-07)
 ===========================
 

@@ -1,1 +1,0 @@
-Fixed an issue where LCO data downloaded and saved in GOATS did not display the full path.

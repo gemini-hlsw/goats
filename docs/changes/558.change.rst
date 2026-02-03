@@ -1,1 +1,0 @@
-Updated the “Fetch from GOA” UI text to display the correct search radius.

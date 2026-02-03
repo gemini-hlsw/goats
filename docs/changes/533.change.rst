@@ -1,1 +1,0 @@
-Made the Blanco button visible and operational.
