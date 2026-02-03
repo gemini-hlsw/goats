@@ -1,0 +1,1 @@
+Refactored the logic for extracting spectra from FITS files to improve clarity and maintainability.
