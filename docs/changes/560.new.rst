@@ -1,0 +1,1 @@
+Added support for overplotting all extracted spectra from a single FITS file in the same plot.
