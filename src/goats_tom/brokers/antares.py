@@ -1,5 +1,6 @@
 __all__ = ["ANTARESBrokerForm", "ANTARESBroker"]
 
+import logging
 from typing import Any, Iterator
 
 import marshmallow
@@ -11,7 +12,9 @@ from django.templatetags.static import static
 from tom_alerts.alerts import GenericAlert, GenericBroker, GenericQueryForm
 from tom_targets.models import BaseTarget, Target, TargetName
 
-from ..antares_client import get_by_id, search
+from goats_tom.antares_client.client import get_by_id, search
+
+logger = logging.getLogger(__name__)
 
 ANTARES_BASE_URL = "https://antares.noirlab.edu"
 
@@ -21,7 +24,7 @@ class ANTARESBrokerForm(GenericQueryForm):
 
     Attributes
     ----------
-    query : `JSONField`
+    query : JSONField
         A JSON field required for receiving Elastic Search queries.
 
     """
@@ -120,7 +123,7 @@ class ANTARESBrokerForm(GenericQueryForm):
 
         Returns
         -------
-        `dict`
+        dict
             The cleaned data of the form.
 
         Raises
@@ -141,7 +144,7 @@ class ANTARESBroker(GenericBroker):
 
     Attributes
     ----------
-    form : `GOATSANTARESBrokerForm`
+    form : GOATSANTARESBrokerForm
         The form class to be used within the broker.
 
     """
@@ -155,12 +158,12 @@ class ANTARESBroker(GenericBroker):
 
         Parameters
         ----------
-        locus : `Locus`
+        locus : Locus
             The Locus object returned by the ANTARES API.
 
         Returns
         -------
-        `dict`
+        dict
             A dictionary representation of the Locus object.
         """
         return {
@@ -186,12 +189,12 @@ class ANTARESBroker(GenericBroker):
 
         Parameters
         ----------
-        parameters : `dict[str, Any]`
+        parameters : dict[str, Any]
             Query parameters containing either a query string or a locus ID.
 
         Returns
         -------
-        `Iterator[dict[str, Any]]`
+        Iterator[dict[str, Any]]
             An iterator of alert dictionaries.
         """
         query = parameters.get("query")
@@ -222,47 +225,46 @@ class ANTARESBroker(GenericBroker):
 
     def to_target(
         self, alert: dict[str, Any]
-    ) -> tuple[BaseTarget, list, list[TargetName]]:
+    ) -> tuple[BaseTarget, dict, list[TargetName]]:
         """Converts an alert dictionary into a Target object and associated aliases.
 
         Parameters
         ----------
-        alert : `dict[str, Any]`
+        alert : dict[str, Any]
             The alert data containing target details.
 
         Returns
         -------
-        `tuple[BaseTarget, list, list[TargetName]]`
-            A tuple containing the created `BaseTarget`, an empty list, and a list of
-            aliases.
+        tuple[BaseTarget, dict, list[TargetName]]
+            A tuple containing the created `BaseTarget`, an empty dictionary, and a list of aliases.
         """
+        name = alert["locus_id"]
+        logger.debug("Converting alert to target with locus_id: %s", name)
         target = Target.objects.create(
-            name=alert["properties"]["ztf_object_id"],
+            name=name,
+            # TODO: Verify that the type is correct for all ingested alerts.
             type="SIDEREAL",
             ra=alert["ra"],
             dec=alert["dec"],
         )
-        aliases = [TargetName(target=target, name=alert["locus_id"])]
+        aliases = self.extract_survey_aliases(target, alert)
 
-        horizons_name = alert["properties"].get("horizons_targetname")
-        if horizons_name is not None:
-            aliases.append(TargetName(name=horizons_name))
-
-        return target, [], aliases
+        return target, {}, aliases
 
     def to_generic_alert(self, alert: dict[str, Any]) -> GenericAlert:
         """Converts an alert dictionary into a `GenericAlert` object.
 
         Parameters
         ----------
-        alert : `dict[str, Any]`
+        alert : dict[str, Any]
             The alert data to be converted.
 
         Returns
         -------
-        `GenericAlert`
+        GenericAlert
             The corresponding GenericAlert object.
         """
+        name = alert["locus_id"]
         url = f"{ANTARES_BASE_URL}/loci/{alert['locus_id']}"
         timestamp = Time(
             alert["properties"].get("newest_alert_observation_time"),
@@ -273,10 +275,69 @@ class ANTARESBroker(GenericBroker):
         return GenericAlert(
             timestamp=timestamp,
             url=url,
-            id=alert["locus_id"],
-            name=alert["properties"]["ztf_object_id"],
+            id=name,
+            name=name,
             ra=alert["ra"],
             dec=alert["dec"],
             mag=alert["properties"].get("newest_alert_magnitude", ""),
             score=alert["alerts"][-1]["properties"].get("ztf_rb", ""),
         )
+
+    def extract_survey_aliases(
+        self, target: BaseTarget, alert: dict[str, Any]
+    ) -> list[TargetName]:
+        """Extracts survey-specific aliases from the alert data.
+
+        Parameters
+        ----------
+        target : BaseTarget
+            The target associated with the alert.
+        alert : dict[str, Any]
+            The alert data containing potential survey aliases.
+
+        Returns
+        -------
+        list[TargetName]
+            A list of TargetName objects representing the survey aliases.
+        """
+        logger.debug("Extracting survey aliases for target: %s", target.name)
+        aliases: list[TargetName] = []
+        # A set to track seen alias values to avoid duplicates.
+        seen: set[str] = set()
+
+        properties = alert.get("properties") or {}
+        survey = properties.get("survey") or {}
+
+        def add_aliases(values: list[str] | None) -> None:
+            """
+            Adds aliases to the list from the provided values.
+
+            Parameters
+            ----------
+            values : list[str] | None
+                A list of alias values to be added.
+            """
+            if not values:
+                return
+            for value in values:
+                if not value or value in seen:
+                    continue
+                seen.add(value)
+                logger.debug("Adding alias: %s", value)
+                aliases.append(TargetName(target=target, name=value))
+
+        # Get Horizons alias.
+        horizons_name = properties.get("horizons_targetname")
+        if horizons_name:
+            add_aliases([horizons_name])
+
+        # Get ZTF aliases.
+        ztf = survey.get("ztf") or {}
+        add_aliases(ztf.get("id"))
+
+        # Get LSST aliases.
+        lsst = survey.get("lsst") or {}
+        add_aliases(lsst.get("dia_object_id"))
+        add_aliases(lsst.get("ss_object_id"))
+
+        return aliases

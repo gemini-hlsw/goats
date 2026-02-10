@@ -1,0 +1,1 @@
+When adding a target from the browser extension, the locus ID is now used as the target name, and the additional survey names are added as aliases.

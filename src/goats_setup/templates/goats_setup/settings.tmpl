@@ -77,6 +77,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "goats_tom.middleware.UserContextMiddleware",
     "goats_tom.middleware.TNSCredentialsMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -301,6 +302,8 @@ TOM_FACILITY_CLASSES = [
     "goats_tom.facilities.GOATSGEMFacility",
     "goats_tom.facilities.LCOFacility",
     "goats_tom.facilities.SOARFacility",
+    "goats_tom.facilities.BLANCOFacility",
+
 ]
 
 TOM_ALERT_CLASSES = [

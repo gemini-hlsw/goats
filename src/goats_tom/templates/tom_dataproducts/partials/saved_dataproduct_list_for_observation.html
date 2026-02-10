@@ -14,7 +14,7 @@
   <tbody>
     {% for product in products_page %}
     <tr>
-      <td><a href="{{ product.data.url }}">{{ product.product_id }}</a></td>
+      <td><a href="{{ product.data.url }}">{{ product }}</a></td>
       <td>
         {% if product.data_product_type %}
           {{ product.get_type_display }}

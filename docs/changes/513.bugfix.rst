@@ -1,1 +1,0 @@
-Fixed logic with DRAGONS recipe mapper to correctly handle files that do not have a recipe defined. Also improved logging for better traceability. If no files are found with recipes, the DRAGONS run will be deleted and an error logged.

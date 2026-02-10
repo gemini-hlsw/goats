@@ -3,6 +3,84 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.2.0 (2026-02-03)
+===========================
+
+Changes
+-------
+
+- Changed the Science Band field to a drop-down that displays available bands with their remaining time. (`PR #532 <https://github.com/gemini-hlsw/goats/pull/532>`_)
+- Made the Blanco button visible and operational. (`PR #533 <https://github.com/gemini-hlsw/goats/pull/533>`_)
+- Replaced per-user overrides with centralized credential injection for consistent and secure API key handling. (`PR #541 <https://github.com/gemini-hlsw/goats/pull/541>`_)
+- The text showing the remaining hours next to the band options has been updated for better wording. (`PR #550 <https://github.com/gemini-hlsw/goats/pull/550>`_)
+- Improved parameter display for template-based observation creation and added a collapsible toggle to view details on demand. (`PR #554 <https://github.com/gemini-hlsw/goats/pull/554>`_)
+- Updated the “Fetch from GOA” UI text to display the correct search radius. (`PR #558 <https://github.com/gemini-hlsw/goats/pull/558>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed an issue where LCO data downloaded and saved in GOATS did not display the full path. (`PR #549 <https://github.com/gemini-hlsw/goats/pull/549>`_)
+- Fixed an issue where LCO/GEM observation status did not update correctly. (`PR #552 <https://github.com/gemini-hlsw/goats/pull/552>`_)
+
+
+Other
+-----
+
+- Updated the GPP client to the required version for compatibility. (`PR #529 <https://github.com/gemini-hlsw/goats/pull/529>`_)
+- Refactored the logic for extracting spectra from FITS files to improve clarity and maintainability. (`PR #557 <https://github.com/gemini-hlsw/goats/pull/557>`_)
+
+
+Documentation
+-------------
+
+- Updated team info in user documentation. (`PR #528 <https://github.com/gemini-hlsw/goats/pull/528>`_)
+
+
+Version 26.1.1 (2026-01-07)
+===========================
+
+New Features
+------------
+
+- Applied patches for per-request and per-user credentials for SOAR and LCO observatories. Users will now have their correct proposals loaded based on their own credentials when submitting an observation request. GOATS app startup has also been refactored to make it easier for testing and not apply patches multiple times. (`PR #525 <https://github.com/gemini-hlsw/goats/pull/525>`_)
+
+
+Version 26.1.0 (2026-01-07)
+===========================
+
+New Features
+------------
+
+- Added a static Scheduling Window form layout and a static table for scheduling windows in the UI. (`PR #505 <https://github.com/gemini-hlsw/goats/pull/505>`_)
+- Added an accordion folding option to the GPP form to collapse and expand sections. (`PR #510 <https://github.com/gemini-hlsw/goats/pull/510>`_)
+- Added dynamic field toggling by window type and automatic loading of existing scheduling windows into the table. (`PR #511 <https://github.com/gemini-hlsw/goats/pull/511>`_)
+- When a DRAGONS run is deleted or created from the UI, the application resets gracefully and provides appropriate user feedback. (`PR #513 <https://github.com/gemini-hlsw/goats/pull/513>`_)
+- Added advanced feature support for DRAGONS. Users can now pass additional files, change the ``ucals`` parameter, modify the ``suffix`` of the output files, and support for changing the ``drpkg`` and ``mode`` parameters in the future. (`PR #514 <https://github.com/gemini-hlsw/goats/pull/514>`_)
+- Added the ability to add a scheduling window to the staging table. (`PR #518 <https://github.com/gemini-hlsw/goats/pull/518>`_)
+- Added validation to the Scheduling Window form to prevent invalid entries. (`PR #519 <https://github.com/gemini-hlsw/goats/pull/519>`_)
+- Added a Scheduling Window serializer and included scheduling windows in the GPP payload. (`PR #520 <https://github.com/gemini-hlsw/goats/pull/520>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed workflow state update retry logic for updating GPP observations. The retry mechanism now correctly invokes the asynchronous method to ensure reliable state updates. Also added missing parameters for linking an observation to the Gemini Explore page after fetching the observation status. Finally, corrected the template condition to properly check the observation status against completed states in a case-insensitive manner. (`PR #512 <https://github.com/gemini-hlsw/goats/pull/512>`_)
+- Fixed logic with DRAGONS recipe mapper to correctly handle files that do not have a recipe defined. Also improved logging for better traceability. If no files are found with recipes, the DRAGONS run will be deleted and an error logged. (`PR #513 <https://github.com/gemini-hlsw/goats/pull/513>`_)
+
+
+Other
+-----
+
+- Updated Dependabot configuration to include APScheduler in the dependency group. (`PR #509 <https://github.com/gemini-hlsw/goats/pull/509>`_)
+
+
+Documentation
+-------------
+
+- Updated team information in user documentation. (`PR #526 <https://github.com/gemini-hlsw/goats/pull/526>`_)
+
+
 Version 25.11.4 (2025-11-28)
 ============================
 

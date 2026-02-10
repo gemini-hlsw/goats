@@ -12,6 +12,34 @@ from tom_dataproducts.processors.data_serializers import SpectrumSerializer
 register = template.Library()
 
 
+def _define_data_product_type(products):
+    """
+    Set `data_product_type` on products that do not have one, based on the URL.
+
+    This mutates the product objects in-place and returns the same iterable/page.
+    """
+    for product in products:
+        if getattr(product, "data_product_type", None):
+            continue
+
+        url = getattr(getattr(product, "data", None), "url", "")
+        if isinstance(url, str) and url.endswith(".fits.fz"):
+            product.data_product_type = "fits_file"
+
+    return products
+
+
+@register.simple_tag
+def define_data_product_type(products):
+    """
+    Template tag helper to pre-compute data_product_type for products in a template.
+
+    Intended for side effects only; renders nothing.
+    """
+    _define_data_product_type(products)
+    return ""
+
+
 @register.inclusion_tag(
     "tom_dataproducts/partials/saved_dataproduct_list_for_observation.html"
 )
@@ -20,8 +48,7 @@ def goats_dataproduct_list_for_observation_saved(
 ):
     page = request.GET.get("page_saved")
     paginator = Paginator(data_products["saved"], 25)
-    products_page = paginator.get_page(page)
-
+    products_page = _define_data_product_type(paginator.get_page(page))
     return {
         "products_page": products_page,
         "observation_record": observation_record,

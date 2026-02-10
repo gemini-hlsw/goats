@@ -1,1 +1,0 @@
-Updated Dependabot configuration to include APScheduler in the dependency group.

@@ -1,50 +1,160 @@
-import shutil
+"""Tests for goats_tom.processors.spectroscopy_processor."""
+
+from __future__ import annotations
+
 from datetime import datetime
-from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
+from astropy import units as u
 from astropy.io import fits
-from django.conf import settings
-from django.test import TestCase
-from specutils import Spectrum1D
 
-from goats_tom.processors import SpectroscopyProcessor
-from goats_tom.tests.factories import DataProductFactory
+from goats_tom.processors.spectroscopy_processor import SpectroscopyProcessor
+from tom_dataproducts.exceptions import InvalidFileFormatException
+from tom_dataproducts.models import DataProduct
 
 
-class TestSpectroscopyProcessor(TestCase):
-    """Tests for the `SpectroscopyProcessor` class."""
+class _FakeHDUList(list):
+    def __enter__(self):
+        return self
 
-    def setUp(self):
-        """Set up test environment."""
-        # Path to the test FITS file within the temporary MEDIA_ROOT.
-        self.test_fits_path = Path(__file__).parent.parent.parent / "data" / "test_files" / "S20210219S0075_1D.fits"
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
-        # Copy the test FITS file to the temporary media root.
-        self.temp_fits_path = Path(settings.MEDIA_ROOT) / "S20210219S0075_1D.fits"
-        shutil.copy(self.test_fits_path, self.temp_fits_path)
 
-        # Use the factory to create a DataProduct with the copied FITS file.
-        self.data_product = DataProductFactory(data=str(self.temp_fits_path))
+def _hdu(data, header=None):
+    h = MagicMock()
+    h.data = data
+    h.header = fits.Header(header or {})
+    return h
 
-        # Initialize the `SpectroscopyProcessor`.
-        self.processor = SpectroscopyProcessor()
 
-    def test_process_spectrum_from_fits(self):
-        """Test `_process_spectrum_from_fits` processes the FITS file correctly."""
-        # Run the `_process_spectrum_from_fits` method.
-        spectrum, date_obs, facility_name = self.processor._process_spectrum_from_fits(self.data_product)
+@pytest.fixture
+def mock_dataproduct():
+    dp = MagicMock(spec=DataProduct)
+    dp.data.path = "/path/to/test.fits"
+    return dp
 
-        # Load the FITS header for validation.
-        with fits.open(self.temp_fits_path) as hdul:
-            header = hdul[0].header
-            expected_flux_unit = header.get("BUNIT")
-        print(facility_name)
-        # Assert the returned values.
-        self.assertIsInstance(spectrum, Spectrum1D, "Spectrum should be a Spectrum1D instance.")
-        self.assertIsInstance(date_obs, datetime, "Date observation should be a datetime instance.")
-        self.assertIsInstance(facility_name, str, "Facility name should be a string.")
-        self.assertNotEqual(facility_name, "UNKNOWN", "Facility name should not be UNKNOWN if a match is found.")
 
-        # Validate the flux unit.
-        if expected_flux_unit:
-            self.assertEqual(spectrum.flux.unit.to_string(), expected_flux_unit, "Flux unit mismatch.")
+@pytest.fixture
+def processor():
+    return SpectroscopyProcessor()
+
+
+class TestSpectroscopyProcessor:
+    @patch("goats_tom.processors.spectroscopy_processor.mimetypes.guess_type")
+    @patch("goats_tom.processors.spectroscopy_processor.fits.open")
+    @patch("goats_tom.processors.spectroscopy_processor.fits_utils")
+    @patch("goats_tom.processors.spectroscopy_processor.SpectrumSerializer")
+    def test_process_fits_array(
+        self,
+        mock_serializer_cls,
+        mock_utils,
+        mock_fits_open,
+        mock_guess,
+        processor,
+        mock_dataproduct,
+    ):
+        mock_guess.return_value = ("application/fits", None)
+
+        primary = _hdu(None, {"EXTNAME": "PRIMARY"})
+        sci = _hdu(
+            np.ones((10,), dtype=float), {"EXTNAME": "SCI", "CUNIT1": "Angstrom"}
+        )
+        mock_fits_open.return_value = _FakeHDUList([primary, sci])
+
+        mock_utils.detect_facility.return_value = (
+            "TestFacility",
+            datetime(2023, 1, 1),
+            u.Jy,
+        )
+        mock_utils.get_flux_unit_from_header.return_value = None
+        mock_utils.reduce_flux_array.return_value = np.ones((10,), dtype=float)
+        mock_utils.fix_header_cunit1.return_value = u.Angstrom
+
+        serializer = MagicMock()
+        serializer.serialize.return_value = {"ok": True}
+        mock_serializer_cls.return_value = serializer
+
+        out = processor.process_data(mock_dataproduct)
+
+        assert len(out) == 1
+        assert out[0][0] == datetime(2023, 1, 1)
+        assert out[0][1] == {"ok": True}
+        assert out[0][2] == "TestFacility:hdu=1:SCI"
+
+        mock_fits_open.assert_called_once_with("/path/to/test.fits")
+        mock_utils.reduce_flux_array.assert_called_once()
+        mock_utils.fix_header_cunit1.assert_called_once()
+
+    @patch("goats_tom.processors.spectroscopy_processor.mimetypes.guess_type")
+    @patch("goats_tom.processors.spectroscopy_processor.fits.open")
+    @patch("goats_tom.processors.spectroscopy_processor.fits_utils")
+    @patch("goats_tom.processors.spectroscopy_processor.SpectrumSerializer")
+    def test_process_fits_table(
+        self,
+        mock_serializer_cls,
+        mock_utils,
+        mock_fits_open,
+        mock_guess,
+        processor,
+        mock_dataproduct,
+    ):
+        mock_guess.return_value = ("application/fits", None)
+
+        dt = np.dtype([("wavelength", "f8"), ("flux", "f8")])
+        table = np.zeros((10,), dtype=dt)
+        table["wavelength"] = np.arange(10)
+        table["flux"] = np.ones(10)
+
+        sci = _hdu(table, {"EXTNAME": "SCI"})
+        mock_fits_open.return_value = _FakeHDUList([sci])
+
+        mock_utils.detect_facility.return_value = (
+            "TableFacility",
+            datetime(2023, 2, 1),
+            None,
+        )
+        mock_utils.get_flux_unit_from_header.return_value = u.erg / u.cm**2 / u.s / u.AA
+        mock_utils.fix_header_cunit1.return_value = u.Angstrom
+
+        serializer = MagicMock()
+        serializer.serialize.return_value = {"ok": True}
+        mock_serializer_cls.return_value = serializer
+
+        out = processor.process_data(mock_dataproduct)
+
+        assert len(out) == 1
+        assert out[0][0] == datetime(2023, 2, 1)
+        assert out[0][2] == "TableFacility:hdu=0:SCI"
+
+        mock_utils.fix_header_cunit1.assert_called_once()
+
+    @patch("goats_tom.processors.spectroscopy_processor.mimetypes.guess_type")
+    @patch("goats_tom.processors.spectroscopy_processor.fits.open")
+    @patch("goats_tom.processors.spectroscopy_processor.fits_utils")
+    def test_missing_required_columns(
+        self,
+        mock_utils,
+        mock_fits_open,
+        mock_guess,
+        processor,
+        mock_dataproduct,
+    ):
+        mock_guess.return_value = ("application/fits", None)
+
+        dt = np.dtype([("random_col", "f8")])
+        bad = np.zeros((5,), dtype=dt)
+        sci = _hdu(bad, {"EXTNAME": "SCI"})
+        mock_fits_open.return_value = _FakeHDUList([sci])
+
+        mock_utils.detect_facility.return_value = (
+            "Facility",
+            datetime(2023, 3, 1),
+            None,
+        )
+        mock_utils.get_flux_unit_from_header.return_value = None
+
+        with pytest.raises(InvalidFileFormatException, match="plottable spectrum"):
+            processor.process_data(mock_dataproduct)

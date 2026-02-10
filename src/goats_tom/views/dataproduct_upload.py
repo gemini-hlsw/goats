@@ -4,10 +4,11 @@ from django.contrib import messages
 from django.shortcuts import redirect
 from guardian.shortcuts import assign_perm
 from tom_common.hooks import run_hook
-from tom_dataproducts.data_processor import run_data_processor
 from tom_dataproducts.exceptions import InvalidFileFormatException
 from tom_dataproducts.models import DataProduct, ReducedDatum, data_product_path
 from tom_dataproducts.views import DataProductUploadView as BaseDataProductUploadView
+
+from goats_tom.processors import run_data_processor
 
 
 class DataProductUploadView(BaseDataProductUploadView):

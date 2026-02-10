@@ -172,10 +172,10 @@ const SHARED_FIELDS = [
     colSize: "col-lg-6",
   },
   {
-    labelText: "Science Band",
     path: "scienceBand",
-    colSize: "col-lg-6",
-    readOnly: "both",
+    handler: "handleScienceBand",
+    allocationsPath: "program.allocations",
+    timeChargePath: "program.timeCharge",
   },
   {
     labelText: "Observer Notes",
