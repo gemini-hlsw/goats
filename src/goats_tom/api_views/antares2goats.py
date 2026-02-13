@@ -1,7 +1,7 @@
 """View set to handle adding items from the browser extension."""
 
 __all__ = ["Antares2GoatsViewSet"]
-
+import logging
 from datetime import datetime
 
 from django.db import IntegrityError
@@ -15,6 +15,8 @@ from tom_alerts.alerts import get_service_class as tom_alerts_get_service_class
 from tom_alerts.models import BrokerQuery
 
 from goats_tom.serializers import Antares2GoatsSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
@@ -74,6 +76,9 @@ class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
             # Convert the generic alert into target format.
             target, extras, aliases = broker_class.to_target(alert)
             target.save(extras=extras, names=aliases)
+            lightcurve_data = broker_class.process_lightcurve_data(alert=alert)
+            dp = broker_class.create_lightcurve_dp(target, lightcurve_data)
+            broker_class.create_reduced_datums(dp)
 
         elif "esquery" in serializer.validated_data:
             query = serializer.validated_data["esquery"]
