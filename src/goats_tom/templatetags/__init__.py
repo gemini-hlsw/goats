@@ -1,3 +1,4 @@
+from .antares_extras import antares_url
 from .custom_filters import starts_with
 from .dataproduct_visualizer import dataproduct_visualizer
 from .gemini import render_goa_query_form, render_launch_dragons
@@ -11,4 +12,5 @@ __all__ = [
     "goats_dataproduct_list_for_observation_saved",
     "render_target_navbar",
     "dataproduct_visualizer",
+    "antares_url",
 ]
