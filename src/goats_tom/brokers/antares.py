@@ -4,12 +4,18 @@ import logging
 from typing import Any, Iterator
 
 import marshmallow
+import pandas as pd
 from astropy.time import Time, TimezoneInfo
 from crispy_forms.layout import HTML, Div, Fieldset, Layout
 from django import forms
+from django.contrib import messages
+from django.core.files.base import ContentFile
 from django.forms.widgets import Textarea
 from django.templatetags.static import static
 from tom_alerts.alerts import GenericAlert, GenericBroker, GenericQueryForm
+from tom_dataproducts.data_processor import run_data_processor
+from tom_dataproducts.exceptions import InvalidFileFormatException
+from tom_dataproducts.models import DataProduct, ReducedDatum
 from tom_targets.models import BaseTarget, Target, TargetName
 
 from goats_tom.antares_client.client import get_by_id, search
@@ -120,16 +126,16 @@ class ANTARESBrokerForm(GenericQueryForm):
 
     def clean(self):
         """Cleans the data of the "query" field and validates it.
+        GG
+                Returns
+                -------
+                dict
+                    The cleaned data of the form.
 
-        Returns
-        -------
-        dict
-            The cleaned data of the form.
-
-        Raises
-        ------
-        forms.ValidationError
-            Raised if the "query" field is empty.
+                Raises
+                ------
+                forms.ValidationError
+                    Raised if the "query" field is empty.
 
         """
         cleaned_data = super().clean()
@@ -172,7 +178,7 @@ class ANTARESBroker(GenericBroker):
             "dec": locus.dec,
             "properties": locus.properties,
             "tags": locus.tags,
-            # 'lightcurve': locus.lightcurve.to_json(),
+            "lightcurve": locus.lightcurve,
             "catalogs": locus.catalogs,
             "alerts": [
                 {
@@ -341,3 +347,71 @@ class ANTARESBroker(GenericBroker):
         add_aliases(lsst.get("ss_object_id"))
 
         return aliases
+
+    def process_lightcurve_data(self, alert=None):
+        alert_dict = alert or {}
+        lightcurve = alert_dict.get("lightcurve")
+
+        if lightcurve is None:
+            return
+
+        if not isinstance(lightcurve, pd.DataFrame):
+            try:
+                lightcurve = pd.DataFrame(lightcurve)
+            except Exception:
+                return
+
+        if lightcurve.empty:
+            return
+
+        # Drop redundant column if present
+        lightcurve = lightcurve.drop(columns=["time", "ant_survey"], errors="ignore")
+
+        # Rename relevant columns
+        lightcurve = lightcurve.rename(
+            columns={
+                "ant_mjd": "time",
+                "ant_mag": "magnitude",
+                "ant_magerr": "error",
+                "ant_maglim": "limit",
+                "ant_passband": "filter",
+            }
+        )
+        lightcurve["source"] = "ANTARES"
+        lightcurve["telescope"] = list(
+            alert_dict.get("properties").get("survey").keys()
+        )[0].upper()
+
+        return lightcurve
+
+    def create_lightcurve_dp(self, target, lightcurve):
+        csv_string = lightcurve.to_csv(index=False)
+
+        data_product = DataProduct(
+            target=target,
+            product_id=f"{target.name}_lightcurve",
+            data=ContentFile(
+                csv_string.encode("utf-8"),
+                name=f"{target.name}_lightcurve.csv",
+            ),
+            data_product_type="photometry",
+        )
+        return data_product
+
+    def create_reduced_datums(self, dp):
+        try:
+            run_data_processor(dp)
+        except InvalidFileFormatException as iffe:
+            ReducedDatum.objects.filter(data_product=dp).delete()
+            dp.delete()
+            messages.error(
+                self.request,
+                f"File format invalid for file {str(dp)} -- error was {iffe}",
+            )
+        except Exception:
+            ReducedDatum.objects.filter(data_product=dp).delete()
+            dp.delete()
+            messages.error(
+                self.request,
+                "There was a problem processing your file:{str(dp)} -- Error: {e}",
+            )
