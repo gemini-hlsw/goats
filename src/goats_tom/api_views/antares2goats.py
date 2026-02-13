@@ -1,12 +1,13 @@
 """View set to handle adding items from the browser extension."""
 
 __all__ = ["Antares2GoatsViewSet"]
-
+import logging
 from datetime import datetime
 
 from django.db import IntegrityError
 from rest_framework import mixins, status
 from rest_framework.authentication import TokenAuthentication
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -15,6 +16,8 @@ from tom_alerts.alerts import get_service_class as tom_alerts_get_service_class
 from tom_alerts.models import BrokerQuery
 
 from goats_tom.serializers import Antares2GoatsSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
@@ -74,6 +77,10 @@ class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
             # Convert the generic alert into target format.
             target, extras, aliases = broker_class.to_target(alert)
             target.save(extras=extras, names=aliases)
+            lightcurve_data = broker_class.process_lightcurve_data(alert=alert)
+            dp = broker_class.create_lightcurve_dp(target, lightcurve_data)
+            dp.save()
+            broker_class.create_reduced_datums(dp)
 
         elif "esquery" in serializer.validated_data:
             query = serializer.validated_data["esquery"]
@@ -86,3 +93,13 @@ class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
             )
             # Save the new BrokerQuery instance to the database.
             broker_query.save()
+
+    @action(detail=False, methods=["post"], url_path="refresh-lightcurve")
+    def refresh_lightcurve(self, request: Request, *args, **kwargs) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # locusid = serializer.validated_data.get("locus_id")
+        # Get the class responsible for handling ANTARES broker service.
+        # broker_class = tom_alerts_get_service_class("ANTARES")()
+        # Fetch alert based on the parsed query.
+        # alert = list(broker_class.fetch_alerts(serializer.validated_data))[0]
