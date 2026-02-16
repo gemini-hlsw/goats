@@ -102,3 +102,27 @@ def spectroscopy_for_target(context, target, dataproduct=None):
             go.Figure(data=plot_data, layout=layout), output_type="div", show_link=False
         ),
     }
+
+
+@register.inclusion_tag("tom_dataproducts/partials/recent_photometry.html")
+def goats_recent_photometry(target, limit=1):
+    """
+    Override for TOMToolkit method.
+    Displays a table of the most recent photometric points for a target.
+    """
+    photometry = ReducedDatum.objects.filter(
+        data_type="photometry", target=target
+    ).order_by("-timestamp")[:limit]
+
+    data = []
+    for reduced_datum in photometry:
+        rd_data = {"timestamp": reduced_datum.timestamp}
+        if "limit" in reduced_datum.value.keys():
+            rd_data["magnitude"] = reduced_datum.value["limit"]
+            rd_data["limit"] = True
+        else:
+            rd_data["magnitude"] = reduced_datum.value["magnitude"]
+            rd_data["limit"] = False
+        data.append(rd_data)
+    context = {"target": target, "data": data}
+    return context
