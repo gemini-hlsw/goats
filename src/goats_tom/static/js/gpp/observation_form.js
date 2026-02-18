@@ -129,6 +129,13 @@ class ObservationForm {
           data: [raw ?? null , allocations,  timeCharge]
         });
         return [div];
+      },
+      handleFinderCharts: (meta, raw) => {
+          const div =  Utils.createElement("div" , "mt-0"); 
+          new FinderChartEditor (div, {
+              data : raw ?? []
+          })
+        return [div]
       }
     };
 
