@@ -1,0 +1,1 @@
+Dynamically displayed all available finder charts in the interface.

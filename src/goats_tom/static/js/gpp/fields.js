@@ -264,7 +264,13 @@ const SHARED_FIELDS = [
    path: "timingWindows",
    handler: "handleSchedulingWindowsInputs",
   },
-
+  {
+      section : "Finder Charts"
+  },
+    {
+        path: "attachments",
+        handler: "handleFinderCharts"
+    },
   { section: "Configuration" },
   {
     labelText: "Position Angle",
