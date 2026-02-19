@@ -1,6 +1,7 @@
 """Module for DRAGONSReduce view set."""
 
 __all__ = ["DRAGONSReduceViewSet"]
+from django.db import transaction
 from django.db.models import QuerySet
 from dramatiq_abort import abort
 from rest_framework import mixins, permissions
@@ -71,9 +72,13 @@ class DRAGONSReduceViewSet(
         reduce = serializer.save()
         reduce.mark_queued()
         DRAGONSProgress.create_and_send(reduce)
-        task_id = run_dragons_reduce.send(reduce.id, file_ids)
-        reduce.task_id = task_id.message_id
-        reduce.save()
+
+        def _enqueue() -> None:
+            task = run_dragons_reduce.send(reduce.id, file_ids)
+            reduce.task_id = task.message_id
+            reduce.save()
+
+        transaction.on_commit(_enqueue)
 
     def perform_update(self, serializer: DRAGONSReduceUpdateSerializer) -> None:
         """Cancels a task.

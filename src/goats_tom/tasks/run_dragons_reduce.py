@@ -20,13 +20,12 @@ from dramatiq.middleware import TimeLimitExceeded
 from gempy.utils import logutils
 from recipe_system.reduction.coreReduce import Reduce
 
+from goats_tom.context.user_context import get_current_user_id
 from goats_tom.logging_extensions.handlers import DRAGONSHandler
 from goats_tom.models import DRAGONSFile, DRAGONSReduce
 from goats_tom.realtime import DRAGONSProgress, NotificationInstance
 
 matplotlib.use("Agg", force=True)
-
-logger = logging.getLogger(__name__)
 
 
 def _safe_literal(value: str, label: str, expected_type: type | None = None) -> Any:
@@ -79,6 +78,16 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
         Raised if the DRAGONSReduce instance does not exist.
     """
     try:
+        logger = logging.getLogger(__name__)
+        user_id = get_current_user_id()
+        logger.debug(
+            "Starting DRAGONS reduction with DRAGONSReduce id=%s and uid=%s",
+            reduce_id,
+            user_id,
+        )
+
+        reduce: DRAGONSReduce | None = None
+        module_name: str | None = None
         # Get the reduction to run in the background.
         # Generate a unique module name to avoid conflicts in sys.modules.
         unique_id = uuid.uuid4()
@@ -86,6 +95,7 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
 
         # Get the recipe instance.
         reduce = DRAGONSReduce.objects.get(id=reduce_id)
+        logger.debug("Loaded DRAGONSReduce id=%s status=%s", reduce.id, reduce.status)
 
         run = reduce.recipe.dragons_run
         recipe = reduce.recipe
