@@ -399,6 +399,7 @@ class ANTARESBroker(GenericBroker):
                 "ant_passband": "filter",
             }
         )
+        lightcurve["limit"] = lightcurve["limit"].where(lightcurve["magnitude"].isna())
 
         try:
             survey = alert_dict.get("properties", {}).get("survey", {})
