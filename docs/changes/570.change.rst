@@ -1,0 +1,1 @@
+Increased the pagination limit to 1000 items per page.
