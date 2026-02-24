@@ -201,7 +201,7 @@ def test_process_lightcurve_data_success(broker):
 
 def test_process_lightcurve_data_telescope_unknown(broker):
     alert = {
-        "lightcurve": [{"ant_mjd": 1.0, "ant_mag": 18.0}],
+        "lightcurve": [{"ant_mjd": 1.0, "ant_mag": 18.0, "ant_maglim": 19}],
         "properties": {},
     }
 
