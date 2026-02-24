@@ -33,10 +33,18 @@ class TestDRAGONSReduceViewSet(APITestCase):
         """Helper method to authenticate requests."""
         force_authenticate(request, user=self.user)
 
+    @patch("goats_tom.api_views.dragons_reduce.transaction.on_commit")
     @patch("goats_tom.api_views.dragons_reduce.run_dragons_reduce.send")
-    def test_create_reduction(self, mock_run_dragons_reduce):
+    def test_create_reduction(self, mock_run_dragons_reduce, mock_on_commit):
         """Test creating a new DRAGONS reduction."""
         mock_run_dragons_reduce.return_value.message_id = "12345"
+
+        # Make on_commit run the callback immediately.
+        def _run_now(func, using=None):
+            func()
+
+        mock_on_commit.side_effect = _run_now
+
         recipe = DRAGONSRecipeFactory()
         data = {
             "recipe_id": recipe.id,

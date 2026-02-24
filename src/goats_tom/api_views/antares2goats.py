@@ -1,6 +1,7 @@
 """View set to handle adding items from the browser extension."""
 
 __all__ = ["Antares2GoatsViewSet"]
+
 import logging
 from datetime import datetime
 
@@ -40,6 +41,7 @@ class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
         `Response`
             The HTTP response with the creation result.
         """
+        logger.debug("Received create request with data: %s", request.data)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         # Try to create target or query and handle errors.
@@ -55,6 +57,7 @@ class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
                 status=status.HTTP_409_CONFLICT,
             )
         except Exception as e:
+            logger.error("Error during creation: %s", e, exc_info=True)
             return Response({"detail": f"{e}"}, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_create(self, serializer: Antares2GoatsSerializer) -> None:
