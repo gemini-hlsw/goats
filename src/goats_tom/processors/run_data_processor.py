@@ -49,12 +49,10 @@ def run_data_processor(dp, dp_type_override=None):
                 processor_class
             )
         )
-
     data_processor = clazz()
     # data returned by process_data is a list of 3-tuples: (timestamp, datum, source)
     data = data_processor.process_data(dp)
     data_type = data_processor.data_type_override() or data_type
-
     # Add only the new (non-duplicate) ReducedDatum objects to the database
 
     # 1. For quick O(1) lookup, create a hash table of existing ReducedDatum objects
@@ -67,7 +65,6 @@ def run_data_processor(dp, dp_type_override=None):
         json.dumps(rd.value, sort_keys=True, skipkeys=True): 1
         for rd in ReducedDatum.objects.filter(target=dp.target)
     }
-
     # 2. Create the list of new ReducedDatum objects (ready for bulk_create)
     new_reduced_datums = []
     skipped_data = []

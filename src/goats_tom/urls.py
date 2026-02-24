@@ -123,4 +123,9 @@ urlpatterns = [
     ),
     path("targets/<int:pk>/", views.TargetDetailView.as_view(), name="detail"),
     path("tns/", include(tom_tns_urls)),
+    path(
+        "targets/<int:target_id>/refresh-antares/",
+        views.RefreshAntaresPhotometryView.as_view(),
+        name="refresh_antares_photometry",
+    ),
 ]

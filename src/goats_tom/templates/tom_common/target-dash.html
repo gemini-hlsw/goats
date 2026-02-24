@@ -1,5 +1,5 @@
 {% extends 'tom_common/base.html' %}
-{% load comments bootstrap4 tom_common_extras targets_extras observation_extras dataproduct_extras static cache gemini %}
+{% load comments bootstrap4 tom_common_extras targets_extras observation_extras dataproduct_extras static cache gemini tom_overrides %}
 {% block additional_css %}
 <link rel="stylesheet" href="{% static 'tom_common/css/main.css' %}">
 <link rel="stylesheet" href="{% static 'tom_targets/css/main.css' %}">
@@ -17,7 +17,7 @@
         {% target_data target %}
         <div class="row">
           <div class="col">
-            {% recent_photometry target limit=3 %}
+            {% goats_recent_photometry target limit=3 %}
           </div>
         </div>
         {% if target.type == 'SIDEREAL' %}

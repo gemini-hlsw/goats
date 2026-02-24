@@ -4,12 +4,18 @@ import logging
 from typing import Any, Iterator
 
 import marshmallow
+import pandas as pd
 from astropy.time import Time, TimezoneInfo
 from crispy_forms.layout import HTML, Div, Fieldset, Layout
 from django import forms
+from django.core.files.base import ContentFile
+from django.db import IntegrityError, transaction
 from django.forms.widgets import Textarea
 from django.templatetags.static import static
 from tom_alerts.alerts import GenericAlert, GenericBroker, GenericQueryForm
+from tom_dataproducts.data_processor import run_data_processor
+from tom_dataproducts.exceptions import InvalidFileFormatException
+from tom_dataproducts.models import DataProduct, ReducedDatum
 from tom_targets.models import BaseTarget, Target, TargetName
 
 from goats_tom.antares_client.client import get_by_id, search
@@ -119,16 +125,16 @@ class ANTARESBrokerForm(GenericQueryForm):
 
     def clean(self):
         """Cleans the data of the "query" field and validates it.
+        GG
+                Returns
+                -------
+                dict
+                    The cleaned data of the form.
 
-        Returns
-        -------
-        dict
-            The cleaned data of the form.
-
-        Raises
-        ------
-        forms.ValidationError
-            Raised if the "query" field is empty.
+                Raises
+                ------
+                forms.ValidationError
+                    Raised if the "query" field is empty.
 
         """
         cleaned_data = super().clean()
@@ -171,7 +177,7 @@ class ANTARESBroker(GenericBroker):
             "dec": locus.dec,
             "properties": locus.properties,
             "tags": locus.tags,
-            # 'lightcurve': locus.lightcurve.to_json(),
+            "lightcurve": locus.lightcurve,
             "catalogs": locus.catalogs,
             "alerts": [
                 {
@@ -340,3 +346,143 @@ class ANTARESBroker(GenericBroker):
         add_aliases(lsst.get("ss_object_id"))
 
         return aliases
+
+    def process_lightcurve_data(self, alert=None):
+        """
+        Normalize and transform ANTARES lightcurve data into a standardized DataFrame.
+
+        Parameters
+        ----------
+        alert : dict, optional
+            Alert payload returned by the ANTARES broker. Expected to contain
+            a "lightcurve" key and optionally "properties.survey".
+
+        Returns
+        -------
+        pandas.DataFrame or None
+            Processed lightcurve DataFrame with standardized columns:
+            - time
+            - magnitude
+            - error
+            - limit
+            - filter
+            - telescope
+            - source
+
+            Returns None if the lightcurve is missing, invalid, or empty.
+        """
+        alert_dict = alert or {}
+        lightcurve = alert_dict.get("lightcurve")
+
+        if lightcurve is None:
+            return
+
+        if not isinstance(lightcurve, pd.DataFrame):
+            try:
+                lightcurve = pd.DataFrame(lightcurve)
+            except Exception:
+                logger.exception("ANTARES: failed to convert lightcurve to DataFrame")
+                return
+
+        if lightcurve.empty:
+            return
+
+        lightcurve = lightcurve.drop(columns=["time", "ant_survey"], errors="ignore")
+
+        lightcurve = lightcurve.rename(
+            columns={
+                "ant_mjd": "time",
+                "ant_mag": "magnitude",
+                "ant_magerr": "error",
+                "ant_maglim": "limit",
+                "ant_passband": "filter",
+            }
+        )
+
+        try:
+            survey = alert_dict.get("properties", {}).get("survey", {})
+            telescope = list(survey.keys())[0].upper()
+            lightcurve["telescope"] = telescope
+        except Exception:
+            logger.exception("ANTARES: failed to extract telescope")
+            lightcurve["telescope"] = "UNKNOWN"
+
+        lightcurve["source"] = "ANTARES"
+
+        return lightcurve
+
+    def create_lightcurve_dp(self, target, lightcurve):
+        """
+        Create or update a photometry DataProduct for a target.
+
+        This method ensures idempotent behavior:
+        - If a DataProduct with the same product_id exists, it updates the file.
+        - Otherwise, it creates a new DataProduct.
+
+        Parameters
+        ----------
+        target : tom_targets.models.Target
+            Target associated with the lightcurve.
+        lightcurve : pandas.DataFrame
+            Processed lightcurve data.
+
+        Returns
+        -------
+        tom_dataproducts.models.DataProduct
+            The created or updated DataProduct instance.
+        """
+        csv_string = lightcurve.to_csv(index=False)
+
+        product_id = f"{target.name}_lightcurve"
+        file_name = f"{target.name}_lightcurve.csv"
+        data = ContentFile(csv_string.encode("utf-8"), name=file_name)
+
+        try:
+            with transaction.atomic():
+                dp, created = DataProduct.objects.get_or_create(
+                    product_id=product_id,
+                    defaults={
+                        "target": target,
+                        "data_product_type": "photometry",
+                    },
+                )
+        except IntegrityError:
+            dp = DataProduct.objects.get(product_id=product_id)
+
+        dp.data.save(file_name, data, save=True)
+        return dp
+
+    def create_reduced_datums(self, dp):
+        """
+        Generate ReducedDatum entries from a photometry DataProduct.
+
+        This method runs the TOM data processor on the provided DataProduct.
+        If processing fails, it removes any partially created ReducedDatum
+        entries and deletes the DataProduct to maintain database consistency.
+
+        Parameters
+        ----------
+        dp : tom_dataproducts.models.DataProduct
+            DataProduct containing the photometry file.
+
+        Raises
+        ------
+        InvalidFileFormatException
+            If the file format is invalid for processing.
+        Exception
+            For any unexpected processing error.
+        """
+        try:
+            run_data_processor(dp)
+
+        except InvalidFileFormatException:
+            logger.exception("ANTARES: invalid file format dp_id=%s", dp.id)
+            ReducedDatum.objects.filter(data_product=dp).delete()
+            dp.delete()
+            raise
+
+        except Exception:
+            logger.exception("ANTARES: unexpected error processing dp_id=%s", dp.id)
+            ReducedDatum.objects.filter(data_product=dp).delete()
+            dp.delete()
+            raise

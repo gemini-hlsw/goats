@@ -164,8 +164,10 @@
   };
 
   // Helper function to fetch reduced data.
-  const fetchReducedData = async (dataproductId, dataType) => {
-    const url = `/api/reduceddatums/?data_product=${dataproductId}&data_type=${dataType}`;
+const fetchReducedData = async (dataproductId, dataType) => {
+  let url = `/api/reduceddatums/?data_product=${dataproductId}&data_type=${dataType}`;
+  let data = null; 
+  while (url) {
     const response = await fetch(url, {
       method: "GET",
       headers: {
@@ -177,9 +179,20 @@
     if (!response.ok) {
       throw new Error(`Fetch failed with status: ${response.status}`);
     }
-    const data = await response.json();
-    return data;
-  };
+    const responseData = await response.json();
+
+    if (!data) {
+      data = {
+        ...responseData,
+        results: [...responseData.results],
+      };
+    } else {
+      data.results.push(...responseData.results);
+    }
+    url = responseData.next;
+  }
+  return data;
+};
 
   // Helper function to run the processor.
   const runProcessor = async (dataproductId, dataType) => {
