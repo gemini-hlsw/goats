@@ -1,0 +1,1 @@
+Fixed conditional logic to display the limit only when magnitude is not present.
