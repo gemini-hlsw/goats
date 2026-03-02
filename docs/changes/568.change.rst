@@ -1,0 +1,1 @@
+Renamed the “Refresh” button to “Update” and adjusted its visibility based on the ANTARES source.

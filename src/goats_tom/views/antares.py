@@ -1,6 +1,7 @@
 __all__ = ["RefreshAntaresPhotometryView"]
 import logging
 
+from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -65,5 +66,5 @@ class RefreshAntaresPhotometryView(View):
             logger.exception(
                 "ANTARES refresh: failed target_id=%s locusid=%s", target_id, locusid
             )
-
+        messages.success(request, "Photometry updated successfully.")
         return redirect(request.META.get("HTTP_REFERER", "/"))

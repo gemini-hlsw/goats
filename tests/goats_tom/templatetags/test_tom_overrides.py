@@ -27,7 +27,7 @@ def target(db):
     Create a reusable SIDEREAL target for tests.
     """
     return Target.objects.create(
-        name="TEST_TARGET",
+        name="ANTTEST_TARGET",
         type="SIDEREAL",
         ra=10.0,
         dec=-10.0,
@@ -334,4 +334,4 @@ def test_goats_recent_photometry_renders_template(target):
     html = template.render(Context({"target": target}))
 
     assert "Recent Photometry" in html
-    assert "Refresh" in html
+    assert "Update" in html

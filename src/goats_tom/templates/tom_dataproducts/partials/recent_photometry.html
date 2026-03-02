@@ -1,41 +1,68 @@
 {% load tom_common_extras %}
 
 <div class="card">
-    <div class="card-header px-2 d-flex justify-content-between align-items-center">
-        <h4 class="mb-0">Recent Photometry</h4>
+  <div
+    class="card-header px-2 d-flex justify-content-between align-items-center"
+  >
+    <h4 class="mb-0">Recent Photometry</h4>
 
-        <form method="post"
-              action="{% url 'refresh_antares_photometry' target.id %}"
-              class="mb-0">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-sm btn-primary">
-                Refresh
-            </button>
-        </form>
-    </div>
+    {% if target.name|upper|slice:":3" == "ANT" %}
+    <form
+      method="post"
+      action="{% url 'refresh_antares_photometry' target.id %}"
+      class="mb-0 js-refresh-form"
+    >
+      {% csrf_token %}
 
-    <table class="table mb-0">
-        <thead>
-            <tr>
-                <th>Timestamp</th>
-                <th>Magnitude</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for datum in data %}
-        <tr>
-            <td>{{ datum.timestamp }}</td>
-            <td>
-                {% if datum.limit %}&gt;{% endif %}
-                {{ datum.magnitude|truncate_value_for_display:8 }}
-            </td>
-        </tr>
-        {% empty %}
-        <tr>
-            <td colspan="2">No recent photometry.</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+      <button type="submit" class="btn btn-sm btn-primary js-refresh-btn">
+        <span
+          class="spinner-border spinner-border-sm me-2 d-none js-btn-spinner"
+          role="status"
+          aria-hidden="true"
+        ></span>
+        <span class="js-btn-label">Update</span>
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  <table class="table mb-0">
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Magnitude</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for datum in data %}
+      <tr>
+        <td>{{ datum.timestamp }}</td>
+        <td>
+          {% if datum.limit %}&gt;{% endif %} 
+          {{datum.magnitude|truncate_value_for_display:8 }}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="2">No recent photometry.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const form = document.querySelector(".js-refresh-form");
+    if (!form) return;
 
+    form.addEventListener("submit", () => {
+      const btn = form.querySelector(".js-refresh-btn");
+      const spinner = form.querySelector(".js-btn-spinner");
+      const label = form.querySelector(".js-btn-label");
+
+      if (btn) btn.disabled = true;
+      if (label) label.textContent = "Updating...";
+      if (spinner) spinner.classList.remove("d-none");
+    });
+  });
+</script>
