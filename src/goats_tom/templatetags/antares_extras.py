@@ -3,6 +3,8 @@ from urllib.parse import quote
 
 from django import template
 
+from goats_tom.antares_client.config import ANTARESConfig
+
 register = template.Library()
 
 
@@ -14,7 +16,7 @@ def antares_url(name: str | None, ra_hms: str | None, dec_dms: str | None) -> st
     - If name contains 'ANT' → direct object page
     - Else → cone search (1 arcsec) using HMS/DMS strings
     """
-    base = "https://antares.noirlab.edu/loci"
+    base = f"{ANTARESConfig.get_url()}/loci"
 
     if name and "ANT" in name:
         return f"{base}/{quote(name)}"
