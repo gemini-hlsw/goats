@@ -1,17 +1,16 @@
 """Test module for a DRAGONS run."""
 
+from unittest.mock import patch
+
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 from tom_observations.tests.factories import ObservingRecordFactory
 from tom_targets.tests.factories import SiderealTargetFactory
-from unittest.mock import MagicMock, patch
 
 from goats_tom.api_views import DRAGONSRunsViewSet
-from goats_tom.models import DRAGONSRun, DRAGONSRecipe, DRAGONSFile
-from goats_tom.tests.factories import DRAGONSRunFactory, UserFactory, DataProductFactory
-from unittest.mock import patch, MagicMock
-from goats_tom.models import DRAGONSRun, DRAGONSFile, DRAGONSRecipe
+from goats_tom.models import DRAGONSRun
+from goats_tom.tests.factories import DataProductFactory, DRAGONSRunFactory, UserFactory
 
 
 class TestDRAGONSRunViewSet(APITestCase):
@@ -76,7 +75,8 @@ class TestDRAGONSRunViewSet(APITestCase):
         DRAGONSRunFactory.create_batch(3)
 
         request = self.factory.get(
-            reverse("dragonsruns-list"), {"observation_record": observation_record.pk},
+            reverse("dragonsruns-list"),
+            {"observation_record": observation_record.pk},
         )
         self.authenticate(request)
 
@@ -111,6 +111,7 @@ class TestDRAGONSRunViewSet(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    @patch.object(DRAGONSRun._meta.get_field("version"), "default", lambda: "0.0.0")
     @patch("goats_tom.api_views.dragons_runs.DRAGONSRunsViewSet._initialize")
     def test_perform_create_success(self, mock_initialize):
         """Test successful creation of a DRAGONS run."""
@@ -136,6 +137,7 @@ class TestDRAGONSRunViewSet(APITestCase):
         self.assertEqual(DRAGONSRun.objects.get().run_id, "test-run")
         mock_initialize.assert_called_once()
 
+    @patch.object(DRAGONSRun._meta.get_field("version"), "default", lambda: "0.0.0")
     @patch("goats_tom.api_views.dragons_runs.DRAGONSRunsViewSet._initialize")
     def test_perform_create_failure(self, mock_initialize):
         """Test failure during creation of a DRAGONS run."""
@@ -172,5 +174,6 @@ class TestDRAGONSRunViewSet(APITestCase):
             viewset._initialize(dragons_run)
 
         self.assertEqual(
-            str(context.exception), "No files in this observation are compatible with DRAGONS."
+            str(context.exception),
+            "No files in this observation are compatible with DRAGONS.",
         )

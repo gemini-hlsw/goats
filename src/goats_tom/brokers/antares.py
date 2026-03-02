@@ -19,10 +19,9 @@ from tom_dataproducts.models import DataProduct, ReducedDatum
 from tom_targets.models import BaseTarget, Target, TargetName
 
 from goats_tom.antares_client.client import get_by_id, search
+from goats_tom.antares_client.config import ANTARESConfig
 
 logger = logging.getLogger(__name__)
-
-ANTARES_BASE_URL = "https://antares.noirlab.edu"
 
 
 class ANTARESBrokerForm(GenericQueryForm):
@@ -81,11 +80,11 @@ class ANTARESBrokerForm(GenericQueryForm):
                     HTML(
                         f"""
                         <p>
-                        Click <a href="{ANTARES_BASE_URL}" target="_blank">this link</a> or the image below to open ANTARES in a new tab.
+                        Click <a href="{ANTARESConfig.get_url()}" target="_blank">this link</a> or the image below to open ANTARES in a new tab.
                         </p>
                         <div class="ratio ratio-21x9 position-relative">
-                        <iframe src="{ANTARES_BASE_URL}" scrolling="no" style="pointer-events: none;"></iframe>
-                        <a href="{ANTARES_BASE_URL}" target="_blank" class="stretched-link"></a>
+                        <iframe src="{ANTARESConfig.get_url()}" scrolling="no" style="pointer-events: none;"></iframe>
+                        <a href="{ANTARESConfig.get_url()}" target="_blank" class="stretched-link"></a>
                         </div>
                     """,
                     ),
@@ -245,10 +244,8 @@ class ANTARESBroker(GenericBroker):
             A tuple containing the created `BaseTarget`, an empty dictionary, and a list of aliases.
         """
         name = alert["locus_id"]
-        logger.debug("Converting alert to target with locus_id: %s", name)
         target = Target.objects.create(
             name=name,
-            # TODO: Verify that the type is correct for all ingested alerts.
             type="SIDEREAL",
             ra=alert["ra"],
             dec=alert["dec"],
@@ -270,8 +267,10 @@ class ANTARESBroker(GenericBroker):
         GenericAlert
             The corresponding GenericAlert object.
         """
+        # FIXME: Currently only recording the name as the locus ID.
+        # name = alert["properties"]["ztf_object_id"]
         name = alert["locus_id"]
-        url = f"{ANTARES_BASE_URL}/loci/{alert['locus_id']}"
+        url = f"{ANTARESConfig.get_url()}/loci/{name}"
         timestamp = Time(
             alert["properties"].get("newest_alert_observation_time"),
             format="mjd",
