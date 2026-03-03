@@ -1,2 +1,0 @@
-Created initial scaffolding for the FinderChartEditor class.
-

@@ -1,1 +1,0 @@
-Added a broker link to the target detail page.

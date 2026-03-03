@@ -3,6 +3,34 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.3.0 (2026-03-03)
+===========================
+
+New Features
+------------
+
+- When adding a target from the browser extension, the locus ID is now used as the target name, and the additional survey names are added as aliases. (`PR #556 <https://github.com/gemini-hlsw/goats/pull/556>`_)
+- Added support for overplotting all extracted spectra from a single FITS file in the same plot. (`PR #560 <https://github.com/gemini-hlsw/goats/pull/560>`_)
+- Added a broker link to the target detail page. (`PR #561 <https://github.com/gemini-hlsw/goats/pull/561>`_)
+- Pulled target photometry from ANTARES when creating a target using the antares2goats extension. (`PR #563 <https://github.com/gemini-hlsw/goats/pull/563>`_)
+- Created initial scaffolding for the FinderChartEditor class. (`PR #564 <https://github.com/gemini-hlsw/goats/pull/564>`_)
+- Dynamically displayed all available finder charts in the interface. (`PR #565 <https://github.com/gemini-hlsw/goats/pull/565>`_)
+
+
+Changes
+-------
+
+- Renamed the “Refresh” button to “Update” and adjusted its visibility based on the ANTARES source. (`PR #568 <https://github.com/gemini-hlsw/goats/pull/568>`_)
+- Increased the pagination limit to 50000 items per page. (`PR #570 <https://github.com/gemini-hlsw/goats/pull/570>`_)
+- Updated ANTARES URL handling in the photometry workflow. (`PR #571 <https://github.com/gemini-hlsw/goats/pull/571>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed conditional logic to display the limit only when magnitude is not present. (`PR #567 <https://github.com/gemini-hlsw/goats/pull/567>`_)
+
+
 Version 26.2.0 (2026-02-03)
 ===========================
 

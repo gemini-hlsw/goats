@@ -1,1 +1,0 @@
-Pulled target photometry from ANTARES when creating a target using the antares2goats extension.
