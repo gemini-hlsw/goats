@@ -9,7 +9,12 @@ from .dragons_processed_files import DRAGONSProcessedFilesViewSet
 from .dragons_recipes import DRAGONSRecipesViewSet
 from .dragons_reduce import DRAGONSReduceViewSet
 from .dragons_runs import DRAGONSRunsViewSet
-from .gpp import GPPObservationViewSet, GPPProgramViewSet, GPPViewSet
+from .gpp import (
+    GPPFinderChartViewSet,
+    GPPObservationViewSet,
+    GPPProgramViewSet,
+    GPPViewSet,
+)
 from .recipes_module import RecipesModuleViewSet
 from .reduceddatum import ReducedDatumViewSet
 from .run_processor import RunProcessorViewSet
@@ -34,6 +39,7 @@ __all__ = [
     "AstroDatalabViewSet",
     "GPPProgramViewSet",
     "GPPObservationViewSet",
+    "GPPFinderChartViewSet",
     "TargetViewSet",
     "StatusViewSet",
 ]

@@ -12,6 +12,11 @@ router.register(
     r"gpp/observations", api_views.GPPObservationViewSet, basename="gppobservations"
 )
 router.register(
+    r"gpp/observations/finder-charts",
+    api_views.GPPFinderChartViewSet,
+    basename="gppfindercharts",
+)
+router.register(
     r"reduceddatums", api_views.ReducedDatumViewSet, basename="reduceddatums"
 )
 router.register(r"dragonsruns", api_views.DRAGONSRunsViewSet, basename="dragonsruns")

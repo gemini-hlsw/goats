@@ -7,6 +7,7 @@ class ObservationForm {
   #handlers;
   #readOnly;
   #mode;
+  #callbacks;
   #schedulingWindowsEditor;
 
   /**
@@ -19,12 +20,13 @@ class ObservationForm {
    */
   constructor(
     parentElement,
-    { observation = null, mode = "normal", readOnly = false } = {}
+    { observation = null, mode = "normal", readOnly = false, callbacks = {} } = {}
   ) {
     this.#container = parentElement;
     this.#form = null;
     this.#readOnly = readOnly;
     this.#mode = mode;
+    this.#callbacks = callbacks ?? {};
 
     // Register special handlers like brightness, sourceProfile etc.
     this.#handlers = {
@@ -133,7 +135,8 @@ class ObservationForm {
       handleFinderCharts: (meta, raw) => {
           const div =  Utils.createElement("div" , "mt-0"); 
           new FinderChartEditor (div, {
-              data : raw ?? []
+              data : raw ?? [],
+              callbacks : this.#callbacks,
           })
         return [div]
       }
