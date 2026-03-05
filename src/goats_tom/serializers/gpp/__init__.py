@@ -1,6 +1,7 @@
 from .constraint_set import ConstraintSetSerializer
 from .context import ContextSerializer
 from .elevation_range import ElevationRangeSerializer
+from .finder_chart import FinderChartUploadSerializer
 from .observation import ObservationSerializer
 from .observing_mode import ObservingModeSerializer
 from .pos_angle import PosAngleSerializer
@@ -24,4 +25,5 @@ __all__ = [
     "ObservationSerializer",
     "SchedulingWindowsSerializer",
     "ScienceBandSerializer",
+    "FinderChartUploadSerializer",
 ]

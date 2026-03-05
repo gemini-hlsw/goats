@@ -1,0 +1,1 @@
+Added support for uploading, downloading, previewing, and staging finder charts, including integration with the GPP client payload.
