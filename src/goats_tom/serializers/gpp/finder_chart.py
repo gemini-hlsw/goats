@@ -28,7 +28,7 @@ class FinderChartUploadSerializer(serializers.Serializer):
     Attributes
     ----------
     MAX_BYTES : int
-        Maximum allowed file size in bytes (default: 5 MB).
+        Maximum allowed file size in bytes (default: 10 MB).
 
     ALLOWED_EXT : set of str
         Allowed file extensions for finder chart uploads.
@@ -45,7 +45,7 @@ class FinderChartUploadSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True, default="")
     file = serializers.FileField()
 
-    MAX_BYTES = 5 * 1024 * 1024
+    MAX_BYTES = 10 * 1024 * 1024
     ALLOWED_EXT = {"png", "jpg", "jpeg"}
 
     def validate_file(self, f):
