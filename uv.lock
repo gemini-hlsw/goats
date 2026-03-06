@@ -1372,7 +1372,7 @@ requires-dist = [
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
     { name = "gpp-client", specifier = "==26.1.0.dev4" },
-    { name = "marshmallow", specifier = ">=3.26.1,<4" },
+    { name = "marshmallow", specifier = ">=3.26.2,<4" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
     { name = "tom-tns", specifier = ">=0.3.4" },
