@@ -53,12 +53,13 @@ class ScienceBandEditor {
    * Compute remaining hours for a given band entry.
    *
    * @param {Object} band
-   * @param {number} programTime
+   * @param {Array} timeCharge
    * @returns {number}
    */
-  #remainingFor(band, programTime) {
-    const duration = Number(band?.duration?.hours ?? band?.duration ?? 0);
-    return Math.max(0, duration - programTime);
+  #remainingFor(band, timeCharge) {
+    const timeChargeBand = timeCharge?.find(tc => tc.band === band.scienceBand)?.time?.program?.hours ?? 0;
+    const duration = Number(band?.duration?.hours ?? 0);
+    return Math.max(0, duration - timeChargeBand);
   }
 
   /**
@@ -81,8 +82,6 @@ class ScienceBandEditor {
       this.#parentElement.appendChild(disabled);
       return;
     }
-
-    const programTime = Number(this.#timeCharge?.band?.time?.program ?? 0);
 
     // Wrapper
     const wrapper = Utils.createElement("div");
@@ -149,7 +148,7 @@ class ScienceBandEditor {
       const right = Utils.createElement("span");
       right.classList.add("text-muted");
       right.style.fontWeight = "500";
-      right.textContent = `${this.#remainingFor(band, programTime)} hr remaining`;
+      right.textContent = `${this.#remainingFor(band, this.#timeCharge)} hr remaining`;
 
       item.appendChild(left);
       item.appendChild(right);
