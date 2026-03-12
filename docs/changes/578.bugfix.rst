@@ -1,0 +1,1 @@
+Fixed a TNS discovery report submission issue caused by a missing configuration.
