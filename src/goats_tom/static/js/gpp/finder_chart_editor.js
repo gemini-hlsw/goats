@@ -1,6 +1,3 @@
-/**
- * FinderChartEditor
- */
 class FinderChartEditor {
   /** @type {HTMLElement} */
   #container;
@@ -8,11 +5,8 @@ class FinderChartEditor {
   /** @type {HTMLElement} */
   #tableBox;
 
-  /** @type {HTMLTableSectionElement} */
-  #tbody;
-
-  /** @type {Array<Object>} */
-  #finderCharts;
+  /** @type {HTMLTableSectionElement|null} */
+  #tbody = null;
 
   /** @type {string} */
   #idPrefix;
@@ -21,31 +15,58 @@ class FinderChartEditor {
   #addButton;
 
   /** @type {HTMLElement|null} */
-  #uploadForm = null;
+  #addForm = null;
 
-  /** @type {{ onFinderChartUpload?: Function, onFinderChartCancel?: Function }} */
+  /**
+   * Base items loaded from backend.
+   * @type {Array<Object>}
+   */
+  #baseItems = [];
+
+  /**
+   * Locally staged new items.
+   * @type {Array<Object>}
+   */
+  #stagedAdds = [];
+
+  /**
+   * Backend item ids staged for delete.
+   * @type {Set<string>}
+   */
+  #stagedDeletes = new Set();
+
+  /**
+   * @type {{
+   *   onFinderChartDownload?: Function,
+   *   onChange?: Function
+   * }}
+   */
   #callbacks;
 
   /**
-   * Map key is the current row id (temp id initially; may later be replaced).
-   * Value: { controller, taskId }
-   * @type {Map<string, { controller: AbortController, taskId: string | null }>}
+   * Create a new finder chart editor.
+   *
+   * @param {HTMLElement} parentElement
+   *   Container element where the editor will be rendered.
+   * @param {Object} [options={}]
+   *   Editor configuration options.
+   * @param {Array<Object>} [options.data=[]]
+   *   Initial finder chart data loaded from the backend.
+   * @param {string} [options.idPrefix="finder-charts"]
+   *   Prefix used for generated element ids.
+   * @param {Object} [options.callbacks={}]
+   *   Optional editor callbacks.
    */
-  #pendingUploads = new Map();
-
-  #previewCache = new Map()
   constructor(
     parentElement,
     { data = [], idPrefix = "finder-charts", callbacks = {} } = {},
   ) {
     if (!(parentElement instanceof HTMLElement)) {
-      throw new Error(
-        "FinderChartEditor expects an HTMLElement as the parent.",
-      );
+      throw new Error("FinderChartEditor expects an HTMLElement.");
     }
 
     this.#callbacks = callbacks ?? {};
-    this.#finderCharts = Array.isArray(data) ? [...data] : [];
+    this.#baseItems = Array.isArray(data) ? [...data] : [];
     this.#idPrefix = idPrefix;
 
     this.#container = Utils.createElement("div", [
@@ -56,56 +77,121 @@ class FinderChartEditor {
     parentElement.appendChild(this.#container);
 
     this.#tableBox = Utils.createElement("div", ["table-responsive"]);
-    this.#container.appendChild(this.#tableBox);
 
     this.#addButton = Utils.createElement("button", [
       "btn",
       "btn-outline-primary",
-      "align-self-start",
     ]);
     this.#addButton.type = "button";
     this.#addButton.id = `${this.#idPrefix}-add`;
     this.#addButton.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
-    this.#addButton.addEventListener("click", () => this.#toggleUploadForm());
+    this.#addButton.addEventListener("click", () => this.#toggleAddForm());
 
     this.render();
   }
 
+  /**
+   * Replace backend data and clear local staging state.
+   *
+   * @param {Array<Object>} data
+   *   New backend items.
+   * @returns {void}
+   */
   setData(data) {
-    this.#finderCharts = Array.isArray(data) ? [...data] : [];
+    this.#cleanupPreviewUrls();
+
+    this.#baseItems = Array.isArray(data) ? [...data] : [];
+    this.#stagedAdds = [];
+    this.#stagedDeletes.clear();
+    this.#addForm = null;
+
     this.render();
   }
 
-  render() {
-    this.#tableBox.innerHTML = "";
-    this.#container.querySelector(".fc-empty-state")?.remove();
-    this.#container.querySelector(".fc-separator")?.remove();
+  /**
+   * Return staged new items.
+   *
+   * @returns {Array<Object>}
+   *   Items pending upload.
+   */
+    #getItemsToAdd() {
+    return [...this.#stagedAdds];
+  }
 
-    if (!this.#finderCharts.length) {
-      const empty = Utils.createElement("div", [
-        "text-muted",
-        "fc-empty-state",
-      ]);
+  /**
+   * Return ids of backend items staged for deletion.
+   *
+   * @returns {Array<string>}
+   *   Item ids staged for delete.
+   */
+    #getItemsToDelete() {
+    return [...this.#stagedDeletes];
+  }
+
+  /**
+   * Return the full editor state.
+   *
+   * @returns {{
+   *   toAdd: Array<Object>,
+   *   toDelete: Array<string>
+   * }}
+   *   Full state snapshot.
+   */
+  getPendingChanges() {
+    console.log(this.#getItemsToAdd())
+    return {
+      toAdd: this.#getItemsToAdd(),
+      toDelete: this.#getItemsToDelete(),
+    };
+  }
+
+  /**
+   * Render the full editor UI.
+   *
+   * @returns {void}
+   */
+  render() {
+    this.#container.innerHTML = "";
+
+    const items = this.#getVisibleItems();
+
+    if (!items.length) {
+      const empty = Utils.createElement("div", ["text-muted"]);
       empty.textContent = "No finder charts available.";
       this.#container.appendChild(empty);
     } else {
       const table = this.#buildTable();
+      this.#tableBox.innerHTML = "";
       this.#tableBox.appendChild(table);
-      for (const item of this.#finderCharts) {
+
+      for (const item of items) {
         this.#tbody.appendChild(this.#row(item));
       }
+
+      this.#container.appendChild(this.#tableBox);
     }
 
-    this.#container.appendChild(
-      Utils.createElement("hr", ["my-1", "fc-separator"]),
-    );
-    if (this.#uploadForm) {
-        this.#container.appendChild(this.#uploadForm);
-      }
-      
-    this.#container.appendChild(this.#addButton);
+    this.#container.appendChild(Utils.createElement("hr", ["my-1"]));
+
+    if (this.#addForm) {
+      this.#container.appendChild(this.#addForm);
+    } else {
+      const controls = Utils.createElement("div", [
+        "d-flex",
+        "gap-2",
+        "flex-wrap",
+      ]);
+      controls.appendChild(this.#addButton);
+      this.#container.appendChild(controls);
+    }
   }
 
+  /**
+   * Build the finder chart table shell.
+   *
+   * @returns {HTMLTableElement}
+   *   Table element with initialized tbody.
+   */
   #buildTable() {
     const table = Utils.createElement("table", [
       "table",
@@ -114,203 +200,331 @@ class FinderChartEditor {
       "mb-0",
       "fs-6",
     ]);
+
     this.#tbody = document.createElement("tbody");
     table.appendChild(this.#tbody);
+
     return table;
   }
 
-  #formatDate(value) {
-    if (!value) return "-";
-    const s = String(value);
-    const isoLike = s.includes(" ") ? s.replace(" ", "T") : s;
-    const d = new Date(isoLike);
-    if (Number.isNaN(d.getTime())) return s;
-    return d.toLocaleString();
+  /**
+   * Build the visible list used for rendering.
+   *
+   * @returns {Array<Object>}
+   *   Combined list of saved and staged items.
+   */
+  #getVisibleItems() {
+    const base = this.#baseItems.map((item) => ({
+      ...item,
+      rowState: this.#stagedDeletes.has(String(item.id))
+        ? "staged-delete"
+        : "saved",
+    }));
+
+    const adds = this.#stagedAdds.map((item) => ({
+      ...item,
+      id: item.tempId,
+      rowState: "staged-add",
+    }));
+
+    return [...base, ...adds];
   }
 
+  /**
+   * Build a single table row for a finder chart item.
+   *
+   * @param {Object} item
+   *   Renderable finder chart item.
+   * @returns {HTMLTableRowElement}
+   *   Table row element.
+   */
   #row(item) {
-    const id = String(item.id ?? "");
-    const tr = document.createElement("tr");
-    tr.id = `${this.#idPrefix}-row-${id}`;
-    tr.dataset.attachmentId = id;
-
-    tr.appendChild(this.#cellFilename(item.fileName ?? "-"));
-    tr.appendChild(this.#cellType(item.attachmentType ?? "-"));
-    tr.appendChild(this.#cellText(item.description ?? "-"));
-    tr.appendChild(this.#cellText(this.#formatDate(item.updatedAt)));
-    tr.appendChild(this.#cellActions(item));
-
-    return tr;
-  }
-
-  #cellFilename(filename) {
+     const tr = document.createElement("tr");
+   
+     let updatedContent;
+   
+     if (item.rowState === "staged-add") {
+       tr.classList.add("table-secondary");
+       updatedContent = this.#createBadge(" Upload pending", "success" , "fa-clock");
+     } else if (item.rowState === "staged-delete") {
+       tr.classList.add("table-secondary");
+       updatedContent = this.#createBadge(" Marked for removal", "danger", "fa-trash");
+     } else {
+       updatedContent = this.#formatDate(item.updatedAt);
+     }
+   
+     tr.appendChild(this.#cellFilename(item.fileName ?? "-", item.rowState));
+     tr.appendChild(this.#cellContent(item.description ?? "-"));
+     tr.appendChild(this.#cellContent(updatedContent));
+     tr.appendChild(this.#cellActions(item));
+   
+     return tr;
+   }
+  /**
+   * Build the filename cell with an icon representing the row state.
+   *
+   * @param {string} name
+   *   File name to display.
+   * @param {string} [state="saved"]
+   *   Row state.
+   * @returns {HTMLTableCellElement}
+   *   Filename cell.
+   */
+  #cellFilename(name, state = "saved") {
     const td = document.createElement("td");
+
     const wrap = Utils.createElement("div", [
       "d-flex",
-      "align-items-center",
       "gap-2",
+      "align-items-center",
     ]);
+
+    let iconClass = "fa-file";
+    let colorClass = "text-muted";
+
+    if (state === "staged-add") {
+      iconClass = "fa-file-circle-plus";
+    }
+
+    if (state === "staged-delete") {
+      iconClass = "fa-file-circle-minus";
+    }
+
     wrap.appendChild(
-      Utils.createElement("i", ["fa-solid", "fa-file", "text-muted"]),
+      Utils.createElement("i", [
+        "fa-solid",
+        iconClass,
+        colorClass,
+      ]),
     );
-    const name = Utils.createElement("span", ["fw-semibold"]);
-    name.textContent = filename;
-    wrap.appendChild(name);
+
+    const span = document.createElement("span");
+    span.textContent = name ?? "-";
+    wrap.appendChild(span);
     td.appendChild(wrap);
     return td;
   }
 
-  #cellType(type) {
+  /**
+   * Build a table cell that can contain text or a badge.
+   *
+   * @param {string|HTMLElement} content
+   * @returns {HTMLTableCellElement}
+   */
+  #cellContent(content) {
     const td = document.createElement("td");
-    const badge = Utils.createElement("span", ["badge", "bg-success"]);
-    badge.textContent = String(type).toUpperCase();
-    td.appendChild(badge);
+    td.classList.add("text-center");
+    if (content instanceof HTMLElement) {
+      td.appendChild(content);
+    } else {
+      td.textContent = content ?? "-";
+    }
+  
     return td;
   }
+  /**
+   * Create a reusable action button.
+   *
+   * @param {Object} options
+   *   Button options.
+   * @param {string[]} options.classes
+   *   CSS classes for the button element.
+   * @param {string} options.icon
+   *   Font Awesome icon class without the `fa-solid` prefix.
+   * @param {string} options.title
+   *   Button title attribute.
+   * @param {boolean} [options.disabled=false]
+   *   Whether the button should be disabled.
+   * @param {Function} [options.onClick]
+   *   Click handler.
+   * @returns {HTMLButtonElement}
+   *   Configured button element.
+   */
+  #createActionButton({
+    classes = [],
+    icon,
+    title,
+    disabled = false,
+    onClick = null,
+  }) {
+    const button = Utils.createElement("button", classes);
+    button.type = "button";
+    button.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+    button.title = title;
+    button.disabled = disabled;
 
-  #cellText(text) {
-    const td = document.createElement("td");
-    td.textContent = text ?? "-";
-    return td;
+    if (typeof onClick === "function") {
+      button.addEventListener("click", onClick);
+    }
+
+    return button;
+  }
+  /**
+   * Append multiple buttons into an action wrapper.
+   *
+   * @param {HTMLElement} wrap
+   *   Container where buttons will be appended.
+   * @param {Array<HTMLButtonElement|null|undefined|false>} buttons
+   *   Buttons to append.
+   * @returns {void}
+   */
+  #appendButtons(wrap, buttons) {
+    buttons.filter(Boolean).forEach((btn) => wrap.appendChild(btn));
   }
 
+  /**
+   * Build the actions cell for an item.
+   *
+   * @param {Object} item
+   *   Renderable finder chart item.
+   * @returns {HTMLTableCellElement}
+   *   Actions cell.
+   */
   #cellActions(item) {
-    const id = String(item.id ?? "");
     const td = document.createElement("td");
     td.className = "text-end";
 
     const wrap = Utils.createElement("div", ["d-inline-flex", "gap-2"]);
 
-    const downloadBtn = Utils.createElement("button", [
-      "btn",
-      "btn-sm",
-      "btn-outline-primary",
-    ]);
-    downloadBtn.type = "button";
-    downloadBtn.id = `${this.#idPrefix}-download-${id}`;
+    if (item.rowState === "staged-add") {
+      const previewBtn = this.#createActionButton({
+        classes: ["btn", "btn-sm", "btn-secondary"],
+        icon: "fa-eye",
+        title: "Preview",
+        onClick: () => {
+          if (item.previewUrl) {
+            this.#showPreview(item.previewUrl);
+          }
+        },
+      });
 
-    const deleteBtn = Utils.createElement("button", [
-      "btn",
-      "btn-sm",
-      "btn-outline-danger",
-    ]);
-    deleteBtn.type = "button";
-    deleteBtn.id = `${this.#idPrefix}-delete-${id}`;
-    deleteBtn.innerHTML = `<i class="fa-solid fa-trash"></i>`;
-    deleteBtn.addEventListener("click", async () => {
-      const tr = deleteBtn.closest("tr");
-      if (!tr || tr.dataset.locked === "1") return;
+      const downloadBtn = this.#createActionButton({
+        classes: ["btn", "btn-sm", "btn-outline-secondary"],
+        icon: "fa-download",
+        title: "No allowed",
+        disabled: true,
+      });
 
-      this.#lockRow(tr, deleteBtn);
+      const removeBtn = this.#createActionButton({
+        classes: ["btn", "btn-sm", "btn-outline-danger"],
+        icon: "fa-trash",
+        title: "Delete",
+        onClick: () => {
+          this.#dispatch({
+            type: "REMOVE_STAGED_ADD",
+            payload: { tempId: item.tempId },
+          });
+        },
+      });
 
-      try {
-        const res = await this.#callbacks.onFinderChartDelete?.({ id });
-        const deletedId = String(res?.id ?? id);
-
-        this.#removeById(deletedId);
-      } catch (err) {
-        this.#unlockRow(tr, deleteBtn);
-        console.error("FinderChartEditor delete error:", err);
-      }
-    });
-
-    if (item.status === "uploading") {
-      downloadBtn.disabled = true;
-      deleteBtn.disabled = true;
-      downloadBtn.innerHTML = `<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>`;
-      wrap.appendChild(downloadBtn);
-      wrap.appendChild(deleteBtn);
+      this.#appendButtons(wrap, [previewBtn, downloadBtn, removeBtn]);
       td.appendChild(wrap);
       return td;
     }
 
-    downloadBtn.innerHTML = `<i class="fa-solid fa-download"></i>`;
-    downloadBtn.addEventListener("click", async () => {
-      try {
-        const res = await this.#callbacks.onFinderChartDownload?.({ attachmentId: id });
-        const url = res?.url;
-        if (!url) throw new Error("Missing url from download callback.");
-    
-        const a = document.createElement("a");
-        a.href = url;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      } catch (err) {
-        console.error("FinderChartEditor download error:", err);
-      }
+    const previewBtn = this.#createActionButton({
+      classes: ["btn", "btn-sm", "btn-secondary"],
+      icon: "fa-eye",
+      title: "Preview",
+      onClick: async () => {
+        try {
+          const res = await this.#callbacks.onFinderChartDownload?.({
+            attachmentId: String(item.id),
+          });
+          const url = res?.url;
+          if (!url) throw new Error("Missing url for preview.");
+          this.#showPreview(url);
+        } catch (err) {
+          console.error("FinderChartEditor preview error:", err);
+        }
+      },
     });
-    
-    const previewBtn = Utils.createElement("button", [
-      "btn",
-      "btn-sm",
-      "btn-outline-secondary",
-    ]);
-    
-    previewBtn.type = "button";
-    previewBtn.innerHTML = `<i class="fa-solid fa-eye"></i>`;
-    
-    previewBtn.addEventListener("click", async () => {
-      try {
-        const res = await this.#callbacks.onFinderChartDownload?.({
-          attachmentId: id,
+
+    const downloadBtn = this.#createActionButton({
+      classes: ["btn", "btn-sm", "btn-outline-primary"],
+      icon: "fa-download",
+      title: "Download",
+      onClick: async () => {
+        try {
+          const res = await this.#callbacks.onFinderChartDownload?.({
+            attachmentId: String(item.id),
+          });
+          const url = res?.url;
+          if (!url) throw new Error("Missing url from download callback.");
+
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = item.fileName ?? "";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } catch (err) {
+          console.error("FinderChartEditor download error:", err);
+        }
+      },
+    });
+
+    if (item.rowState === "staged-delete") {
+      const undoBtn = this.#createActionButton({
+        classes: ["btn", "btn-sm", "btn-outline-warning"],
+        icon: "fa-rotate-left",
+        title: "Undo delete",
+        onClick: () => {
+          this.#dispatch({
+            type: "UNSTAGE_DELETE",
+            payload: { id: String(item.id) },
+          });
+        },
+      });
+
+      this.#appendButtons(wrap, [previewBtn, downloadBtn, undoBtn]);
+      td.appendChild(wrap);
+      return td;
+    }
+
+    const deleteBtn = this.#createActionButton({
+      classes: ["btn", "btn-sm", "btn-outline-danger"],
+      icon: "fa-trash",
+      title: "Delete",
+      onClick: () => {
+        this.#dispatch({
+          type: "STAGE_DELETE",
+          payload: { id: String(item.id) },
         });
-    
-        const url = res?.url;
-        if (!url) throw new Error("Missing url for preview.");
-    
-        this.#showPreview(url);
-    
-      } catch (err) {
-        console.error("Preview error:", err);
-      }
+      },
     });
-    wrap.appendChild(previewBtn);
-    wrap.appendChild(downloadBtn);
-    wrap.appendChild(deleteBtn);
+
+    this.#appendButtons(wrap, [previewBtn, downloadBtn, deleteBtn]);
     td.appendChild(wrap);
+
     return td;
   }
 
-  #removeById(id) {
-    this.#finderCharts = this.#finderCharts.filter(
-      (fc) => String(fc.id) !== String(id),
-    );
+  /**
+   * Toggle the add form visibility.
+   *
+   * @returns {void}
+   */
+  #toggleAddForm() {
+    if (this.#addForm) {
+      this.#addForm.remove();
+      this.#addForm = null;
+      this.render();
+      return;
+    }
+
+    this.#addForm = this.#buildAddForm();
     this.render();
   }
 
   /**
-   * Replace temp id with real attachment id.
-   * @param {string} tempId
-   * @param {string|number} newId
+   * Build the staged-add form.
+   *
+   * @returns {HTMLElement}
+   *   Add form wrapper.
    */
-  #finalizeUploadId(tempId, newId) {
-    const oldId = String(tempId);
-    const realId = String(newId);
-
-    this.#finderCharts = this.#finderCharts.map((fc) => {
-      if (String(fc.id) !== oldId) return fc;
-      return {
-        ...fc,
-        id: realId,
-        status: undefined,
-        updatedAt: new Date().toISOString(),
-      };
-    });
-
-    // Move pending upload entry to the new key if needed.
-    const pending = this.#pendingUploads.get(oldId);
-    if (pending) {
-      this.#pendingUploads.delete(oldId);
-      this.#pendingUploads.set(realId, pending);
-    }
-
-    this.render();
-  }
-
-  #buildUploadForm() {
+  #buildAddForm() {
     const wrap = Utils.createElement("div", ["bg-body", "rounded-2"]);
-    wrap.id = `${this.#idPrefix}-upload-form`;
 
     const form = Utils.createElement("form", [
       "d-flex",
@@ -318,7 +532,6 @@ class FinderChartEditor {
       "gap-3",
     ]);
 
-    // File input group
     const fileGroup = Utils.createElement("div", []);
     const fileId = `${this.#idPrefix}-file`;
 
@@ -330,11 +543,11 @@ class FinderChartEditor {
     fileInput.id = fileId;
     fileInput.type = "file";
     fileInput.name = "file";
+    fileInput.accept = ".png,.jpg,.jpeg,image/png,image/jpeg";
 
     fileGroup.appendChild(fileLabel);
     fileGroup.appendChild(fileInput);
 
-    // Description group
     const descGroup = Utils.createElement("div", []);
     const descId = `${this.#idPrefix}-description`;
 
@@ -351,138 +564,208 @@ class FinderChartEditor {
     descGroup.appendChild(descLabel);
     descGroup.appendChild(descInput);
 
-    // Buttons
     const buttons = Utils.createElement("div", ["d-flex", "gap-2"]);
 
-    const upload = Utils.createElement("button", ["btn", "btn-primary"]);
-    upload.type = "button";
-    upload.textContent = "Upload";
+    const addBtn = Utils.createElement("button", ["btn", "btn-primary"]);
+    addBtn.type = "button";
+    addBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Add`;
 
-    const cancel = Utils.createElement("button", ["btn", "btn-secondary"]);
-    cancel.type = "button";
-    cancel.textContent = "Cancel";
-    cancel.addEventListener("click", () => this.#toggleUploadForm());
+    const cancelBtn = Utils.createElement("button", ["btn", "btn-secondary"]);
+    cancelBtn.type = "button";
+    cancelBtn.textContent = "Cancel";
 
-    upload.addEventListener("click", async () => {
+    cancelBtn.addEventListener("click", () => this.#toggleAddForm());
+
+    addBtn.addEventListener("click", () => {
       const file = fileInput.files?.[0] ?? null;
       if (!file) {
         fileInput.focus();
         return;
       }
 
-      upload.disabled = true;
-
-      const tempId = `temp-${Date.now()}`;
-
-      const tempItem = {
-        id: tempId,
-        fileName: file.name,
-        attachmentType: "FINDER",
-        fileSize: file.size ?? null,
-        description: descInput.value?.trim() || null,
-        updatedAt: new Date().toISOString(),
-        status: "uploading",
-      };
-
-      this.#finderCharts = [...this.#finderCharts, tempItem];
-      this.render();
-
-      const controller = new AbortController();
-      this.#pendingUploads.set(String(tempId), { controller, taskId: null });
-
-      try {
-        if (!this.#callbacks.onFinderChartUpload) {
-          throw new Error("Missing callback: onFinderChartUpload");
-        }
-
-        const result = await this.#callbacks.onFinderChartUpload({
+      this.#dispatch({
+        type: "STAGE_ADD",
+        payload: {
           file,
-          description: tempItem.description ?? "",
-          signal: controller.signal,
-          onTaskId: (taskId) => {
-            const pending = this.#pendingUploads.get(String(tempId));
-            if (pending) pending.taskId = String(taskId);
-          },
-        });
+          description: descInput.value?.trim() || "",
+        },
+      });
 
-        const attachmentId = result?.data?.id ?? null;
-
-        if (!attachmentId) {
-          console.log("Upload result:", result);
-          throw new Error("Upload did not return an attachment id.");
-        }
-
-        this.#finalizeUploadId(tempId, attachmentId);
-        fileInput.value = "";
-        descInput.value = "";
-      } catch (err) {
-        this.#removeById(tempId);
-        console.error("FinderChartEditor upload error:", err);
-      } finally {
-        this.#pendingUploads.delete(String(tempId));
-        upload.disabled = false;
-      }
+      fileInput.value = "";
+      descInput.value = "";
+      this.#toggleAddForm();
     });
-
-    buttons.appendChild(upload);
-    buttons.appendChild(cancel);
 
     form.appendChild(fileGroup);
     form.appendChild(descGroup);
+    buttons.appendChild(addBtn);
+    buttons.appendChild(cancelBtn);
     form.appendChild(buttons);
 
     wrap.appendChild(form);
     return wrap;
   }
 
-  #toggleUploadForm() {
-    if (this.#uploadForm) {
-      this.#uploadForm.remove();
-      this.#uploadForm = null;
-      this.#addButton.classList.remove("d-none");
-      return;
-    }
-    this.#addButton.classList.add("d-none");
-    this.#uploadForm = this.#buildUploadForm();
+  /**
+   * Dispatch a state transition and re-render the editor.
+   *
+   * @param {{ type: string, payload?: any }} action
+   *   State transition action.
+   * @returns {void}
+   */
+  #dispatch(action) {
+    const nextState = this.#reduce(
+      {
+        baseItems: this.#baseItems,
+        stagedAdds: this.#stagedAdds,
+        stagedDeletes: this.#stagedDeletes,
+      },
+      action,
+    );
+
+    this.#baseItems = nextState.baseItems;
+    this.#stagedAdds = nextState.stagedAdds;
+    this.#stagedDeletes = nextState.stagedDeletes;
+
     this.render();
   }
-  #lockRow(tr, deleteBtn) {
-    if (!tr) return;
 
-    tr.dataset.locked = "1";
-    tr.style.opacity = "0.55";
-    tr.style.pointerEvents = "none";
+  /**
+   * Apply a reducer action and return the next state.
+   *
+   * @param {{
+   *   baseItems: Array<Object>,
+   *   stagedAdds: Array<Object>,
+   *   stagedDeletes: Set<string>
+   * }} state
+   *   Current editor state.
+   * @param {{ type: string, payload?: any }} action
+   *   Reducer action.
+   * @returns {{
+   *   baseItems: Array<Object>,
+   *   stagedAdds: Array<Object>,
+   *   stagedDeletes: Set<string>
+   * }}
+   *   Next editor state.
+   */
+  #reduce(state, action) {
+    switch (action.type) {
+      case "STAGE_ADD": {
+        const { file, description } = action.payload ?? {};
+        const tempId =
+          `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    tr.querySelectorAll("button").forEach((b) => {
-      b.disabled = true;
-    });
+        return {
+          ...state,
+          stagedAdds: [
+            ...state.stagedAdds,
+            {
+              tempId,
+              file,
+              fileName: file.name,
+              description: description || "",
+              previewUrl: URL.createObjectURL(file),
+            },
+          ],
+        };
+      }
 
-    if (deleteBtn) {
-      deleteBtn.dataset.originalHtml = deleteBtn.innerHTML;
-      deleteBtn.innerHTML = `<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>`;
+      case "REMOVE_STAGED_ADD": {
+        const tempId = String(action.payload?.tempId ?? "");
+        const target = state.stagedAdds.find((x) => x.tempId === tempId);
+
+        if (target?.previewUrl) {
+          URL.revokeObjectURL(target.previewUrl);
+        }
+
+        return {
+          ...state,
+          stagedAdds: state.stagedAdds.filter((x) => x.tempId !== tempId),
+        };
+      }
+
+      case "STAGE_DELETE": {
+        const id = String(action.payload?.id ?? "");
+        const nextDeletes = new Set(state.stagedDeletes);
+        nextDeletes.add(id);
+
+        return {
+          ...state,
+          stagedDeletes: nextDeletes,
+        };
+      }
+
+      case "UNSTAGE_DELETE": {
+        const id = String(action.payload?.id ?? "");
+        const nextDeletes = new Set(state.stagedDeletes);
+        nextDeletes.delete(id);
+
+        return {
+          ...state,
+          stagedDeletes: nextDeletes,
+        };
+      }
+
+      default:
+        return state;
     }
   }
-
-  #unlockRow(tr, deleteBtn) {
-    if (!tr) return;
-
-    delete tr.dataset.locked;
-    tr.style.opacity = "";
-    tr.style.pointerEvents = "";
-
-    tr.querySelectorAll("button").forEach((b) => {
-      b.disabled = false;
-    });
-
-    if (deleteBtn && deleteBtn.dataset.originalHtml) {
-      deleteBtn.innerHTML = deleteBtn.dataset.originalHtml;
-      delete deleteBtn.dataset.originalHtml;
+  /**
+   * Create a Bootstrap badge element.
+   *
+   * @param {string} text
+   * @param {string} variant
+   * @returns {HTMLElement}
+   */
+  #createBadge(text, variant = "secondary", icon = null) {
+    const span = document.createElement("span");
+    span.className =`badge border text-${variant} border-${variant} bg-transparent`;
+    if (icon) {
+      span.innerHTML = `<i class="fa-solid ${icon}"></i>  ${text}`;
+    } else {
+      span.textContent = text;
     }
+    return span;
   }
-  
+
+  /**
+   * Format a date-like value for display.
+   *
+   * @param {string|Date|null|undefined} value
+   *   Date-like value.
+   * @returns {string}
+   *   Formatted date string or fallback.
+   */
+  #formatDate(value) {
+    if (!value) return "-";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleString();
+  }
+
+  /**
+   * Revoke all staged preview object URLs.
+   *
+   * @returns {void}
+   */
+  #cleanupPreviewUrls() {
+    this.#stagedAdds.forEach((item) => {
+      if (item.previewUrl) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
+  }
+
+  /**
+   * Show the finder chart preview modal.
+   *
+   * @param {string} url
+   *   Image URL to preview.
+   * @returns {void}
+   */
   #showPreview(url) {
     let modal = document.getElementById("fc-preview-modal");
-  
+
     if (!modal) {
       modal = document.createElement("div");
       modal.id = "fc-preview-modal";
@@ -490,25 +773,29 @@ class FinderChartEditor {
       modal.innerHTML = `
         <div class="modal-dialog modal-lg modal-dialog-centered">
           <div class="modal-content">
-  
             <div class="modal-header">
               <h5 class="modal-title">Finder Chart Preview</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+              ></button>
             </div>
-  
             <div class="modal-body text-center">
-              <img id="fc-preview-img" style="max-width:100%; max-height:70vh;">
+              <img
+                id="fc-preview-img"
+                style="max-width:100%; max-height:70vh;"
+              >
             </div>
-  
           </div>
         </div>
       `;
       document.body.appendChild(modal);
     }
-  
+
     const img = modal.querySelector("#fc-preview-img");
     img.src = url;
-  
+
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
   }

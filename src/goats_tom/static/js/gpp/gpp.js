@@ -100,24 +100,6 @@ class GPPModel {
     this.clearObservations();
   }
 
-  async uploadFinderChart(formData) {
-    formData.append("observationId", this.#activeObservation?.id ?? "");
-    formData.append("programId", this.#activeProgram?.id ?? "");
-    return await this.#normalizeResponse(() =>
-      this.#api.post(`${this.#gppFinderChartsUrl}upload/`, formData, {}, false),
-    );
-  }
-  async getFinderChartStatus(taskId) {
-    return await this.#normalizeResponse(() =>
-      this.#api.get(`${this.#gppFinderChartsUrl}status/?task_id=${taskId}`),
-    );
-  }
-  async deleteFinderChart(attachmentId) {
-    return await this.#normalizeResponse(() =>
-      this.#api.delete(`${this.#gppFinderChartsUrl}${attachmentId}/`),
-    );
-  }
-  
   async getFinderChartDownloadUrl(attachmentId) {
     return await this.#normalizeResponse(() =>
       this.#api.get(`${this.#gppFinderChartsUrl}${attachmentId}/download-url/`),
@@ -148,6 +130,7 @@ class GPPModel {
   async createTooObservation(formData) {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    formData.append("hiddenProgramIdInput", this.#activeProgram.id)
     return await this.#normalizeResponse(() =>
       this.#api.post(this.#gppCreateTooObservationUrl, formData, {}, false),
     );
@@ -225,6 +208,7 @@ class GPPModel {
   async updateOnGppNormalObservation(formData) {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    formData.append("hiddenProgramIdInput", this.#activeProgram.id)
     return await this.#normalizeResponse(() =>
       this.#api.post(this.#gppUpdateNormalObservationUrl, formData, {}, false),
     );
@@ -477,17 +461,12 @@ class GPPView {
 
   #buildObservationFormCallbacks() {
     return {
-      onFinderChartUpload: async (payload) => {
-        return await this.#callbacks.finderChartUpload?.(payload);
-      },
       onFinderChartDownload: async (payload) => {
         return await this.#callbacks.finderChartDownload?.(payload);
       },
-      onFinderChartDelete: async (payload) => {
-        return await this.#callbacks.finderChartDelete?.(payload);
-      },
     };
   }
+
   /**
    * Get the data from the observation form.
    * @return {Object|null} The form data, or null if no form is present.
@@ -605,14 +584,8 @@ class GPPView {
       case "createAndSaveTooObservation":
         this.#poPanel.onCreateNew(handler);
         break;
-      case "finderChartUpload":
-        this.#callbacks.finderChartUpload = handler;
-        break;
       case "finderChartDownload":
         this.#callbacks.finderChartDownload = handler;
-        break;
-      case "finderChartDelete":
-        this.#callbacks.finderChartDelete = handler;
         break;
     }
   }
@@ -665,111 +638,24 @@ class GPPController {
       this.#createAndSaveTooObservation(),
     );
     //findercharts callbacks.
-    this.#view.bindCallback("finderChartUpload", (payload) =>
-      this.#uploadFinderChart(payload),
-    );
     this.#view.bindCallback("finderChartDownload", (payload) =>
       this.#downloadFinderChart(payload),
     );
-    this.#view.bindCallback("finderChartDelete", (payload) =>
-      this.#deleteFinderChart(payload),
-    );
   }
 
-  /**
-   * Upload a finder chart and return the backend response payload.
-   * @param {{file: File, description?: string, attachment_type?: string}} payload
-   * @returns {Promise<{status: number, data: any} | null>}
-   * @private
-   */
-  async #uploadFinderChart(payload) {
-    if (!payload?.file) return null;
-
-    const formData = new FormData();
-    formData.append("file", payload.file);
-    formData.append("description", payload.description ?? "");
-
-    // 1) Kick off background job
-    const start = await this.#model.uploadFinderChart(formData);
-
-    const taskId = start?.data?.task_id;
-    if (!taskId) {
-      throw new Error("Upload did not return task_id.");
-    }
-
-    payload?.onTaskId?.(taskId);
-
-    const final = await this.#waitForFinderChartResult(taskId, payload.signal);
-
-    return { data: final };
-  }
-
-  /**
-   * Waits until the finder chart upload task finishes.
-   *
-   * @async
-   * @param {string} taskId - Backend task identifier.
-   * @param {AbortSignal} [signal] - Optional abort signal.
-   * @returns {Promise<Object>} Final upload result.
-   * @private
-   */
-  async #waitForFinderChartResult(taskId, signal) {
-    const intervalMs = 1200;
-    const maxWaitMs = 5 * 60 * 1000; // 5 minutes
-    const start = Date.now();
-
-    while (true) {
-      if (signal?.aborted) {
-        throw new Error("Upload aborted.");
-      }
-
-      if (Date.now() - start > maxWaitMs) {
-        throw new Error("Upload timed out.");
-      }
-
-      await new Promise((r) => setTimeout(r, intervalMs));
-
-      const st = await this.#model.getFinderChartStatus(taskId);
-      const state = st?.data?.state;
-
-      if (state === "DONE") return st.data.result;
-      if (state === "FAILED") {
-        throw new Error(st?.data?.error || "Upload failed.");
-      }
-    }
-  }
   async #downloadFinderChart({ attachmentId }) {
-    if (!attachmentId ) throw new Error("Missing attachment id.");
-  
-    const { status, data } = await this.#model.getFinderChartDownloadUrl(attachmentId);
+    if (!attachmentId) throw new Error("Missing attachment id.");
+    const { status, data } =
+      await this.#model.getFinderChartDownloadUrl(attachmentId);
     if (status < 200 || status >= 300) {
       throw new Error(data?.detail || "Download URL request failed.");
     }
     const url = data?.url;
     if (!url) throw new Error("Missing download URL.");
-  
     return { url };
   }
-  /**
-   * Delete a finder chart attachment and refresh the UI.
-   *
-   * @async
-   * @param {{ id: string }} payload
-   * @returns {Promise<{ id: string }>} Deleted attachment id.
-   * @private
-   */
-  async #deleteFinderChart({ id }) {
-    if (!id) throw new Error("Missing id.");
-  
-    const { status, data } = await this.#model.deleteFinderChart(id);
-  
-    if (status >= 200 && status < 300) {
-      return { id: String(data?.id ?? id) };
-    }
-    throw new Error(data?.detail || data?.message || "Delete failed.");
-  }
 
-    /**
+  /**
    * Updates a normal observation in GPP.
    * Shows progress and result modals, and refreshes the observations list.
    * @returns {Promise<void>}
@@ -803,7 +689,6 @@ class GPPController {
       data,
       "Observation Update Result",
     );
-
     // Finally, refresh the observations list.
     const programId = this.#model.activeProgram.id;
     await this.#resetAndUpdateObservations(programId);
