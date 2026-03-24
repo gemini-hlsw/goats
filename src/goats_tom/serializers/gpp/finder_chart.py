@@ -1,47 +1,18 @@
 from rest_framework import serializers
 
-__all__ = ["FinderChartUploadSerializer"]
+__all__ = [
+    "FinderChartsSerializer",
+]
 
 
-class FinderChartUploadSerializer(serializers.Serializer):
+class FinderChartFileSerializer(serializers.Serializer):
     """
-    Serializer for uploading finder chart files.
+    Serializer for a single finder chart file.
 
-    This serializer validates the metadata and file associated with a finder
-    chart upload request. It enforces constraints on file size and allowed
-    file types before the upload is processed.
-
-    Parameters
-    ----------
-    programId : str
-        Identifier of the GPP program associated with the observation.
-
-    observationId : str
-        Identifier of the observation where the finder chart will be attached.
-
-    description : str, optional
-        Optional text description for the finder chart attachment.
-
-    file : File
-        Finder chart file to upload.
-
-    Attributes
-    ----------
-    MAX_BYTES : int
-        Maximum allowed file size in bytes (default: 10 MB).
-
-    ALLOWED_EXT : set of str
-        Allowed file extensions for finder chart uploads.
-
-    Raises
-    ------
-    serializers.ValidationError
-        If the uploaded file exceeds the maximum allowed size or if the file
-        extension is not among the supported formats.
+    Validates basic metadata and enforces file constraints such as size and
+    allowed extensions.
     """
 
-    programId = serializers.CharField()
-    observationId = serializers.CharField()
     description = serializers.CharField(required=False, allow_blank=True, default="")
     file = serializers.FileField()
 
@@ -50,10 +21,7 @@ class FinderChartUploadSerializer(serializers.Serializer):
 
     def validate_file(self, f):
         """
-        Validate uploaded finder chart file.
-
-        Ensures that the uploaded file size does not exceed the configured
-        limit and that the file extension is among the supported formats.
+        Validate uploaded file.
 
         Parameters
         ----------
@@ -63,12 +31,12 @@ class FinderChartUploadSerializer(serializers.Serializer):
         Returns
         -------
         File
-            The validated file object.
+            The validated file.
 
         Raises
         ------
         serializers.ValidationError
-            If the file exceeds the maximum size or the extension is invalid.
+            If file size exceeds limit or extension is invalid.
         """
         size = getattr(f, "size", None)
 
@@ -91,3 +59,50 @@ class FinderChartUploadSerializer(serializers.Serializer):
             )
 
         return f
+
+
+class FinderChartsSerializer(serializers.Serializer):
+    """
+    Serializer for grouped finder chart operations.
+
+    This serializer validates a batch of finder chart changes, including
+    new uploads and deletions, ensuring the payload structure is correct
+    before processing.
+
+    Parameters
+    ----------
+    toAdd : list of dict, optional
+        Finder charts to upload. Each item must include:
+        - description : str
+        - file : UploadedFile
+
+    toDelete : list of str, optional
+        Attachment IDs to delete.
+    """
+
+    toAdd = FinderChartFileSerializer(many=True, required=False, default=list)
+    toDelete = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+    )
+
+    def to_internal_value(self, data):
+        """
+        Extract and deserialize finder chart data.
+
+        Parameters
+        ----------
+        data : dict
+            Raw input data. It may be either the full observation payload or
+            the ``finderCharts`` object itself.
+
+        Returns
+        -------
+        dict
+            Validated finder chart data.
+        """
+        if "finderCharts" in data:
+            data = data.get("finderCharts") or {}
+
+        return super().to_internal_value(data)

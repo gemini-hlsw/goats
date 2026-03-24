@@ -11,6 +11,7 @@ from rest_framework import serializers
 
 from goats_tom.serializers.gpp._base_gpp import _BaseGPPSerializer
 from goats_tom.serializers.gpp.constraint_set import ConstraintSetSerializer
+from goats_tom.serializers.gpp.finder_chart import FinderChartsSerializer
 from goats_tom.serializers.gpp.observing_mode import ObservingModeSerializer
 from goats_tom.serializers.gpp.pos_angle import PosAngleSerializer
 from goats_tom.serializers.gpp.scheduling_windows import SchedulingWindowsSerializer
@@ -59,6 +60,9 @@ class ObservationSerializer(_BaseGPPSerializer):
         self._science_band_serializer = ScienceBandSerializer(data=data)
         self._science_band_serializer.is_valid(raise_exception=True)
 
+        self._finder_charts_serializer = FinderChartsSerializer(data=data)
+        self._finder_charts_serializer.is_valid(raise_exception=True)
+
         return internal
 
     def format_gpp(self) -> dict[str, Any] | None:
@@ -94,7 +98,6 @@ class ObservationSerializer(_BaseGPPSerializer):
             result["timingWindows"] = scheduling_windows_data
 
         science_band_data = self._science_band_serializer.format_gpp()
-
         if science_band_data is not None:
             result["scienceBand"] = science_band_data
 

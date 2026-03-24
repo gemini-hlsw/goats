@@ -1,6 +1,8 @@
+import json
 from unittest.mock import AsyncMock
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory, force_authenticate
@@ -249,3 +251,247 @@ class TestGPPObservationViewSet:
     def test_target_environment_none(self):
         obs = {"targetEnvironment": None}
         assert self.viewset.is_too(obs) is False
+
+    def test_normalize_finder_charts_without_payload_returns_empty_structure(self):
+        data = {}
+
+        out = self.viewset._normalize_finder_charts(data)
+
+        assert out["finderCharts"] == {"toAdd": [], "toDelete": []}
+
+    def test_normalize_finder_charts_builds_to_add_and_to_delete(self):
+        file1 = SimpleUploadedFile("fc1.png", b"abc", content_type="image/png")
+        file2 = SimpleUploadedFile("fc2.jpg", b"def", content_type="image/jpeg")
+
+        data = {
+            "finderCharts": json.dumps(
+                {
+                    "toAdd": [
+                        {"fileKey": "fileA", "description": "first"},
+                        {"fileKey": "fileB", "description": "second"},
+                    ],
+                    "toDelete": ["att-1", "att-2"],
+                }
+            ),
+            "fileA": file1,
+            "fileB": file2,
+        }
+
+        out = self.viewset._normalize_finder_charts(data)
+
+        assert "fileA" not in out
+        assert "fileB" not in out
+        assert out["finderCharts"]["toDelete"] == ["att-1", "att-2"]
+
+        to_add = out["finderCharts"]["toAdd"]
+        assert len(to_add) == 2
+        assert to_add[0]["description"] == "first"
+        assert to_add[0]["file"] == file1
+        assert to_add[1]["description"] == "second"
+        assert to_add[1]["file"] == file2
+
+    def test_normalize_finder_charts_skips_missing_file_objects(self):
+        file1 = SimpleUploadedFile("fc1.png", b"abc", content_type="image/png")
+
+        data = {
+            "finderCharts": json.dumps(
+                {
+                    "toAdd": [
+                        {"fileKey": "fileA", "description": "first"},
+                        {"fileKey": "missingFile", "description": "missing"},
+                    ],
+                    "toDelete": [],
+                }
+            ),
+            "fileA": file1,
+        }
+
+        out = self.viewset._normalize_finder_charts(data)
+
+        to_add = out["finderCharts"]["toAdd"]
+        assert len(to_add) == 1
+        assert to_add[0]["description"] == "first"
+        assert to_add[0]["file"] == file1
+
+    def test_process_finder_charts_delete_only_returns_remaining_ids(self, mocker):
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation = mocker.Mock(
+            return_value={"attachments": [{"id": "a1"}, {"id": "a2"}]}
+        )
+        client.attachment.upload = mocker.Mock()
+
+        out = self.viewset._process_finder_charts(
+            client=client,
+            observation_id="obs-1",
+            program_id="prog-1",
+            finder_charts={
+                "toDelete": ["old-1", "old-2"],
+                "toAdd": [],
+            },
+        )
+
+        assert client.attachment.delete_by_id.call_count == 2
+        client.attachment.delete_by_id.assert_any_call(attachment_id="old-1")
+        client.attachment.delete_by_id.assert_any_call(attachment_id="old-2")
+        client.attachment.get_all_by_observation.assert_called_once_with(
+            observation_id="obs-1",
+            observation_reference=None,
+        )
+        assert out == ["a1", "a2"]
+
+    def test_process_finder_charts_add_only_uploads_and_appends_ids(self, mocker):
+        file1 = SimpleUploadedFile("fc1.png", b"abc", content_type="image/png")
+        file2 = SimpleUploadedFile("fc2.jpg", b"def", content_type="image/jpeg")
+
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation = mocker.Mock(
+            return_value={"attachments": [{"id": "existing-1"}]}
+        )
+        client.attachment.upload = mocker.Mock(side_effect=["new-1", "new-2"])
+
+        out = self.viewset._process_finder_charts(
+            client=client,
+            observation_id="obs-1",
+            program_id="prog-1",
+            finder_charts={
+                "toDelete": [],
+                "toAdd": [
+                    {"description": "first", "file": file1},
+                    {"description": "second", "file": file2},
+                ],
+            },
+        )
+
+        assert client.attachment.upload.call_count == 2
+
+        first_call = client.attachment.upload.call_args_list[0]
+        second_call = client.attachment.upload.call_args_list[1]
+
+        assert first_call.kwargs["program_id"] == "prog-1"
+        assert first_call.kwargs["file_name"] == "fc1.png"
+        assert first_call.kwargs["description"] == "first"
+        assert first_call.kwargs["content"] == b"abc"
+
+        assert second_call.kwargs["file_name"] == "fc2.jpg"
+        assert second_call.kwargs["description"] == "second"
+        assert second_call.kwargs["content"] == b"def"
+
+        assert out == ["existing-1", "new-1", "new-2"]
+
+    def test_process_finder_charts_skips_items_without_file(self, mocker):
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation = mocker.Mock(
+            return_value={"attachments": [{"id": "existing-1"}]}
+        )
+        client.attachment.upload = mocker.Mock()
+
+        out = self.viewset._process_finder_charts(
+            client=client,
+            observation_id="obs-1",
+            program_id="prog-1",
+            finder_charts={
+                "toDelete": [],
+                "toAdd": [
+                    {"description": "missing", "file": None},
+                ],
+            },
+        )
+
+        client.attachment.upload.assert_not_called()
+        assert out == ["existing-1"]
+
+    @pytest.mark.parametrize(
+        "finder_charts, setup_attr, expected_pattern",
+        [
+            (
+                {"toDelete": ["bad-id"], "toAdd": []},
+                "delete_error",
+                "Failed to delete finder chart 'bad-id'",
+            ),
+            (
+                {"toDelete": [], "toAdd": []},
+                "fetch_error",
+                "Failed to fetch current finder charts",
+            ),
+            (
+                {
+                    "toDelete": [],
+                    "toAdd": [
+                        {
+                            "description": "first",
+                            "file": SimpleUploadedFile(
+                                "fc1.png", b"abc", content_type="image/png"
+                            ),
+                        }
+                    ],
+                },
+                "upload_error",
+                "Failed to upload finder chart 'fc1.png'",
+            ),
+        ],
+    )
+    def test_process_finder_charts_raises_value_error(
+        self, mocker, finder_charts, setup_attr, expected_pattern
+    ):
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation = mocker.Mock(
+            return_value={"attachments": []}
+        )
+        client.attachment.upload = mocker.Mock()
+
+        if setup_attr == "delete_error":
+            client.attachment.delete_by_id.side_effect = RuntimeError("boom")
+        elif setup_attr == "fetch_error":
+            client.attachment.get_all_by_observation.side_effect = RuntimeError(
+                "fetch failed"
+            )
+        elif setup_attr == "upload_error":
+            client.attachment.upload.side_effect = RuntimeError("upload failed")
+
+        with pytest.raises(ValueError, match=expected_pattern):
+            self.viewset._process_finder_charts(
+                client=client,
+                observation_id="obs-1",
+                program_id="prog-1",
+                finder_charts=finder_charts,
+            )
