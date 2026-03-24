@@ -45,8 +45,12 @@ class ProgramObservationsPanel {
     this.#programSelect = this.#container.querySelector("#programSelect");
     this.#programSpinner = this.#container.querySelector("#programLoading");
 
-    this.#normalSelect = this.#container.querySelector("#normalObservationSelect");
-    this.#normalSpinner = this.#container.querySelector("#normalObservationLoading");
+    this.#normalSelect = this.#container.querySelector(
+      "#normalObservationSelect",
+    );
+    this.#normalSpinner = this.#container.querySelector(
+      "#normalObservationLoading",
+    );
     this.#obsToolbar = this.#container.querySelector("#obsButtonToolbar");
     this.#updateButton = this.#obsToolbar.querySelector("#updateButton");
     this.#saveButton = this.#obsToolbar.querySelector("#saveButton");
@@ -134,7 +138,7 @@ class ProgramObservationsPanel {
       this.#programSelect,
       programs,
       // Use program reference label if available, else ID.
-      (p) => `${p.reference?.label ?? p.id} - ${p.name ?? p.title ?? ""}`
+      (p) => `${p.reference?.label ?? p.id} - ${p.name ?? p.title ?? ""}`,
     );
   }
 
@@ -342,7 +346,11 @@ class ProgramObservationsPanel {
 
     // Program block.
     colProgram.append(
-      this.#createSelectWithSpinner("program", "Active Programs", "Choose a program...")
+      this.#createSelectWithSpinner(
+        "program",
+        "Active Programs",
+        "Choose a program...",
+      ),
     );
 
     // Normal obs block.
@@ -350,7 +358,7 @@ class ProgramObservationsPanel {
       this.#createSelectWithSpinner(
         "normalObservation",
         "Active Observations",
-        "Choose an observation..."
+        "Choose an observation...",
       ),
       this.#createToolbar("obsButtonToolbar", [
         {
@@ -360,7 +368,7 @@ class ProgramObservationsPanel {
           classes: ["me-2"],
         },
         { id: "saveButton", label: "Save To GOATS", color: "primary" },
-      ])
+      ]),
     );
 
     // ToO block.
@@ -368,11 +376,15 @@ class ProgramObservationsPanel {
       this.#createSelectWithSpinner(
         "tooObservation",
         "Approved ToO Configurations",
-        "Choose a ToO configuration..."
+        "Choose a ToO configuration...",
       ),
       this.#createToolbar("tooButtonToolbar", [
-        { id: "createNewButton", label: "Create On GPP & Save To GOATS", color: "primary" },
-      ])
+        {
+          id: "createNewButton",
+          label: "Create On GPP & Save To GOATS",
+          color: "primary",
+        },
+      ]),
     );
 
     row.append(colProgram, colNormal, colToo);
@@ -426,7 +438,11 @@ class ProgramObservationsPanel {
     toolbar.id = toolbarId;
 
     actions.forEach(({ id, label, color, classes = [] }) => {
-      const btn = Utils.createElement("button", ["btn", `btn-${color}`, ...classes]);
+      const btn = Utils.createElement("button", [
+        "btn",
+        `btn-${color}`,
+        ...classes,
+      ]);
       btn.id = id;
       btn.textContent = label;
       btn.type = "button";
@@ -443,28 +459,45 @@ class ProgramObservationsPanel {
    * @param {!Array<Object>} options - Array of objects with `id` and `name` or `title` properties.
    * @param {function(Object): string} [getLabel] - Optional label resolver.
    */
-  #fillSelect(
-    selectEl,
-    options,
-    getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`
-  ) {
-    // Clear existing options, keep placeholder.
-    selectEl.length = 1;
-
-    // If no options, show "None available" option.
-    if (!options || options.length === 0) {
-      this.#showEmpty(selectEl);
-      return;
+    #fillSelect(
+      selectEl,
+      options,
+      getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`
+    ) {
+      // Limpia options y optgroups manteniendo el placeholder
+      while (selectEl.options.length > 1) selectEl.remove(1);
+      Array.from(selectEl.querySelectorAll("optgroup")).forEach(g => g.remove());
+    
+      if (!options || options.length === 0) {
+        this.#showEmpty(selectEl);
+        return;
+      }
+    
+      const frag = document.createDocumentFragment();
+    
+      const calGroup = document.createElement("optgroup");
+      calGroup.label = "Calibrations";
+    
+      options.forEach((o) => {
+        const hasProposalStatus = Boolean(o?.proposalStatus);
+        const hasMode = Boolean(o?.scienceRequirements?.mode);
+        const isCalibration = !hasMode && !hasProposalStatus;
+    
+        const opt = Utils.createElement("option");
+        opt.value = o.id;
+        opt.textContent = getLabel(o);
+    
+        if (isCalibration) {
+          calGroup.appendChild(opt);
+        } else {
+          frag.appendChild(opt);
+        }
+      });
+    
+      if (calGroup.children.length) frag.appendChild(calGroup);
+    
+      selectEl.appendChild(frag);
+      selectEl.disabled = false;
+      this.#logDebug(`Filled select: ${selectEl.id} with ${options.length} items.`);
     }
-    const frag = document.createDocumentFragment();
-    options.forEach((o) => {
-      const opt = Utils.createElement("option");
-      opt.value = o.id;
-      opt.textContent = getLabel(o);
-      frag.appendChild(opt);
-    });
-    selectEl.appendChild(frag);
-    selectEl.disabled = false;
-    this.#logDebug(`Filled select: ${selectEl.id} with ${options.length} items.`);
-  }
 }
