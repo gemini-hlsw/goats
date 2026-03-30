@@ -1429,7 +1429,7 @@ github = [
     { name = "dragons", git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.1.0" },
     { name = "fits-storage", git = "https://github.com/GeminiDRSoftware/FitsStorage?tag=v3.5.2" },
 ]
-notebook = [{ name = "ipykernel", specifier = ">=7.1.0" }]
+notebook = [{ name = "ipykernel", specifier = ">=7.2.0" }]
 
 [[package]]
 name = "gpp-client"
