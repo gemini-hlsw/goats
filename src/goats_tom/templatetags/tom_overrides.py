@@ -113,10 +113,10 @@ def goats_recent_photometry(target, limit=1):
     photometry = ReducedDatum.objects.filter(
         data_type="photometry", target=target
     ).order_by("-timestamp")[:limit]
-
     data = []
     for reduced_datum in photometry:
         rd_data = {"timestamp": reduced_datum.timestamp}
+        rd_data["filter"] = reduced_datum.value["filter"]
         if "limit" in reduced_datum.value.keys():
             rd_data["magnitude"] = reduced_datum.value["limit"]
             rd_data["limit"] = True
