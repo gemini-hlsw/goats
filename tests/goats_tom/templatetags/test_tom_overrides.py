@@ -267,7 +267,7 @@ def test_goats_recent_photometry_returns_expected_context(target):
         target=target,
         data_type="photometry",
         timestamp=timezone.now(),
-        value={"magnitude": 18.2},
+        value={"magnitude": 18.2, "filter": "r"},
         source_name="ANTARES",
     )
 
@@ -275,7 +275,7 @@ def test_goats_recent_photometry_returns_expected_context(target):
         target=target,
         data_type="photometry",
         timestamp=timezone.now() + timedelta(seconds=1),
-        value={"limit": 20.1},
+        value={"limit": 20.1, "filter": "R"},
         source_name="ANTARES",
     )
 
@@ -322,14 +322,16 @@ def test_goats_recent_photometry_renders_template(target):
         target=target,
         data_type="photometry",
         timestamp=timezone.now(),
-        value={"magnitude": 18.5},
+        value={"magnitude": 18.5, "filter": "i"},
         source_name="ANTARES",
     )
 
-    template = Template("""
+    template = Template(
+        """
         {% load tom_overrides %}
         {% goats_recent_photometry target limit=1 %}
-    """)
+    """
+    )
 
     html = template.render(Context({"target": target}))
 
