@@ -8,7 +8,6 @@
     url.searchParams.set("tab", tabId);
     history.replaceState({}, document.title, url.toString());
   };
-
   document.addEventListener("DOMContentLoaded", function () {
     // Listen for tab changes.
     document.querySelectorAll("#tabs .nav-link").forEach((tab) => {
@@ -16,7 +15,6 @@
         updateUrlWithTab(this.id.replace("-tab", ""));
       });
     });
-
     // Initial tab selection from URL.
     const tabQuery = new URL(window.location.href).searchParams.get("tab");
     if (tabQuery) {
@@ -144,15 +142,10 @@
    * @param {string} type - The Bootstrap alert type (e.g., 'danger', 'warning', 'success').
    */
   const showAlert = (file, message, type = "danger") => {
-    // Select the main container.
     const main = document.querySelector("main");
-
-    // Create the alert div.
     const alertDiv = document.createElement("div");
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.role = "alert";
-
-    // Set the inner HTML of the alert.
     alertDiv.innerHTML = `
       <h6>${file}</h6>
       ${message}
@@ -163,36 +156,46 @@
     main.prepend(alertDiv);
   };
 
-  // Helper function to fetch reduced data.
-const fetchReducedData = async (dataproductId, dataType) => {
-  let url = `/api/reduceddatums/?data_product=${dataproductId}&data_type=${dataType}`;
-  let data = null; 
-  while (url) {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": "{{ csrf_token }}",
-      },
-      credentials: "same-origin",
-    });
-    if (!response.ok) {
-      throw new Error(`Fetch failed with status: ${response.status}`);
-    }
-    const responseData = await response.json();
+  // Global color map for filters.
+  const colorMap = {
+    "g": "rgb(0, 174, 0)",
+    "R": "rgb(240, 0, 0)",
+    "u": "rgb(0, 182, 255)",
+    "r": "rgb(240, 0, 0)",
+    "i": "rgb(255, 189, 97)",
+    "z": "rgb(255, 75, 197)",
+    "y": "rgb(229, 158, 255)"
+  };
 
-    if (!data) {
-      data = {
-        ...responseData,
-        results: [...responseData.results],
-      };
-    } else {
-      data.results.push(...responseData.results);
+  // Helper function to fetch reduced data.
+  const fetchReducedData = async (dataproductId, dataType) => {
+    let url = `/api/reduceddatums/?data_product=${dataproductId}&data_type=${dataType}`;
+    let data = null;
+    while (url) {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        throw new Error(`Fetch failed with status: ${response.status}`);
+      }
+      const responseData = await response.json();
+      if (!data) {
+        data = {
+          ...responseData,
+          results: [...responseData.results],
+        };
+      } else {
+        data.results.push(...responseData.results);
+      }
+      url = responseData.next;
     }
-    url = responseData.next;
-  }
-  return data;
-};
+    return data;
+  };
 
   // Helper function to run the processor.
   const runProcessor = async (dataproductId, dataType) => {
@@ -210,16 +213,14 @@ const fetchReducedData = async (dataproductId, dataType) => {
       }),
     });
     if (!response.ok) {
-      // Unpack return to know why the processor failed.
       const data = await response.json();
       throw new Error(`Run processor failed: ${data.detail}`);
     }
-    const data = await response.json();
-    return data;
+    return await response.json();
   };
 
   /**
-   * Function to add new traces to the existing Plotly plot.
+   * Function to add new traces to the existing Plotly spectroscopy plot.
    * @param {string} plotId - The ID of the plot.
    * @param {Array} results - Array of reduced data results.
    */
@@ -230,20 +231,12 @@ const fetchReducedData = async (dataproductId, dataType) => {
       const timestamp = result.timestamp;
       const wavelengthUnits = result.value.wavelength_units;
       const fluxUnits = result.value.flux_units;
-
-      if (!wavelength || !flux) {
-        return;
-      }
+      if (!wavelength || !flux) return;
 
       const plottingConfig = plottingConfigurations.get("spectroscopy");
-      const defaultFluxTitle = plottingConfig.layout.yaxis.title;
-      const defaultWavelengthTitle = plottingConfig.layout.xaxis.title;
-
-      // Build axis labels.
       const newWavelengthLabel = `Wavelength${wavelengthUnits ? ` (${wavelengthUnits})` : ""}`;
       const newFluxLabel = `Flux${fluxUnits ? ` (${fluxUnits})` : ""}`;
 
-      // Check if axes need updating.
       if (!plottingConfig.wavelengthUnits || !plottingConfig.fluxUnits) {
         plottingConfig.wavelengthUnits = wavelengthUnits || "";
         plottingConfig.fluxUnits = fluxUnits || "";
@@ -255,7 +248,6 @@ const fetchReducedData = async (dataproductId, dataType) => {
         plottingConfig.wavelengthUnits !== wavelengthUnits ||
         plottingConfig.fluxUnits !== fluxUnits
       ) {
-        // Mismatch in units, reset to default and show alert.
         plottingConfig.wavelengthUnits = "";
         plottingConfig.fluxUnits = "";
         Plotly.relayout(plotId, {
@@ -264,15 +256,17 @@ const fetchReducedData = async (dataproductId, dataType) => {
         });
         showAlert("", "Mismatch in units, removing label.", "warning");
       }
-      // Add trace to the plot.
-      const trace = {
+
+      // Add trace with fill tozeroy for better visual clarity.
+      Plotly.addTraces(plotId, {
         x: wavelength,
         y: flux,
         mode: "lines",
+        fill: "tozeroy",
+        fillcolor: "rgba(100, 149, 237, 0.08)",
+        line: { width: 1.5 },
         name: new Date(timestamp).toISOString(),
-      };
-
-      Plotly.addTraces(plotId, trace);
+      });
 
       if (!plottingConfig.initialized) {
         plottingConfig.initialized = true;
@@ -281,21 +275,12 @@ const fetchReducedData = async (dataproductId, dataType) => {
   };
 
   /**
-   * Function to add new traces to the existing Plotly plot.
+   * Function to add new traces to the existing Plotly photometry plot.
    * @param {string} plotId - The ID of the plot.
    * @param {Array} results - Array of reduced data results.
    */
   const plotPhotometry = (plotId, results) => {
-    // Color map for filters.
-    const colorMap = {
-      r: "red",
-      g: "green",
-      i: "black",
-      B: "blue",
-      V: "purple",
-    };
-
-    // Extract photometry data.
+    // Extract photometry data grouped by filter.
     const photometryData = {};
     results.forEach((datum) => {
       const { filter, magnitude, error, limit } = datum.value;
@@ -309,7 +294,7 @@ const fetchReducedData = async (dataproductId, dataType) => {
       photometryData[filter].limit.push(limit ?? null);
     });
 
-    // Map trace names to their indices.
+    // Map existing trace names to their indices.
     const plotElement = document.getElementById(plotId);
     const existingTraces = plotElement.data || [];
     const traceIndexMap = {};
@@ -317,60 +302,60 @@ const fetchReducedData = async (dataproductId, dataType) => {
       traceIndexMap[trace.name] = index;
     });
 
-    // Prepare updates and new traces.
     const traceUpdates = [];
     const updateIndices = [];
     const newTraces = [];
 
     Object.keys(photometryData).forEach((filter) => {
       const { time, magnitude, error, limit } = photometryData[filter];
+      const color = colorMap[filter] || null;
 
-      // Detection trace.
+      // --- Detection trace ---
       const detectionName = `${filter} detection`;
-      const validMagnitudes = magnitude.map((m, i) => (m !== null ? m : null));
       const validErrors = error.map((e, i) => (magnitude[i] !== null ? e : null));
+
       if (traceIndexMap[detectionName] !== undefined) {
-        // Extend existing trace.
-        traceUpdates.push({ x: time, y: validMagnitudes });
+        traceUpdates.push({ x: time, y: magnitude });
         updateIndices.push(traceIndexMap[detectionName]);
       } else {
-        // Add new trace.
         newTraces.push({
           x: time,
-          y: validMagnitudes,
+          y: magnitude,
           mode: "markers",
-          marker: { color: colorMap[filter] || null },
+          marker: { color },
           name: detectionName,
+          hovertemplate: `<b>MJD: %{x:.2f}</b><br>mag: %{y:.3f}<extra>${detectionName}</extra>`,
           error_y: {
             type: "data",
             array: validErrors,
             visible: true,
+            color,
           },
         });
       }
 
-      // Non-detection trace.
+      // --- Non-detection trace ---
       const nonDetectionName = `${filter} non-detection`;
       const nonDetectionIndices = limit
         .map((l, i) => (l !== null ? i : null))
         .filter((i) => i !== null);
+
       if (nonDetectionIndices.length > 0) {
         if (traceIndexMap[nonDetectionName] !== undefined) {
-          // Extend existing non-detection trace.
           traceUpdates.push({
             x: nonDetectionIndices.map((i) => time[i]),
             y: nonDetectionIndices.map((i) => limit[i]),
           });
           updateIndices.push(traceIndexMap[nonDetectionName]);
         } else {
-          // Add new non-detection trace.
           newTraces.push({
             x: nonDetectionIndices.map((i) => time[i]),
             y: nonDetectionIndices.map((i) => limit[i]),
             mode: "markers",
             opacity: 0.5,
-            marker: { color: colorMap[filter] | null, symbol: "triangle-down" },
+            marker: { color, symbol: "triangle-down" },
             name: nonDetectionName,
+            hovertemplate: `<b>MJD: %{x:.2f}</b><br>limit: %{y:.3f}<extra>${nonDetectionName}</extra>`,
           });
         }
       }
@@ -381,8 +366,8 @@ const fetchReducedData = async (dataproductId, dataType) => {
       Plotly.extendTraces(
         plotId,
         {
-          x: traceUpdates.map((update) => update.x),
-          y: traceUpdates.map((update) => update.y),
+          x: traceUpdates.map((u) => u.x),
+          y: traceUpdates.map((u) => u.y),
         },
         updateIndices
       );
@@ -393,50 +378,32 @@ const fetchReducedData = async (dataproductId, dataType) => {
       Plotly.addTraces(plotId, newTraces);
     }
 
-    // Add absolute magnitude yaxis2 if needed.
+    // Handle absolute magnitude yaxis2.
     const photometryConfig = plottingConfigurations.get("photometry");
     if (!photometryConfig.initialized) {
-      // Initialize the photometry configuration.
       const targetDistance = parseFloat("{{ target.distance|default_if_none:'' }}");
       photometryConfig.plotAbsoluteMagnitude = !isNaN(targetDistance);
       photometryConfig.initialized = true;
 
       if (photometryConfig.plotAbsoluteMagnitude) {
-        // Calculate the distance modulus (dm).
         const dm = 5 * (Math.log10(targetDistance) - 1);
-        // Define yaxis2 for absolute magnitude.
         const yaxis2 = photometryConfig.layout.yaxis2;
-
         yaxis2.range = [
           plotElement.layout.yaxis.range[0] - dm,
           plotElement.layout.yaxis.range[1] - dm,
         ];
-
-        // Add dummy trace to activate yaxis2.
-        const dummyTrace = {
-          x: [],
-          y: [],
-          yaxis: "y2",
-          name: "Absolute Magnitude Axis",
-        };
-
-        // Update the layout and add the dummy trace to the plot.
         Plotly.relayout(plotId, { yaxis2 });
-        Plotly.addTraces(plotId, [dummyTrace]);
+        Plotly.addTraces(plotId, [{ x: [], y: [], yaxis: "y2", name: "Absolute Magnitude Axis" }]);
       }
     } else if (photometryConfig.plotAbsoluteMagnitude) {
       const targetDistance = parseFloat("{{ target.distance }}");
-      // Update the range of yaxis2 if already initialized.
       const dm = 5 * (Math.log10(targetDistance) - 1);
-      const updatedRange = {
+      Plotly.relayout(plotId, {
         "yaxis2.range": [
           plotElement.layout.yaxis.range[0] - dm,
           plotElement.layout.yaxis.range[1] - dm,
         ],
-      };
-
-      // Update the layout with the new range.
-      Plotly.relayout(plotId, updatedRange);
+      });
     }
   };
 
@@ -450,14 +417,8 @@ const fetchReducedData = async (dataproductId, dataType) => {
         plotFunction: plotSpectroscopy,
         dummyTraces: [],
         layout: {
-          xaxis: {
-            title: "Wavelength",
-            tickformat: "d",
-          },
-          yaxis: {
-            title: "Flux",
-            tickformat: ".1g",
-          },
+          xaxis: { title: "Wavelength", tickformat: "d" },
+          yaxis: { title: "Flux", tickformat: ".1g" },
           showlegend: true,
         },
       },
@@ -469,24 +430,12 @@ const fetchReducedData = async (dataproductId, dataType) => {
         initialized: false,
         plotFunction: plotPhotometry,
         dummyTraces: [
-          // Dummy trace for the primary y-axis.
-          {
-            x: [],
-            y: [],
-            mode: "markers",
-            name: "Apparent Magnitude",
-            yaxis: "y",
-          },
+          { x: [], y: [], mode: "markers", name: "Apparent Magnitude", yaxis: "y" },
         ],
         layout: {
-          xaxis: {
-            title: "Time (MJD)",
-            tickformat: ".2f",
-          },
+          xaxis: { title: "Time (MJD)", tickformat: ".2f" },
           yaxis: {
-            title: {
-              text: "Apparent Magnitude",
-            },
+            title: { text: "Apparent Magnitude" },
             tickformat: ".2f",
             autorange: "reversed",
           },
@@ -499,11 +448,7 @@ const fetchReducedData = async (dataproductId, dataType) => {
             tickformat: ".2f",
           },
           showlegend: true,
-          legend: {
-            x: 1,
-            xanchor: "right",
-            y: 1,
-          },
+          legend: { x: 1, xanchor: "right", y: 1 },
         },
       },
     ],
@@ -515,7 +460,7 @@ const fetchReducedData = async (dataproductId, dataType) => {
       const plotId = `${dataType}Plot`;
       const tbody = document.getElementById(`${dataType}PlotTBody`);
 
-      // Create the plot with configuration.
+      // Create the plot.
       Plotly.react(
         plotId,
         plottingConfigurations.get(dataType).dummyTraces,
@@ -529,42 +474,33 @@ const fetchReducedData = async (dataproductId, dataType) => {
         }
       );
 
-      // Event listener for fetching data or extracting data from a file.
+      // Event listener for plot button clicks.
       tbody.addEventListener("click", async (event) => {
         const action = event.target.dataset.action;
-        if (action === "plot") {
-          const button = event.target;
-          const row = button.closest("tr");
-          if (!row) return;
+        if (action !== "plot") return;
 
-          // Get needed information.
-          const dataproductId = row.dataset.dataproductId;
-          const dataType = row.dataset.dataType;
-          const file = row.dataset.file;
+        const button = event.target;
+        const row = button.closest("tr");
+        if (!row) return;
 
-          // Disable the button and show loading text.
-          button.disabled = true;
+        const dataproductId = row.dataset.dataproductId;
+        const dataType = row.dataset.dataType;
+        const file = row.dataset.file;
 
-          try {
-            // Attempt to fetch reduced data.
-            let data = await fetchReducedData(dataproductId, dataType);
-
-            // If no results, run the processor.
+        button.disabled = true;
+        try {
+          let data = await fetchReducedData(dataproductId, dataType);
+          if (!data.results || data.results.length === 0) {
+            await runProcessor(dataproductId, dataType);
+            data = await fetchReducedData(dataproductId, dataType);
             if (!data.results || data.results.length === 0) {
-              await runProcessor(dataproductId, dataType);
-
-              // Retry fetching reduced data.
-              data = await fetchReducedData(dataproductId, dataType);
-
-              if (!data.results || data.results.length === 0) {
-                throw new Error(`No reduced data available.`);
-              }
+              throw new Error(`No reduced data available.`);
             }
-            plottingConfigurations.get(dataType).plotFunction(plotId, data.results);
-          } catch (error) {
-            showAlert(file, `${error.message}`);
-            button.disabled = false;
           }
+          plottingConfigurations.get(dataType).plotFunction(plotId, data.results);
+        } catch (error) {
+          showAlert(file, `${error.message}`);
+          button.disabled = false;
         }
       });
     });
@@ -572,5 +508,4 @@ const fetchReducedData = async (dataproductId, dataType) => {
 </script>
 <script src="{% static 'js/api.js' %}" defer></script>
 <script src="{% static 'js/goa.js' %}" defer></script>
-
 {% endblock %}
