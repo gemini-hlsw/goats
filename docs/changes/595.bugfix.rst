@@ -1,0 +1,1 @@
+Fixed default broker connections for new GOATS instances to point to ANTARES and Explore production environments.
