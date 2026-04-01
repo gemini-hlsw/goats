@@ -1,11 +1,12 @@
 from datetime import datetime
 
 import plotly.graph_objs as go
-from django import template
+from django import forms, template
 from django.conf import settings
 from django.core.paginator import Paginator
 from guardian.shortcuts import get_objects_for_user
 from plotly import offline
+from tom_dataproducts.forms import DataShareForm
 from tom_dataproducts.models import ReducedDatum
 from tom_dataproducts.processors.data_serializers import SpectrumSerializer
 
@@ -125,4 +126,62 @@ def goats_recent_photometry(target, limit=1):
             rd_data["limit"] = False
         data.append(rd_data)
     context = {"target": target, "data": data}
+    return context
+
+
+@register.inclusion_tag(
+    "tom_dataproducts/partials/photometry_datalist_for_target.html",
+    takes_context=True,
+)
+def get_photometry_data(context, target, target_share=False):
+    """
+    Displays a table of the all photometric points for a target.
+    """
+    photometry = ReducedDatum.objects.filter(
+        data_type="photometry", target=target
+    ).order_by("-timestamp")
+
+    data = []
+    for reduced_datum in photometry:
+        rd_data = {
+            "id": reduced_datum.pk,
+            "timestamp": reduced_datum.timestamp,
+            "source": reduced_datum.source_name,
+            "filter": reduced_datum.value.get("filter", ""),
+            "mjd": reduced_datum.value.get("time", ""),
+            "telescope": reduced_datum.value.get("telescope", ""),
+            "error": reduced_datum.value.get(
+                "error", reduced_datum.value.get("magnitude_error", "")
+            ),
+        }
+
+        if "limit" in reduced_datum.value.keys():
+            rd_data["magnitude"] = reduced_datum.value["limit"]
+            rd_data["limit"] = True
+        else:
+            rd_data["magnitude"] = reduced_datum.value["magnitude"]
+            rd_data["limit"] = False
+        data.append(rd_data)
+
+    initial = {
+        "submitter": context["request"].user,
+        "target": target,
+        "data_type": "photometry",
+        "share_title": f"Updated data for {target.name} from"
+        "{getattr(settings, 'TOM_NAME', 'TOM Toolkit')}.",
+    }
+    form = DataShareForm(initial=initial)
+    form.fields["data_type"].widget = forms.HiddenInput()
+
+    sharing = getattr(settings, "DATA_SHARING", None)
+    hermes_sharing = sharing and sharing.get("hermes", {}).get("HERMES_API_KEY")
+
+    context = {
+        "data": data,
+        "target": target,
+        "target_data_share_form": form,
+        "sharing_destinations": form.fields["share_destination"].choices,
+        "hermes_sharing": hermes_sharing,
+        "target_share": target_share,
+    }
     return context
