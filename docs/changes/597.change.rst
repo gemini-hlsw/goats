@@ -1,0 +1,1 @@
+Excluded FITS files from being displayed in the Photometry tab.
