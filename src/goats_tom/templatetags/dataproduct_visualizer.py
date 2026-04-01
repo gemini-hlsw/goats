@@ -36,10 +36,13 @@ def dataproduct_visualizer(
     """
     # Get all the dataproducts.
     # FIXME: Add in permission check to only get appropriate dataproducts
-    dataproducts = DataProduct.objects.filter(target=target).filter(
-        Q(data_product_type=data_type)
-        | Q(data_product_type="fits_file")
-        | Q(data__iendswith="fits.fz")
-    )
+
+    active_filter = Q(data_product_type=data_type)
+
+    if data_type == "spectroscopy":
+        active_filter |= Q(data_product_type="fits_file")
+        active_filter |= Q(data__iendswith="fits.fz")
+
+    dataproducts = DataProduct.objects.filter(target=target).filter(active_filter)
 
     return {"target": target, "dataproducts": dataproducts, "data_type": data_type}
