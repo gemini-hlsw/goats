@@ -3,6 +3,37 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.4.0 (2026-04-02)
+===========================
+
+New Features
+------------
+
+- Added support for uploading, downloading, previewing, and staging finder charts, including integration with the GPP client payload. (`PR #573 <https://github.com/gemini-hlsw/goats/pull/573>`_)
+- Added a group to identify calibrations in the observation selection options. (`PR #586 <https://github.com/gemini-hlsw/goats/pull/586>`_)
+- Added filter column to the Recent Photometry table on the target page. (`PR #594 <https://github.com/gemini-hlsw/goats/pull/594>`_)
+- Added MJD column next to Timestamp in the Photometry data table. (`PR #596 <https://github.com/gemini-hlsw/goats/pull/596>`_)
+
+
+Changes
+-------
+
+- Updated the GPP client to v26.3.0 to ensure compatibility with finder chart functionality. (`PR #575 <https://github.com/gemini-hlsw/goats/pull/575>`_)
+- Replaced automatic finder chart uploads with a staged add/delete workflow. (`PR #585 <https://github.com/gemini-hlsw/goats/pull/585>`_)
+- Unified passband colors in the light curve plot to match ANTARES color scheme; upper limits now share the same color as their corresponding band. (`PR #592 <https://github.com/gemini-hlsw/goats/pull/592>`_)
+- Excluded FITS files from being displayed in the Photometry tab. (`PR #597 <https://github.com/gemini-hlsw/goats/pull/597>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed a TNS discovery report submission issue caused by a missing configuration. (`PR #578 <https://github.com/gemini-hlsw/goats/pull/578>`_)
+- Fixed incorrect calculation of the remaining time for the science band. (`PR #580 <https://github.com/gemini-hlsw/goats/pull/580>`_)
+- Fixed science band submission when no band is available. (`PR #581 <https://github.com/gemini-hlsw/goats/pull/581>`_)
+- Removed the reset axis button from the photometry plot. (`PR #593 <https://github.com/gemini-hlsw/goats/pull/593>`_)
+- Fixed default broker connections for new GOATS instances to point to ANTARES and Explore production environments. (`PR #595 <https://github.com/gemini-hlsw/goats/pull/595>`_)
+
+
 Version 26.3.0 (2026-03-03)
 ===========================
 

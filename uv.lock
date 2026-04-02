@@ -1422,7 +1422,7 @@ wheels = [
 
 [[package]]
 name = "goats"
-version = "26.3.0"
+version = "26.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },

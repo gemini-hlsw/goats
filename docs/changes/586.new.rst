@@ -1,1 +1,0 @@
-Added a group to identify calibrations in the observation selection options.

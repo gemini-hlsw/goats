@@ -1,1 +1,0 @@
-Added MJD column next to Timestamp in the Photometry data table.

@@ -1,1 +1,0 @@
-Unified passband colors in the light curve plot to match ANTARES color scheme; upper limits now share the same color as their corresponding band.

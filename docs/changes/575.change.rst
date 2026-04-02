@@ -1,1 +1,0 @@
-Updated the GPP client to v26.3.0 to ensure compatibility with finder chart functionality.

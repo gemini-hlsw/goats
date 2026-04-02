@@ -1,1 +1,0 @@
-Fixed science band submission when no band is available.
