@@ -217,6 +217,7 @@ class GPPModel {
   async saveNormalObservation(formData) {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    formData.append("hiddenProgramIdInput", this.#activeProgram.id)
     return await this.#normalizeResponse(() =>
       this.#api.post(this.#gppSaveNormalObservationUrl, formData, {}, false),
     );
