@@ -464,7 +464,6 @@ class ProgramObservationsPanel {
       options,
       getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`
     ) {
-      // Limpia options y optgroups manteniendo el placeholder
       while (selectEl.options.length > 1) selectEl.remove(1);
       Array.from(selectEl.querySelectorAll("optgroup")).forEach(g => g.remove());
     

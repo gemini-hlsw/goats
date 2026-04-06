@@ -21,7 +21,7 @@ classifiers = [
 requires-python = ">=3.12"
 dependencies = [
     "apscheduler>=3.11.2",
-    "astropy>=6.0,<7",
+    "astropy>=7",
     "astroquery>=0.4.11",
     "channels-redis>=4.3.0,<5",
     "channels[daphne]>=4.0,<5",
@@ -37,7 +37,7 @@ dependencies = [
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
     "tom-tns>=0.3.4",
-    "tomtoolkit==2.29.0",
+    "tomtoolkit>=2.31.6",
 ]
 version = "26.4.0"
 
@@ -154,7 +154,7 @@ docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
 [tool.uv.sources]
-dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.1.0" }
+dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.2.0" }
 fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.5.2" }
 
 [tool.numpydoc_validation]
