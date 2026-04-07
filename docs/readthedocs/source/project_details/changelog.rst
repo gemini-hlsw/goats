@@ -3,6 +3,22 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.4.1rc1 (2026-04-07)
+==============================
+
+Changes
+-------
+
+- Upgraded Dragons to 4.2 and TOMToolkit to 2.31.6, and resolved related dependency issues. (`PR #602 <https://github.com/gemini-hlsw/goats/pull/602>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed missing f-prefix in share_title f-string that caused the share title to display incorrectly. (`PR #600 <https://github.com/gemini-hlsw/goats/pull/600>`_)
+- Fixed missing program ID in the 'Save to GOATS' payload. (`PR #601 <https://github.com/gemini-hlsw/goats/pull/601>`_)
+
+
 Version 26.4.0 (2026-04-02)
 ===========================
 
