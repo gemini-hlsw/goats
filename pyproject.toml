@@ -39,7 +39,7 @@ dependencies = [
     "tom-tns>=0.3.4",
     "tomtoolkit==2.31.6",
 ]
-version = "26.4.1rc1"
+version = "26.4.1rc2"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"

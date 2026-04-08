@@ -3,6 +3,16 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.4.1rc2 (2026-04-08)
+==============================
+
+Bug Fixes
+---------
+
+- Pinned marshmallow to 3.26.1 to satisfy ANTARES dependency and conda-forge availability. (`PR #604 <https://github.com/gemini-hlsw/goats/pull/604>`_)
+- Fixed tests to support release candidate versioning. (`PR #605 <https://github.com/gemini-hlsw/goats/pull/605>`_)
+
+
 Version 26.4.1rc1 (2026-04-07)
 ==============================
 

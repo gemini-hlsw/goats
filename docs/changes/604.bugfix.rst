@@ -1,1 +1,0 @@
-Pinned marshmallow to 3.26.1 to satisfy ANTARES dependency and conda-forge availability.
