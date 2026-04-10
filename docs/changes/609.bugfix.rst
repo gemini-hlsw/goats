@@ -1,0 +1,1 @@
+Pinned django-crispy-forms to 2.5 to ensure compatibility with Django 4.
