@@ -3,6 +3,16 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.4.1 (2026-04-10)
+===========================
+
+Changes
+-------
+
+- Downgraded Dragons to 4.1 pending TOMToolkit support for specutils >2.
+  ￼ (`PR #608 <https://github.com/gemini-hlsw/goats/pull/608>`_)
+
+
 Version 26.4.1rc2 (2026-04-08)
 ==============================
 
