@@ -1142,11 +1142,12 @@ wheels = [
 
 [[package]]
 name = "dragons"
-version = "4.2.0"
-source = { git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.2.0#d3269b27635ee3b880c515c6d1ded95cfb625f93" }
+version = "4.1.0"
+source = { git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.1.0#93fb4acc6f4c21a031b2301499c06b429aa19fdf" }
 dependencies = [
     { name = "asdf" },
     { name = "astropy" },
+    { name = "astroquery" },
     { name = "astroscrappy" },
     { name = "bokeh" },
     { name = "bottleneck" },
@@ -1161,14 +1162,12 @@ dependencies = [
     { name = "psutil" },
     { name = "pyerfa" },
     { name = "python-dateutil" },
-    { name = "pyvo" },
     { name = "requests" },
     { name = "scikit-image" },
     { name = "scipy" },
     { name = "specutils" },
     { name = "sqlalchemy" },
     { name = "tornado" },
-    { name = "typing-extensions" },
 ]
 
 [[package]]
@@ -1520,7 +1519,7 @@ docs = [
     { name = "sphinxcontrib-video", specifier = ">=0.4.2" },
 ]
 github = [
-    { name = "dragons", git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.2.0" },
+    { name = "dragons", git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.1.0" },
     { name = "fits-storage", git = "https://github.com/GeminiDRSoftware/FitsStorage?tag=v3.5.2" },
 ]
 notebook = [{ name = "ipykernel", specifier = ">=7.2.0" }]
@@ -1588,7 +1587,7 @@ wheels = [
 
 [[package]]
 name = "gwcs"
-version = "1.0.3"
+version = "0.22.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asdf" },
@@ -1598,9 +1597,9 @@ dependencies = [
     { name = "numpy" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/bb/76541e00ade1996c9eb1cb9b9ca75e4962df2d0b9281e2551d6e7a62eac0/gwcs-1.0.3.tar.gz", hash = "sha256:c7cc83b0a2faf4433d94a047065e1686ba0e94b736c6453083a82d5111fc114a", size = 353952, upload-time = "2026-02-12T19:42:06.117Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/0e/0c2a9d159f93359ee7ac3b4610098745d6eb80e3f9992bbcedc968c76733/gwcs-0.22.1.tar.gz", hash = "sha256:e96d3b7f83c7bb67898d7e3e2babd02a09d8e2b9aa4e66b5d464399f43596a53", size = 203581, upload-time = "2024-12-20T15:08:11.121Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/c4/816d3a19dd705b64d8e25f0b5f5c93408bdfdfb9cd8261852fe2b73d6226/gwcs-1.0.3-py3-none-any.whl", hash = "sha256:c7bf303695a68e42719e661c91aaf802c46bf62c20a5148522ff3f969778b598", size = 364631, upload-time = "2026-02-12T19:42:04.394Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/01/1d945421a34ab51ac5ff5f0318e667cea445956aa32cec3d441421813e81/gwcs-0.22.1-py3-none-any.whl", hash = "sha256:f01de756f96d924e19586dfb42917eece079c1178fafd87e9a4a4e923a6d8810", size = 160505, upload-time = "2024-12-20T15:08:08.437Z" },
 ]
 
 [[package]]
