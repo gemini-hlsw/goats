@@ -139,7 +139,6 @@ const SHARED_FIELDS = [
     id: "title",
     colSize: "col-lg-6",
     showIfMode: "normal",
-    readOnly: "normal",
   },
   {
     labelText: "Radial Velocity",
