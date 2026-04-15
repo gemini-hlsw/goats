@@ -155,7 +155,7 @@ docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
 [tool.uv.sources]
-dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.1.0" }
+dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.2.1" }
 fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.5.2" }
 
 [tool.numpydoc_validation]
