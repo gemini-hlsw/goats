@@ -1,2 +1,0 @@
-
-Added Django 5 compatibility to the tests.
