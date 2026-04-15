@@ -1491,7 +1491,7 @@ requires-dist = [
     { name = "djangorestframework", specifier = ">=3.16.1,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
-    { name = "gpp-client", specifier = "==26.3.0" },
+    { name = "gpp-client", specifier = "==26.4.0" },
     { name = "marshmallow", specifier = "==3.26.1" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
@@ -1528,7 +1528,7 @@ notebook = [{ name = "ipykernel", specifier = ">=7.2.0" }]
 
 [[package]]
 name = "gpp-client"
-version = "26.3.0"
+version = "26.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1540,9 +1540,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/63/ee/729be58eb4f538165978a5d5253ede2896552c2f84019a03f43e03f4166d/gpp_client-26.3.0.tar.gz", hash = "sha256:7b9778934b56cbda02d7b05e9f3609e1af13bb0773e9b51fc87d996fe91e901b", size = 158936, upload-time = "2026-03-03T13:48:41.358Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/40/c5/ccf696271ed18e70ccf76ab5f2f4637dc33aac340fff94d32a4d7aaa56ce/gpp_client-26.4.0.tar.gz", hash = "sha256:08a2eb9361312ef247891aca9b99de93e181236b05518a1f690c7278077ef2ff", size = 167379, upload-time = "2026-04-14T21:54:28.852Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/78/c8404f6d309df424eb2badc987947c5db781c02072390d4e22ceec4a7e1f/gpp_client-26.3.0-py3-none-any.whl", hash = "sha256:4d9bd7b721e6f4071a0f2e911c8e48406b30fe837004751cb040ee2723ac66ae", size = 194608, upload-time = "2026-03-03T13:48:39.676Z" },
+    { url = "https://files.pythonhosted.org/packages/01/0a/c75f43c8b40e76ae19ade0326293d2ff65dd1bda4c9e9cf39af2545dbd49/gpp_client-26.4.0-py3-none-any.whl", hash = "sha256:7d611887edd2a59f3a27c63ff794c4fd1edaec0d1e33f7e5e573043a5163f3c8", size = 203505, upload-time = "2026-04-14T21:54:27.311Z" },
 ]
 
 [[package]]
