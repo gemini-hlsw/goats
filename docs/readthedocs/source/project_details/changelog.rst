@@ -3,6 +3,15 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.4.4 (2026-04-15)
+===========================
+
+Bug Fixes
+---------
+
+- Pinned django-crispy-forms to 2.5 to ensure compatibility with Django 4. (`PR #609 <https://github.com/gemini-hlsw/goats/pull/609>`_)
+
+
 Version 26.4.1 (2026-04-10)
 ===========================
 
