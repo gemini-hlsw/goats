@@ -125,6 +125,7 @@ def goats_recent_photometry(target, limit=1):
             rd_data["magnitude"] = reduced_datum.value["magnitude"]
             rd_data["limit"] = False
         data.append(rd_data)
+    target.is_antares = any(n.upper().startswith("ANT") for n in target.names)
     context = {"target": target, "data": data}
     return context
 
