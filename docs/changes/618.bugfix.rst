@@ -1,0 +1,1 @@
+Fixed Update Photometry button visibility for targets with ANTARES aliases.
