@@ -1,1 +1,0 @@
-Fixed spectrum visualizer fill appearing incorrectly in light mode

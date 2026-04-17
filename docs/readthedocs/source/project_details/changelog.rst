@@ -3,6 +3,16 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.4.5 (2026-04-17)
+===========================
+
+Bug Fixes
+---------
+
+- Fixed Update Photometry button visibility for targets with ANTARES aliases. (`PR #618 <https://github.com/gemini-hlsw/goats/pull/618>`_)
+- Fixed spectrum visualizer fill appearing incorrectly in light mode (`PR #619 <https://github.com/gemini-hlsw/goats/pull/619>`_)
+
+
 Version 26.4.3 (2026-04-15)
 ===========================
 
