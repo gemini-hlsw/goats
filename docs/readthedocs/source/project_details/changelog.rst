@@ -3,6 +3,15 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.4.6 (2026-04-17)
+===========================
+
+New Features
+------------
+
+- Added auto-ingestion of processed calibration files from the archive in the Dragons app (`PR #620 <https://github.com/gemini-hlsw/goats/pull/620>`_)
+
+
 Version 26.4.4 (2026-04-15)
 ===========================
 
