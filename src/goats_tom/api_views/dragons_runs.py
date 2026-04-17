@@ -153,6 +153,10 @@ class DRAGONSRunsViewSet(
                 logger.debug("Adding BPM to calibration database.")
                 cal_db.add_cal(data_product.data.path)
                 continue
+            if "PROCESSED" in tags and "CAL" in tags:
+                logger.debug("Adding procssed cal to calibration database.")
+                cal_db.add_cal(data_product.data.path)
+                continue
             if data_product.metadata.processed:
                 logger.debug("Skipping prepared or processed file.")
                 continue
