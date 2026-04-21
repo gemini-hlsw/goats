@@ -630,10 +630,11 @@ class ProcessedFilesModel {
    */
   async addFile(filename, filepath) {
     try {
+      const extension = filename.split('.').pop().toLowerCase();
       const body = {
         filename: filename,
         filepath: filepath,
-        data_product_type: "fits_file",
+        data_product_type:  extension == "fits"?"fits_file":"text_file",
         dragons_run: this.runId,
       };
       await this.api.post(`${this.dragonsDataProductsUrl}`, body);
