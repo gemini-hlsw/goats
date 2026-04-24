@@ -3,6 +3,21 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.4.7 (2026-04-24)
+===========================
+
+New Features
+------------
+
+- Added most recent photometry display to the target card in the GPP app. (`PR #622 <https://github.com/gemini-hlsw/goats/pull/622>`_)
+
+
+Changes
+-------
+
+- Removed unused configuration field ``DRAMATIQ_RESULTS_REDIS_URL``. (`PR #624 <https://github.com/gemini-hlsw/goats/pull/624>`_)
+
+
 Version 26.4.5 (2026-04-17)
 ===========================
 
