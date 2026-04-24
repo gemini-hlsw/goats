@@ -34,7 +34,6 @@ def _error(
 
 
 @dramatiq.actor(
-    store_results=True,
     max_retries=0,
     time_limit=getattr(settings, "DRAMATIQ_ACTOR_TIME_LIMIT", 86400000),
 )
