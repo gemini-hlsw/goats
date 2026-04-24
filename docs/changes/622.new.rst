@@ -1,0 +1,1 @@
+Added most recent photometry display to the target card in the GPP app.
