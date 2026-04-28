@@ -37,7 +37,7 @@ class PosAngleEditor {
   /** Builds the wrapper, mode dropdown, and angle field. Wires the toggle. */
   #render() {
     // Need to wrap to preserve layout and match rest.
-    const wrapper = Utils.createElement("div", "mt-3");
+    const wrapper = Utils.createElement("div", "mt-0");
     const div = Utils.createElement("div", ["row", "g-3"]);
 
     const modeField = this.#createCol({

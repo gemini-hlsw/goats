@@ -50,7 +50,8 @@ class ObservationForm {
         const div = Utils.createElement("div", "mt-3");
         new ExposureModeEditor(div, {
           data: raw ?? {},
-          readOnly: this.#readOnly,
+          mode: meta.mode,
+          readOnly: this.#readOnly || meta.readOnly ,
         });
         return [div];
       },
@@ -112,6 +113,14 @@ class ObservationForm {
         });
         return [div];
       },
+      handleOffsetVariant: (meta, raw) => {
+        const div = Utils.createElement("div", "mt-3");
+        new OffsetVariantEditor (div, {
+          data: raw ?? [],
+          readOnly: this.#readOnly,
+        });
+        return [div];
+       },
     };
 
     if (observation) {

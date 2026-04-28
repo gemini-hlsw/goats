@@ -138,7 +138,6 @@ class FinderChartEditor {
    *   Full state snapshot.
    */
   getPendingChanges() {
-    console.log(this.#getItemsToAdd())
     return {
       toAdd: this.#getItemsToAdd(),
       toDelete: this.#getItemsToDelete(),
