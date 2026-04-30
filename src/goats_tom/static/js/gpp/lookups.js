@@ -81,6 +81,29 @@ class Lookups {
     IFU_NS_BLUE: "IFU NS Blue",
     IFU_NS_RED: "IFU NS Red",
   };
+  static gmosImagingOffsetVariant = {
+    PRE_IMAGING: "pre-imaging",
+    GROUPED: "grouped",
+    INTERLEAVED: "interleaved",
+  };
+
+  static gmosImagingOffsets = {
+    NONE: "No Offset",
+    ENUMERATED: "explicit",
+    UNIFORM: "uniform",
+    SPIRAL: "spiral",
+    RANDOM: "random",
+  };
+
+  static gmosImagingWavelengthOrder = {
+    INCREASING: "increasing",
+    DECREASING: "decreasing",
+  };
+
+  static gmosReadMode = {
+    FAST: "Fast",
+    SLOW: "Slow",
+  };
 
   static instrument = {
     GMOS_SOUTH: "GMOS South",
