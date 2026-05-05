@@ -1,0 +1,1 @@
+Fixed error on non-proprietary GPP observations; status now displays as unknown and data download is allowed regardless of status.
