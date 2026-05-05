@@ -10,7 +10,6 @@ from django.views.generic import View
 from tom_observations.models import ObservationRecord
 
 from goats_tom.astroquery import Observations as GOA
-from goats_tom.facilities.gemini import GOA_OBSERVING_STATES
 from goats_tom.forms import GOAQueryForm
 from goats_tom.models import GOALogin
 from goats_tom.tasks import download_goa_files
@@ -37,18 +36,6 @@ class GOAQueryFormView(View):
         observation_detail_url = reverse(
             "tom_observations:detail", kwargs={"pk": kwargs["pk"]}
         )
-
-        # Check if the observation status is valid, if not stop here and issue message.
-        # Data can be available for all states listed in GOA_OBSERVING_STATES.
-        if observation_record.status.lower() not in GOA_OBSERVING_STATES:
-            messages.error(
-                request,
-                (
-                    "GOA data is unavailable until the observation is complete. Update "
-                    "the observation status on the overview page once it's finished."
-                ),
-            )
-            return redirect(observation_detail_url)
 
         if form.is_valid():
             # Get GOA credentials.

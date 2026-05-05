@@ -1,9 +1,8 @@
 <div class="mb-5">
   <h4 class="text-center">Retrieve data from the Gemini Observatory Archive (GOA)</h4>
-  <p class="text-center"><em>This functionality is available once the observation is complete, i.e., the status is updated to 'Observed', 'Ongoing', or 'Completed'</em></p>
   {% if object.url %}
   <div class="row g-3 justify-content-center">
-    <div class="col-12 text-center mb-3">
+    <div class="col-12 text-center m-4">
       <a class="btn btn-outline-primary" href="{{ object.url }}" target="_blank">View at Archive »</a>
     </div>
   </div>
@@ -95,19 +94,9 @@
     <input type="hidden" name="facility" value="{{ object.facility }}">
     <div class="row">
       <div class="col text-center">
-        {% if object.status.lower not in completed_states %}
-          <a 
-            href="{% url 'targets:detail' pk=object.target.id %}?update_status=True"
-            title="Update status of observations for target"
-            class="btn btn-primary"
-          >
-            Observation incomplete. Click to update status.
-          </a>
-        {% else %}
           <button type="submit" class="btn btn-primary">
             Submit
           </button>
-        {% endif %}
       </div>
     </div>
   </form>
