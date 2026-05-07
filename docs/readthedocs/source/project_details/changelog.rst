@@ -3,6 +3,29 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.5.1 (2026-05-07)
+===========================
+
+New Features
+------------
+
+- Added display of GMOS imaging mode configuration in the observation form (`PR #629 <https://github.com/gemini-hlsw/goats/pull/629>`_)
+
+
+Changes
+-------
+
+- Updated TOMToolkit from 2.31.7 to 2.32.2 (`PR #33 <https://github.com/gemini-hlsw/goats/pull/33>`_)
+- Updated the DRAGONS app processed files list to show all file types instead of only FITS files. (`PR #621 <https://github.com/gemini-hlsw/goats/pull/621>`_)
+- Removed unused configuration field ``DRAMATIQ_RESULTS_REDIS_URL``. (`PR #624 <https://github.com/gemini-hlsw/goats/pull/624>`_)
+
+
+Other
+-----
+
+- Refactored position angle editor to align with the structure of other editor components. (`PR #628 <https://github.com/gemini-hlsw/goats/pull/628>`_)
+
+
 Version 26.4.7 (2026-04-24)
 ===========================
 
