@@ -2,6 +2,7 @@
 
 __all__ = ["GPPObservationViewSet"]
 
+import json
 import logging
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -10,6 +11,7 @@ from typing import Any, List
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from gpp_client import GPPClient, GPPDirector
+from gpp_client.api.enums import AttachmentType
 from gpp_client.api.input_types import (
     TargetEnvironmentInput,
 )
@@ -123,6 +125,107 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
     permission_classes = [permissions.IsAuthenticated]
     queryset = None
 
+    def _normalize_finder_charts(self, data):
+        """
+        Normalize finder chart data for serializer consumption.
+
+        Parameters
+        ----------
+        data : dict
+            Incoming request data.
+
+        Returns
+        -------
+        dict
+            Updated data with normalized ``finderCharts``.
+        """
+        raw_finder_charts = json.loads(data.pop("finderCharts", "{}"))
+
+        to_add = []
+        for item in raw_finder_charts.get("toAdd", []):
+            file_key = item.get("fileKey")
+            file_obj = data.pop(file_key, None)
+
+            if not file_obj:
+                continue
+
+            to_add.append(
+                {
+                    "description": item.get("description", ""),
+                    "file": file_obj,
+                }
+            )
+
+        data["finderCharts"] = {
+            "toAdd": to_add,
+            "toDelete": raw_finder_charts.get("toDelete", []),
+        }
+
+        return data
+
+    def _process_finder_charts(
+        self,
+        client: GPPClient,
+        observation_id: str,
+        program_id: str,
+        finder_charts: dict[str, Any],
+    ) -> list[str]:
+
+        to_delete = finder_charts.get("toDelete", [])
+        to_add = finder_charts.get("toAdd", [])
+
+        # Finder charts are currently treated as observation-owned attachments,
+        # even though GPP stores them at program level. Therefore deleting a
+        # finder chart from the UI removes it from the program.
+        if to_delete:
+            for attachment_id in to_delete:
+                try:
+                    async_to_sync(client.attachment.delete_by_id)(
+                        attachment_id=attachment_id
+                    )
+                except Exception as e:
+                    raise ValueError(
+                        f"Failed to delete finder chart '{attachment_id}': {e}"
+                    ) from e
+        try:
+            attachment_data = async_to_sync(client.attachment.get_all_by_observation)(
+                observation_id=observation_id,
+                observation_reference=None,
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Failed to fetch current finder charts for observation "
+                f"'{observation_id}': {e}"
+            ) from e
+
+        currentIds = [a["id"] for a in attachment_data.get("attachments", [])]
+        # add new finder charts to program
+        if to_add:
+            for item in to_add:
+                description = item.get("description", "")
+                file = item.get("file")
+
+                if not file:
+                    continue
+
+                file.seek(0)
+                try:
+                    newId = async_to_sync(client.attachment.upload)(
+                        program_id=program_id,
+                        attachment_type=AttachmentType("FINDER"),
+                        file_name=file.name,
+                        description=description,
+                        content=file.read(),
+                    )
+                except Exception as e:
+                    raise ValueError(
+                        f"Failed to upload finder chart '{file.name}': {e}"
+                    ) from e
+
+                currentIds.append(newId)
+
+        return currentIds
+
     def _normalize_form_data(self, request: Request) -> dict[str, Any]:
         """
         Normalize form data by stripping whitespace and converting empty strings to
@@ -154,7 +257,9 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         str | None
             The normalized string or ``None`` if the input was empty or whitespace.
         """
-        return value.strip() if value and value.strip() != "" else None
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
     def list(self, request: Request, *args, **kwargs) -> Response:
         """Return a list of GPP observations associated with the authenticated user.
@@ -428,6 +533,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         logger.debug("Normalizing form data for GPP observation update")
         try:
             normalized_data = self._normalize_form_data(request)
+            normalized_data = self._normalize_finder_charts(normalized_data)
         except Exception as e:
             return build_failure_response(
                 stage=Stage.NORMALIZATION, error=e, previous_messages=messages
@@ -450,6 +556,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             context_serializer.is_valid(raise_exception=True)
             gpp_target_id = context_serializer.gpp_target_id
             gpp_observation_id = context_serializer.gpp_observation_id
+            gpp_program_id = context_serializer.gpp_program_id
             goats_target = context_serializer.goats_target
 
             # Serialize and validate target.
@@ -521,6 +628,17 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         # Update observation.
         logger.debug("Updating observation in GPP")
         try:
+            finder_charts = normalized_data.get("finderCharts", None)
+
+            if finder_charts:
+                finder_chart_ids = self._process_finder_charts(
+                    client=client,
+                    observation_id=gpp_observation_id,
+                    program_id=gpp_program_id,
+                    finder_charts=finder_charts,
+                )
+                observation_properties.attachments = finder_chart_ids
+
             # where = WhereObservation(id=WhereOrderObservationId
             # (eq=gpp_observation_id))
             update_observation_result = async_to_sync(client.observation.update_by_id)(
@@ -634,6 +752,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         logger.debug("Normalizing form data for GPP observation creation")
         try:
             normalized_data = self._normalize_form_data(request)
+            normalized_data = self._normalize_finder_charts(normalized_data)
         except Exception as e:
             return build_failure_response(
                 stage=Stage.NORMALIZATION, error=e, previous_messages=messages
@@ -656,6 +775,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             context_serializer.is_valid(raise_exception=True)
             gpp_target_id = context_serializer.gpp_target_id
             gpp_observation_id = context_serializer.gpp_observation_id
+            gpp_program_id = context_serializer.gpp_program_id
             goats_target = context_serializer.goats_target
             instrument = context_serializer.instrument
 
@@ -722,6 +842,16 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             observation_properties.target_environment = TargetEnvironmentInput(
                 asterism=[new_target_id]
             )
+
+            finder_charts = normalized_data.get("finderCharts", None)
+            if finder_charts:
+                finder_chart_ids = self._process_finder_charts(
+                    client=client,
+                    observation_id=gpp_observation_id,
+                    program_id=gpp_program_id,
+                    finder_charts=finder_charts,
+                )
+                observation_properties.attachments = finder_chart_ids
 
             clone_observation_result = async_to_sync(client.observation.clone)(
                 observation_id=gpp_observation_id, properties=observation_properties

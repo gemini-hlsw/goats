@@ -75,6 +75,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django_htmx.middleware.HtmxMiddleware",
     "goats_tom.middleware.UserContextMiddleware",
     "goats_tom.middleware.TNSCredentialsMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -306,6 +307,7 @@ DATA_PRODUCT_TYPES = {
     "fits_file": ("fits_file", "FITS File"),
     "spectroscopy": ("spectroscopy", "Spectroscopy"),
     "image_file": ("image_file", "Image File"),
+    "text_file": ("text_file", "Text File"),
 }
 """Types of data products."""
 
@@ -344,7 +346,9 @@ BROKERS = {
     }
 }
 """Configuration for alert brokers."""
-
+DATA_SHARING = {
+    'hermes': {'ENABLE_TNS': False},
+}
 TOM_HARVESTER_CLASSES = [
     "tom_catalogs.harvesters.simbad.SimbadHarvester",
     "tom_catalogs.harvesters.ned.NEDHarvester",
@@ -428,9 +432,8 @@ slow."""
 # Set the GPP environment (DEVELOPMENT, STAGING, or PRODUCTION)
 GPP_ENV = "PRODUCTION"
 
-"""Environment setting for the GOATS Pipeline Platform (GPP). Can be set to
-``DEVELOPMENT``, ``STAGING``, or ``PRODUCTION``."""
-
 # Set the ANATARES environment (DEVELOPMENT or PRODUCTION).
 ANTARES_ENV = "PRODUCTION"
+
 ANTARES_TIMEOUT = 60 # Timeout for requests to ANTARES in seconds.
+

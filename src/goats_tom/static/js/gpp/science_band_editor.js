@@ -53,12 +53,14 @@ class ScienceBandEditor {
    * Compute remaining hours for a given band entry.
    *
    * @param {Object} band
-   * @param {number} programTime
+   * @param {Array} timeCharge
    * @returns {number}
    */
-  #remainingFor(band, programTime) {
-    const duration = Number(band?.duration?.hours ?? band?.duration ?? 0);
-    return Math.max(0, duration - programTime);
+  #remainingFor(band, timeCharge) {
+    const timeChargeBand =
+      timeCharge?.find(tc => tc.band === band.scienceBand)?.time?.program?.hours ?? 0;
+    const duration = Number(band?.duration?.hours ?? 0);
+    return Math.max(0, duration - timeChargeBand);
   }
 
   /**
@@ -73,21 +75,35 @@ class ScienceBandEditor {
     label.setAttribute("for", fieldId);
     this.#parentElement.appendChild(label);
 
-    // No options
+    // Wrapper
+    const wrapper = Utils.createElement("div");
+    wrapper.classList.add("dropdown");
+    this.#parentElement.appendChild(wrapper);
+
+    // Hidden native select (source of truth for form serialization)
+    const select = Utils.createElement("select");
+    select.id = fieldId;
+    select.name = "scienceBand";
+    select.classList.add("d-none");
+    wrapper.appendChild(select);
+
+    // Always include empty option so the field exists in form data
+    select.appendChild(new Option("", ""));
+
+    /** @type {Map<string, string>} */
+    const labelByValue = new Map();
+
+    // No options: keep select in DOM so Django can read scienceBand=""
     if (this.#bandOptions.length === 0) {
+      select.value = "";
+      this.#bandSelected = "";
+
       const disabled = Utils.createElement("div", "form-select");
       disabled.classList.add("text-muted");
       disabled.textContent = "No bands available";
       this.#parentElement.appendChild(disabled);
       return;
     }
-
-    const programTime = Number(this.#timeCharge?.band?.time?.program ?? 0);
-
-    // Wrapper
-    const wrapper = Utils.createElement("div");
-    wrapper.classList.add("dropdown");
-    this.#parentElement.appendChild(wrapper);
 
     // Button (select-like)
     const button = Utils.createElement("button", "form-select");
@@ -97,22 +113,12 @@ class ScienceBandEditor {
     button.setAttribute("aria-expanded", "false");
     wrapper.appendChild(button);
 
-    // Hidden native select (source of truth)
-    const select = Utils.createElement("select");
-    select.id = fieldId;
-    select.classList.add("d-none");
-    wrapper.appendChild(select);
-
     // Dropdown menu
     const menu = Utils.createElement("div");
     menu.classList.add("dropdown-menu", "w-100", "p-1");
     wrapper.appendChild(menu);
 
-    /** @type {Map<string, string>} */
-    const labelByValue = new Map();
-
-    // Empty option + empty menu row (same height as other items)
-    select.appendChild(new Option("", ""));
+    // Empty menu row
     const emptyItem = Utils.createElement("button");
     emptyItem.type = "button";
     emptyItem.dataset.value = "";
@@ -131,7 +137,7 @@ class ScienceBandEditor {
       // Native option
       select.appendChild(new Option(bandLabel, value));
 
-      // Menu item (two columns)
+      // Menu item
       const item = Utils.createElement("button");
       item.type = "button";
       item.dataset.value = value;
@@ -149,15 +155,14 @@ class ScienceBandEditor {
       const right = Utils.createElement("span");
       right.classList.add("text-muted");
       right.style.fontWeight = "500";
-      right.textContent = `${this.#remainingFor(band, programTime)} hr remaining`;
+      right.textContent = `${this.#remainingFor(band, this.#timeCharge)} hr remaining`;
 
       item.appendChild(left);
       item.appendChild(right);
       menu.appendChild(item);
     }
 
-    // Initial value (can be empty)
-    select.name = "scienceBand"; 
+    // Initial value
     select.value = labelByValue.has(this.#bandSelected) ? this.#bandSelected : "";
     this.#bandSelected = select.value;
 
@@ -165,7 +170,6 @@ class ScienceBandEditor {
       button.textContent = labelByValue.get(select.value) ?? "\u00A0";
     };
 
-    // Menu click -> update select + fire change
     menu.addEventListener("click", (e) => {
       const item = e.target.closest("[data-value]");
       if (!item) return;
@@ -177,7 +181,6 @@ class ScienceBandEditor {
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    // External changes safety
     select.addEventListener("change", () => {
       this.#bandSelected = select.value;
       sync();
@@ -185,8 +188,8 @@ class ScienceBandEditor {
 
     sync();
   }
+
   getValues() {
     return this.#bandSelected;
   }
 }
-

@@ -60,7 +60,7 @@ jobs:
           uv run pytest -r A -v -n auto --cov=src --cov-report=xml --cov=tests --cov-branch
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 

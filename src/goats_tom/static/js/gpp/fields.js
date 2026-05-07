@@ -156,7 +156,7 @@ const SHARED_FIELDS = [
     id: "parallax",
   },
   {
-    labelText: "\u03BC Right Ascension",
+    labelText: "μ Right Ascension",
     path: "targetEnvironment.firstScienceTarget.sidereal.properMotion.ra.milliarcsecondsPerYear",
     suffix: "mas/year",
     type: "number",
@@ -164,7 +164,7 @@ const SHARED_FIELDS = [
     colSize: "col-lg-6",
   },
   {
-    labelText: "\u03BC Declination",
+    labelText: "μ Declination",
     path: "targetEnvironment.firstScienceTarget.sidereal.properMotion.dec.milliarcsecondsPerYear",
     suffix: "mas/year",
     type: "number",
@@ -259,18 +259,18 @@ const SHARED_FIELDS = [
     handler: "handleElevationRange",
   },
   //Timing Windows section
-  { section : "Scheduling Windows" },
+  { section: "Scheduling Windows" },
   {
-   path: "timingWindows",
-   handler: "handleSchedulingWindowsInputs",
+    path: "timingWindows",
+    handler: "handleSchedulingWindowsInputs",
   },
   {
-      section : "Finder Charts"
+    section: "Finder Charts",
   },
-    {
-        path: "attachments",
-        handler: "handleFinderCharts"
-    },
+  {
+    path: "attachments",
+    handler: "handleFinderCharts",
+  },
   { section: "Configuration" },
   {
     labelText: "Position Angle",
@@ -279,7 +279,7 @@ const SHARED_FIELDS = [
     handler: "handlePosAngleConstraint",
     options: [
       { labelText: "Fixed", value: "FIXED" },
-      { labelText: "Allow 180° Flip", value: "ALLOW_180_FLIP" },
+      { labelText: "Allow 180° Flip", value: "ALLOW_FLIP" },
       { labelText: "Average Parallactic", value: "AVERAGE_PARALLACTIC" },
       { labelText: "Parallactic Override", value: "PARALLACTIC_OVERRIDE" },
       { labelText: "Unbounded", value: "UNBOUNDED" },
@@ -290,195 +290,172 @@ const SHARED_FIELDS = [
   },
 ];
 
-const GMOS_NORTH_LONG_SLIT_FIELDS = [
-  {
-    labelText: "Instrument",
-    path: "instrument",
-    id: "instrument",
-    lookup: Lookups.instrument,
-    readOnly: "both",
-  },
-  {
-    labelText: "Position Angle",
-    path: "posAngleConstraint.angle.degrees",
-    suffix: "deg",
-    type: "number",
-    id: "posAngle",
-    readOnly: "both",
-  },
-  {
-    labelText: "Grating",
-    path: "observingMode.gmosNorthLongSlit.grating",
-    id: "grating",
-    formatter: Formatters.replaceUnderscore,
-    readOnly: "both",
-  },
-  {
-    labelText: "Filter",
-    path: "observingMode.gmosNorthLongSlit.filter",
-    id: "filter",
-    readOnly: "both",
-  },
-  {
-    labelText: "FPU",
-    path: "observingMode.gmosNorthLongSlit.fpu",
-    id: "fpu",
-    lookup: Lookups.gmosNorthBuiltinFpu,
-    colSize: "col-lg-6",
-    readOnly: "both",
-  },
-  {
-    labelText: "Spatial Offsets",
-    path: "observingMode.gmosNorthLongSlit.offsets",
-    id: "spatialOffsets",
-    suffix: "arcsec",
-    handler: "handleSpatialOffsetsList",
-    colSize: "col-lg-6",
-  },
-  {
-    labelText: "\u03BB Dithers",
-    path: "observingMode.gmosNorthLongSlit.wavelengthDithers",
-    id: "wavelengthDithers",
-    suffix: "nm",
-    handler: "handleWavelengthDithersList",
-    colSize: "col-lg-6",
-  },
-  {
-    labelText: "Central \u03BB",
-    path: "observingMode.gmosNorthLongSlit.centralWavelength.nanometers",
-    id: "centralWavelength",
-    suffix: "nm",
-  },
-  {
-    labelText: "Exposure Mode",
-    path: "observingMode.gmosNorthLongSlit.exposureTimeMode",
-    id: "exposureMode",
-    handler: "handleExposureMode",
-  },
-  {
-    labelText: "X Binning",
-    path: "observingMode.gmosNorthLongSlit.xBin",
-    id: "xBin",
-    lookup: Lookups.gmosBinning,
-    readOnly: "both",
-  },
-  {
-    labelText: "Y Binning",
-    path: "observingMode.gmosNorthLongSlit.yBin",
-    id: "yBin",
-    lookup: Lookups.gmosBinning,
-    readOnly: "both",
-  },
-  {
-    labelText: "Read Mode",
-    path: "observingMode.gmosNorthLongSlit.ampReadMode",
-    id: "ampReadMode",
-    formatter: Formatters.capitalizeFirstLetter,
-    readOnly: "both",
-  },
-  {
-    labelText: "ROI",
-    path: "observingMode.gmosNorthLongSlit.roi",
-    id: "roi",
-    lookup: Lookups.gmosRoi,
-    readOnly: "both",
-  },
-];
+/**
+ * Generate imaging fields for GMOS North/South.
+ * @param {string} site - "North" or "South"
+ * @returns {array} Field definitions for imaging mode
+ */
+function generateGmosImagingFields(site) {
+  const obsPath = `observingMode.gmos${site}Imaging`;
+  const fpuLookup = Lookups[`gmos${site}BuiltinFpu`];
 
-const GMOS_SOUTH_LONG_SLIT_FIELDS = [
-  {
-    labelText: "Instrument",
-    path: "instrument",
-    id: "instrument",
-    lookup: Lookups.instrument,
-    readOnly: "both",
-  },
-  {
-    labelText: "Position Angle",
-    path: "posAngleConstraint.angle.degrees",
-    suffix: "deg",
-    type: "number",
-    id: "posAngle",
-    readOnly: "both",
-  },
-  {
-    labelText: "Grating",
-    path: "observingMode.gmosSouthLongSlit.grating",
-    id: "grating",
-    formatter: Formatters.replaceUnderscore,
-    readOnly: "both",
-  },
-  {
-    labelText: "Filter",
-    path: "observingMode.gmosSouthLongSlit.filter",
-    id: "filter",
-    readOnly: "both",
-  },
-  {
-    labelText: "FPU",
-    path: "observingMode.gmosSouthLongSlit.fpu",
-    id: "fpu",
-    lookup: Lookups.gmosSouthBuiltinFpu,
-    colSize: "col-lg-6",
-    readOnly: "both",
-  },
-  {
-    labelText: "Spatial Offsets",
-    path: "observingMode.gmosSouthLongSlit.offsets",
-    id: "spatialOffsets",
-    suffix: "arcsec",
-    handler: "handleSpatialOffsetsList",
-    colSize: "col-lg-6",
-  },
-  {
-    labelText: "\u03BB Dithers",
-    path: "observingMode.gmosSouthLongSlit.wavelengthDithers",
-    id: "wavelengthDithers",
-    suffix: "nm",
-    handler: "handleWavelengthDithersList",
-    colSize: "col-lg-6",
-  },
-  {
-    labelText: "Central \u03BB",
-    path: "observingMode.gmosSouthLongSlit.centralWavelength.nanometers",
-    id: "centralWavelength",
-    suffix: "nm",
-  },
-  {
-    labelText: "Exposure Mode",
-    path: "observingMode.gmosSouthLongSlit.exposureTimeMode",
-    id: "exposureMode",
-    handler: "handleExposureMode",
-  },
-  {
-    labelText: "X Binning",
-    path: "observingMode.gmosSouthLongSlit.xBin",
-    id: "xBin",
-    lookup: Lookups.gmosBinning,
-    readOnly: "both",
-  },
-  {
-    labelText: "Y Binning",
-    path: "observingMode.gmosSouthLongSlit.yBin",
-    id: "yBin",
-    lookup: Lookups.gmosBinning,
-    readOnly: "both",
-  },
-  {
-    labelText: "Read Mode",
-    path: "observingMode.gmosSouthLongSlit.ampReadMode",
-    id: "ampReadMode",
-    formatter: Formatters.capitalizeFirstLetter,
-    readOnly: "both",
-  },
-  {
-    labelText: "ROI",
-    path: "observingMode.gmosSouthLongSlit.roi",
-    id: "roi",
-    lookup: Lookups.gmosRoi,
-    readOnly: "both",
-  },
-];
+  return [
+    {
+      labelText: "Instrument",
+      path: "instrument",
+      id: "instrument",
+      lookup: Lookups.instrument,
+      readOnly: "both",
+    },
+    {
+      labelText: "Position Angle",
+      path: "posAngleConstraint.angle.degrees",
+      suffix: "deg",
+      type: "number",
+      id: "posAngle",
+      readOnly: "both",
+    },
+    {
+      path: `${obsPath}.variant`,
+      handler: "handleOffsetVariant",
+    },
+    {
+      labelText: "Exposure Mode",
+      path: `${obsPath}.filters`,
+      id: "exposureMode",
+      handler: "handleExposureMode",
+      mode: "imaging",
+      readOnly: true, /**only when handler is present  */
+    },
+    {
+      labelText: "Binning",
+      path: `${obsPath}.bin`,
+      id: "bin",
+      lookup: Lookups.gmosBinning,
+      readOnly: "both",
+    },
+    {
+      labelText: "Read Mode",
+      path: `${obsPath}.ampReadMode`,
+      id: "ampReadMode",
+      formatter: Formatters.capitalizeFirstLetter,
+      readOnly: "both",
+    },
+    {
+      labelText: "ROI",
+      path: `${obsPath}.roi`,
+      id: "roi",
+      lookup: Lookups.gmosRoi,
+      readOnly: "both",
+    },
+  ];
+}
+
+/**
+ * Generate long-slit fields for GMOS North/South.
+ * @param {string} site - "North" or "South"
+ * @returns {array} Field definitions for long-slit mode
+ */
+function generateGmosLongSlitFields(site) {
+  const obsPath = `observingMode.gmos${site}LongSlit`;
+  const fpuLookup = Lookups[`gmos${site}BuiltinFpu`];
+
+  return [
+    {
+      labelText: "Instrument",
+      path: "instrument",
+      id: "instrument",
+      lookup: Lookups.instrument,
+      readOnly: "both",
+    },
+    {
+      labelText: "Position Angle",
+      path: "posAngleConstraint.angle.degrees",
+      suffix: "deg",
+      type: "number",
+      id: "posAngle",
+      readOnly: "both",
+    },
+    {
+      labelText: "Grating",
+      path: `${obsPath}.grating`,
+      id: "grating",
+      formatter: Formatters.replaceUnderscore,
+      readOnly: "both",
+    },
+    {
+      labelText: "Filter",
+      path: `${obsPath}.filter`,
+      id: "filter",
+      readOnly: "both",
+    },
+    {
+      labelText: "FPU",
+      path: `${obsPath}.fpu`,
+      id: "fpu",
+      lookup: fpuLookup,
+      colSize: "col-lg-6",
+      readOnly: "both",
+    },
+    {
+      labelText: "Spatial Offsets",
+      path: `${obsPath}.offsets`,
+      id: "spatialOffsets",
+      suffix: "arcsec",
+      handler: "handleSpatialOffsetsList",
+      colSize: "col-lg-6",
+    },
+    {
+      labelText: "λ Dithers",
+      path: `${obsPath}.wavelengthDithers`,
+      id: "wavelengthDithers",
+      suffix: "nm",
+      handler: "handleWavelengthDithersList",
+      colSize: "col-lg-6",
+    },
+    {
+      labelText: "Central λ",
+      path: `${obsPath}.centralWavelength.nanometers`,
+      id: "centralWavelength",
+      suffix: "nm",
+    },
+    {
+      labelText: "Exposure Mode",
+      path: `${obsPath}.exposureTimeMode`,
+      id: "exposureMode",
+      handler: "handleExposureMode",
+      mode: "longSlit"
+    },
+    {
+      labelText: "X Binning",
+      path: `${obsPath}.xBin`,
+      id: "xBin",
+      lookup: Lookups.gmosBinning,
+      readOnly: "both",
+    },
+    {
+      labelText: "Y Binning",
+      path: `${obsPath}.yBin`,
+      id: "yBin",
+      lookup: Lookups.gmosBinning,
+      readOnly: "both",
+    },
+    {
+      labelText: "Read Mode",
+      path: `${obsPath}.ampReadMode`,
+      id: "ampReadMode",
+      formatter: Formatters.capitalizeFirstLetter,
+      readOnly: "both",
+    },
+    {
+      labelText: "ROI",
+      path: `${obsPath}.roi`,
+      id: "roi",
+      lookup: Lookups.gmosRoi,
+      readOnly: "both",
+    },
+  ];
+}
 
 /**
  * Field configs
@@ -496,6 +473,8 @@ const GMOS_SOUTH_LONG_SLIT_FIELDS = [
  * }
  */
 const FIELD_CONFIGS = {
-  GMOS_NORTH_LONG_SLIT: GMOS_NORTH_LONG_SLIT_FIELDS,
-  GMOS_SOUTH_LONG_SLIT: GMOS_SOUTH_LONG_SLIT_FIELDS,
+  GMOS_NORTH_IMAGING: generateGmosImagingFields("North"),
+  GMOS_NORTH_LONG_SLIT: generateGmosLongSlitFields("North"),
+  GMOS_SOUTH_IMAGING: generateGmosImagingFields("South"),
+  GMOS_SOUTH_LONG_SLIT: generateGmosLongSlitFields("South"),
 };

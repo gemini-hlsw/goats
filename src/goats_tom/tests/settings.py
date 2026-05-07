@@ -85,15 +85,15 @@ MIDDLEWARE = [
 ROOT_URLCONF = "goats_tom.tests.urls"
 
 CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer",
-        },
-    }
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [(BASE_DIR / "templates")],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -121,7 +121,6 @@ DATABASES = {
         "NAME": ":memory:",
     },
 }
-
 
 DRAMATIQ_REDIS_URL = "redis://127.0.0.1:6379/1"
 
@@ -189,7 +188,7 @@ DATE_FORMAT = "Y-m-d"
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "_static"
-STATICFILES_DIRS = [(BASE_DIR / "static")]
+STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_ROOT = BASE_DIR / "data"
 MEDIA_URL = "/data/"
 
@@ -216,8 +215,8 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "redis-test",
         "TIMEOUT": None,
-      }
-   }
+    },
+}
 
 
 # Default primary key field type
@@ -266,6 +265,7 @@ DATA_PRODUCT_TYPES = {
     "fits_file": ("fits_file", "FITS File"),
     "spectroscopy": ("spectroscopy", "Spectroscopy"),
     "image_file": ("image_file", "Image File"),
+    "text_file": ("text_file", "Text File"),
 }
 
 DATA_PROCESSORS = {

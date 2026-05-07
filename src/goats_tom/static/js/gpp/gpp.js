@@ -63,6 +63,7 @@ class GPPModel {
   #gppSaveNormalObservationUrl = `${this.#gppObservationsUrl}save-only/`;
   #gppCreateTooObservationUrl = `${this.#gppObservationsUrl}create-and-save/`;
   #gppUpdateNormalObservationUrl = `${this.#gppObservationsUrl}update-only/`;
+  #gppFinderChartsUrl = `${this.#gppObservationsUrl}finder-charts/`;
   #gppPingUrl = `${this.#gppUrl}ping/`;
 
   // Data-storing maps.
@@ -99,6 +100,11 @@ class GPPModel {
     this.clearObservations();
   }
 
+  async getFinderChartDownloadUrl(attachmentId) {
+    return await this.#normalizeResponse(() =>
+      this.#api.get(`${this.#gppFinderChartsUrl}${attachmentId}/download-url/`),
+    );
+  }
   /**
    * Checks if the GPP backend is reachable by issuing a GET request to the ping endpoint.
    * @returns {Object} An object containing the HTTP status code and a human-readable detail
@@ -124,8 +130,9 @@ class GPPModel {
   async createTooObservation(formData) {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    formData.append("hiddenProgramIdInput", this.#activeProgram.id)
     return await this.#normalizeResponse(() =>
-      this.#api.post(this.#gppCreateTooObservationUrl, formData, {}, false)
+      this.#api.post(this.#gppCreateTooObservationUrl, formData, {}, false),
     );
   }
 
@@ -201,16 +208,18 @@ class GPPModel {
   async updateOnGppNormalObservation(formData) {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    formData.append("hiddenProgramIdInput", this.#activeProgram.id)
     return await this.#normalizeResponse(() =>
-      this.#api.post(this.#gppUpdateNormalObservationUrl, formData, {}, false)
+      this.#api.post(this.#gppUpdateNormalObservationUrl, formData, {}, false),
     );
   }
 
   async saveNormalObservation(formData) {
     // Append the target ID to the form data.
     formData.append("hiddenGoatsTargetIdInput", this.#targetId);
+    formData.append("hiddenProgramIdInput", this.#activeProgram.id)
     return await this.#normalizeResponse(() =>
-      this.#api.post(this.#gppSaveNormalObservationUrl, formData, {}, false)
+      this.#api.post(this.#gppSaveNormalObservationUrl, formData, {}, false),
     );
   }
 
@@ -225,7 +234,7 @@ class GPPModel {
 
     try {
       const { matches, hasMore } = await this.#api.get(
-        `${this.#gppObservationsUrl}?program_id=${programId}`
+        `${this.#gppObservationsUrl}?program_id=${programId}`,
       );
 
       const tooResults = matches?.too?.results ?? [];
@@ -368,7 +377,7 @@ class GPPView {
   #form = null;
   #formContainer;
   #poPanel; // ProgramObservationsPanel instance.
-
+  #callbacks = {};
   /**
    * Construct the view, inject the template, and attach it to the DOM.
    * @param {GPPTemplate} template
@@ -381,12 +390,14 @@ class GPPView {
     this.#options = options;
 
     this.#container = this.#create();
-    this.#formContainer = this.#container.querySelector(`#observationFormContainer`);
+    this.#formContainer = this.#container.querySelector(
+      `#observationFormContainer`,
+    );
     this.#parentElement.appendChild(this.#container);
 
     this.#poPanel = new ProgramObservationsPanel(
       this.#container.querySelector(`#programObservationsPanelContainer`),
-      { debug: false }
+      { debug: false },
     );
 
     // Bind the renders and callbacks.
@@ -413,6 +424,7 @@ class GPPView {
       observation: observation,
       mode: "normal",
       readOnly: false,
+      callbacks: this.#buildObservationFormCallbacks(),
     });
   }
 
@@ -426,6 +438,7 @@ class GPPView {
       observation: observation,
       mode: "too",
       readOnly: false,
+      callbacks: this.#buildObservationFormCallbacks(),
     });
   }
 
@@ -443,7 +456,16 @@ class GPPView {
       observation: observation,
       mode: "too",
       readOnly: false,
+      callbacks: this.#buildObservationFormCallbacks(),
     });
+  }
+
+  #buildObservationFormCallbacks() {
+    return {
+      onFinderChartDownload: async (payload) => {
+        return await this.#callbacks.finderChartDownload?.(payload);
+      },
+    };
   }
 
   /**
@@ -563,6 +585,9 @@ class GPPView {
       case "createAndSaveTooObservation":
         this.#poPanel.onCreateNew(handler);
         break;
+      case "finderChartDownload":
+        this.#callbacks.finderChartDownload = handler;
+        break;
     }
   }
 }
@@ -594,7 +619,7 @@ class GPPController {
     // Bind the callbacks.
     // Program callbacks.
     this.#view.bindCallback("selectProgram", (item) =>
-      this.#selectProgram(item.programId)
+      this.#selectProgram(item.programId),
     );
 
     // Normal observation callbacks.
@@ -611,8 +636,24 @@ class GPPController {
       this.#selectTooObservation(item.observationId);
     });
     this.#view.bindCallback("createAndSaveTooObservation", () =>
-      this.#createAndSaveTooObservation()
+      this.#createAndSaveTooObservation(),
     );
+    //findercharts callbacks.
+    this.#view.bindCallback("finderChartDownload", (payload) =>
+      this.#downloadFinderChart(payload),
+    );
+  }
+
+  async #downloadFinderChart({ attachmentId }) {
+    if (!attachmentId) throw new Error("Missing attachment id.");
+    const { status, data } =
+      await this.#model.getFinderChartDownloadUrl(attachmentId);
+    if (status < 200 || status >= 300) {
+      throw new Error(data?.detail || "Download URL request failed.");
+    }
+    const url = data?.url;
+    if (!url) throw new Error("Missing download URL.");
+    return { url };
   }
 
   /**
@@ -627,7 +668,7 @@ class GPPController {
     if (formData == null) {
       this.#showMissingFormModal(
         "Missing Form Data",
-        "No form data available to update on GPP and save an observation."
+        "No form data available to update on GPP and save an observation.",
       );
       // Don't refresh observations or disable buttons, just return.
       return;
@@ -636,19 +677,19 @@ class GPPController {
     // Show progress modal with spinner and message.
     this.#showProgressModal(
       "Updating Observation",
-      "Please wait while your observation is updated in GPP."
+      "Please wait while your observation is updated in GPP.",
     );
 
     // Attempt to update the normal observation.
-    const { status, data } = await this.#model.updateOnGppNormalObservation(formData);
+    const { status, data } =
+      await this.#model.updateOnGppNormalObservation(formData);
 
     this.#handleObservationResponse(
       "Observation Updated on GPP",
       status,
       data,
-      "Observation Update Result"
+      "Observation Update Result",
     );
-
     // Finally, refresh the observations list.
     const programId = this.#model.activeProgram.id;
     await this.#resetAndUpdateObservations(programId);
@@ -666,7 +707,7 @@ class GPPController {
     if (formData == null) {
       this.#showMissingFormModal(
         "Missing Form Data",
-        "No form data available to create a new observation."
+        "No form data available to create a new observation.",
       );
       // Don't refresh observations or disable buttons, just return.
       return;
@@ -675,7 +716,7 @@ class GPPController {
     // Show progress modal with spinner and message.
     this.#showProgressModal(
       "Creating Observation",
-      "Please wait while your observation is created in GPP and added to GOATS."
+      "Please wait while your observation is created in GPP and added to GOATS.",
     );
 
     // Attempt to create the ToO observation.
@@ -685,7 +726,7 @@ class GPPController {
       "Observation Created and Saved",
       status,
       data,
-      "Observation Creation and Saved Result"
+      "Observation Creation and Saved Result",
     );
 
     // Finally, refresh the observations list.
@@ -704,7 +745,13 @@ class GPPController {
    * @returns {void}
    * @private
    */
-  #handleObservationResponse(titleSuccess, status, data, fallbackTitle, id = null) {
+  #handleObservationResponse(
+    titleSuccess,
+    status,
+    data,
+    fallbackTitle,
+    id = null,
+  ) {
     const isStructured = data?.messages && Array.isArray(data.messages);
 
     if (status >= 200 && status < 300 && isStructured) {
@@ -773,7 +820,11 @@ class GPPController {
       </div>
     `,
       backdrop: "static",
-      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+      dialogClasses: [
+        "modal-dialog-centered",
+        "modal-dialog-scrollable",
+        "modal-lg",
+      ],
     });
   }
 
@@ -797,7 +848,11 @@ class GPPController {
       </div>
     `,
       backdrop: "static",
-      dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+      dialogClasses: [
+        "modal-dialog-centered",
+        "modal-dialog-scrollable",
+        "modal-lg",
+      ],
     });
   }
 
@@ -895,7 +950,7 @@ class GPPController {
     if (formData == null) {
       this.#showMissingFormModal(
         "Missing Form Data",
-        "No form data available to save observation to GOATS."
+        "No form data available to save observation to GOATS.",
       );
       // Don't refresh observations or disable buttons, just return.
       return;
@@ -904,7 +959,7 @@ class GPPController {
     // Show progress modal with spinner and message.
     this.#showProgressModal(
       "Saving Observation to GOATS",
-      "Please wait while your observation is added to GOATS."
+      "Please wait while your observation is added to GOATS.",
     );
 
     // Attempt to save the observation.
@@ -914,7 +969,7 @@ class GPPController {
       "Observation Saved to GOATS",
       status,
       data,
-      "Observation Result"
+      "Observation Result",
     );
 
     // Finally, refresh the observations list.
@@ -1005,7 +1060,11 @@ class GPP {
     this.#model = new GPPModel(this.#options);
     this.#template = new GPPTemplate(this.#options);
     this.#view = new GPPView(this.#template, parentElement, this.#options);
-    this.#controller = new GPPController(this.#model, this.#view, this.#options);
+    this.#controller = new GPPController(
+      this.#model,
+      this.#view,
+      this.#options,
+    );
   }
 
   /**

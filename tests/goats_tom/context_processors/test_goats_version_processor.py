@@ -11,8 +11,10 @@ from goats_tom.context_processors.goats_version_processor import (
     get_goats_version,
 )
 
+
 class TestGoatsVersionProcessor:
     """Tests for the `goats_version_info_processor` context processor."""
+
     @pytest.fixture(autouse=True)
     def clear_cache(self):
         """Clear the LRU cache before each test."""
@@ -30,7 +32,9 @@ class TestGoatsVersionProcessor:
         template = Template("{{ version_info.current }}")
         rendered = template.render(RequestContext(request, {})).strip()
         assert rendered, "version_info.current is missing in rendered template"
-        assert re.fullmatch(r"\d+\.\d+\.\d", rendered), f"Unexpected format: {rendered}"
+        assert re.fullmatch(
+            r"\d+\.\d+\.\d+(?:(?:a|b|rc|dev)\d+)?", rendered
+        ), f"Unexpected format: {rendered}"
 
     def test_uses_lru_cache(self):
         """Test that get_goats_version uses LRU caching."""
@@ -55,11 +59,14 @@ class TestGoatsVersionProcessor:
 
     def test_doc_url_uses_current_if_valid(self):
         """Test that doc_url uses the current version if it is valid."""
-        caches["redis"].set("version_info", {
-            "current": "25.10.0",
-            "latest": "25.10.1",
-            "is_outdated": True,
-        })
+        caches["redis"].set(
+            "version_info",
+            {
+                "current": "25.10.0",
+                "latest": "25.10.1",
+                "is_outdated": True,
+            },
+        )
         ctx = goats_version_info_processor(None)
         assert "25.10.0" in ctx["version_info"]["doc_url"]
 
@@ -72,7 +79,9 @@ class TestGoatsVersionProcessor:
             ({}, get_goats_version(), get_goats_version()),
         ],
     )
-    def test_fallback_logic_for_current(self, monkeypatch, cached_data, expected_current, expected_url_fragment):
+    def test_fallback_logic_for_current(
+        self, monkeypatch, cached_data, expected_current, expected_url_fragment
+    ):
         """Test various fallback scenarios for the 'current' version."""
         # Clear any previous Redis data
         caches["redis"].set("version_info", cached_data)
@@ -92,14 +101,15 @@ class TestGoatsVersionProcessor:
         get_goats_version.cache_clear()
         assert get_goats_version() == "unknown"
 
-
     def test_handles_redis_failure_gracefully(self, monkeypatch):
         """If Redis is down, the processor should log and fallback without crashing."""
         mock_cache = MagicMock()
         mock_cache.get.side_effect = Exception("Redis is down")
 
         # Patch the entire cache backend lookup to return the failing mock
-        monkeypatch.setattr("django.core.cache.caches.__getitem__", lambda self, key: mock_cache)
+        monkeypatch.setattr(
+            "django.core.cache.caches.__getitem__", lambda self, key: mock_cache
+        )
 
         ctx = goats_version_info_processor(None)
         info = ctx["version_info"]

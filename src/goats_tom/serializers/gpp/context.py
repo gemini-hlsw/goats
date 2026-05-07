@@ -29,6 +29,11 @@ class ContextSerializer(_BaseGPPSerializer):
     hiddenObservationIdInput = serializers.CharField(
         required=True, allow_blank=False, allow_null=False
     )
+
+    hiddenProgramIdInput = serializers.CharField(
+        required=True, allow_blank=False, allow_null=False
+    )
+
     hiddenObservingModeInput = serializers.ChoiceField(
         choices=[m.value for m in ObservingModeType],
         required=True,
@@ -74,6 +79,18 @@ class ContextSerializer(_BaseGPPSerializer):
             The GPP target ID.
         """
         return self.validated_data["hiddenTargetIdInput"]
+
+    @property
+    def gpp_program_id(self) -> str:
+        """
+        Get the GPP program ID.
+
+        Returns
+        -------
+        str
+            The GPP program ID.
+        """
+        return self.validated_data["hiddenProgramIdInput"]
 
     @property
     def gpp_observation_id(self) -> str:

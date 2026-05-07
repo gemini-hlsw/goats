@@ -7,7 +7,9 @@ class ObservationForm {
   #handlers;
   #readOnly;
   #mode;
+  #callbacks;
   #schedulingWindowsEditor;
+  #finderChartEditor;
 
   /**
    * Create an ObservationForm.
@@ -19,64 +21,37 @@ class ObservationForm {
    */
   constructor(
     parentElement,
-    { observation = null, mode = "normal", readOnly = false } = {}
+    {
+      observation = null,
+      mode = "normal",
+      readOnly = false,
+      callbacks = {},
+    } = {},
   ) {
     this.#container = parentElement;
     this.#form = null;
     this.#readOnly = readOnly;
     this.#mode = mode;
+    this.#callbacks = callbacks ?? {};
 
     // Register special handlers like brightness, sourceProfile etc.
     this.#handlers = {
       handlePosAngleConstraint: (meta, raw) => {
         // Need to wrap to preserve layout and match rest.
-        const wrapper = Utils.createElement("div", "mt-3");
-        const div = Utils.createElement("div", ["row", "g-3"]);
-        // Mode dropdown.
-        const modeField = this.#createFormField({
-          id: `${meta.id}Mode`,
-          labelText: "Position Angle Mode",
-          element: meta.element,
-          options: meta.options,
-          value: raw?.mode ?? meta.value,
-        });
-
-        // Show angle input only for certain modes.
-        const showAngle = ["ALLOW_180_FLIP", "PARALLACTIC_OVERRIDE", "FIXED"].includes(
-          raw?.mode
-        );
-
-        const angleField = this.#createFormField({
-          id: `${meta.id}Angle`,
-          labelText: "\u00A0", // Non-breaking space to align.
-          type: "number",
-          suffix: meta.suffix,
-          value: raw?.angle?.degrees ?? "",
-          colSize: "col-md-6",
-        });
-
-        if (!showAngle) angleField.classList.add("d-none");
-
-        // Add event listener to toggle angle field.
-        modeField.querySelector("select")?.addEventListener("change", (e) => {
-          const selected = e.target.value;
-          const showAngle = [
-            "ALLOW_180_FLIP",
-            "PARALLACTIC_OVERRIDE",
-            "FIXED",
-          ].includes(selected);
-          angleField.classList.toggle("d-none", !showAngle);
-        });
-
-        div.append(modeField, angleField);
-        wrapper.appendChild(div);
-        return [wrapper];
+        const div = Utils.createElement("div", "mt-3");
+        new  PosAngleEditor( div, {
+            data: raw ?? {},
+            meta: meta ?? {},
+            readOnly: this.#readOnly,
+        }); 
+        return [div];
       },
       handleExposureMode: (meta, raw) => {
         const div = Utils.createElement("div", "mt-3");
         new ExposureModeEditor(div, {
           data: raw ?? {},
-          readOnly: this.#readOnly,
+          mode: meta.mode,
+          readOnly: this.#readOnly || meta.readOnly ,
         });
         return [div];
       },
@@ -109,7 +84,7 @@ class ObservationForm {
         this.#schedulingWindowsEditor = new SchedulingWindowsEditor(div, {
           data: raw ?? [],
           readOnly: this.#readOnly,
-          });
+        });
         return [div];
       },
       handleSpatialOffsetsList: (meta, raw) => {
@@ -125,18 +100,27 @@ class ObservationForm {
         if (!observation) return [div];
         const allocations = Utils.getByPath(observation, meta.allocationsPath);
         const timeCharge = Utils.getByPath(observation, meta.timeChargePath);
-        new ScienceBandEditor(div,{
-          data: [raw ?? null , allocations,  timeCharge]
+        new ScienceBandEditor(div, {
+          data: [raw ?? null, allocations, timeCharge],
         });
         return [div];
       },
       handleFinderCharts: (meta, raw) => {
-          const div =  Utils.createElement("div" , "mt-0"); 
-          new FinderChartEditor (div, {
-              data : raw ?? []
-          })
-        return [div]
-      }
+        const div = Utils.createElement("div", "mt-0");
+        this.#finderChartEditor = new FinderChartEditor(div, {
+          data: raw ?? [],
+          callbacks: this.#callbacks,
+        });
+        return [div];
+      },
+      handleOffsetVariant: (meta, raw) => {
+        const div = Utils.createElement("div", "mt-3");
+        new OffsetVariantEditor (div, {
+          data: raw ?? [],
+          readOnly: this.#readOnly,
+        });
+        return [div];
+       },
     };
 
     if (observation) {
@@ -176,13 +160,15 @@ class ObservationForm {
     this.#readOnly = flag;
     if (!this.#form) return;
 
-    this.#form.querySelectorAll("input,select,textarea,button").forEach((el) => {
-      if (el.tagName === "BUTTON") {
-        el.classList.toggle("d-none", flag);
-      } else {
-        el.disabled = flag;
-      }
-    });
+    this.#form
+      .querySelectorAll("input,select,textarea,button")
+      .forEach((el) => {
+        if (el.tagName === "BUTTON") {
+          el.classList.toggle("d-none", flag);
+        } else {
+          el.disabled = flag;
+        }
+      });
   }
 
   /**
@@ -192,130 +178,129 @@ class ObservationForm {
    * @param {Object} observation - The current observation data.
    * @private
    */
-   #appendFields(form, fields, observation) {
-     // By default, fields are appended directly to the form.
-     // Once we hit a `meta.section`, we switch to that section's body.
-     form.id = "profile-accordion";
-     let currentSectionBody = form;
+  #appendFields(form, fields, observation) {
+    // By default, fields are appended directly to the form.
+    // Once we hit a `meta.section`, we switch to that section's body.
+    form.id = "profile-accordion";
+    let currentSectionBody = form;
 
-   
-     fields.forEach((meta) => {
-       // Skip field if showIfMode is incompatible with current mode.
-       if (
-         meta.showIfMode &&
-         meta.showIfMode !== "both" &&
-         meta.showIfMode !== this.#mode
-       ) {
-         return;
-       }
-   
-       // Handle section headers: create header + collapsible body.
-       if (meta.section) {
-         const { header, body } = this.#createSectionWithBody(meta.section, form);
-         form.append(header);
-         form.append(body);
-   
-         // From now on, append all fields into this section body
-         currentSectionBody = body;
-         return;
-       }
-   
-       const raw = Utils.getByPath(observation, meta.path);
-   
-       // Handle special field handlers.
-       if (meta.handler) {
-         const handler = this.#handlers[meta.handler];
-         if (handler) {
-           const elements = handler(meta, raw)?? [];
-           elements.forEach((el) => currentSectionBody.append(el));
-         }
-         return;
-       }
-   
-       let value = raw;
-       // Assign raw value from lookup or format if applicable.
-       if (meta.lookup) value = meta.lookup[raw] ?? raw ?? "";
-       if (meta.formatter) value = meta.formatter(value);
-   
-       currentSectionBody.append(this.#createFormField({ ...meta, value }));
-     });
-   }
-   /**
-    * Create a section header with a collapse toggle and a body container.
-    *
-    * The header is a flex row with the title on the left and a collapse icon on the right.
-    * The body is a <div class="collapse [show] mt-2"> that will contain all the fields
-    * belonging to this section.
-    *
-    * @param {string} text - Section title.
-    * @returns {{ header: HTMLElement, body: HTMLElement }}
-    * @private
-    */
-   #createSectionWithBody(text, form) {
-     // Build a stable id from the section text
-     const normalizedSection = text.toLowerCase().replace(/\s+/g, "-")
-     const collapseId = `section-${normalizedSection}`;
-     
-     const header = Utils.createElement("div", [
-       "d-flex",
-       "align-items-center",
-       "justify-content-between",
-       "mt-4",
-       "mb-0",
-     ]);
-   
-     const h = Utils.createElement("h5", ["mb-0"]);
-     h.textContent = text;
-   
-     const toggleBtn = Utils.createElement("button", [
-       "btn",
-       "p-0",
-     ]);
-     toggleBtn.type = "button";
-     toggleBtn.setAttribute("data-bs-toggle", "collapse");
-     toggleBtn.setAttribute("data-bs-target", `#${collapseId}`);
-     toggleBtn.setAttribute("aria-controls", collapseId);
+    fields.forEach((meta) => {
+      // Skip field if showIfMode is incompatible with current mode.
+      if (
+        meta.showIfMode &&
+        meta.showIfMode !== "both" &&
+        meta.showIfMode !== this.#mode
+      ) {
+        return;
+      }
 
-     const bodyClasses = Array.from(form.classList);
-     bodyClasses.push("collapse");
-   
-     if (text === "Details") {
-       bodyClasses.push("show");
-     }
-   
-     const body = Utils.createElement("div", bodyClasses);
-     body.id = collapseId;
-     body.setAttribute("data-bs-parent", "#profile-accordion");
-   
-     const setExpandedState = (expanded) => {
-       toggleBtn.setAttribute("aria-expanded", String(expanded));
-       toggleBtn.innerHTML = expanded
-         ? `<i class="fa-solid fa-chevron-up"></i>`
-         : `<i class="fa-solid fa-chevron-down"></i>`;
-     };
-   
-     const initiallyExpanded = body.classList.contains("show");
-     setExpandedState(initiallyExpanded);
-   
-     body.addEventListener("show.bs.collapse", () => {
-       setExpandedState(true);
-     });
-   
-     body.addEventListener("hide.bs.collapse", () => {
-       setExpandedState(false);
-     });
-   
-     header.append(h, toggleBtn);
-     header.addEventListener("click", (event) => {
-     if (event.target === toggleBtn || toggleBtn.contains(event.target)) {
-         return;
-       }
-       toggleBtn.click();
-     });
+      // Handle section headers: create header + collapsible body.
+      if (meta.section) {
+        const { header, body } = this.#createSectionWithBody(
+          meta.section,
+          form,
+        );
+        form.append(header);
+        form.append(body);
 
-     return { header, body };
-   }
-   
+        // From now on, append all fields into this section body
+        currentSectionBody = body;
+        return;
+      }
+
+      const raw = Utils.getByPath(observation, meta.path);
+
+      // Handle special field handlers.
+      if (meta.handler) {
+        const handler = this.#handlers[meta.handler];
+        if (handler) {
+          const elements = handler(meta, raw) ?? [];
+          elements.forEach((el) => currentSectionBody.append(el));
+        }
+        return;
+      }
+
+      let value = raw;
+      // Assign raw value from lookup or format if applicable.
+      if (meta.lookup) value = meta.lookup[raw] ?? raw ?? "";
+      if (meta.formatter) value = meta.formatter(value);
+
+      currentSectionBody.append(this.#createFormField({ ...meta, value }));
+    });
+  }
+  /**
+   * Create a section header with a collapse toggle and a body container.
+   *
+   * The header is a flex row with the title on the left and a collapse icon on the right.
+   * The body is a <div class="collapse [show] mt-2"> that will contain all the fields
+   * belonging to this section.
+   *
+   * @param {string} text - Section title.
+   * @returns {{ header: HTMLElement, body: HTMLElement }}
+   * @private
+   */
+  #createSectionWithBody(text, form) {
+    // Build a stable id from the section text
+    const normalizedSection = text.toLowerCase().replace(/\s+/g, "-");
+    const collapseId = `section-${normalizedSection}`;
+
+    const header = Utils.createElement("div", [
+      "d-flex",
+      "align-items-center",
+      "justify-content-between",
+      "mt-4",
+      "mb-0",
+    ]);
+
+    const h = Utils.createElement("h5", ["mb-0"]);
+    h.textContent = text;
+
+    const toggleBtn = Utils.createElement("button", ["btn", "p-0"]);
+    toggleBtn.type = "button";
+    toggleBtn.setAttribute("data-bs-toggle", "collapse");
+    toggleBtn.setAttribute("data-bs-target", `#${collapseId}`);
+    toggleBtn.setAttribute("aria-controls", collapseId);
+
+    const bodyClasses = Array.from(form.classList);
+    bodyClasses.push("collapse");
+
+    if (text === "Details") {
+      bodyClasses.push("show");
+    }
+
+    const body = Utils.createElement("div", bodyClasses);
+    body.id = collapseId;
+    body.setAttribute("data-bs-parent", "#profile-accordion");
+
+    const setExpandedState = (expanded) => {
+      toggleBtn.setAttribute("aria-expanded", String(expanded));
+      toggleBtn.innerHTML = expanded
+        ? `<i class="fa-solid fa-chevron-up"></i>`
+        : `<i class="fa-solid fa-chevron-down"></i>`;
+    };
+
+    const initiallyExpanded = body.classList.contains("show");
+    setExpandedState(initiallyExpanded);
+
+    body.addEventListener("show.bs.collapse", () => {
+      setExpandedState(true);
+    });
+
+    body.addEventListener("hide.bs.collapse", () => {
+      setExpandedState(false);
+    });
+
+    header.append(h, toggleBtn);
+    header.addEventListener("click", (event) => {
+      if (event.target === toggleBtn || toggleBtn.contains(event.target)) {
+        return;
+      }
+      toggleBtn.click();
+    });
+
+    return { header, body };
+  }
+
   /**
    * Create a form field from metadata.
    * @param {Object} field - Field configuration metadata.
@@ -464,22 +449,39 @@ class ObservationForm {
 
     if (!FIELD_CONFIGS.hasOwnProperty(mode)) {
       console.warn(
-        `Unsupported observing mode: "${mode}". No instrument-specific fields will be rendered.`
+        `Unsupported observing mode: "${mode}". No instrument-specific fields will be rendered.`,
       );
     }
 
     return [...sharedFields, ...instrumentFields];
   }
-
-  /**
-   * Get the current form data as FormData.
-   * @returns {FormData|null} FormData object or null if form not initialized.
-   */
   getData() {
     if (!this.#form) return null;
+
     const formData = new FormData(this.#form);
+
+    // timing windows
     const timingWindows = this.#schedulingWindowsEditor.getValues();
-    formData.append("timingWindows", JSON.stringify(timingWindows))
+    formData.append("timingWindows", JSON.stringify(timingWindows));
+
+    // finder charts
+    const { toAdd, toDelete } = this.#finderChartEditor.getPendingChanges();
+
+    const finderCharts = {
+      toAdd: toAdd.map((item, index) => ({
+        description: item.description ?? "",
+        fileKey: `file_${index}`,
+      })),
+      toDelete,
+    };
+
+    formData.append("finderCharts", JSON.stringify(finderCharts));
+
+    toAdd.forEach((item, index) => {
+      const key = `file_${index}`;
+      formData.append(key, item.file);
+    });
+
     return formData;
   }
 }
