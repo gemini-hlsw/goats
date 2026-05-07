@@ -1,0 +1,1 @@
+Updated the DRAGONS app processed files list to show all file types instead of only FITS files.

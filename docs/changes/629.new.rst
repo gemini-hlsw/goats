@@ -1,0 +1,1 @@
+Added display of GMOS imaging mode configuration in the observation form

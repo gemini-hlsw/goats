@@ -1,0 +1,1 @@
+Removed unused configuration field ``DRAMATIQ_RESULTS_REDIS_URL``.

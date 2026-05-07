@@ -1,0 +1,1 @@
+Refactored position angle editor to align with the structure of other editor components.
