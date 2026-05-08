@@ -1,1 +1,0 @@
-Added filter column to the Recent Photometry table on the target page.

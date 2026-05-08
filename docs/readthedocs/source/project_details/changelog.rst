@@ -3,6 +3,137 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.5.1 (2026-05-07)
+===========================
+
+New Features
+------------
+
+- Added display of GMOS imaging mode configuration in the observation form (`PR #629 <https://github.com/gemini-hlsw/goats/pull/629>`_)
+
+
+Changes
+-------
+
+- Updated TOMToolkit from 2.31.7 to 2.32.2 (`PR #33 <https://github.com/gemini-hlsw/goats/pull/33>`_)
+- Updated the DRAGONS app processed files list to show all file types instead of only FITS files. (`PR #621 <https://github.com/gemini-hlsw/goats/pull/621>`_)
+- Removed unused configuration field ``DRAMATIQ_RESULTS_REDIS_URL``. (`PR #624 <https://github.com/gemini-hlsw/goats/pull/624>`_)
+
+
+Other
+-----
+
+- Refactored position angle editor to align with the structure of other editor components. (`PR #628 <https://github.com/gemini-hlsw/goats/pull/628>`_)
+
+
+Version 26.4.7 (2026-04-24)
+===========================
+
+New Features
+------------
+
+- Added most recent photometry display to the target card in the GPP app. (`PR #622 <https://github.com/gemini-hlsw/goats/pull/622>`_)
+
+
+Changes
+-------
+
+- Removed unused configuration field ``DRAMATIQ_RESULTS_REDIS_URL``. (`PR #624 <https://github.com/gemini-hlsw/goats/pull/624>`_)
+
+
+Version 26.4.5 (2026-04-17)
+===========================
+
+Bug Fixes
+---------
+
+- Fixed Update Photometry button visibility for targets with ANTARES aliases. (`PR #618 <https://github.com/gemini-hlsw/goats/pull/618>`_)
+- Fixed spectrum visualizer fill appearing incorrectly in light mode (`PR #619 <https://github.com/gemini-hlsw/goats/pull/619>`_)
+
+
+Version 26.4.3 (2026-04-15)
+===========================
+
+Bug Fixes
+---------
+
+- Pinned django-crispy-forms to 2.5 to ensure compatibility with Django 4. (`PR #609 <https://github.com/gemini-hlsw/goats/pull/609>`_)
+
+
+Other
+-----
+
+- Added Django 5 compatibility to the tests. (`PR #615 <https://github.com/gemini-hlsw/goats/pull/615>`_)
+- Bumped Dragons, TOMToolkit, and gpp-client to their latest versions for the next release. (`PR #616 <https://github.com/gemini-hlsw/goats/pull/616>`_)
+
+
+Version 26.4.1 (2026-04-10)
+===========================
+
+Changes
+-------
+
+- Downgraded Dragons to 4.1 pending TOMToolkit support for specutils >2.
+  ￼ (`PR #608 <https://github.com/gemini-hlsw/goats/pull/608>`_)
+
+
+Version 26.4.1rc2 (2026-04-08)
+==============================
+
+Bug Fixes
+---------
+
+- Pinned marshmallow to 3.26.1 to satisfy ANTARES dependency and conda-forge availability. (`PR #604 <https://github.com/gemini-hlsw/goats/pull/604>`_)
+- Fixed tests to support release candidate versioning. (`PR #605 <https://github.com/gemini-hlsw/goats/pull/605>`_)
+
+
+Version 26.4.1rc1 (2026-04-07)
+==============================
+
+Changes
+-------
+
+- Upgraded Dragons to 4.2 and TOMToolkit to 2.31.6, and resolved related dependency issues. (`PR #602 <https://github.com/gemini-hlsw/goats/pull/602>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed missing f-prefix in share_title f-string that caused the share title to display incorrectly. (`PR #600 <https://github.com/gemini-hlsw/goats/pull/600>`_)
+- Fixed missing program ID in the 'Save to GOATS' payload. (`PR #601 <https://github.com/gemini-hlsw/goats/pull/601>`_)
+
+
+Version 26.4.0 (2026-04-02)
+===========================
+
+New Features
+------------
+
+- Added support for uploading, downloading, previewing, and staging finder charts, including integration with the GPP client payload. (`PR #573 <https://github.com/gemini-hlsw/goats/pull/573>`_)
+- Added a group to identify calibrations in the observation selection options. (`PR #586 <https://github.com/gemini-hlsw/goats/pull/586>`_)
+- Added filter column to the Recent Photometry table on the target page. (`PR #594 <https://github.com/gemini-hlsw/goats/pull/594>`_)
+- Added MJD column next to Timestamp in the Photometry data table. (`PR #596 <https://github.com/gemini-hlsw/goats/pull/596>`_)
+
+
+Changes
+-------
+
+- Updated the GPP client to v26.3.0 to ensure compatibility with finder chart functionality. (`PR #575 <https://github.com/gemini-hlsw/goats/pull/575>`_)
+- Replaced automatic finder chart uploads with a staged add/delete workflow. (`PR #585 <https://github.com/gemini-hlsw/goats/pull/585>`_)
+- Unified passband colors in the light curve plot to match ANTARES color scheme; upper limits now share the same color as their corresponding band. (`PR #592 <https://github.com/gemini-hlsw/goats/pull/592>`_)
+- Excluded FITS files from being displayed in the Photometry tab. (`PR #597 <https://github.com/gemini-hlsw/goats/pull/597>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed a TNS discovery report submission issue caused by a missing configuration. (`PR #578 <https://github.com/gemini-hlsw/goats/pull/578>`_)
+- Fixed incorrect calculation of the remaining time for the science band. (`PR #580 <https://github.com/gemini-hlsw/goats/pull/580>`_)
+- Fixed science band submission when no band is available. (`PR #581 <https://github.com/gemini-hlsw/goats/pull/581>`_)
+- Removed the reset axis button from the photometry plot. (`PR #593 <https://github.com/gemini-hlsw/goats/pull/593>`_)
+- Fixed default broker connections for new GOATS instances to point to ANTARES and Explore production environments. (`PR #595 <https://github.com/gemini-hlsw/goats/pull/595>`_)
+
+
 Version 26.3.0 (2026-03-03)
 ===========================
 

@@ -1,5 +1,5 @@
 {% extends 'tom_common/base.html' %}
-{% load bootstrap4 static crispy_forms_tags observation_extras targets_extras %} {% csrf_token%}
+{% load bootstrap4 static crispy_forms_tags observation_extras targets_extras tom_overrides %} {% csrf_token%}
 {% block title %}Submit Observation{% endblock %}
 {% block additional_css %}
 <link rel="stylesheet" href="{% static 'tom_common/css/main.css' %}">
@@ -25,7 +25,12 @@
 {% endif %}
 <div class="row g-3">
   <div class="col-md-6">
-    {% target_data target %}
+  {% target_data target %}
+  <div class="row mb-3">
+           <div class="col">
+             {% goats_recent_photometry target limit=3 %}
+           </div>
+         </div>
     <h4>Lunar Distance</h4>
     {% moon_distance target width=None %}
   </div>
@@ -68,6 +73,7 @@
 <script src="{% static 'js/gpp/lookups.js' %}" defer></script>
 <script src="{% static 'js/gpp/formatters.js' %}" defer></script>
 <script src="{% static 'js/gpp/fields.js' %}" defer></script>
+<script src="{% static 'js/gpp/pos_angle_editor.js' %}" defer></script>
 <script src="{% static 'js/gpp/brightnesses_editor.js' %}" defer></script>
 <script src="{% static 'js/gpp/source_profile_editor.js' %}" defer></script>
 <script src="{% static 'js/gpp/program_observations_panel.js' %}" defer></script>
@@ -76,6 +82,7 @@
 <script src="{% static 'js/gpp/exposure_mode_editor.js' %}" defer></script>
 <script src="{% static 'js/gpp/scheduling_windows_editor.js' %}" defer></script>
 <script src="{% static 'js/gpp/finder_chart_editor.js' %}" defer></script>
+<script src="{% static 'js/gpp/offset_variant_editor.js' %}" defer></script>
 <script src="{% static 'js/gpp/observation_form.js' %}" defer></script>
 <script src="{% static 'js/gpp/gpp.js' %}" defer></script>
 <script src="{% static 'js/gpp/app.js' %}" defer></script>

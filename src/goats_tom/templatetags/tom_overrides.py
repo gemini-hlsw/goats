@@ -125,6 +125,7 @@ def goats_recent_photometry(target, limit=1):
             rd_data["magnitude"] = reduced_datum.value["magnitude"]
             rd_data["limit"] = False
         data.append(rd_data)
+    target.is_antares = any(n.upper().startswith("ANT") for n in target.names)
     context = {"target": target, "data": data}
     return context
 
@@ -167,8 +168,8 @@ def get_photometry_data(context, target, target_share=False):
         "submitter": context["request"].user,
         "target": target,
         "data_type": "photometry",
-        "share_title": f"Updated data for {target.name} from"
-        "{getattr(settings, 'TOM_NAME', 'TOM Toolkit')}.",
+        "share_title": f"Updated data for {target.name} from "
+        f"{getattr(settings, 'TOM_NAME', 'TOM Toolkit')}.",
     }
     form = DataShareForm(initial=initial)
     form.fields["data_type"].widget = forms.HiddenInput()

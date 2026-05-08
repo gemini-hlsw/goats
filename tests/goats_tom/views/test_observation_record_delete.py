@@ -34,9 +34,11 @@ class TestObservationRecordDeleteView(TestCase):
         DataProductFactory(observation_record=self.observation_record)
 
     def test_form_valid(self):
+        observation_record_pk = self.observation_record.pk
+
         # Ensure the ObservationRecord and DataProducts exist.
         self.assertIsNotNone(
-            ObservationRecord.objects.filter(pk=self.observation_record.pk).first(),
+            ObservationRecord.objects.filter(pk=observation_record_pk).first(),
         )
         self.assertEqual(
             DataProduct.objects.filter(
@@ -50,7 +52,7 @@ class TestObservationRecordDeleteView(TestCase):
         request.user = self.user
         view = ObservationRecordDeleteView()
         view.request = request
-        view.kwargs = {"pk": self.observation_record.pk}
+        view.kwargs = {"pk": observation_record_pk}
         view.object = self.observation_record
 
         # Call the form_valid method
@@ -58,12 +60,12 @@ class TestObservationRecordDeleteView(TestCase):
 
         # Test that the ObservationRecord is deleted.
         with pytest.raises(ObservationRecord.DoesNotExist):
-            ObservationRecord.objects.get(pk=self.observation_record.pk)
+            ObservationRecord.objects.get(pk=observation_record_pk)
 
         # Test that associated DataProducts are deleted
         self.assertEqual(
             DataProduct.objects.filter(
-                observation_record=self.observation_record,
+                observation_record_id=observation_record_pk,
             ).count(),
             0,
         )

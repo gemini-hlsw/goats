@@ -1,1 +1,0 @@
-Removed the reset axis button from the photometry plot.

@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from django.template import Context, Template
-from django.utils import timezone
+from datetime import datetime, timedelta, timezone
 from tom_targets.models import Target
 from tom_dataproducts.models import ReducedDatum
 
@@ -278,7 +278,7 @@ def test_spectroscopy_for_target_filters_by_dataproduct_when_provided(
 def test_goats_recent_photometry_limit_flag(target, values, expected_limits):
     from goats_tom.templatetags.tom_overrides import goats_recent_photometry
 
-    now = timezone.now()
+    now = datetime.now(tz=timezone.utc)
     for i, value in enumerate(values):
         ReducedDatum.objects.create(
             target=target,
@@ -304,7 +304,7 @@ def test_goats_recent_photometry_limit_flag(target, values, expected_limits):
 def test_goats_recent_photometry_respects_limit(target, total, limit, expected_count):
     from goats_tom.templatetags.tom_overrides import goats_recent_photometry
 
-    now = timezone.now()
+    now = datetime.now(tz=timezone.utc)
     for i in range(total):
         ReducedDatum.objects.create(
             target=target,
@@ -322,7 +322,7 @@ def test_goats_recent_photometry_renders_template(target, expected_string):
     ReducedDatum.objects.create(
         target=target,
         data_type="photometry",
-        timestamp=timezone.now(),
+        timestamp=datetime.now(tz=timezone.utc),
         value={"magnitude": 18.5, "filter": "i"},
         source_name="ANTARES",
     )

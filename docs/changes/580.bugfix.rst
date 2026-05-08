@@ -1,1 +1,0 @@
-Fixed incorrect calculation of the remaining time for the science band.

@@ -13,8 +13,6 @@ class GOATSTomConfig(AppConfig):
     def ready(self):
         from django.conf import settings  # noqa: PLC0415
         from dramatiq import get_broker  # noqa: PLC0415
-        from dramatiq.results import Results  # noqa: PLC0415
-        from dramatiq.results.backends.redis import RedisBackend  # noqa: PLC0415
         from dramatiq_abort import Abortable, backends  # noqa: PLC0415
 
         broker = get_broker()
@@ -22,10 +20,6 @@ class GOATSTomConfig(AppConfig):
         if not any(isinstance(m, Abortable) for m in broker.middleware):
             abort_backend = backends.RedisBackend.from_url(settings.DRAMATIQ_REDIS_URL)
             broker.add_middleware(Abortable(backend=abort_backend))
-
-        if not any(isinstance(m, Results) for m in broker.middleware):
-            results_backend = RedisBackend(url=settings.DRAMATIQ_RESULTS_REDIS_URL)
-            broker.add_middleware(Results(backend=results_backend))
 
         # Monkey-patch tom-tns so it prefers per-request creds over global ones.
         # We keep a reference to the original helper so we can delegate to it when
