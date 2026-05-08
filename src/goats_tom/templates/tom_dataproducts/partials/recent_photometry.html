@@ -6,7 +6,7 @@
   >
     <h4 class="mb-0">Recent Photometry</h4>
 
-    {% if target.name|upper|slice:":3" == "ANT" %}
+    {% if target.is_antares %}
     <form
       method="post"
       action="{% url 'refresh_antares_photometry' target.id %}"

@@ -371,6 +371,25 @@ class DRAGONSRun(models.Model):
         except OSError as e:
             print(f"Failed to remove file {filepath}: {e}")
 
+    def is_valid_file(self, f) -> bool:
+        """
+        Validates if the file is FITS, TEXT or ASCII.
+
+        Parameters
+        ----------
+        f : Path
+            Path object of the file
+
+        Returns
+        -------
+        bool
+            True if the file is valid, False otherwise
+        """
+        # Valid extensions
+        valid_extensions = [".txt", ".dat", ".ascii", ".csv", ".fits", ".fit"]
+
+        return f.suffix.lower() in valid_extensions
+
     def get_processed_files(self) -> list[dict]:
         """Returns all the processed output files of the output directory, combined
         with any additional `DataProducts` that are processed but not in the output
@@ -392,39 +411,41 @@ class DRAGONSRun(models.Model):
         # Create a dict from product_id to the DataProduct instance for quick lookups.
         data_products = {dp.product_id: dp for dp in data_products_qs}
 
-        # Keep a set to record which product_ids we’ve already handled (to avoid
-        # duplicates).
+        # Keep a set to record which product_ids we've already handled
+        # (to avoid duplicates).
         processed_product_ids: set[str] = set()
 
         # Iterate over files in the output directory.
-        for f in output_dir.glob("*.fits"):
-            # Get the file's last modified time, convert it to UTC, and format it.
-            last_modified = datetime.datetime.fromtimestamp(
-                f.stat().st_mtime, datetime.timezone.utc
-            ).strftime("%Y-%m-%d %H:%M:%S")
+        for f in output_dir.glob("*"):
+            if f.is_file() and self.is_valid_file(f):
+                # Get the file's last modified time, convert it to UTC, and format it.
+                last_modified = datetime.datetime.fromtimestamp(
+                    f.stat().st_mtime, datetime.timezone.utc
+                ).strftime("%Y-%m-%d %H:%M:%S")
 
-            # Generate the product ID from the file path.
-            potential_product_id = str(f.relative_to(settings.MEDIA_ROOT))
+                # Generate the product ID from the file path.
+                potential_product_id = str(f.relative_to(settings.MEDIA_ROOT))
 
-            # Check if this file is backed by a DataProduct.
-            dp = data_products.get(potential_product_id)
-            is_dataproduct = dp is not None
-            if is_dataproduct:
-                # Mark this product_id as processed so we don't add it again later.
-                processed_product_ids.add(potential_product_id)
+                # Check if this file is backed by a DataProduct.
+                dp = data_products.get(potential_product_id)
+                is_dataproduct = dp is not None
 
-            # Append the file info to output_files.
-            output_files.append(
-                {
-                    "name": f.name,
-                    "path": str(f.parent.relative_to(settings.MEDIA_ROOT)),
-                    "last_modified": last_modified,
-                    "is_dataproduct": is_dataproduct,
-                    "dataproduct_id": dp.id if dp else None,
-                    "product_id": potential_product_id,
-                    "url": f"{settings.MEDIA_URL}{potential_product_id}",
-                }
-            )
+                if is_dataproduct:
+                    # Mark this product_id as processed so we don't add it again later.
+                    processed_product_ids.add(potential_product_id)
+
+                # Append the file info to output_files.
+                output_files.append(
+                    {
+                        "name": f.name,
+                        "path": str(f.parent.relative_to(settings.MEDIA_ROOT)),
+                        "last_modified": last_modified,
+                        "is_dataproduct": is_dataproduct,
+                        "dataproduct_id": dp.id if dp else None,
+                        "product_id": potential_product_id,
+                        "url": f"{settings.MEDIA_URL}{potential_product_id}",
+                    }
+                )
 
         # Add remaining DataProducts not in the output_dir.
         # These have processed=True but aren't found in output_dir.

@@ -1,0 +1,10 @@
+"""
+The URL configuration for the GOATS project.
+"""
+
+from django.urls import include, path
+
+urlpatterns = [
+    path("", include("goats_tom.urls")),
+    path("", include("tom_common.urls")),
+]

@@ -7,11 +7,11 @@
 {% block target_obs_content %}
 {% render_target_navbar %}
 <div class="row">
-  <div class="col text-center">
+  <div class="col text-center mt-5">
     <h2>{{ object.observation_id }} @{{ object.facility }}</h2>
   </div>
 </div>
-<div class="row mb-5">
+<div class="row mb-2 ">
   <div class="col text-center">
     {% if editable %}
       <p>{% update_observation_id_form object %}</p>
@@ -39,6 +39,11 @@
     </p>
     <p class="my-auto"><strong>Created:</strong> {{ object.created }} <strong>Modified:</strong> {{ object.modified }}</p>
     <p class="my-auto"><strong>Status:</strong> {{ object.status }}</p>
+    {% if object.status == "Error" %}
+    <div class="alert alert-danger mt-3" role="alert">
+      <strong>Observation in Error state:</strong> Unable to proceed. Review the observation and update the status.
+    </div>
+    {% endif %}
   </div>
 </div>
 <hr class="mb-5" />
@@ -92,11 +97,8 @@
   {% if object.facility != "GEM" %}
   <div class="col-md-12">
   <h4>Request Parameters</h4>
-
 <div class="row align-items-center mb-3">
   <div class="col-md-12">
-
-
     {% observationtemplate_from_record object %}
     <button
       class="btn btn-outline-primary ms-2"
@@ -112,10 +114,8 @@
     >
       Show request parameters
     </button>
-
   </div>
 </div>
-
 <div id="all-parameters" class="collapse">
   <div class="card card-body">
     <dl class="row mb-0">
@@ -126,7 +126,6 @@
     </dl>
   </div>
 </div>
-
   </div>
   {% endif %}
 </div>

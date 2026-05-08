@@ -122,7 +122,6 @@ DATABASES = {
     },
 }
 
-DRAMATIQ_RESULTS_REDIS_URL = "redis://127.0.0.1:6379/0"
 DRAMATIQ_REDIS_URL = "redis://127.0.0.1:6379/1"
 
 DRAMATIQ_BROKER = {
@@ -266,6 +265,7 @@ DATA_PRODUCT_TYPES = {
     "fits_file": ("fits_file", "FITS File"),
     "spectroscopy": ("spectroscopy", "Spectroscopy"),
     "image_file": ("image_file", "Image File"),
+    "text_file": ("text_file", "Text File"),
 }
 
 DATA_PROCESSORS = {

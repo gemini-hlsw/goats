@@ -29,7 +29,8 @@ class DeleteAssociatedDataProductsTest(TestCase):
             target_id=self.target.id,
         )
         self.data_products = DataProductFactory.create_batch(
-            3, observation_record=self.observation_record,
+            3,
+            observation_record=self.observation_record,
         )
         for data_product in self.data_products:
             ReducedDatumFactory.create(data_product=data_product)
@@ -45,16 +46,19 @@ class DeleteAssociatedDataProductsTest(TestCase):
         )
         for data_product in self.data_products:
             self.assertEqual(
-                ReducedDatum.objects.filter(data_product=data_product).count(), 0,
+                ReducedDatum.objects.filter(data_product=data_product).count(),
+                0,
             )
 
     def test_delete_single_data_product(self):
         single_data_product = self.data_products[0]
+        pk = single_data_product.pk
         delete_associated_data_products(single_data_product)
 
-        self.assertFalse(DataProduct.objects.filter(pk=single_data_product.pk).exists())
+        self.assertFalse(DataProduct.objects.filter(pk=pk).exists())
         self.assertEqual(
-            ReducedDatum.objects.filter(data_product=single_data_product).count(), 0,
+            ReducedDatum.objects.filter(data_product_id=pk).count(),
+            0,
         )
 
     def test_delete_file_and_thumbnail(self):
@@ -70,7 +74,8 @@ class DeleteAssociatedDataProductsTest(TestCase):
         # Check if files and thumbnails are deleted from the disk.
         for data_path, thumbnail_path in file_paths:
             self.assertFalse(
-                os.path.exists(data_path), f"Data file {data_path} should be deleted.",
+                os.path.exists(data_path),
+                f"Data file {data_path} should be deleted.",
             )
             self.assertFalse(
                 os.path.exists(thumbnail_path),
@@ -90,7 +95,8 @@ class BuildJsonResponseTests(unittest.TestCase):
         response = build_json_response()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            response.content.decode(), '{"status": "success", "message": ""}',
+            response.content.decode(),
+            '{"status": "success", "message": ""}',
         )
 
     def test_error_response_with_custom_message(self):
@@ -108,7 +114,8 @@ class BuildJsonResponseTests(unittest.TestCase):
         error_message = "Not found"
         error_status = status.HTTP_404_NOT_FOUND
         response = build_json_response(
-            error_message=error_message, error_status=error_status,
+            error_message=error_message,
+            error_status=error_status,
         )
         self.assertEqual(response.status_code, error_status)
         self.assertEqual(
@@ -123,7 +130,8 @@ class BuildJsonResponseTests(unittest.TestCase):
         error_message = "Unauthorized access"
         error_status = status.HTTP_401_UNAUTHORIZED
         response = build_json_response(
-            error_message=error_message, error_status=error_status,
+            error_message=error_message,
+            error_status=error_status,
         )
         self.assertEqual(response.status_code, error_status)
         self.assertEqual(
@@ -135,7 +143,8 @@ class BuildJsonResponseTests(unittest.TestCase):
 @pytest.fixture()
 def non_empty_file_list():
     return Table(
-        rows=[("file1", "red1"), ("file2", "red2")], names=("name", "reduction"),
+        rows=[("file1", "red1"), ("file2", "red2")],
+        names=("name", "reduction"),
     )
 
 

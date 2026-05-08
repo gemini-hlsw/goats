@@ -10,6 +10,7 @@ __all__ = [
     "get_astrodata_header",
     "get_recipes_and_primitives",
     "is_gpp_id",
+    "is_ocs_id",
 ]
 
 import importlib
@@ -312,3 +313,19 @@ def is_gpp_id(obs_id: str) -> bool:
         ``True`` if it is a GPP ID, ``False`` otherwise.
     """
     return obs_id.startswith("G-")
+
+
+def is_ocs_id(obs_id: str) -> bool:
+    """
+    Return ``True`` if the observation ID is a OCS-style ID (starts with 'GS- or GN-')
+    Parameters
+    ----------
+    obs_id : str
+        The observation ID to check.
+
+    Returns
+    -------
+    bool
+        ``True`` if it is not a GPP ID, ``False`` otherwise.
+    """
+    return obs_id.startswith(("GS-", "GN-"))

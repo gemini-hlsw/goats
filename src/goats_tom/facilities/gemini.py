@@ -26,7 +26,7 @@ from tom_observations.models import ObservationRecord
 from goats_tom.astroquery import Observations as GOA
 from goats_tom.context.user_context import get_current_user_id
 from goats_tom.ocs import OCSClient
-from goats_tom.utils import is_gpp_id
+from goats_tom.utils import is_gpp_id, is_ocs_id
 
 logger = logging.getLogger(__name__)
 
@@ -258,19 +258,21 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
                 parameters["gpp_id"] = workflow_state_summary["id"]
                 parameters["gpp_program_id"] = workflow_state_summary["program"]["id"]
                 state = ObservationWorkflowState(state).value.capitalize()
-            else:
+
+            elif is_ocs_id(observation_id):
                 logger.debug("Fetching observation status from OCS.")
                 observation_summary = ocs_client.get_observation_summary(observation_id)
-
                 if not observation_summary["success"]:
                     raise Exception(f"{observation_summary['error']}")
                 state = observation_summary["data"]["status"]
-
+            else:
+                logger.info(f"Skipping not a GEMINI observation ID: {observation_id}")
+                state = "Error"
         except Exception:
             logger.exception(
                 "Encountered an error fetching observation %s", observation_id
             )
-            state = "Error"
+            state = "Unknown"
 
         return {
             "state": state,

@@ -3,6 +3,70 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.5.1 (2026-05-07)
+===========================
+
+New Features
+------------
+
+- Added display of GMOS imaging mode configuration in the observation form (`PR #629 <https://github.com/gemini-hlsw/goats/pull/629>`_)
+
+
+Changes
+-------
+
+- Updated TOMToolkit from 2.31.7 to 2.32.2 (`PR #33 <https://github.com/gemini-hlsw/goats/pull/33>`_)
+- Updated the DRAGONS app processed files list to show all file types instead of only FITS files. (`PR #621 <https://github.com/gemini-hlsw/goats/pull/621>`_)
+- Removed unused configuration field ``DRAMATIQ_RESULTS_REDIS_URL``. (`PR #624 <https://github.com/gemini-hlsw/goats/pull/624>`_)
+
+
+Other
+-----
+
+- Refactored position angle editor to align with the structure of other editor components. (`PR #628 <https://github.com/gemini-hlsw/goats/pull/628>`_)
+
+
+Version 26.4.7 (2026-04-24)
+===========================
+
+New Features
+------------
+
+- Added most recent photometry display to the target card in the GPP app. (`PR #622 <https://github.com/gemini-hlsw/goats/pull/622>`_)
+
+
+Changes
+-------
+
+- Removed unused configuration field ``DRAMATIQ_RESULTS_REDIS_URL``. (`PR #624 <https://github.com/gemini-hlsw/goats/pull/624>`_)
+
+
+Version 26.4.5 (2026-04-17)
+===========================
+
+Bug Fixes
+---------
+
+- Fixed Update Photometry button visibility for targets with ANTARES aliases. (`PR #618 <https://github.com/gemini-hlsw/goats/pull/618>`_)
+- Fixed spectrum visualizer fill appearing incorrectly in light mode (`PR #619 <https://github.com/gemini-hlsw/goats/pull/619>`_)
+
+
+Version 26.4.3 (2026-04-15)
+===========================
+
+Bug Fixes
+---------
+
+- Pinned django-crispy-forms to 2.5 to ensure compatibility with Django 4. (`PR #609 <https://github.com/gemini-hlsw/goats/pull/609>`_)
+
+
+Other
+-----
+
+- Added Django 5 compatibility to the tests. (`PR #615 <https://github.com/gemini-hlsw/goats/pull/615>`_)
+- Bumped Dragons, TOMToolkit, and gpp-client to their latest versions for the next release. (`PR #616 <https://github.com/gemini-hlsw/goats/pull/616>`_)
+
+
 Version 26.4.1 (2026-04-10)
 ===========================
 
