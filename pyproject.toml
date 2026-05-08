@@ -26,6 +26,7 @@ dependencies = [
     "channels-redis>=4.3.0,<5",
     "channels[daphne]>=4.0,<5",
     "click>=8.3.1,<9",
+    "copier>=9.11.0",
     "django==4.2.30,<5",
     "django-cors-headers>=4.9.0,<5",
     "django-crispy-forms<2.6",#Django 4
@@ -38,6 +39,7 @@ dependencies = [
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
     "tom-tns>=0.3.4",
+    "typer>=0.19.2",
     "tomtoolkit==2.32.2",
 ]
 version = "26.5.1"
