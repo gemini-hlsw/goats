@@ -2,8 +2,12 @@
   <div class="text-center">
     <h4>Reduce the Data with DRAGONS</h4>
     <p><em>This will launch DRAGONS SQ-mode pipeline in a new page</em></p>
-    <a href="{% url 'dragons' object.pk %}" target="_blank">
-      <button type="button" class="btn btn-primary">Launch</button>
-    </a>
+    {% if object.status == "Error" %}
+      <button type="button" class="btn btn-primary" disabled>Launch</button>
+    {% else %}
+      <a href="{% url 'dragons' object.pk %}" target="_blank">
+        <button type="button" class="btn btn-primary">Launch</button>
+      </a>
+    {% endif %}
   </div>
 </div>

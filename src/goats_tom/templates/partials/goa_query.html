@@ -3,7 +3,11 @@
   {% if object.url %}
   <div class="row g-3 justify-content-center">
     <div class="col-12 text-center m-4">
-      <a class="btn btn-outline-primary" href="{{ object.url }}" target="_blank">View at Archive »</a>
+      {% if object.status != "Error" %}
+        <a class="btn btn-outline-primary" href="{{ object.url }}" target="_blank">View at Archive »</a>
+      {% else %}
+        <a class="btn btn-outline-primary disabled" href="{{ object.url }}" target="_blank">View at Archive »</a>
+      {% endif %}
     </div>
   </div>
   {% endif %}
@@ -16,88 +20,90 @@
   {% endif %}
   <form method="post" action="{% url 'goa_query' observationrecord.id%}">
     {% csrf_token %}
-    <div class="form-row justify-content-center">
-      <div class="col-md-5">
-        <div class="row form-group">
-          <label for="{{ form.observation_class.id_for_label }}" class="col-sm-4 col-form-label">{{ form.observation_class.label }}</label>
-          <div class="col-sm-8">
-            {{ form.observation_class }}
+    <fieldset {% if object.status == "Error" %}disabled{% endif %}>
+      <div class="form-row justify-content-center">
+        <div class="col-md-5">
+          <div class="row form-group">
+            <label for="{{ form.observation_class.id_for_label }}" class="col-sm-4 col-form-label">{{ form.observation_class.label }}</label>
+            <div class="col-sm-8">
+              {{ form.observation_class }}
+            </div>
+          </div>
+        </div>
+        <div class="col-md-5">
+          <div class="row form-group">
+            <label for="{{ form.observation_type.id_for_label }}" class="col-sm-4 col-form-label">{{ form.observation_type.label }}</label>
+            <div class="col-sm-8">
+              {{ form.observation_type }}
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-md-5">
-        <div class="row form-group">
-          <label for="{{ form.observation_type.id_for_label }}" class="col-sm-4 col-form-label">{{ form.observation_type.label }}</label>
-          <div class="col-sm-8">
-            {{ form.observation_type }}
+      <div class="form-row justify-content-center">
+        <div class="col-md-5">
+          <div class="row form-group">
+            <label for="{{ form.raw_reduced.id_for_label }}" class="col-sm-4 col-form-label">{{ form.raw_reduced.label }}</label>
+            <div class="col-sm-8">
+              {{ form.raw_reduced }}
+              <small class="form-text text-muted">{{ form.raw_reduced.help_text }}</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-5">
+          <div class="row form-group">
+            <label for="{{ form.qa_state.id_for_label }}" class="col-sm-4 col-form-label">{{ form.qa_state.label }}</label>
+            <div class="col-sm-8">
+              {{ form.qa_state }}
+              <small class="form-text text-muted">{{ form.qa_state.help_text }}</small>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="form-row justify-content-center">
-      <div class="col-md-5">
-        <div class="row form-group">
-          <label for="{{ form.raw_reduced.id_for_label }}" class="col-sm-4 col-form-label">{{ form.raw_reduced.label }}</label>
-          <div class="col-sm-8">
-            {{ form.raw_reduced }}
-            <small class="form-text text-muted">{{ form.raw_reduced.help_text }}</small>
+      <div class="form-row justify-content-center">
+        <div class="col-md-10">
+          <div class="row form-group">
+            <label for="{{ form.filename_prefix.id_for_label }}" class="col-sm-4 col-form-label">{{ form.filename_prefix.label }}</label>
+            <div class="col-sm-8">
+              {{ form.filename_prefix }}
+              <small class="form-text text-muted">{{ form.filename_prefix.help_text }}</small>
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-md-5">
-        <div class="row form-group">
-          <label for="{{ form.qa_state.id_for_label }}" class="col-sm-4 col-form-label">{{ form.qa_state.label }}</label>
-          <div class="col-sm-8">
-            {{ form.qa_state }}
-            <small class="form-text text-muted">{{ form.qa_state.help_text }}</small>
+      <div class="form-row justify-content-center">
+        <div class="col-md-10">
+          <div class="row form-group">
+            <label for="{{ form.observation_id.id_for_label }}" class="col-sm-4 col-form-label">{{ form.observation_id.label }}</label>
+            <div class="col-sm-8">
+              <input type="text" name="{{ form.observation_id.name }}" value="{{ object.observation_id }}" id="{{ form.observation_id.id_for_label }}" class="form-control">
+              <small class="form-text text-muted">{{ form.observation_id.help_text }}</small>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="form-row justify-content-center">
-      <div class="col-md-10">
-        <div class="row form-group">
-          <label for="{{ form.filename_prefix.id_for_label }}" class="col-sm-4 col-form-label">{{ form.filename_prefix.label }}</label>
-          <div class="col-sm-8">
-            {{ form.filename_prefix }}
-            <small class="form-text text-muted">{{ form.filename_prefix.help_text }}</small>
+      <div class="form-row justify-content-center">
+        <div class="col-md-10">
+          <div class="row form-group">
+            <label class="pt-0 col-sm-4 col-form-label">{{ form.download_calibrations.label }}</label>
+            <div class="col-sm-8">
+              {% for radio in form.download_calibrations %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="{{ form.download_calibrations.name }}" id="{{ radio.id_for_label }}" value="{{ radio.data.value }}" {% if radio.data.value == "yes" %}checked{% endif %}>
+                  <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                </div>
+              {% endfor %}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="form-row justify-content-center">
-      <div class="col-md-10">
-        <div class="row form-group">
-          <label for="{{ form.observation_id.id_for_label }}" class="col-sm-4 col-form-label">{{ form.observation_id.label }}</label>
-          <div class="col-sm-8">
-            <input type="text" name="{{ form.observation_id.name }}" value="{{ object.observation_id }}" id="{{ form.observation_id.id_for_label }}" class="form-control">
-            <small class="form-text text-muted">{{ form.observation_id.help_text }}</small>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="form-row justify-content-center">
-      <div class="col-md-10">
-        <div class="row form-group">
-          <label class="pt-0 col-sm-4 col-form-label">{{ form.download_calibrations.label }}</label>
-          <div class="col-sm-8">
-            {% for radio in form.download_calibrations %}
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="{{ form.download_calibrations.name }}" id="{{ radio.id_for_label }}" value="{{ radio.data.value }}" {% if radio.data.value == "yes" %}checked{% endif %}>
-                <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
-              </div>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-    </div>
-    <input type="hidden" name="facility" value="{{ object.facility }}">
-    <div class="row">
-      <div class="col text-center">
+      <input type="hidden" name="facility" value="{{ object.facility }}">
+      <div class="row">
+        <div class="col text-center">
           <button type="submit" class="btn btn-primary">
             Submit
           </button>
+        </div>
       </div>
-    </div>
+    </fieldset>
   </form>
 </div>
