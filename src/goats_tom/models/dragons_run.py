@@ -400,41 +400,34 @@ class DRAGONSRun(models.Model):
         `list[dict]`
             A list of file information dictionaries.
         """
+
         output_dir = self.get_output_dir()
         output_files = []
 
-        # Query all processed DataProducts.
+        # Query all processed DataProducts
         data_products_qs = DataProduct.objects.filter(
             observation_record=self.observation_record, metadata__processed=True
         )
-
-        # Create a dict from product_id to the DataProduct instance for quick lookups.
         data_products = {dp.product_id: dp for dp in data_products_qs}
-
-        # Keep a set to record which product_ids we've already handled
-        # (to avoid duplicates).
         processed_product_ids: set[str] = set()
 
-        # Iterate over files in the output directory.
+        # Iterate over files in output directory
         for f in output_dir.glob("*"):
             if f.is_file() and self.is_valid_file(f):
-                # Get the file's last modified time, convert it to UTC, and format it.
-                last_modified = datetime.datetime.fromtimestamp(
+                file_mtime = datetime.datetime.fromtimestamp(
                     f.stat().st_mtime, datetime.timezone.utc
-                ).strftime("%Y-%m-%d %H:%M:%S")
-
-                # Generate the product ID from the file path.
+                )
+                last_modified = file_mtime.strftime("%Y-%m-%d %H:%M:%S")
                 potential_product_id = str(f.relative_to(settings.MEDIA_ROOT))
-
-                # Check if this file is backed by a DataProduct.
                 dp = data_products.get(potential_product_id)
                 is_dataproduct = dp is not None
 
                 if is_dataproduct:
-                    # Mark this product_id as processed so we don't add it again later.
                     processed_product_ids.add(potential_product_id)
+                    status = "updated" if file_mtime > dp.modified else "unchanged"
+                else:
+                    status = "new"
 
-                # Append the file info to output_files.
                 output_files.append(
                     {
                         "name": f.name,
@@ -444,11 +437,11 @@ class DRAGONSRun(models.Model):
                         "dataproduct_id": dp.id if dp else None,
                         "product_id": potential_product_id,
                         "url": f"{settings.MEDIA_URL}{potential_product_id}",
+                        "status": status,
                     }
                 )
 
-        # Add remaining DataProducts not in the output_dir.
-        # These have processed=True but aren't found in output_dir.
+        # Add remaining DataProducts not in output_dir
         for product_id, dp in data_products.items():
             if product_id not in processed_product_ids:
                 dp_path = Path(dp.data.name)
@@ -460,8 +453,8 @@ class DRAGONSRun(models.Model):
                         "dataproduct_id": dp.id,
                         "product_id": product_id,
                         "url": dp.data.url,
-                        # Match same format as above.
                         "last_modified": dp.modified.strftime("%Y-%m-%d %H:%M:%S"),
+                        "status": "unchanged",
                     }
                 )
 

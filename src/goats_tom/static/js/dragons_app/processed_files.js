@@ -278,8 +278,10 @@ class ProcessedFilesTemplate {
       const tr = Utils.createElement("tr");
       tr.dataset.filename = item.name;
       tr.dataset.filepath = item.path;
+      tr.dataset.status = item.status;
       tr.dataset.productId = item.product_id;
       tr.dataset.fileUrl = item.url;
+      tr.dataset.lastModified = item.last_modified; 
 
       // Create the filename cell with a data attribute.
       const tdFilename = Utils.createElement("td");
@@ -330,8 +332,7 @@ class ProcessedFilesTemplate {
 
       // Create the add to data products button cell.
       const tdAdd = Utils.createElement("td", ["text-end"]);
-
-      if (item.is_dataproduct) {
+      if (item.is_dataproduct && item.status === "unchanged" ) {
         // If item is a data product, just show a check icon as text.
         const checkIcon = Utils.createElement("i", [
           "fa-solid",
@@ -519,8 +520,11 @@ class ProcessedFilesView {
           const row = e.target.closest("tr");
           if (!row) return;
           handler({
+            productId: row.dataset.productId,
             filename: row.dataset.filename,
             filepath: row.dataset.filepath,
+            fileStatus: row.dataset.status,
+            last_modified: row.dataset.lastModified, 
           });
         });
         break;
@@ -628,12 +632,15 @@ class ProcessedFilesModel {
    * @param {string} filename - The name of the file to add.
    * @param {string} filepath - The path of the file to add.
    */
-  async addFile(filename, filepath) {
+  async addFile(item) {
     try {
-      const extension = filename.split('.').pop().toLowerCase();
+      const extension = item.filename.split('.').pop().toLowerCase();
       const body = {
-        filename: filename,
-        filepath: filepath,
+        productId: item.productId,
+        filename: item.filename,
+        filepath: item.filepath,
+        file_status: item.fileStatus,
+        last_modified: item.last_modified,
         data_product_type:  extension == "fits"?"fits_file":"text_file",
         dragons_run: this.runId,
       };
@@ -716,7 +723,7 @@ class ProcessedFilesController {
    */
   _bindCallbacks() {
     this.view.bindCallback("refresh", () => this.refresh());
-    this.view.bindCallback("add", (item) => this.add(item.filename, item.filepath));
+    this.view.bindCallback("add", (item) => this.add(item));
     this.view.bindCallback("remove", (item) =>
       this.remove(item.filename, item.filepath, item.productId)
     );
@@ -761,8 +768,8 @@ class ProcessedFilesController {
    * @param {string} filename - The name of the file to add.
    * @param {string} filepath - The path of the file to add.
    */
-  async add(filename, filepath) {
-    await this.model.addFile(filename, filepath);
+  async add(item) {
+    await this.model.addFile(item);
     if (this.model.dataChanged()) {
       this.view.render("update", { data: this.model.data });
     }

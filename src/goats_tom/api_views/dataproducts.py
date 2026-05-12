@@ -1,12 +1,13 @@
 """Module to override the TOMToolkit `DataProductViewSet` for DRAGONS-specific data
 product management.
-
 This module customizes the `DataProductViewSet` to integrate with the DRAGONS run
 system, adapting the way data products are created to accommodate file paths instead of
 direct file uploads.
 """
 
 __all__ = ["DataProductsViewSet"]
+from datetime import datetime
+
 from django.conf import settings
 from guardian.shortcuts import assign_perm
 from rest_framework import status
@@ -33,38 +34,98 @@ class DataProductsViewSet(BaseDataProductViewSet):
         return super().get_serializer_class()
 
     def create(self, request, *args, **kwargs):
-        # Directly invoke CreateModelMixin's create method to avoid the custom logic.
-        mixin_method = CreateModelMixin.create.__get__(self, self.__class__)
-        response = mixin_method(request, *args, **kwargs)
-        if response.status_code == status.HTTP_201_CREATED:
-            response.data["message"] = "Data product successfully uploaded."
-            dp = DataProduct.objects.get(pk=response.data["id"])
-            # Add the metadata.
-            # NOTE: Instead of opening with astrodata and checking for prepared or
-            # processed tags, we assume it is processed. This api endpoint is for
-            # DRAGONS reduction, only Gemini data will be here and only processed files
-            # will appear in the run directory.
-            DataProductMetadata.objects.create(dataproduct=dp, processed=True)
+        file_status = request.data.get("file_status")
+
+        if file_status == "new":
+            # Directly invoke CreateModelMixin's create method to avoid the custom logic
+            mixin_method = CreateModelMixin.create.__get__(self, self.__class__)
+            response = mixin_method(request, *args, **kwargs)
+
+            if response.status_code == status.HTTP_201_CREATED:
+                response.data["message"] = "Data product successfully uploaded."
+                dp = DataProduct.objects.get(pk=response.data["id"])
+
+                # Add the metadata.
+                # NOTE: Instead of opening with astrodata and checking for prepared or
+                # processed tags, we assume it is processed. This api endpoint is for
+                # DRAGONS reduction, only Gemini data will be here and only processed
+                # files will appear in the run directory.
+                DataProductMetadata.objects.create(dataproduct=dp, processed=True)
+
+                try:
+                    run_hook("data_product_post_upload", dp)
+                    reduced_data = run_data_processor(dp)
+                    if not settings.TARGET_PERMISSIONS_ONLY:
+                        for group in response.data.get("group", []):
+                            assign_perm("tom_dataproducts.view_dataproduct", group, dp)
+                            assign_perm(
+                                "tom_dataproducts.delete_dataproduct", group, dp
+                            )
+                            assign_perm(
+                                "tom_dataproducts.view_reduceddatum",
+                                group,
+                                reduced_data,
+                            )
+
+                except Exception:
+                    ReducedDatum.objects.filter(data_product=dp).delete()
+                    dp.delete()
+                    return Response(
+                        {
+                            "error": "Data processing error",
+                            "detail": "There was an error in processing your "
+                            "DataProduct into individual ReducedDatum objects.",
+                        },
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
+
+            return response
+        elif file_status == "updated":
             try:
-                run_hook("data_product_post_upload", dp)
-                reduced_data = run_data_processor(dp)
-                if not settings.TARGET_PERMISSIONS_ONLY:
-                    for group in response.data["group"]:
-                        assign_perm("tom_dataproducts.view_dataproduct", group, dp)
-                        assign_perm("tom_dataproducts.delete_dataproduct", group, dp)
-                        assign_perm(
-                            "tom_dataproducts.view_reduceddatum", group, reduced_data
+                product_id = request.data.get("productId")
+                last_modified = request.data.get("last_modified")
+                dp = DataProduct.objects.get(product_id=product_id)
+
+                if last_modified:
+                    try:
+                        dp.modified = datetime.fromisoformat(
+                            last_modified.replace("Z", "+00:00")
                         )
-            except Exception:
-                ReducedDatum.objects.filter(data_product=dp).delete()
-                dp.delete()
+                        dp.save(update_fields=["modified"])
+                    except Exception:
+                        pass
+
+                try:
+                    ReducedDatum.objects.filter(data_product=dp).delete()
+                    run_hook("data_product_post_upload", dp)
+                    run_data_processor(dp)
+
+                except Exception:
+                    ReducedDatum.objects.filter(data_product=dp).delete()
+                    return Response(
+                        {"error": "Data processing error"},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
+
                 return Response(
-                    {
-                        "Data processing error": (
-                            "There was an error in processing your DataProduct into "
-                            "individual ReducedDatum objects."
-                        )
-                    },
+                    {"message": "Data product successfully updated."},
+                    status=status.HTTP_200_OK,
+                )
+
+            except DataProduct.DoesNotExist:
+                return Response(
+                    {"error": "DataProduct not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            except Exception as e:
+                return Response(
+                    {"error": str(e)},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
-        return response
+
+        else:
+            return Response(
+                {"error": f"Invalid file_status: {file_status}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
