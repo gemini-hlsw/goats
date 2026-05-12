@@ -241,7 +241,7 @@ class ExposureModeEditor {
   #createSelect(id, value, onChange) {
     const select = Utils.createElement("select", "form-select");
     select.id = id;
-    select.name = id;
+    select.name = "exposureModeSelect";
     ["Signal / Noise", "Time & Count"].forEach((opt) => {
       const o = Utils.createElement("option");
       o.value = opt;
@@ -277,11 +277,13 @@ class ExposureModeEditor {
     inputs.snInput = this.#createNumberInput(
       "Signal / Noise",
       `${idPrefix}-sn`,
+      "snInput",
       snValue
     );
     inputs.snWavelengthInput = this.#createNumberInput(
       "λ for S/N",
       `${idPrefix}-sn-wl`,
+      "snWavelengthInput",
       snWavelength,
       "nm"
     );
@@ -290,18 +292,21 @@ class ExposureModeEditor {
     inputs.timeInput = this.#createNumberInput(
       "Exposure Time",
       `${idPrefix}-time`,
+      "exposureTimeInput",
       timeSeconds,
       "s"
     );
     inputs.countInput = this.#createNumberInput(
       "Number of Exposures",
       `${idPrefix}-count`,
+      "numExposuresInput",
       count,
       "#"
     );
     inputs.tcWavelengthInput = this.#createNumberInput(
       "λ for S/N",
       `${idPrefix}-tc-wl`,
+      "countWavelengthInput",
       tcWavelength,
       "nm"
     );
@@ -355,12 +360,12 @@ class ExposureModeEditor {
    * @returns {HTMLDivElement}
    * @private
    */
-  #createNumberInput(label, id, value, suffix = "") {
+  #createNumberInput(label, id, name, value, suffix = "") {
     const col = Utils.createElement("div", "col-md-6");
     const labelEl = this.#createLabel(label, id);
     const input = Utils.createElement("input", "form-control");
     input.id = id;
-    input.name = id;
+    input.name = name;
     input.type = "number";
     input.value = value;
     if (this.#readOnly) input.disabled = true;
