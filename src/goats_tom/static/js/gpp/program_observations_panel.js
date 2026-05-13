@@ -13,21 +13,17 @@ class ProgramObservationsPanel {
   #parentElement;
   #debug;
   #debugTag = "[ProgramObservationsPanel]";
-
   #programSelect;
   #programSpinner;
-
   #normalSelect;
   #normalSpinner;
   #obsToolbar;
   #updateButton;
   #saveButton;
-
   #tooSelect;
   #tooSpinner;
   #tooToolbar;
   #createNewButton;
-
   /**
    * Construct a new ProgramObservationsPanel and attach it to the DOM.
    *
@@ -38,13 +34,10 @@ class ProgramObservationsPanel {
   constructor(parentElement, { debug = false } = {}) {
     this.#parentElement = parentElement;
     this.#debug = debug;
-
     this.#container = this.#create();
     this.#parentElement.appendChild(this.#container);
-
     this.#programSelect = this.#container.querySelector("#programSelect");
     this.#programSpinner = this.#container.querySelector("#programLoading");
-
     this.#normalSelect = this.#container.querySelector(
       "#normalObservationSelect",
     );
@@ -54,21 +47,17 @@ class ProgramObservationsPanel {
     this.#obsToolbar = this.#container.querySelector("#obsButtonToolbar");
     this.#updateButton = this.#obsToolbar.querySelector("#updateButton");
     this.#saveButton = this.#obsToolbar.querySelector("#saveButton");
-
     this.#tooSelect = this.#container.querySelector("#tooObservationSelect");
     this.#tooSpinner = this.#container.querySelector("#tooObservationLoading");
     this.#tooToolbar = this.#container.querySelector("#tooButtonToolbar");
     this.#createNewButton = this.#tooToolbar.querySelector("#createNewButton");
-
     // Initial state: disable observations and buttons.
     this.toggleNormalSelect(true);
     this.toggleTooSelect(true);
     this.toggleNormalButtons(true);
     this.toggleTooButtons(true);
-
     this.#logDebug("Initialized and mounted.");
   }
-
   /**
    * Get the root container for attaching to DOM.
    * @returns {!HTMLElement}
@@ -76,7 +65,6 @@ class ProgramObservationsPanel {
   get element() {
     return this.#container;
   }
-
   /**
    * Enable or disable debug logging at runtime.
    * @param {boolean} flag
@@ -85,7 +73,6 @@ class ProgramObservationsPanel {
     this.#debug = flag;
     this.#logDebug(`Setting debug to ${flag}`);
   }
-
   /**
    * Logs a debug message if debugging is enabled.
    *
@@ -95,7 +82,6 @@ class ProgramObservationsPanel {
   #logDebug(message) {
     if (this.#debug) console.debug(`${this.#debugTag} ${message}`);
   }
-
   /**
    * Clear and show an "empty" option message in a given select element.
    * @private
@@ -107,10 +93,8 @@ class ProgramObservationsPanel {
     option.textContent = "None available";
     option.disabled = true;
     selectEl.appendChild(option);
-
     this.#logDebug(`Empty state shown for select: ${selectEl.id}`);
   }
-
   /**
    * Reset the ToO select back to just its placeholder.
    * Does not remove existing placeholder.
@@ -119,7 +103,6 @@ class ProgramObservationsPanel {
     this.#tooSelect.length = 1;
     this.#logDebug("Cleared ToO select.");
   }
-
   /**
    * Reset the normal select back to just its placeholder.
    * Does not remove existing placeholder.
@@ -128,7 +111,6 @@ class ProgramObservationsPanel {
     this.#normalSelect.length = 1;
     this.#logDebug("Cleared normal select.");
   }
-
   /**
    * Populate the program <select>.
    * @param {!Array<Object>} programs - Array of program objects.
@@ -141,7 +123,6 @@ class ProgramObservationsPanel {
       (p) => `${p.reference?.label ?? p.id} - ${p.name ?? p.title ?? ""}`,
     );
   }
-
   /**
    * Populate the normal observations <select>.
    * @param {!Array<Object>} observations - Array of observation objects.
@@ -149,7 +130,6 @@ class ProgramObservationsPanel {
   updateNormalObservations(observations) {
     this.#fillSelect(this.#normalSelect, observations);
   }
-
   /**
    * Populate the ToO observations <select>.
    * @param {!Array<Object>} observations - Array of observation objects.
@@ -157,7 +137,6 @@ class ProgramObservationsPanel {
   updateTooObservations(observations) {
     this.#fillSelect(this.#tooSelect, observations);
   }
-
   /**
    * Show or hide loading state for programs.
    * @param {boolean} isLoading
@@ -167,7 +146,6 @@ class ProgramObservationsPanel {
     this.#programSpinner.hidden = !isLoading;
     this.#logDebug(`Program loading: ${isLoading}`);
   }
-
   /**
    * Show or hide loading state for normal observations.
    * @param {boolean} isLoading
@@ -177,7 +155,6 @@ class ProgramObservationsPanel {
     this.#normalSpinner.hidden = !isLoading;
     this.#logDebug(`Normal loading: ${isLoading}`);
   }
-
   /**
    * Show or hide loading state for ToO observations.
    * @param {boolean} isLoading
@@ -187,7 +164,6 @@ class ProgramObservationsPanel {
     this.#tooSpinner.hidden = !isLoading;
     this.#logDebug(`ToO loading: ${isLoading}`);
   }
-
   /**
    * Enable or disable the normal observation toolbar buttons.
    * @param {boolean} disabled
@@ -197,7 +173,6 @@ class ProgramObservationsPanel {
     this.#saveButton.disabled = disabled;
     this.#logDebug(`Normal buttons disabled: ${disabled}`);
   }
-
   /**
    * Enable or disable the normal observation <select>.
    * @param {boolean} disabled
@@ -206,7 +181,6 @@ class ProgramObservationsPanel {
     this.#normalSelect.disabled = disabled;
     this.#logDebug(`Normal select disabled: ${disabled}`);
   }
-
   /**
    * Enable or disable the ToO observation <select>.
    * @param {boolean} disabled
@@ -215,7 +189,6 @@ class ProgramObservationsPanel {
     this.#tooSelect.disabled = disabled;
     this.#logDebug(`ToO select disabled: ${disabled}`);
   }
-
   /**
    * Enable or disable the ToO toolbar buttons.
    * @param {boolean} disabled
@@ -224,7 +197,6 @@ class ProgramObservationsPanel {
     this.#createNewButton.disabled = disabled;
     this.#logDebug(`ToO buttons disabled: ${disabled}`);
   }
-
   /**
    * Enable or disable all observation toolbar buttons.
    * @param {boolean} disabled
@@ -234,9 +206,7 @@ class ProgramObservationsPanel {
     this.toggleTooButtons(disabled);
     this.#logDebug(`All buttons disabled: ${disabled}`);
   }
-
   // Event hooks.
-
   /**
    * Attach a handler for when a program is selected.
    * Resets observations state (clears selects + disables buttons).
@@ -245,7 +215,6 @@ class ProgramObservationsPanel {
   onProgramSelect(handler) {
     this.#programSelect.addEventListener("change", (e) => {
       this.#logDebug(`Program selected: ${e.target.value}`);
-
       // Reset dependent state.
       this.clearNormalSelect();
       this.clearTooSelect();
@@ -253,11 +222,9 @@ class ProgramObservationsPanel {
       this.toggleTooSelect(true);
       this.toggleNormalButtons(true);
       this.toggleTooButtons(true);
-
       handler(e.target.value);
     });
   }
-
   /**
    * Attach a handler for when a normal observation is selected.
    * Also enforces state rules (enable normal, disable ToO).
@@ -266,18 +233,15 @@ class ProgramObservationsPanel {
   onNormalSelect(handler) {
     this.#normalSelect.addEventListener("change", (e) => {
       this.#logDebug(`Normal selected: ${e.target.value}`);
-
-      // Enable normal buttons, disable ToO buttons.
-      this.toggleNormalButtons(false);
+      // Disable buttons if the selected observation is a calibration.
+      const isCalibration = this.#normalSelect.selectedOptions[0]?.parentElement?.label === "Calibrations";
+      this.toggleNormalButtons(isCalibration);
       this.toggleTooButtons(true);
-
       // Reset tooSelect back to placeholder without clearing options.
       this.#tooSelect.selectedIndex = 0;
-
       handler(e.target.value);
     });
   }
-
   /**
    * Attach a handler for when a ToO observation is selected.
    * Also enforces state rules (enable ToO, disable normal).
@@ -286,18 +250,14 @@ class ProgramObservationsPanel {
   onTooSelect(handler) {
     this.#tooSelect.addEventListener("change", (e) => {
       this.#logDebug(`ToO selected: ${e.target.value}`);
-
       // Enable ToO buttons, disable normal buttons.
       this.toggleTooButtons(false);
       this.toggleNormalButtons(true);
-
       // Reset normalSelect back to placeholder without clearing options.
       this.#normalSelect.selectedIndex = 0;
-
       handler(e.target.value);
     });
   }
-
   /**
    * Attach a handler for the "Save" button.
    * @param {function():void} handler
@@ -308,7 +268,6 @@ class ProgramObservationsPanel {
       handler();
     });
   }
-
   /**
    * Attach a handler for the "Update" button.
    * @param {function():void} handler
@@ -319,7 +278,6 @@ class ProgramObservationsPanel {
       handler();
     });
   }
-
   /**
    * Attach a handler for the "Create New Observation" button.
    * @param {function():void} handler
@@ -330,9 +288,7 @@ class ProgramObservationsPanel {
       handler();
     });
   }
-
   // DOM building methods.
-
   /**
    * Build the panel DOM structure.
    * @private
@@ -343,7 +299,6 @@ class ProgramObservationsPanel {
     const colProgram = Utils.createElement("div", ["col-12"]);
     const colNormal = Utils.createElement("div", ["col-lg-6"]);
     const colToo = Utils.createElement("div", ["col-lg-6"]);
-
     // Program block.
     colProgram.append(
       this.#createSelectWithSpinner(
@@ -352,7 +307,6 @@ class ProgramObservationsPanel {
         "Choose a program...",
       ),
     );
-
     // Normal obs block.
     colNormal.append(
       this.#createSelectWithSpinner(
@@ -370,7 +324,6 @@ class ProgramObservationsPanel {
         { id: "saveButton", label: "Save To GOATS", color: "primary" },
       ]),
     );
-
     // ToO block.
     colToo.append(
       this.#createSelectWithSpinner(
@@ -386,11 +339,9 @@ class ProgramObservationsPanel {
         },
       ]),
     );
-
     row.append(colProgram, colNormal, colToo);
     return row;
   }
-
   /**
    * Generates a `<select>` populated with a hidden placeholder option.
    * @param {string} id  Prefix for the element ID.
@@ -403,7 +354,6 @@ class ProgramObservationsPanel {
     const label = Utils.createElement("label", ["form-label"]);
     label.htmlFor = `${id}Select`;
     label.textContent = labelText;
-
     // Add inline spinner next to label.
     const spinner = Utils.createElement("span", [
       "spinner-border",
@@ -414,18 +364,14 @@ class ProgramObservationsPanel {
     spinner.role = "status";
     spinner.hidden = true;
     label.appendChild(spinner);
-
     const select = Utils.createElement("select", ["form-select"]);
     select.id = `${id}Select`;
     select.innerHTML = `<option value="" selected hidden>${optionHint}</option>`;
     select.disabled = true;
-
     const wrapper = Utils.createElement("div");
     wrapper.append(label, select);
-
     return wrapper;
   }
-
   /**
    * Creates a toolbar containing one or more buttons.
    * @private
@@ -436,7 +382,6 @@ class ProgramObservationsPanel {
   #createToolbar(toolbarId, actions) {
     const toolbar = Utils.createElement("div", ["mt-2"]);
     toolbar.id = toolbarId;
-
     actions.forEach(({ id, label, color, classes = [] }) => {
       const btn = Utils.createElement("button", [
         "btn",
@@ -448,10 +393,8 @@ class ProgramObservationsPanel {
       btn.type = "button";
       toolbar.append(btn);
     });
-
     return toolbar;
   }
-
   /**
    * Fill a <select> with options.
    * @private
