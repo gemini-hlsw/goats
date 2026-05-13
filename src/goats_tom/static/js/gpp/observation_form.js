@@ -31,6 +31,7 @@ class ObservationForm {
     this.#container = parentElement;
     this.#form = null;
     this.#readOnly = readOnly;
+    //this.#readOnly = true;
     this.#mode = mode;
     this.#callbacks = callbacks ?? {};
 
@@ -39,11 +40,11 @@ class ObservationForm {
       handlePosAngleConstraint: (meta, raw) => {
         // Need to wrap to preserve layout and match rest.
         const div = Utils.createElement("div", "mt-3");
-        new  PosAngleEditor( div, {
-            data: raw ?? {},
-            meta: meta ?? {},
-            readOnly: this.#readOnly,
-        }); 
+        new PosAngleEditor(div, {
+          data: raw ?? {},
+          meta: meta ?? {},
+          readOnly: this.#readOnly,
+        });
         return [div];
       },
       handleExposureMode: (meta, raw) => {
@@ -51,7 +52,7 @@ class ObservationForm {
         new ExposureModeEditor(div, {
           data: raw ?? {},
           mode: meta.mode,
-          readOnly: this.#readOnly || meta.readOnly ,
+          readOnly: this.#readOnly || meta.readOnly,
         });
         return [div];
       },
@@ -68,6 +69,7 @@ class ObservationForm {
         new SourceProfileEditor(div, {
           data: raw ?? {},
           debug: true,
+          readOnly: this.#readOnly,
         });
         return [div];
       },
@@ -102,6 +104,7 @@ class ObservationForm {
         const timeCharge = Utils.getByPath(observation, meta.timeChargePath);
         new ScienceBandEditor(div, {
           data: [raw ?? null, allocations, timeCharge],
+          readOnly: this.#readOnly,
         });
         return [div];
       },
@@ -110,17 +113,18 @@ class ObservationForm {
         this.#finderChartEditor = new FinderChartEditor(div, {
           data: raw ?? [],
           callbacks: this.#callbacks,
+          readOnly: this.#readOnly,
         });
         return [div];
       },
       handleOffsetVariant: (meta, raw) => {
         const div = Utils.createElement("div", "mt-3");
-        new OffsetVariantEditor (div, {
+        new OffsetVariantEditor(div, {
           data: raw ?? [],
           readOnly: this.#readOnly,
         });
         return [div];
-       },
+      },
     };
 
     if (observation) {
