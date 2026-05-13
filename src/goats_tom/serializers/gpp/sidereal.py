@@ -21,6 +21,8 @@ class SiderealSerializer(_BaseGPPSerializer):
     hiddenGoatsTargetIdInput = serializers.PrimaryKeyRelatedField(
         required=True, allow_null=False, queryset=Target.objects.all()
     )
+    rightAscensionInput = serializers.CharField(required=False, allow_null=True)
+    declinationInput = serializers.CharField(required=False, allow_null=True)
     radialVelocityInput = serializers.FloatField(required=False, allow_null=True)
     parallaxInput = serializers.FloatField(required=False, allow_null=True)
     uRaInput = serializers.FloatField(required=False, allow_null=True)
@@ -38,9 +40,12 @@ class SiderealSerializer(_BaseGPPSerializer):
             The formatted data dictionary for GPP.
         """
         data = self.validated_data
+        ra = data.get("rightAscensionInput")
+        dec = data.get("declinationInput")
+
         result: dict[str, Any] = {
-            "ra": {"degrees": self.target.ra},
-            "dec": {"degrees": self.target.dec},
+            "ra": {"hms": ra} if ra else {"degrees": self.target.ra},
+            "dec": {"dms": dec} if dec else {"degrees": self.target.dec},
             "epoch": "J2000.000",
         }
 
