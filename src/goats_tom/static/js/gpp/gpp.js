@@ -420,10 +420,14 @@ class GPPView {
    * @private
    */
   #updateNormalObservation(observation) {
+    const hasProposalStatus = Boolean(observation?.proposalStatus);
+    const hasMode = Boolean(observation?.scienceRequirements?.mode);
+    const isCalibration = !hasMode && !hasProposalStatus;
+
     this.#form = new ObservationForm(this.#formContainer, {
       observation: observation,
       mode: "normal",
-      readOnly: false,
+      readOnly: isCalibration,
       callbacks: this.#buildObservationFormCallbacks(),
     });
   }
