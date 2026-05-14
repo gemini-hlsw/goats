@@ -304,116 +304,171 @@ class ObservationForm {
 
     return { header, body };
   }
-
   /**
-   * Create a form field from metadata.
-   * @param {Object} field - Field configuration metadata.
-   * @param {string} field.id - Field ID.
-   * @param {*} field.value - Initial field value.
-   * @param {string=} field.labelText - Field label.
-   * @param {string=} field.prefix - Optional prefix text.
-   * @param {string=} field.suffix - Optional suffix text.
-   * @param {string=} field.element - Element type: input, textarea, or select.
-   * @param {string=} field.type - Input type (e.g., "number", "text").
-   * @param {string=} field.colSize - Bootstrap column class.
-   * @param {string=} field.readOnly - Whether the field is read-only in what mode.
-   * @param {Array<string|{labelText: string, value: string}>=} field.options - Options for a
-   * select element.
-   * @returns {!HTMLElement}
-   * @private
-   */
-  #createFormField({
-    id,
-    value = "",
-    labelText = null,
-    prefix = null,
-    suffix = null,
-    element = "input",
-    type = "text",
-    colSize = "col-md-6",
-    readOnly = undefined,
-    options = [],
-  }) {
-    const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
+ * Create a form field from metadata.
+ * @param {Object} field - Field configuration metadata.
+ * @param {string} field.id - Field ID.
+ * @param {*} field.value - Initial field value.
+ * @param {string=} field.labelText - Field label.
+ * @param {string=} field.prefix - Optional prefix text.
+ * @param {string=} field.suffix - Optional suffix text.
+ * @param {string=} field.element - Element type: input, textarea, or select.
+ * @param {string=} field.type - Input type (e.g., "number", "text").
+ * @param {string=} field.colSize - Bootstrap column class.
+ * @param {string=} field.readOnly - Whether the field is read-only in what mode.
+ * @param {boolean=} field.hasOverride - If true, field has a toggle button next to
+ *     the label. When unlocked, the value is editable and sent to the serializer.
+ *     When locked, the value is empty and the serializer falls back to the target value.
+ * @param {string=} field.overridePlaceholder - Placeholder shown when field is locked.
+ *     E.g. "Using selected target's RA".
+ * @param {Array<string|{labelText: string, value: string}>=} field.options - Options for a
+ * select element.
+ * @returns {!HTMLElement}
+ * @private
+ */
+#createFormField({
+  id,
+  value = "",
+  labelText = null,
+  prefix = null,
+  suffix = null,
+  element = "input",
+  type = "text",
+  colSize = "col-md-6",
+  readOnly = undefined,
+  hasOverride = false,
+  overridePlaceholder = "Using selected target's value",
+  options = [],
+}) {
+  const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
 
-    // Handle creating a hidden input and return early to avoid breaking layout.
-    if (type === "hidden") {
-      const input = Utils.createElement("input");
-      input.type = type;
-      input.id = elementId;
-      input.name = elementId;
-      input.value = value;
-      return input;
+  // Handle creating a hidden input and return early to avoid breaking layout.
+  if (type === "hidden") {
+    const input = Utils.createElement("input");
+    input.type = type;
+    input.id = elementId;
+    input.name = elementId;
+    input.value = value;
+    return input;
+  }
+
+  const col = Utils.createElement("div", [colSize]);
+
+  // Apply read-only state if applicable.
+  const isReadOnly =
+    this.#readOnly ||
+    (typeof readOnly === "string" &&
+      (readOnly === "both" || readOnly === this.#mode));
+
+  // Create label (with toggle button if hasOverride).
+  if (labelText) {
+    const labelWrapper = Utils.createElement("div", [
+      "d-flex",
+      "align-items-center",
+      "gap-2",
+      "mb-1",
+    ]);
+    const label = Utils.createElement("label", ["form-label", "mb-0"]);
+    label.htmlFor = elementId;
+    label.textContent = labelText;
+    labelWrapper.append(label);
+
+    // Toggle button next to label (if hasOverride and not readOnly).
+    if (hasOverride && !isReadOnly) {
+      const toggleBtn = Utils.createElement("button", [
+        "btn",
+        "btn-sm",
+        "btn-link",
+        "px-1",
+      ]);
+      toggleBtn.type = "button";
+      toggleBtn.id = `${elementId}Toggle`;
+      // Initial state: editable (custom).
+      toggleBtn.dataset.locked = "false";
+      toggleBtn.title = "Switch to use target's value";
+      toggleBtn.innerHTML = `<i class="fa-solid fa-right-left"></i>`;
+      labelWrapper.append(toggleBtn);
     }
 
-    const col = Utils.createElement("div", [colSize]);
+    col.append(labelWrapper);
+  }
 
-    // Create label.
-    if (labelText) {
-      const label = Utils.createElement("label", ["form-label"]);
-      label.htmlFor = elementId;
-      label.textContent = labelText;
-      col.append(label);
+  // Create form control.
+  let control;
+  if (element === "textarea") {
+    control = Utils.createElement("textarea", ["form-control"]);
+    control.rows = 3;
+    control.value = value;
+  } else if (element === "input") {
+    control = Utils.createElement("input", ["form-control"]);
+    control.type = type;
+    if (control.type === "number") {
+      control.step = "any"; // Allow decimals.
     }
-
-    // Create form control.
-    let control;
-    if (element === "textarea") {
-      control = Utils.createElement("textarea", ["form-control"]);
-      control.rows = 3;
-      control.value = value;
-    } else if (element === "input") {
-      control = Utils.createElement("input", ["form-control"]);
-      control.type = type;
-      if (control.type === "number") {
-        control.step = "any"; // Allow decimals.
+    control.value = value;
+  } else if (element === "select") {
+    control = Utils.createElement("select", ["form-select"]);
+    options.forEach((opt) => {
+      const optionEl = Utils.createElement("option");
+      if (typeof opt === "string") {
+        optionEl.value = opt;
+        optionEl.textContent = opt;
+      } else {
+        optionEl.value = opt.value;
+        optionEl.textContent = opt.labelText;
+        if (opt.disabled) {
+          optionEl.disabled = true;
+        }
       }
-      control.value = value;
-    } else if (element === "select") {
-      control = Utils.createElement("select", ["form-select"]);
-      options.forEach((opt) => {
-        const optionEl = Utils.createElement("option");
-        // Handle if option passed in is just a list of strings.
-        if (typeof opt === "string") {
-          optionEl.value = opt;
-          optionEl.textContent = opt;
-        } else {
-          // User passed in JSON object {value: "", labelText: ""}.
-          optionEl.value = opt.value;
-          optionEl.textContent = opt.labelText;
-
-          // Handle disabled state.
-          if (opt.disabled) {
-            optionEl.disabled = true;
-          }
-        }
-        if (optionEl.value === value) {
-          optionEl.selected = true;
-        }
-        control.appendChild(optionEl);
-      });
-    } else {
-      console.error("Unsupported element:", element);
-      return col;
-    }
-
-    control.id = elementId;
-    control.name = elementId;
-    // Apply read-only state if applicable.
-    // Use the global readOnly flag.
-    // Otherwise, if readOnly is "both" or matches current mode, disable the control.
-    const isReadOnly =
-      this.#readOnly ||
-      (typeof readOnly === "string" &&
-        (readOnly === "both" || readOnly === this.#mode));
-    control.disabled = isReadOnly;
-
-    // Wrap and append.
-    col.append(this.#wrapWithGroup(control, { prefix, suffix }));
+      if (optionEl.value === value) {
+        optionEl.selected = true;
+      }
+      control.appendChild(optionEl);
+    });
+  } else {
+    console.error("Unsupported element:", element);
     return col;
   }
 
-  /**
+  control.id = elementId;
+  control.name = elementId;
+  control.disabled = isReadOnly;
+
+  // Wire toggle button if hasOverride.
+  if (hasOverride && !isReadOnly) {
+    const toggleBtn = col.querySelector(`#${elementId}Toggle`);
+    toggleBtn?.addEventListener("click", () => {
+      const isLocked = toggleBtn.dataset.locked === "true";
+      if (isLocked) {
+        // Switch to custom: enable input and restore value.
+        control.disabled = false;
+        control.placeholder = "";
+        control.value = value;
+        toggleBtn.dataset.locked = "false";
+        toggleBtn.title = "Switch to use target's value";
+        toggleBtn.innerHTML = `<i class="fa-solid fa-right-left"></i>`;
+        toggleBtn.classList.remove("text-secondary");
+        toggleBtn.classList.add("text-primary");
+        control.focus();
+      } else {
+        // Switch to target: clear and disable input.
+        control.disabled = true;
+        control.placeholder = overridePlaceholder;
+        control.value = "";
+        toggleBtn.dataset.locked = "true";
+        toggleBtn.title = "Switch to custom value";
+        toggleBtn.innerHTML = `<i class="fa-solid fa-right-left"></i>`;
+        toggleBtn.classList.remove("text-primary");
+        toggleBtn.classList.add("text-secondary");
+      }
+    });
+  }
+
+  // Wrap and append.
+  col.append(this.#wrapWithGroup(control, { prefix, suffix }));
+  return col;
+}
+    /**
    * Wrap form control in input group for prefix/suffix.
    * @param {HTMLElement} control - Form control.
    * @param {Object} options

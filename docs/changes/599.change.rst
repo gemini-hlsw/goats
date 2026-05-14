@@ -1,0 +1,1 @@
+Prevented GPP from auto-updating the target name, RA, and Dec in the observation, and allowed manual editing of those fields.
