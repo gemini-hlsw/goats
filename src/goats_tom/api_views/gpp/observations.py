@@ -170,7 +170,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         program_id: str,
         finder_charts: dict[str, Any],
     ) -> list[str]:
-
         to_delete = finder_charts.get("toDelete", [])
         to_add = finder_charts.get("toAdd", [])
 
