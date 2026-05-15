@@ -8,7 +8,7 @@ __all__ = ["GMOSNorthLongSlitSerializer"]
 
 from typing import Any
 
-from gpp_client.api.input_types import GmosNorthLongSlitInput
+from gpp_client.generated.input_types import GmosNorthLongSlitInput
 from rest_framework import serializers
 
 from goats_tom.serializers.gpp.instruments.fields import CommaSeparatedFloatField

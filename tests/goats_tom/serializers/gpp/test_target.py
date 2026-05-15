@@ -1,5 +1,5 @@
 import pytest
-from gpp_client.api.input_types import (
+from gpp_client.generated.input_types import (
     DeclinationInput,
     RightAscensionInput,
     SiderealInput,

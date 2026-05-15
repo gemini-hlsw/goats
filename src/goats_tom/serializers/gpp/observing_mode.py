@@ -6,8 +6,8 @@ __all__ = ["ObservingModeSerializer"]
 
 from typing import Any
 
-from gpp_client.api.enums import ObservingModeType
-from gpp_client.api.input_types import ObservingModeInput
+from gpp_client.generated.enums import ObservingModeType
+from gpp_client.generated.input_types import ObservingModeInput
 from rest_framework import serializers
 
 from ._base_gpp import _BaseGPPSerializer

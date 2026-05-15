@@ -5,7 +5,6 @@ Provides custom endpoints to interact with GPP GraphQL service.
 __all__ = ["GPPViewSet"]
 
 from asgiref.sync import async_to_sync
-from django.conf import settings
 from gpp_client import GPPClient
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -36,8 +35,8 @@ class GPPViewSet(viewsets.GenericViewSet):
             )
 
         credentials = request.user.gpplogin
-        client = GPPClient(token=credentials.token, env=settings.GPP_ENV)
-        reachable, error = async_to_sync(client.is_reachable)()
+        client = GPPClient(token=credentials.token)
+        reachable, error = async_to_sync(client.ping)()
 
         if reachable:
             return Response({"detail": "Successfully connected to GPP."})

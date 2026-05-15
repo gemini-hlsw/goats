@@ -6,7 +6,7 @@ __all__ = ["TargetSerializer"]
 
 from typing import Any
 
-from gpp_client.api.input_types import TargetPropertiesInput
+from gpp_client.generated.input_types import TargetPropertiesInput
 
 from ._base_gpp import _BaseGPPSerializer
 from .sidereal import SiderealSerializer

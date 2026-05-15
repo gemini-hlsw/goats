@@ -164,9 +164,9 @@ class TestGPPObservationViewSet:
 
     def test_list_observations_success(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
-        mock_client.return_value.observation.get_all = AsyncMock(
-            return_value=[self.observation_data]
-        )
+        mock_result = mocker.Mock()
+        mock_result.model_dump.return_value = [self.observation_data]
+        mock_client.return_value.observation.get_all = AsyncMock(return_value=mock_result)
 
         request = self.factory.get(self.observations_url)
         force_authenticate(request, user=self.user_with_login)
@@ -191,9 +191,9 @@ class TestGPPObservationViewSet:
 
     def test_retrieve_observation_success(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
-        mock_client.return_value.observation.get_by_id = AsyncMock(
-            return_value=self.observation_data
-        )
+        mock_result = mocker.Mock()
+        mock_result.model_dump.return_value = {"observation": self.observation_data}
+        mock_client.return_value.observation.get_by_id = AsyncMock(return_value=mock_result)
 
         request = self.factory.get(self.observation_detail_url)
         force_authenticate(request, user=self.user_with_login)
@@ -324,9 +324,13 @@ class TestGPPObservationViewSet:
             side_effect=fake_async_to_sync,
         )
 
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": [{"id": "a1"}, {"id": "a2"}]}
+        }
         client.attachment.delete_by_id = mocker.Mock()
-        client.attachment.get_all_by_observation = mocker.Mock(
-            return_value={"attachments": [{"id": "a1"}, {"id": "a2"}]}
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock()
 
@@ -343,9 +347,8 @@ class TestGPPObservationViewSet:
         assert client.attachment.delete_by_id.call_count == 2
         client.attachment.delete_by_id.assert_any_call(attachment_id="old-1")
         client.attachment.delete_by_id.assert_any_call(attachment_id="old-2")
-        client.attachment.get_all_by_observation.assert_called_once_with(
+        client.attachment.get_all_by_observation_id.assert_called_once_with(
             observation_id="obs-1",
-            observation_reference=None,
         )
         assert out == ["a1", "a2"]
 
@@ -363,9 +366,13 @@ class TestGPPObservationViewSet:
             side_effect=fake_async_to_sync,
         )
 
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": [{"id": "existing-1"}]}
+        }
         client.attachment.delete_by_id = mocker.Mock()
-        client.attachment.get_all_by_observation = mocker.Mock(
-            return_value={"attachments": [{"id": "existing-1"}]}
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock(side_effect=["new-1", "new-2"])
 
@@ -409,9 +416,13 @@ class TestGPPObservationViewSet:
             side_effect=fake_async_to_sync,
         )
 
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": [{"id": "existing-1"}]}
+        }
         client.attachment.delete_by_id = mocker.Mock()
-        client.attachment.get_all_by_observation = mocker.Mock(
-            return_value={"attachments": [{"id": "existing-1"}]}
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock()
 
@@ -473,16 +484,20 @@ class TestGPPObservationViewSet:
             side_effect=fake_async_to_sync,
         )
 
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": []}
+        }
         client.attachment.delete_by_id = mocker.Mock()
-        client.attachment.get_all_by_observation = mocker.Mock(
-            return_value={"attachments": []}
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock()
 
         if setup_attr == "delete_error":
             client.attachment.delete_by_id.side_effect = RuntimeError("boom")
         elif setup_attr == "fetch_error":
-            client.attachment.get_all_by_observation.side_effect = RuntimeError(
+            client.attachment.get_all_by_observation_id.side_effect = RuntimeError(
                 "fetch failed"
             )
         elif setup_attr == "upload_error":

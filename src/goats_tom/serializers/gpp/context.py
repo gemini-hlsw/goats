@@ -6,7 +6,7 @@ an observation in GPP and GOATS.
 __all__ = ["ContextSerializer"]
 from typing import Any
 
-from gpp_client.api.enums import ObservingModeType
+from gpp_client.generated.enums import ObservingModeType
 from rest_framework import serializers
 from tom_targets.models import BaseTarget as Target
 

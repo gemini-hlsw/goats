@@ -6,7 +6,7 @@ __all__ = ["SiderealSerializer"]
 
 from typing import Any
 
-from gpp_client.api.input_types import SiderealInput
+from gpp_client.generated.input_types import SiderealInput
 from rest_framework import serializers
 from tom_targets.models import BaseTarget as Target
 

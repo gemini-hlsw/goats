@@ -3,8 +3,7 @@
 __all__ = ["GPPProgramViewSet"]
 
 from asgiref.sync import async_to_sync
-from django.conf import settings
-from gpp_client import GPPClient, GPPDirector
+from gpp_client import GPPClient
 from rest_framework import permissions, status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -45,10 +44,9 @@ class GPPProgramViewSet(
 
         # Setup client to communicate with GPP.
         try:
-            client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
-            director = GPPDirector(client)
-            programs = async_to_sync(director.goats.program.get_all)()
-
+            client = GPPClient(token=credentials.token)
+            data = async_to_sync(client.goats.get_programs)()
+            programs = data.model_dump(by_alias=True)["programs"]
             return Response(programs)
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -84,9 +82,9 @@ class GPPProgramViewSet(
 
         # Setup client to communicate with GPP.
         try:
-            client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
-            program = async_to_sync(client.program.get_by_id)(program_id=program_id)
+            client = GPPClient(token=credentials.token)
+            data = async_to_sync(client.program.get_by_id)(program_id=program_id)
 
-            return Response(program)
+            return Response(data.model_dump(by_alias=True)["program"])
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)

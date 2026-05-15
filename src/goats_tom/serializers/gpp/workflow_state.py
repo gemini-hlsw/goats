@@ -2,7 +2,7 @@ __all__ = ["WorkflowStateSerializer"]
 
 from typing import Any
 
-from gpp_client.api.enums import ObservationWorkflowState
+from gpp_client.generated.enums import ObservationWorkflowState
 from rest_framework import serializers
 
 from ._base_gpp import _BaseGPPSerializer

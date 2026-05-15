@@ -1,6 +1,6 @@
 import pytest
-from gpp_client.api.enums import PosAngleConstraintMode
-from gpp_client.api.input_types import AngleInput, PosAngleConstraintInput
+from gpp_client.generated.enums import PosAngleConstraintMode
+from gpp_client.generated.input_types import AngleInput, PosAngleConstraintInput
 from rest_framework.exceptions import ValidationError
 
 from goats_tom.serializers.gpp.pos_angle import PosAngleSerializer

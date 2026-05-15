@@ -1,5 +1,5 @@
 import pytest
-from gpp_client.api.input_types import SourceProfileInput
+from gpp_client.generated.input_types import SourceProfileInput
 from rest_framework.exceptions import ErrorDetail, ValidationError
 
 from goats_tom.serializers.gpp.source_profile.seds.registry import SEDRegistry, SEDType

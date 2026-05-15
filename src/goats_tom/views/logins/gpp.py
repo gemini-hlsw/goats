@@ -4,7 +4,6 @@ import logging
 from typing import Any
 
 from asgiref.sync import async_to_sync
-from django.conf import settings
 from gpp_client import GPPClient
 
 from goats_tom.forms import GPPLoginForm
@@ -41,10 +40,10 @@ class GPPLoginView(BaseLoginView):
             otherwise.
         """
         token = kwargs.get("token")
-        client = GPPClient(env=settings.GPP_ENV, token=token)
+        client = GPPClient(token=token)
 
         try:
-            is_reachable, error = async_to_sync(client.is_reachable)()
+            is_reachable, error = async_to_sync(client.ping)()
             if not is_reachable:
                 logger.debug(f"GPP endpoint is not reachable: {error}")
                 raise Exception(error)

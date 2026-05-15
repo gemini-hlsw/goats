@@ -111,7 +111,7 @@ def test_to_pydantic_returns_valid_model():
     assert serializer.is_valid(), serializer.errors
 
     model = serializer.to_pydantic()
-    from gpp_client.api.input_types import ExposureTimeModeInput
+    from gpp_client.generated.input_types import ExposureTimeModeInput
 
     assert isinstance(model, ExposureTimeModeInput)
     assert model.signal_to_noise.value == 15.0

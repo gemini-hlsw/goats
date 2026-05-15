@@ -10,8 +10,8 @@ import dramatiq
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from gpp_client import GPPClient
-from gpp_client.api.enums import AttachmentType
 from gpp_client.exceptions import GPPResponseError
+from gpp_client.generated.enums import AttachmentType
 
 from goats_tom.models import GPPLogin
 from goats_tom.realtime import NotificationInstance
@@ -82,7 +82,7 @@ def upload_finder_chart(
         attachment_type = AttachmentType("FINDER")
 
         async def _execute_gpp_workflow() -> dict:
-            client = GPPClient(env=settings.GPP_ENV, token=token)
+            client = GPPClient(token=token)
             try:
                 upload_result = await client.attachment.upload(
                     program_id=program_id,

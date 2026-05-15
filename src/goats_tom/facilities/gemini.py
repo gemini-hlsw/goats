@@ -11,11 +11,10 @@ from asgiref.sync import async_to_sync
 from astropy import units as u
 from bs4 import BeautifulSoup
 from django import forms
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from gpp_client import GPPClient
-from gpp_client.api.enums import ObservationWorkflowState, ObservingModeType
+from gpp_client.generated.enums import ObservationWorkflowState, ObservingModeType
 from tom_dataproducts.models import DataProduct
 from tom_observations.facility import (
     BaseRoboticObservationFacility,
@@ -249,10 +248,12 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
 
                 credentials = user.gpplogin
                 # Create GPP client.
-                client = GPPClient(token=credentials.token, env=settings.GPP_ENV)
-                workflow_state_summary = async_to_sync(client.workflow_state.get_by_id)(
-                    observation_reference=observation_id
-                )
+                client = GPPClient(token=credentials.token)
+                workflow_state_summary = async_to_sync(
+                    client.workflow_state.get_by_reference
+                )(observation_reference=observation_id).model_dump(by_alias=True)[
+                    "observation"
+                ]
                 state = workflow_state_summary["workflow"]["value"]["state"]
                 # Save parameters needed for building Explore URL.
                 parameters["gpp_id"] = workflow_state_summary["id"]

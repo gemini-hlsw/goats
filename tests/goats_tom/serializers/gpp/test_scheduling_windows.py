@@ -11,7 +11,7 @@ from goats_tom.serializers.gpp.scheduling_windows import (
     TimingWindowSerializer,
     SchedulingWindowsSerializer,
 )
-from gpp_client.api.enums import TimingWindowInclusion
+from gpp_client.generated.enums import TimingWindowInclusion
 
 
 # --- Helpers -----------------------------------------------------------------
