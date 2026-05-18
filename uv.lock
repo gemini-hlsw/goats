@@ -1469,7 +1469,7 @@ wheels = [
 
 [[package]]
 name = "goats"
-version = "26.5.1"
+version = "26.5.2"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
@@ -1545,8 +1545,8 @@ requires-dist = [
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
     { name = "tom-tns", specifier = ">=0.3.4" },
-    { name = "typer", specifier = ">=0.19.2" },
     { name = "tomtoolkit", specifier = "==2.32.2" },
+    { name = "typer", specifier = ">=0.19.2" },
 ]
 
 [package.metadata.requires-dev]

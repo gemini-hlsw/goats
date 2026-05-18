@@ -3,6 +3,33 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.5.2 (2026-05-18)
+===========================
+
+New Features
+------------
+
+- GOATS now updates its project settings in a safer and more predictable way. Upgrades no longer overwrite user-owned configuration, and template-managed settings are refreshed automatically when running ``goats run``. Users can now safely place all personal or site-specific configuration inside ``local.py``, which is never overwritten and is fully isolated for custom settings. (`PR #517 <https://github.com/gemini-hlsw/goats/pull/517>`_)
+- Added auto-ingestion of processed calibration files from the archive in the Dragons app (`PR #637 <https://github.com/gemini-hlsw/goats/pull/637>`_)
+- Added a shutdown button to the GOATS interface to terminate the application without requiring terminal access. (`PR #646 <https://github.com/gemini-hlsw/goats/pull/646>`_)
+
+
+Changes
+-------
+
+- Prevented GPP from auto-updating the target name, RA, and Dec in the observation, and allowed manual editing of those fields. (`PR #599 <https://github.com/gemini-hlsw/goats/pull/599>`_)
+- Made the observation form read-only and disabled GPP action buttons when a calibration target is selected. (`PR #641 <https://github.com/gemini-hlsw/goats/pull/641>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed error on non-proprietary GPP observations; status now displays as unknown and data download is allowed regardless of status. (`PR #630 <https://github.com/gemini-hlsw/goats/pull/630>`_)
+- Fixed ReducedDatum not being updated when a data product with the same name was re-uploaded. (`PR #639 <https://github.com/gemini-hlsw/goats/pull/639>`_)
+- Fixed observation update failing due to label names changed during a previous refactor. (`PR #640 <https://github.com/gemini-hlsw/goats/pull/640>`_)
+- Fixed notification showing incorrect observation ID when downloading. (`PR #645 <https://github.com/gemini-hlsw/goats/pull/645>`_)
+
+
 Version 26.5.1 (2026-05-07)
 ===========================
 

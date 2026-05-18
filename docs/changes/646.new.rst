@@ -1,1 +1,0 @@
-Added a shutdown button to the GOATS interface to terminate the application without requiring terminal access.

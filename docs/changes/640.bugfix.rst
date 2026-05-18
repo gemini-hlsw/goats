@@ -1,1 +1,0 @@
-Fixed observation update failing due to label names changed during a previous refactor.

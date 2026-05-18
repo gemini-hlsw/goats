@@ -1,1 +1,0 @@
-Fixed ReducedDatum not being updated when a data product with the same name was re-uploaded.

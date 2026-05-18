@@ -1,1 +1,0 @@
-Made the observation form read-only and disabled GPP action buttons when a calibration target is selected.
