@@ -48,6 +48,7 @@ router.register(
 router.register(r"targets", api_views.TargetViewSet, basename="targets")
 router.register(r"astrodatalab", api_views.AstroDatalabViewSet, basename="astrodatalab")
 router.register(r"status", api_views.StatusViewSet, basename="status")
+router.register(r"system", api_views.SystemViewSet, basename="system")
 # TODO: Add app_name and update paths and URL lookups.
 # TODO: Make unified path formats.
 

@@ -95,6 +95,49 @@
       };
     </script>
 
+    <script>
+      const shutdownBtn = document.getElementById("shutdownBtn");
+      if (shutdownBtn) {
+        shutdownBtn.addEventListener("click", () => {
+          window.modal.show({
+            title: "Shut Down GOATS",
+            body: `
+              <div class="text-center">
+                <i class="fa-solid fa-power-off fa-3x mb-3"></i>
+                <p>This will stop the server, background workers, and Redis.</p>
+                <p class="fst-italic">Are you sure you want to shut down GOATS?</p>
+              </div>
+            `,
+            footer: `
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-danger" id="shutdownConfirmBtn">Shut Down</button>
+            `,
+            backdrop: "static",
+            keyboard: false,
+            dialogClasses: ["modal-dialog-centered", "modal-dialog-scrollable", "modal-lg"],
+            contentClasses: ["border", "border-primary", "shadow-lg"],
+          });
+
+          document.getElementById("shutdownConfirmBtn").addEventListener("click", async () => {
+            window.modal.hide();
+            try {
+              await fetch("/api/system/shutdown/", {
+                method: "POST",
+                headers: {
+                  "X-CSRFToken": document.body.dataset.csrfToken,
+                  "Content-Type": "application/json",
+                },
+              });
+            } catch (_) {
+              // Expected: server shuts down mid-response.
+            }
+            document.body.innerHTML =
+              '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif">' +
+              '<p style="font-size:1.5rem">GOATS is shutting down...</p></div>';
+          });
+        });
+      }
+    </script>
     {% endblock %}
   </body>
 </html>

@@ -19,6 +19,7 @@ from .recipes_module import RecipesModuleViewSet
 from .reduceddatum import ReducedDatumViewSet
 from .run_processor import RunProcessorViewSet
 from .status import StatusViewSet
+from .system import SystemViewSet
 from .target import TargetViewSet
 
 __all__ = [
@@ -42,4 +43,5 @@ __all__ = [
     "GPPFinderChartViewSet",
     "TargetViewSet",
     "StatusViewSet",
+    "SystemViewSet",
 ]
