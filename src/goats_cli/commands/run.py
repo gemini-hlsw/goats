@@ -2,8 +2,10 @@
 GOATS CLI run command.
 """
 
+import os
 import re
 import subprocess
+import tempfile
 import time
 from datetime import datetime, timezone
 from enum import Enum
@@ -398,9 +400,15 @@ def run(
         if utils.wait_until_responsive(url):
             utils.open_browser(url, browser.value)
 
+        pid_file = Path(tempfile.gettempdir()) / "goats.pid"
+        pid_file.write_text(str(os.getpid()))
+
         # Keep running until interrupted.
-        while True:
-            time.sleep(0.1)
+        try:
+            while True:
+                time.sleep(0.1)
+        finally:
+            pid_file.unlink(missing_ok=True)
 
     except KeyboardInterrupt:
         output.space()
