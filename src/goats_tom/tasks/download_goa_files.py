@@ -83,7 +83,7 @@ def download_goa_files(
             raise
         target = observation_record.target
         facility = observation_record.facility
-        observation_id = observation_record.observation_id
+        observation_id = query_params.get("kwargs").get("progid")
         logger.debug(
             "Using Observation record: target=%s, facility=%s, observation id=%s",
             target,
