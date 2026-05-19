@@ -1,0 +1,1 @@
+Refactored the GOATS shutdown process for improved reliability.
