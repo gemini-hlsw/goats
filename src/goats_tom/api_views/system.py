@@ -26,7 +26,25 @@ class SystemViewSet(ViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        pid = int(pid_file.read_text().strip())
+        try:
+            pid = int(pid_file.read_text().strip())
+        except (FileNotFoundError, ValueError):
+            return Response(
+                {"error": "GOATS PID file is missing or corrupted."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
-        os.kill(pid, signal.SIGINT)
+        try:
+            os.kill(pid, signal.SIGINT)
+        except ProcessLookupError:
+            return Response(
+                {"error": "GOATS process is no longer running."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except PermissionError:
+            return Response(
+                {"error": "Insufficient permissions to shut down GOATS process."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         return Response({"status": "shutdown initiated"})

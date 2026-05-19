@@ -120,20 +120,35 @@
 
           document.getElementById("shutdownConfirmBtn").addEventListener("click", async () => {
             window.modal.hide();
+            const shutdownScreen =
+              '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif">' +
+              '<p style="font-size:1.5rem">GOATS has shut down. Goodbye!</p></div>';
             try {
-              await fetch("/api/system/shutdown/", {
+              const response = await fetch("/api/system/shutdown/", {
                 method: "POST",
                 headers: {
                   "X-CSRFToken": document.body.dataset.csrfToken,
                   "Content-Type": "application/json",
                 },
               });
+              if (response.ok) {
+                document.body.innerHTML = shutdownScreen;
+              } else {
+                window.toast.show({
+                  update: "notification",
+                  unique_id: "shutdown-error",
+                  color: "danger",
+                  label: "Shutdown failed",
+                  message: "Could not shut down GOATS. Please try again.",
+                  autohide: true,
+                });
+              }
             } catch (_) {
-              // Expected: server shuts down mid-response.
+              // Network error: the server cut the connection mid-response,
+              // which is the expected path when Django shuts down before
+              // the response is fully delivered.
+              document.body.innerHTML = shutdownScreen;
             }
-            document.body.innerHTML =
-              '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif">' +
-              '<p style="font-size:1.5rem">GOATS is shutting down...</p></div>';
           });
         });
       }
