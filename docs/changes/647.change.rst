@@ -1,0 +1,1 @@
+Updated GPP client to 26.4.1dev1 for GMOS imaging compatibility.
