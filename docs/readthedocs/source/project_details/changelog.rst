@@ -3,6 +3,16 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.5.3 (2026-05-19)
+===========================
+
+Changes
+-------
+
+- Updated GPP client to 26.4.1dev1 for GMOS imaging compatibility. (`PR #647 <https://github.com/gemini-hlsw/goats/pull/647>`_)
+- Refactored the GOATS shutdown process for improved reliability. (`PR #649 <https://github.com/gemini-hlsw/goats/pull/649>`_)
+
+
 Version 26.5.2 (2026-05-18)
 ===========================
 
