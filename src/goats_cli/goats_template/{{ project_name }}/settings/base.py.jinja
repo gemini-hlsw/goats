@@ -205,17 +205,11 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 """Internationalization."""
 
-USE_L10N = False
-"""Localization."""
-
 USE_TZ = True
 """Timezone support."""
 
-DATETIME_FORMAT = "Y-m-d H:i:s"
-"""Date and time format."""
-
-DATE_FORMAT = "Y-m-d"
-"""Date format."""
+FORMAT_MODULE_PATH = ["goats_tom.locale"]
+"""Custom locale format overrides."""
 
 STATIC_URL = "/static/"
 """URL to use for static files."""
