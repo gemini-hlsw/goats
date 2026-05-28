@@ -1,8 +1,9 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from goats_tom.facilities import GEMObservationForm, GOATSGEMFacility
+from goats_tom.tests.factories import GPPLoginFactory, UserFactory
 
 
 @pytest.mark.django_db()
@@ -83,3 +84,45 @@ class TestGOATSGEMFacility:
         ]
         errors = self.facility.validate_observation(invalid_payload)
         assert "exptimes" in errors
+
+    def test_get_observation_status_gpp_success(self, mocker):
+        user = UserFactory()
+        GPPLoginFactory(user=user, token="tok")
+
+        mocker.patch(
+            "goats_tom.facilities.gemini.get_current_user_id",
+            return_value=user.id,
+        )
+
+        workflow_response = Mock()
+        workflow_response.model_dump.return_value = {
+            "observation": {
+                "id": "o-123",
+                "program": {"id": "p-456"},
+                "workflow": {"value": {"state": "ONGOING"}},
+            }
+        }
+        mock_client = mocker.patch("goats_tom.facilities.gemini.GPPClient")
+        mock_client.return_value.workflow_state.get_by_reference = AsyncMock(
+            return_value=workflow_response
+        )
+
+        result = self.facility.get_observation_status("G-2024A-Q-100-1")
+
+        assert result["state"] == "Ongoing"
+        assert result["parameters"]["gpp_id"] == "o-123"
+        assert result["parameters"]["gpp_program_id"] == "p-456"
+        mock_client.return_value.workflow_state.get_by_reference.assert_called_once_with(
+            observation_reference="G-2024A-Q-100-1"
+        )
+
+    def test_get_observation_status_gpp_no_user_context(self, mocker):
+        mocker.patch(
+            "goats_tom.facilities.gemini.get_current_user_id",
+            return_value=None,
+        )
+
+        result = self.facility.get_observation_status("G-2024A-Q-100-1")
+
+        assert result["state"] == "Unknown"
+        assert result["parameters"] == {}
