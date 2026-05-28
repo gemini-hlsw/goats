@@ -74,6 +74,12 @@ class StageMessage:
     message: str
 
 
+def _format_workflow_state(workflow_state) -> str:
+    state = getattr(workflow_state, "state", None)
+    value = getattr(state, "value", None)
+    return value or "unknown"
+
+
 def build_failure_response(
     stage: Stage,
     error: Exception | str,
@@ -510,7 +516,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             A DRF Response object containing the details of the updated observation.
         """
         messages: list[StageMessage] = []
-        data: dict[str, Any] = {}
+        updated_target_id: str | None = None
+        updated_observation_id: str | None = None
 
         logger.info("Updating observation on GPP")
 
@@ -602,8 +609,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             update_target_result = async_to_sync(client.target.update_by_id)(
                 gpp_target_id, properties=target_properties
             )
-            data = update_target_result.model_dump(by_alias=True)
-            targets = data.get("updateTargets", {}).get("targets", [])
+            update_target_dump = update_target_result.model_dump(by_alias=True)
+            targets = update_target_dump.get("updateTargets", {}).get("targets", [])
             updated_target_id = targets[0].get("id") if targets else None
 
             if updated_target_id is None:
@@ -611,7 +618,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                     "Failed to retrieve updated target ID from update result."
                 )
 
-            data["updatedTargetId"] = updated_target_id
             messages.append(
                 StageMessage(
                     stage=Stage.UPDATE_TARGET,
@@ -633,9 +639,9 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         # Update observation.
         logger.debug("Updating observation in GPP")
         try:
-            finder_charts = normalized_data.get("finderCharts", None)
+            finder_charts = normalized_data.get("finderCharts") or {}
 
-            if finder_charts:
+            if finder_charts.get("toAdd") or finder_charts.get("toDelete"):
                 finder_chart_ids = self._process_finder_charts(
                     client=client,
                     observation_id=gpp_observation_id,
@@ -649,10 +655,12 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             update_observation_result = async_to_sync(client.observation.update_by_id)(
                 observation_id=gpp_observation_id, properties=observation_properties
             )
-            data = update_observation_result.model_dump(by_alias=True)
-            observations_list = data.get("updateObservations", {}).get(
-                "observations", []
+            update_observation_dump = update_observation_result.model_dump(
+                by_alias=True
             )
+            observations_list = update_observation_dump.get(
+                "updateObservations", {}
+            ).get("observations", [])
             updated_observation_id = (
                 observations_list[0].get("id") if observations_list else None
             )
@@ -662,7 +670,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                     "Failed to retrieve updated observation ID from update result."
                 )
 
-            data["updatedObservationId"] = updated_observation_id
             messages.append(
                 StageMessage(
                     stage=Stage.UPDATE_OBSERVATION,
@@ -699,7 +706,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 StageMessage(
                     stage=Stage.UPDATE_WORKFLOW_STATE,
                     status=MessageStatus.SUCCESS,
-                    message=f"Workflow state set to {new_workflow_state['state']}.",
+                    message="Workflow state set to "
+                    f"{_format_workflow_state(new_workflow_state)}.",
                 )
             )
 
@@ -712,13 +720,19 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                     message=str(e),
                 )
             )
-
         if client is not None:
             try:
                 async_to_sync(client.close)()
             except Exception:
                 logger.debug("Failed to close GPP client.", exc_info=True)
-        return self._build_structured_response(messages=messages, data=data)
+
+        return self._build_structured_response(
+            messages=messages,
+            data={
+                "updatedTargetId": updated_target_id,
+                "updatedObservationId": updated_observation_id,
+            },
+        )
 
     @action(detail=False, methods=["post"], url_path="create-and-save")
     def create_and_save_observation(
@@ -742,7 +756,9 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             A DRF Response object containing the details of the created observation.
         """
         messages: list[StageMessage] = []
-        data: dict[str, Any] = {}
+        new_target_id: str | None = None
+        new_observation_id: str | None = None
+        goats_observation: dict[str, Any] | None = None
 
         logger.info(
             "Creating observation on GPP and saving observation to GOATS database"
@@ -835,13 +851,14 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             clone_target_result = async_to_sync(client.target.clone)(
                 gpp_target_id, properties=target_properties
             )
-            data = clone_target_result.model_dump(by_alias=True)
-            new_target_id = data.get("cloneTarget", {}).get("newTarget", {}).get("id")
+            clone_target_dump = clone_target_result.model_dump(by_alias=True)
+            new_target_id = (
+                clone_target_dump.get("cloneTarget", {}).get("newTarget", {}).get("id")
+            )
 
             if new_target_id is None:
                 raise ValueError("Failed to retrieve new target ID from clone result.")
 
-            data["newTargetId"] = new_target_id
             messages.append(
                 StageMessage(
                     stage=Stage.CREATE_TARGET,
@@ -860,8 +877,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 asterism=[new_target_id]
             )
 
-            finder_charts = normalized_data.get("finderCharts", None)
-            if finder_charts:
+            finder_charts = normalized_data.get("finderCharts") or {}
+            if finder_charts.get("toAdd") or finder_charts.get("toDelete"):
                 finder_chart_ids = self._process_finder_charts(
                     client=client,
                     observation_id=gpp_observation_id,
@@ -877,8 +894,10 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             clone_observation_result = async_to_sync(client.observation.clone)(
                 input=clone_input,
             )
-            data = clone_observation_result.model_dump(by_alias=True)
-            new_observation = data.get("cloneObservation", {}).get("newObservation", {})
+            clone_observation_dump = clone_observation_result.model_dump(by_alias=True)
+            new_observation = clone_observation_dump.get("cloneObservation", {}).get(
+                "newObservation", {}
+            )
             new_observation_id = new_observation.get("id")
 
             if new_observation_id is None:
@@ -886,7 +905,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                     "Failed to retrieve new observation ID from clone result."
                 )
 
-            data["newObservationId"] = new_observation_id
             messages.append(
                 StageMessage(
                     stage=Stage.CREATE_OBSERVATION,
@@ -921,7 +939,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 StageMessage(
                     stage=Stage.UPDATE_WORKFLOW_STATE,
                     status=MessageStatus.SUCCESS,
-                    message=f"Workflow state set to {new_workflow_state['state']}.",
+                    message=f"Workflow state set to "
+                    f"{_format_workflow_state(new_workflow_state)}.",
                 )
             )
 
@@ -956,7 +975,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 raise ValueError(tom_response.data)
 
             else:
-                data["goatsObservation"] = tom_response.data
+                goats_observation = tom_response.data
                 messages.append(
                     StageMessage(
                         stage=Stage.GOATS_OBSERVATION_SAVE,
@@ -974,12 +993,20 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 )
             )
 
+        response_data: dict[str, Any] = {
+            "newTargetId": new_target_id,
+            "newObservationId": new_observation_id,
+        }
+        if goats_observation is not None:
+            response_data["goatsObservation"] = goats_observation
+
         if client is not None:
             try:
                 async_to_sync(client.close)()
             except Exception:
                 logger.debug("Failed to close GPP client.", exc_info=True)
-        return self._build_structured_response(messages=messages, data=data)
+
+        return self._build_structured_response(messages=messages, data=response_data)
 
     def _create_goats_observation(
         self,
