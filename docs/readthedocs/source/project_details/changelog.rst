@@ -3,6 +3,16 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.5.4rc1 (2026-05-29)
+==============================
+
+Bug Fixes
+---------
+
+- Fixed logout broken by the Django upgrade. (`PR #653 <https://github.com/gemini-hlsw/goats/pull/653>`_)
+- Fixed datetime rendering issues introduced by Django 5. (`PR #654 <https://github.com/gemini-hlsw/goats/pull/654>`_)
+
+
 Version 26.5.3 (2026-05-19)
 ===========================
 
