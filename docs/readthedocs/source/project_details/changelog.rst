@@ -3,6 +3,15 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.6.0rc1 (2026-05-29)
+==============================
+
+Changes
+-------
+
+- Pinned gpp-client to 26.4.0 to match the conda environment. (`PR #656 <https://github.com/gemini-hlsw/goats/pull/656>`_)
+
+
 Version 26.5.4rc1 (2026-05-29)
 ==============================
 

@@ -1469,7 +1469,7 @@ wheels = [
 
 [[package]]
 name = "goats"
-version = "26.5.4rc1"
+version = "26.6.0rc1"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
