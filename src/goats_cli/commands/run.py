@@ -18,7 +18,11 @@ from copier import run_recopy
 from typing_extensions import Annotated
 
 from goats_cli import output, utils
-from goats_cli.commands.common import check_version, validate_project_structure
+from goats_cli.commands.common import (
+    check_version,
+    run_collectstatic,
+    validate_project_structure,
+)
 from goats_cli.config import config
 from goats_cli.process import ProcessManager, ProcessName, StartResult
 
@@ -341,6 +345,8 @@ def run(
     manage_file = validate_project_structure(project_path)
 
     sync_goats_files(project_path, goats_version, full_recopy=full_recopy)
+
+    run_collectstatic(manage_file)
 
     output.section("Validating Environment")
     with output.status("Checking Redis installation..."):

@@ -1,0 +1,47 @@
+{% load static %}
+<!DOCTYPE html>
+{% comment %}
+  Django renders this template with an empty context (no request and no context
+  processors) via handler500. It must stay self-contained: do not use
+  {% extends %} or anything that depends on request context, or rendering will
+  fail and fall back to Django's bare error text. {% static %} is safe here
+  because it does not need the request, so we use it to pull in the GOATS theme
+  and keep the page on-brand. The inline colors are a fallback in case static
+  files cannot be served.
+{% endcomment %}
+<html lang="en" data-bs-core="goats" data-bs-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="{% static 'css/halfmoon.min.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/cores/halfmoon.goats.css' %}" />
+    <script defer src="{% static 'fontawesome-free-6.7.2/js/solid.js' %}"></script>
+    <script defer src="{% static 'fontawesome-free-6.7.2/js/fontawesome.js' %}"></script>
+    <title>GOATS | Server Error</title>
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        background-color: var(--bs-body-bg, #16191d);
+        color: var(--bs-body-color, #e9ecef);
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="text-center py-5">
+      <i class="fa-solid fa-triangle-exclamation fa-3x text-secondary mb-3"></i>
+      <h1 class="display-1 fw-bold mb-0">500</h1>
+      <p class="fs-4 mb-2">Something went wrong</p>
+      <p class="text-secondary">
+        An unexpected error occurred on the server. Please try again later.
+      </p>
+      <a href="/" class="btn btn-primary mt-3">Back to home</a>
+    </div>
+  </body>
+</html>

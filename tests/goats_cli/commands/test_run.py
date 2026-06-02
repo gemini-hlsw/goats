@@ -54,6 +54,7 @@ def base_mocks(mocker):
             return_value=Path("/fake/manage.py"),
         ),
         "sync_files": mocker.patch("goats_cli.commands.run.sync_goats_files"),
+        "collectstatic": mocker.patch("goats_cli.commands.run.run_collectstatic"),
         "subprocess_run": mocker.patch("goats_cli.commands.run.subprocess.run"),
         "check_port_not_in_use": mocker.patch(
             "goats_cli.commands.run.utils.check_port_not_in_use"
@@ -290,6 +291,7 @@ def test_run_cli_basic_flow(mocker, cli_runner, base_mocks, responsive):
     base_mocks["check_version"].assert_called_once()
     base_mocks["validate_project_structure"].assert_called_once()
     base_mocks["sync_files"].assert_called_once()
+    base_mocks["collectstatic"].assert_called_once()
 
     # Redis version check.
     base_mocks["subprocess_run"].assert_called_once()

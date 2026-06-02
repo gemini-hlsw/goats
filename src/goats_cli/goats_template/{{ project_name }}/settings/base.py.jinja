@@ -22,7 +22,7 @@ from .generated import *
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 """Base directory of the project."""
 
-DEBUG = True
+DEBUG = False
 """Enable debug mode."""
 
 ALLOWED_HOSTS = ["*"]
@@ -71,6 +71,7 @@ SITE_ID = 1
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -219,6 +220,14 @@ STATIC_ROOT = BASE_DIR / "_static"
 
 STATICFILES_DIRS = [(BASE_DIR / "static")]
 """Additional directories for static files."""
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+"""Storage backends. WhiteNoise serves static files when DEBUG is False."""
 
 MEDIA_URL = "/data/"
 """URL to use for media files."""
