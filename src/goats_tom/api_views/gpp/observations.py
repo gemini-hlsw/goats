@@ -546,6 +546,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         )
 
         logger.debug("Serializing data for GPP observation update")
+        client = None
         try:
             # Setup client to communicate with GPP.
             client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
@@ -702,6 +703,11 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 )
             )
 
+        if client is not None:
+            try:
+                async_to_sync(client.close)()
+            except Exception:
+                logger.debug("Failed to close GPP client.", exc_info=True)
         return self._build_structured_response(messages=messages, data=data)
 
     @action(detail=False, methods=["post"], url_path="create-and-save")
@@ -766,6 +772,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         )
 
         logger.debug("Serializing data for GPP observation creation")
+        client = None
         try:
             # Setup client to communicate with GPP.
             client = GPPClient(env=settings.GPP_ENV, token=credentials.token)
@@ -875,6 +882,11 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             )
 
         except Exception as e:
+            if client is not None:
+                try:
+                    async_to_sync(client.close)()
+                except Exception:
+                    logger.debug("Failed to close GPP client.", exc_info=True)
             return build_failure_response(Stage.CREATE_OBSERVATION, e, messages)
 
         # Set workflow state.
@@ -946,6 +958,11 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 )
             )
 
+        if client is not None:
+            try:
+                async_to_sync(client.close)()
+            except Exception:
+                logger.debug("Failed to close GPP client.", exc_info=True)
         return self._build_structured_response(messages=messages, data=data)
 
     def _create_goats_observation(
