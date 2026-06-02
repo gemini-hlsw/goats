@@ -40,6 +40,7 @@ dependencies = [
     "tom-tns>=0.3.4",
     "typer>=0.19.2",
     "tomtoolkit==2.32.2",
+    "whitenoise>=6.6.0,<7",
 ]
 version = "26.6.0rc1"
 

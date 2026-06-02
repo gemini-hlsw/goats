@@ -2,7 +2,12 @@
 GOATS CLI common command utilities.
 """
 
-__all__ = ["validate_project_structure", "run_migrations", "check_version"]
+__all__ = [
+    "validate_project_structure",
+    "run_migrations",
+    "run_collectstatic",
+    "check_version",
+]
 
 import subprocess
 from pathlib import Path
@@ -69,6 +74,29 @@ def run_migrations(manage_file: Path) -> None:
         )
 
     output.success("Database migrations applied")
+
+
+def run_collectstatic(manage_file: Path) -> None:
+    """Collect static files with nice Rich output."""
+    output.section("Static Files")
+    with output.status("Collecting static files..."):
+        try:
+            process = subprocess.run(
+                [str(manage_file), "collectstatic", "--noinput"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except Exception as exc:
+            output.fail(f"Failed to collect static files: {exc}")
+            output.print_exception()
+            raise typer.Exit(1)
+    if process.stdout.strip():
+        output.subprocess_info_and_padding(
+            "Collectstatic output", process.stdout.strip("\n")
+        )
+
+    output.success("Static files collected")
 
 
 def check_version() -> None:
