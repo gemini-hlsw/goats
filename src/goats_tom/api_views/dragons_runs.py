@@ -157,7 +157,9 @@ class DRAGONSRunsViewSet(
                 logger.debug("Adding procssed cal to calibration database.")
                 cal_db.add_cal(data_product.data.path)
                 continue
-            if data_product.metadata.processed:
+
+            metadata = getattr(data_product, "metadata", None)
+            if metadata and metadata.processed:
                 logger.debug("Skipping prepared or processed file.")
                 continue
 
