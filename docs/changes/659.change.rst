@@ -1,0 +1,1 @@
+Added graceful error handling to prevent the Django debug page from being exposed to users on application errors
