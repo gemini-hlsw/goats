@@ -25,7 +25,7 @@ in the following sequence:
 4. environments/<env>.py
       - Optional environment-specific overrides.
       - Selected using the GOATS_ENV environment variable.
-      - Defaults to "development".
+      - Defaults to "production".
 
 5. local.py
       - User overrides.
@@ -46,7 +46,7 @@ import os
 from .base import *
 
 # Determine GOATS environment.
-env = os.getenv("GOATS_ENV", "development").lower()
+env = os.getenv("GOATS_ENV", "production").lower()
 
 try:
     if env == "development":
