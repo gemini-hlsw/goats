@@ -2,9 +2,19 @@
 The URL configuration for the GOATS project.
 """
 
-from django.urls import include, path
+from django.conf import settings
+from django.urls import include, path, re_path
+from django.views.static import serve
 
 urlpatterns = [
     path("", include("goats_tom.urls")),
     path("", include("tom_common.urls")),
+    # Serve user media (data products) regardless of DEBUG. tom_common only
+    # registers this via Django's static() helper, which is a no-op when
+    # DEBUG is False, so media would otherwise 404 in that mode.
+    re_path(
+        rf"^{settings.MEDIA_URL.lstrip('/')}(?P<path>.*)$",
+        serve,
+        {"document_root": settings.MEDIA_ROOT},
+    ),
 ]
