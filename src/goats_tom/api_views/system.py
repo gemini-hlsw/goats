@@ -14,7 +14,7 @@ from rest_framework.viewsets import ViewSet
 
 
 class SystemViewSet(ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     @action(detail=False, methods=["post"])
     def shutdown(self, request):
