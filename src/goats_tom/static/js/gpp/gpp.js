@@ -423,11 +423,15 @@ class GPPView {
     const hasProposalStatus = Boolean(observation?.proposalStatus);
     const hasMode = Boolean(observation?.scienceRequirements?.mode);
     const isCalibration = !hasMode && !hasProposalStatus;
+    const isLocked =
+      observation?.workflow?.value?.state === "COMPLETED" ||
+      observation?.workflow?.value?.state === "ONGOING";
 
+    this.#poPanel.toggleUpdateButton(isCalibration || isLocked);
     this.#form = new ObservationForm(this.#formContainer, {
       observation: observation,
       mode: "normal",
-      readOnly: isCalibration,
+      readOnly: isCalibration || isLocked,
       callbacks: this.#buildObservationFormCallbacks(),
     });
   }
@@ -438,10 +442,14 @@ class GPPView {
    * @private
    */
   #updateTooObservation(observation) {
+    const isLocked =
+      observation?.workflow?.value?.state === "COMPLETED" ||
+      observation?.workflow?.value?.state === "ONGOING";
+
     this.#form = new ObservationForm(this.#formContainer, {
       observation: observation,
       mode: "too",
-      readOnly: false,
+      readOnly: isLocked,
       callbacks: this.#buildObservationFormCallbacks(),
     });
   }
