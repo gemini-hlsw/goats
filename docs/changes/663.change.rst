@@ -1,0 +1,1 @@
+Added shutdown button to the login page for unauthenticated users
