@@ -1,0 +1,1 @@
+Made the GPP app form read-only when the observation state is complete or ongoing
