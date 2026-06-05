@@ -1,0 +1,1 @@
+Added auto-login to the GOA archive link to prevent access denial for anonymous users
