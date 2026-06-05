@@ -333,7 +333,7 @@ class ProcessedFilesTemplate {
       // Create the add to data products button cell.
       const tdAdd = Utils.createElement("td", ["text-end"]);
       if (item.is_dataproduct && item.status === "unchanged" ) {
-        // If item is a data product, just show a check icon as text.
+        // If item is an unchanged data product, just show a check icon as text.
         const checkIcon = Utils.createElement("i", [
           "fa-solid",
           "fa-circle-check",
@@ -346,10 +346,21 @@ class ProcessedFilesTemplate {
         addButton.setAttribute("type", "button");
         addButton.setAttribute("data-action", "add");
 
-        // Create icon element for button.
-        const icon = Utils.createElement("i", ["fa-solid", "fa-circle-plus"]);
+        // Create icon element for button. When the item is an existing data
+        // product that changed, show the update (rotate) icon in yellow.
+        let icon;
+        let tooltipTitle;
+        if (!item.is_dataproduct) {
+          icon = Utils.createElement("i", ["fa-solid", "fa-circle-plus"]);
+          tooltipTitle = "Add to Data Products";
+        } else {
+          icon = Utils.createElement("i", ["fa-solid", "fa-rotate", "text-warning"]);
+          tooltipTitle = "Update Data Product";
+        }
         addButton.appendChild(icon);
 
+        addButton.setAttribute("data-bs-title", tooltipTitle);
+        new bootstrap.Tooltip(addButton);
         tdAdd.appendChild(addButton);
       }
 
@@ -362,6 +373,8 @@ class ProcessedFilesTemplate {
       // Create icon element for button.
       const icon = Utils.createElement("i", ["fa-solid", "fa-trash-can"]);
       removeButton.appendChild(icon);
+      removeButton.setAttribute("data-bs-title", "Remove File");
+      new bootstrap.Tooltip(removeButton);
       tdRemove.appendChild(removeButton);
 
       // Append the cells to the row.
