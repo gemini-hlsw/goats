@@ -1,0 +1,1 @@
+Fixed 404 error on documentation links in the GOATS interface
