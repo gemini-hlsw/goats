@@ -4,9 +4,9 @@
   <div class="row g-3 justify-content-center">
     <div class="col-12 text-center m-4">
       {% if object.status != "Error" %}
-        <a class="btn btn-outline-primary" href="{{ object.url }}" target="_blank">View at Archive »</a>
+        <a class="btn btn-outline-primary" href="{% url 'goa-archive-redirect' object.id %}">View at Archive »</a>
       {% else %}
-        <a class="btn btn-outline-primary disabled" href="{{ object.url }}" target="_blank">View at Archive »</a>
+        <a class="btn btn-outline-primary disabled" href="#">View at Archive »</a>
       {% endif %}
     </div>
   </div>

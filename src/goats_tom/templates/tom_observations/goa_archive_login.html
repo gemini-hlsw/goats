@@ -1,0 +1,17 @@
+{% extends 'tom_common/base.html' %}
+{% block title %}Logging in to GOA{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-4 text-center">
+    <div class="spinner-border text-primary mb-3" role="status"></div>
+    <h5>Logging in to the Gemini Observatory Archive...</h5>
+    <p class="text-muted">You will be redirected automatically.</p>
+  </div>
+</div>
+<form id="goa-auth" method="POST" action="{{ goa_login_url }}" style="display:none">
+  <input type="hidden" name="username" value="{{ username }}">
+  <input type="hidden" name="password" value="{{ password }}">
+  <input type="hidden" name="redirect" value="{{ archive_path }}">
+</form>
+<script>document.getElementById("goa-auth").submit();</script>
+{% endblock %}
