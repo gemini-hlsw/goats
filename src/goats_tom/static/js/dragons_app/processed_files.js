@@ -90,7 +90,10 @@ class ProcessedFilesTemplate {
    */
   _createCardBody(data) {
     const cardBody = Utils.createElement("div", ["card-body"]);
-    const accordion = Utils.createElement("div", ["accordion", "accordion-flush"]);
+    const accordion = Utils.createElement("div", [
+      "accordion",
+      "accordion-flush",
+    ]);
     accordion.id = "processedFilesAccordion";
     accordion.appendChild(this._createAccordion(data));
     cardBody.appendChild(accordion);
@@ -113,9 +116,11 @@ class ProcessedFilesTemplate {
     const headerId = `header${this.options.id}`;
     header.id = headerId;
 
-    const button = Utils.createElement("button");
+    const button = Utils.createElement("button", [
+      "accordion-button",
+      "collapsed",
+    ]);
     const collapseId = `collapse${this.options.id}`;
-    button.className = "accordion-button collapsed";
     button.setAttribute("type", "button");
     button.setAttribute("data-bs-toggle", "collapse");
     button.setAttribute("data-bs-target", `#${collapseId}`);
@@ -131,15 +136,17 @@ class ProcessedFilesTemplate {
     collapseDiv.setAttribute("aria-labelledby", headerId);
     collapseDiv.setAttribute("data-bs-parent", `#processedFilesAccordion`);
 
-    const accordionBody = Utils.createElement("div", [
-      "accordion-body",
-      "accordion-body-overflow",
-    ]);
-    accordionBody.append(
-      this._createToolbar(),
-      this._createTable(data),
-      this._createLoadingDiv()
-    );
+    const accordionBody = Utils.createElement("div", ["accordion-body"]);
+
+    // Action bar sits outside the scrollable list, so it stays visible at the
+    // top while the file table scrolls below it (right-aligned).
+    const toolbar = this._createToolbar();
+    toolbar.classList.add("justify-content-end", "mb-3");
+
+    const tableWrapper = Utils.createElement("div", ["accordion-body-overflow"]);
+    tableWrapper.append(this._createTable(data), this._createLoadingDiv());
+
+    accordionBody.append(toolbar, tableWrapper);
 
     collapseDiv.appendChild(accordionBody);
     accordion.append(header, collapseDiv);
@@ -173,7 +180,10 @@ class ProcessedFilesTemplate {
   _createLoadingDiv() {
     const div = Utils.createElement("div", ["d-none", "text-center"]);
     div.id = `loading${this.options.id}`;
-    const spinner = Utils.createElement("div", ["spinner-border", "text-secondary"]);
+    const spinner = Utils.createElement("div", [
+      "spinner-border",
+      "text-secondary",
+    ]);
     const spinnerInner = Utils.createElement("span", ["visually-hidden"]);
     spinnerInner.textContent = "Loading ...";
 
@@ -189,28 +199,31 @@ class ProcessedFilesTemplate {
    * @private
    */
   _createToolbar() {
-    const div = Utils.createElement("div");
-    div.id = `toolbar${this.options.id}`;
-    const row = Utils.createElement("div", ["row", "g-3"]);
-    const col = Utils.createElement("div", ["col", "text-end"]);
+    const toolbar = Utils.createElement("div", [
+      "d-flex",
+      "gap-2",
+      "align-items-center",
+    ]);
+    toolbar.id = `toolbar${this.options.id}`;
 
     const refreshButton = Utils.createElement("button", [
       "btn",
-      "btn-secondary",
+      "btn-outline-secondary",
       "btn-sm",
     ]);
-    refreshButton.textContent = " Refresh";
+    refreshButton.type = "button";
     refreshButton.dataset.action = "refresh";
 
-    // Create and prepend the icon.
-    const refreshIcon = Utils.createElement("i", ["fa-solid", "fa-arrow-rotate-right"]);
-    refreshButton.prepend(refreshIcon);
+    const refreshIcon = Utils.createElement("i", [
+      "fa-solid",
+      "fa-arrow-rotate-right",
+      "me-1",
+    ]);
+    refreshButton.append(refreshIcon, document.createTextNode("Refresh"));
 
-    col.append(refreshButton);
-    row.append(col);
-    div.append(row);
+    toolbar.append(refreshButton);
 
-    return div;
+    return toolbar;
   }
 
   /**
@@ -245,7 +258,7 @@ class ProcessedFilesTemplate {
     thAdd.textContent = "Add To GOATS Data Products";
 
     // Create remove cell.
-    const thRemove = Utils.createElement("th", ["text-end", "fw-normal"]);
+    const thRemove = Utils.createElement("th", ["text-center", "fw-normal"]);
     thRemove.setAttribute("scope", "col");
     thRemove.textContent = "Delete";
 
@@ -281,15 +294,14 @@ class ProcessedFilesTemplate {
       tr.dataset.status = item.status;
       tr.dataset.productId = item.product_id;
       tr.dataset.fileUrl = item.url;
-      tr.dataset.lastModified = item.last_modified; 
-
+      tr.dataset.lastModified = item.last_modified;
       // Create the filename cell with a data attribute.
       const tdFilename = Utils.createElement("td");
       tdFilename.textContent = `${item.path}/${item.name}`;
 
       // Create last modified.
       const tdLastModified = Utils.createElement("td");
-      tdLastModified.textContent = item.last_modified
+      tdLastModified.textContent = item.last_modified;
 
       // Build the view dropdown.
       const tdViewer = Utils.createElement("td", ["py-0", "mb-0", "text-end"]);
@@ -302,22 +314,31 @@ class ProcessedFilesTemplate {
       ]);
       viewLink.href = "#";
       viewLink.setAttribute("role", "button");
-      viewLink.setAttribute("data-toggle", "dropdown");
+      viewLink.setAttribute("data-bs-toggle", "dropdown");
       viewLink.setAttribute("aria-expanded", "false");
       viewLink.textContent = "View";
 
       // Build the dropdown menu.
-      const ul = Utils.createElement("ul", ["dropdown-menu", "dropdown-menu-right"]);
+      const ul = Utils.createElement("ul", [
+        "dropdown-menu",
+        "dropdown-menu-right",
+      ]);
       const li1 = Utils.createElement("li");
       const li2 = Utils.createElement("li");
       const li3 = Utils.createElement("li");
-      const button1 = Utils.createElement("button", ["dropdown-item", "header-button"]);
+      const button1 = Utils.createElement("button", [
+        "dropdown-item",
+        "header-button",
+      ]);
       button1.setAttribute("type", "button");
       button1.setAttribute("aria-current", "true");
       button1.textContent = "Header";
       button1.dataset.action = "showHeaderModal";
       const divider = Utils.createElement("hr", "dropdown-divider");
-      const button2 = Utils.createElement("button", ["dropdown-item", "js9-button"]);
+      const button2 = Utils.createElement("button", [
+        "dropdown-item",
+        "js9-button",
+      ]);
       button2.setAttribute("type", "button");
       button2.setAttribute("aria-current", "true");
       button2.textContent = "JS9";
@@ -332,7 +353,7 @@ class ProcessedFilesTemplate {
 
       // Create the add to data products button cell.
       const tdAdd = Utils.createElement("td", ["text-end"]);
-      if (item.is_dataproduct && item.status === "unchanged" ) {
+      if (item.is_dataproduct && item.status === "unchanged") {
         // If item is an unchanged data product, just show a check icon as text.
         const checkIcon = Utils.createElement("i", [
           "fa-solid",
@@ -354,7 +375,11 @@ class ProcessedFilesTemplate {
           icon = Utils.createElement("i", ["fa-solid", "fa-circle-plus"]);
           tooltipTitle = "Add to Data Products";
         } else {
-          icon = Utils.createElement("i", ["fa-solid", "fa-rotate", "text-warning"]);
+          icon = Utils.createElement("i", [
+            "fa-solid",
+            "fa-rotate",
+            "text-warning",
+          ]);
           tooltipTitle = "Update Data Product";
         }
         addButton.appendChild(icon);
@@ -365,7 +390,7 @@ class ProcessedFilesTemplate {
       }
 
       // Build the remove icon.
-      const tdRemove = Utils.createElement("td", ["text-end"]);
+      const tdRemove = Utils.createElement("td", ["text-center"]);
       const removeButton = Utils.createElement("a", ["link-danger"]);
       removeButton.setAttribute("type", "button");
       removeButton.setAttribute("data-action", "remove");
@@ -439,14 +464,18 @@ class ProcessedFilesView {
    * @private
    */
   _update(data) {
+    document.activeElement?.blur();
+    this.tbody.querySelectorAll("[data-bs-title]").forEach((el) => {
+      const tooltip = bootstrap.Tooltip.getInstance(el);
+      tooltip?.dispose();
+    });
     const newTbody = this.template.createTBody(data);
     this.table.replaceChild(newTbody, this.tbody);
     this.tbody = newTbody;
 
     // Update the file count.
-    this.thead.querySelector(
-      `#thName${this.options.id}`
-    ).textContent = `Filename ${Utils.getFileCountLabel(data.length)}`;
+    this.thead.querySelector(`#thName${this.options.id}`).textContent =
+      `Filename ${Utils.getFileCountLabel(data.length)}`;
   }
 
   /**
@@ -486,7 +515,9 @@ class ProcessedFilesView {
   _showHeaderModal(data) {
     const header = `Viewing header for ${data.filename}`;
     // Format and apply to body.
-    const body = this.template.createHeaderModalTable(data.astrodata_descriptors);
+    const body = this.template.createHeaderModalTable(
+      data.astrodata_descriptors,
+    );
     this.modal.update(header, body);
     this.modal.show();
   }
@@ -537,7 +568,7 @@ class ProcessedFilesView {
             filename: row.dataset.filename,
             filepath: row.dataset.filepath,
             fileStatus: row.dataset.status,
-            last_modified: row.dataset.lastModified, 
+            last_modified: row.dataset.lastModified,
           });
         });
         break;
@@ -554,7 +585,7 @@ class ProcessedFilesView {
         });
         break;
       case "refresh":
-        Utils.delegate(this.body, selector, "click", () => handler());
+        Utils.delegate(this.card, selector, "click", () => handler());
         break;
       case "showJs9":
         Utils.delegate(this.table, selector, "click", (e) => {
@@ -615,7 +646,9 @@ class ProcessedFilesModel {
    */
   async fetchFiles() {
     try {
-      const response = await this.api.get(`${this.processedFilesUrl}${this.runId}/`);
+      const response = await this.api.get(
+        `${this.processedFilesUrl}${this.runId}/`,
+      );
       this.data = response;
     } catch (error) {
       console.error("Error fetching list of processed files:", error);
@@ -632,7 +665,10 @@ class ProcessedFilesModel {
   async fetchFileHeader(filepath) {
     try {
       const body = { filepath };
-      const response = await this.api.post(`${this.processedFilesHeaderUrl}`, body);
+      const response = await this.api.post(
+        `${this.processedFilesHeaderUrl}`,
+        body,
+      );
       return response;
     } catch (error) {
       console.error("Error fetching header of processed file:", error);
@@ -647,14 +683,14 @@ class ProcessedFilesModel {
    */
   async addFile(item) {
     try {
-      const extension = item.filename.split('.').pop().toLowerCase();
+      const extension = item.filename.split(".").pop().toLowerCase();
       const body = {
         productId: item.productId,
         filename: item.filename,
         filepath: item.filepath,
         file_status: item.fileStatus,
         last_modified: item.last_modified,
-        data_product_type:  extension == "fits"?"fits_file":"text_file",
+        data_product_type: extension == "fits" ? "fits_file" : "text_file",
         dragons_run: this.runId,
       };
       await this.api.post(`${this.dragonsDataProductsUrl}`, body);
@@ -682,7 +718,7 @@ class ProcessedFilesModel {
       };
       const response = await this.api.patch(
         `${this.processedFilesUrl}${this.runId}/`,
-        body
+        body,
       );
       this.data = response;
     } catch (error) {
@@ -738,11 +774,11 @@ class ProcessedFilesController {
     this.view.bindCallback("refresh", () => this.refresh());
     this.view.bindCallback("add", (item) => this.add(item));
     this.view.bindCallback("remove", (item) =>
-      this.remove(item.filename, item.filepath, item.productId)
+      this.remove(item.filename, item.filepath, item.productId),
     );
     this.view.bindCallback("showJs9", (item) => this._showJs9(item.fileUrl));
     this.view.bindCallback("showHeaderModal", (item) =>
-      this._showHeaderModal(item.filepath)
+      this._showHeaderModal(item.filepath),
     );
   }
 
@@ -851,7 +887,11 @@ class ProcessedFiles {
     this.model = new ProcessedFilesModel(this.options);
     const template = new ProcessedFilesTemplate(this.options);
     this.view = new ProcessedFilesView(template, this.options);
-    this.controller = new ProcessedFilesController(this.model, this.view, this.options);
+    this.controller = new ProcessedFilesController(
+      this.model,
+      this.view,
+      this.options,
+    );
 
     this._create(parentElement, runId);
   }
