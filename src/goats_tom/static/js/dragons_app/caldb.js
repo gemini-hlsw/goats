@@ -88,7 +88,10 @@ class CaldbTemplate {
    */
   _createCardBody(data) {
     const cardBody = Utils.createElement("div", ["card-body"]);
-    const accordion = Utils.createElement("div", ["accordion", "accordion-flush"]);
+    const accordion = Utils.createElement("div", [
+      "accordion",
+      "accordion-flush",
+    ]);
     accordion.id = "caldbAccordion";
     accordion.appendChild(this._createAccordion(data));
     cardBody.appendChild(accordion);
@@ -111,9 +114,11 @@ class CaldbTemplate {
     const headerId = `header${this.options.id}`;
     header.id = headerId;
 
-    const button = Utils.createElement("button");
+    const button = Utils.createElement("button", [
+      "accordion-button",
+      "collapsed",
+    ]);
     const collapseId = `collapse${this.options.id}`;
-    button.className = "accordion-button collapsed";
     button.setAttribute("type", "button");
     button.setAttribute("data-bs-toggle", "collapse");
     button.setAttribute("data-bs-target", `#${collapseId}`);
@@ -129,11 +134,17 @@ class CaldbTemplate {
     collapseDiv.setAttribute("aria-labelledby", headerId);
     collapseDiv.setAttribute("data-bs-parent", `#caldbAccordion`);
 
-    const accordionBody = Utils.createElement("div", [
-      "accordion-body",
-      "accordion-body-overflow",
-    ]);
-    accordionBody.append(this._createToolbar(), this._createTable(data));
+    const accordionBody = Utils.createElement("div", ["accordion-body"]);
+
+    // Action bar sits outside the scrollable list, so it stays visible at the
+    // top while the file table scrolls below it (right-aligned).
+    const toolbar = this._createToolbar();
+    toolbar.classList.add("justify-content-end", "mb-3");
+
+    const tableWrapper = Utils.createElement("div", ["accordion-body-overflow"]);
+    tableWrapper.appendChild(this._createTable(data));
+
+    accordionBody.append(toolbar, tableWrapper);
 
     collapseDiv.appendChild(accordionBody);
     accordion.append(header, collapseDiv);
@@ -163,24 +174,29 @@ class CaldbTemplate {
    * @returns {HTMLElement} The toolbar.
    */
   _createToolbar() {
-    const div = Utils.createElement("div");
-    div.id = `toolbar${this.options.id}`;
-    const row = Utils.createElement("div", ["row", "g-3"]);
-    const colAdd = Utils.createElement("div", ["col"]);
+    const toolbar = Utils.createElement("div", [
+      "d-flex",
+      "gap-2",
+      "align-items-center",
+    ]);
 
-    // Create form to handle file input.
+    toolbar.id = `toolbar${this.options.id}`;
+
+    // Form
     const form = Utils.createElement("form");
     form.id = `form${this.options.id}`;
+    form.classList.add("mb-0");
 
-    const fileLabel = Utils.createElement("label", ["btn", "btn-secondary", "btn-sm"]);
-    fileLabel.textContent = " Add File";
-    fileLabel.setAttribute("for", "fileInputCaldb");
+    const fileLabel = Utils.createElement("label", [
+      "btn",
+      "btn-outline-primary",
+      "btn-sm",
+    ]);
+    fileLabel.setAttribute("for", `fileInput${this.options.id}`);
 
-    // Create and prepend the icon.
-    const fileIcon = Utils.createElement("i", ["fa-solid", "fa-plus"]);
-    fileLabel.prepend(fileIcon);
+    const fileIcon = Utils.createElement("i", ["fa-solid", "fa-plus", "me-1"]);
+    fileLabel.append(fileIcon, document.createTextNode("Add File"));
 
-    // Hide file input to use custom text for button.
     const fileInput = Utils.createElement("input");
     fileInput.type = "file";
     fileInput.name = "file";
@@ -189,27 +205,27 @@ class CaldbTemplate {
     fileInput.id = `fileInput${this.options.id}`;
 
     form.append(fileLabel, fileInput);
-    colAdd.appendChild(form);
 
-    const colRefresh = Utils.createElement("div", ["col", "text-end"]);
     const refreshButton = Utils.createElement("button", [
       "btn",
-      "btn-secondary",
+      "btn-outline-secondary",
       "btn-sm",
     ]);
-    refreshButton.textContent = " Refresh";
+
+    refreshButton.type = "button";
     refreshButton.dataset.action = "refresh";
 
-    // Create and prepend the icon.
-    const refreshIcon = Utils.createElement("i", ["fa-solid", "fa-arrow-rotate-right"]);
-    refreshButton.prepend(refreshIcon);
+    const refreshIcon = Utils.createElement("i", [
+      "fa-solid",
+      "fa-arrow-rotate-right",
+      "me-1",
+    ]);
 
-    colRefresh.appendChild(refreshButton);
+    refreshButton.append(refreshIcon, document.createTextNode("Refresh"));
 
-    row.append(colAdd, colRefresh);
-    div.appendChild(row);
+    toolbar.append(form, refreshButton);
 
-    return div;
+    return toolbar;
   }
 
   /**
@@ -287,22 +303,31 @@ class CaldbTemplate {
       ]);
       viewLink.href = "#";
       viewLink.setAttribute("role", "button");
-      viewLink.setAttribute("data-toggle", "dropdown");
+      viewLink.setAttribute("data-bs-toggle", "dropdown");
       viewLink.setAttribute("aria-expanded", "false");
       viewLink.textContent = "View";
 
       // Build the dropdown menu.
-      const ul = Utils.createElement("ul", ["dropdown-menu", "dropdown-menu-right"]);
+      const ul = Utils.createElement("ul", [
+        "dropdown-menu",
+        "dropdown-menu-right",
+      ]);
       const li1 = Utils.createElement("li");
       const li2 = Utils.createElement("li");
       const li3 = Utils.createElement("li");
-      const button1 = Utils.createElement("button", ["dropdown-item", "header-button"]);
+      const button1 = Utils.createElement("button", [
+        "dropdown-item",
+        "header-button",
+      ]);
       button1.setAttribute("type", "button");
       button1.setAttribute("aria-current", "true");
       button1.textContent = "Header";
       button1.dataset.action = "showHeaderModal";
       const divider = Utils.createElement("hr", "dropdown-divider");
-      const button2 = Utils.createElement("button", ["dropdown-item", "js9-button"]);
+      const button2 = Utils.createElement("button", [
+        "dropdown-item",
+        "js9-button",
+      ]);
       button2.setAttribute("type", "button");
       button2.setAttribute("aria-current", "true");
       button2.textContent = "JS9";
@@ -315,9 +340,19 @@ class CaldbTemplate {
       viewDropdown.append(viewLink, ul);
       tdViewer.appendChild(viewDropdown);
 
-      // Create user uploaded flag cell.
+      // Create user uploaded flag cell: a subtle pill badge with an upload
+      // icon marks files the user added (vs. pipeline-generated ones).
       const tdUserUploaded = Utils.createElement("td");
-      tdUserUploaded.textContent = item.is_user_uploaded ? "User uploaded" : "";
+      if (item.is_user_uploaded) {
+        const uploadedBadge = Utils.createElement("span", [
+          "badge",
+          "rounded-pill",
+          "bg-success-subtle",
+          "text-success-emphasis",
+        ]);
+        uploadedBadge.textContent = "User uploaded";
+        tdUserUploaded.appendChild(uploadedBadge);
+      }
 
       // Create the delete button cell.
       const tdRemove = Utils.createElement("td", ["text-end"]);
@@ -374,13 +409,14 @@ class CaldbView {
    */
   _create(parentElement, data) {
     this.parentElement = parentElement;
-
     this.container = this.template.create(data);
     this.card = this.container.querySelector(".card");
     this.body = this.card.querySelector(".accordion");
     this.table = this.card.querySelector("table");
     this.tbody = this.card.querySelector("tbody");
     this.thead = this.card.querySelector("thead");
+
+    this.toolbar = this.card.querySelector(`#toolbar${this.options.id}`);
 
     this.parentElement.appendChild(this.container);
   }
@@ -396,9 +432,8 @@ class CaldbView {
     this.tbody = newTbody;
 
     // Update the file count.
-    this.thead.querySelector(
-      `#thName${this.options.id}`
-    ).textContent = `Filename ${Utils.getFileCountLabel(data.length)}`;
+    this.thead.querySelector(`#thName${this.options.id}`).textContent =
+      `Filename ${Utils.getFileCountLabel(data.length)}`;
   }
 
   /**
@@ -408,7 +443,9 @@ class CaldbView {
   _showHeaderModal(data) {
     const header = `Viewing header for ${data.filename}`;
     // Format and apply to body.
-    const body = this.template.createHeaderModalTable(data.astrodata_descriptors);
+    const body = this.template.createHeaderModalTable(
+      data.astrodata_descriptors,
+    );
     this.modal.update(header, body);
     this.modal.show();
   }
@@ -451,11 +488,11 @@ class CaldbView {
         break;
       case "remove":
         Utils.delegate(this.table, selector, "click", (e) =>
-          handler({ filename: e.target.dataset.filename })
+          handler({ filename: e.target.dataset.filename }),
         );
         break;
       case "refresh":
-        Utils.delegate(this.body, selector, "click", () => handler());
+        Utils.delegate(this.card, selector, "click", () => handler());
         break;
       case "showJs9":
         Utils.delegate(this.table, selector, "click", (e) => {
@@ -508,7 +545,10 @@ class CaldbModel {
       const response = await this.api.get(`${this.caldbUrl}${this.runId}/`);
       return response.files;
     } catch (error) {
-      console.error("Error fetching list of calibration database files:", error);
+      console.error(
+        "Error fetching list of calibration database files:",
+        error,
+      );
       throw error;
     }
   }
@@ -523,7 +563,10 @@ class CaldbModel {
   async fetchFileHeader(filepath) {
     try {
       const body = { filepath };
-      const response = await this.api.post(`${this.processedFilesHeaderUrl}`, body);
+      const response = await this.api.post(
+        `${this.processedFilesHeaderUrl}`,
+        body,
+      );
       return response;
     } catch (error) {
       console.error("Error fetching header of processed file:", error);
@@ -543,7 +586,10 @@ class CaldbModel {
         filename: filename,
         action: "remove",
       };
-      const response = await this.api.patch(`${this.caldbUrl}${this.runId}/`, body);
+      const response = await this.api.patch(
+        `${this.caldbUrl}${this.runId}/`,
+        body,
+      );
       return response.files;
     } catch (error) {
       console.error(`Error removing file:`, error);
@@ -568,7 +614,7 @@ class CaldbModel {
         `${this.caldbUrl}${this.runId}/`,
         body,
         {},
-        false
+        false,
       );
       return response.files;
     } catch (error) {
@@ -601,7 +647,7 @@ class CaldbController {
     this.view.bindCallback("add", (item) => this.add(item.file));
     this.view.bindCallback("showJs9", (item) => this._showJs9(item.fileUrl));
     this.view.bindCallback("showHeaderModal", (item) =>
-      this._showHeaderModal(item.filepath)
+      this._showHeaderModal(item.filepath),
     );
   }
 
