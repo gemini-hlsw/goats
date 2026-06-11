@@ -1,1 +1,0 @@
-Allowed multiple GPP app accordion sections to be open simultaneously

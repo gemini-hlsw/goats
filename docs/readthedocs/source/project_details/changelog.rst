@@ -3,6 +3,36 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.6.0rc2 (2026-06-11)
+==============================
+
+New Features
+------------
+
+- Added auto-login to the GOA archive link to prevent access denial for anonymous users (`PR #668 <https://github.com/gemini-hlsw/goats/pull/668>`_)
+
+
+Changes
+-------
+
+- Added graceful error handling to prevent the Django debug page from being exposed to users on application errors (`PR #659 <https://github.com/gemini-hlsw/goats/pull/659>`_)
+- Updated the DataProduct icon to indicate when a file has been modified during a DRAGONS reduction (`PR #662 <https://github.com/gemini-hlsw/goats/pull/662>`_)
+- Added shutdown button to the login page for unauthenticated users (`PR #663 <https://github.com/gemini-hlsw/goats/pull/663>`_)
+- Allowed multiple GPP app accordion sections to be open simultaneously (`PR #665 <https://github.com/gemini-hlsw/goats/pull/665>`_)
+- Made the GPP app form read-only when the observation state is complete or ongoing (`PR #667 <https://github.com/gemini-hlsw/goats/pull/667>`_)
+- Improved DRAGONS file manager panels UI with an updated action bar layout and clearer file indicators (`PR #671 <https://github.com/gemini-hlsw/goats/pull/671>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed error occurring when the GPP client was not properly closed after a request (`PR #651 <https://github.com/gemini-hlsw/goats/pull/651>`_)
+- Fixed missing DataProduct metadata error when creating a DRAGONS run (`PR #658 <https://github.com/gemini-hlsw/goats/pull/658>`_)
+- Fixed JS9 image display regression introduced by the debug mode change (`PR #661 <https://github.com/gemini-hlsw/goats/pull/661>`_)
+- Fixed GPP client environment defaulting to development instead of production (`PR #666 <https://github.com/gemini-hlsw/goats/pull/666>`_)
+- Fixed 404 error on documentation links in the GOATS interface (`PR #669 <https://github.com/gemini-hlsw/goats/pull/669>`_)
+
+
 Version 26.6.0rc1 (2026-05-29)
 ==============================
 

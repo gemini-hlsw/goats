@@ -1,1 +1,0 @@
-Fixed missing DataProduct metadata error when creating a DRAGONS run
