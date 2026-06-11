@@ -48,47 +48,35 @@ class TestGoatsVersionProcessor:
         assert info2.hits == info1.hits + 1
         assert info2.currsize == 1
 
-    def test_doc_url_falls_back_to_latest_if_version_is_unknown(self, monkeypatch):
-        """Test that doc_url uses /latest/ if current version is 'unknown'."""
-        monkeypatch.setattr(
-            "goats_tom.context_processors.goats_version_processor.get_goats_version",
-            lambda: "unknown",
-        )
+    def test_doc_url_always_uses_latest(self):
+        """Test that doc_url always points to /latest/ regardless of current version."""
         ctx = goats_version_info_processor(None)
-        assert ctx["version_info"]["doc_url"].endswith("/latest/index.html")
-
-    def test_doc_url_uses_current_if_valid(self):
-        """Test that doc_url uses the current version if it is valid."""
-        caches["redis"].set(
-            "version_info",
-            {
-                "current": "25.10.0",
-                "latest": "25.10.1",
-                "is_outdated": True,
-            },
+        assert (
+            ctx["version_info"]["doc_url"]
+            == "https://goats.readthedocs.io/en/latest/index.html"
         )
-        ctx = goats_version_info_processor(None)
-        assert "25.10.0" in ctx["version_info"]["doc_url"]
 
     @pytest.mark.parametrize(
-        "cached_data,expected_current,expected_url_fragment",
+        "cached_data,expected_current",
         [
-            ({"current": "25.9.0"}, "25.9.0", "25.9.0"),
-            ({"current": ""}, get_goats_version(), get_goats_version()),
-            ({"current": None}, get_goats_version(), get_goats_version()),
-            ({}, get_goats_version(), get_goats_version()),
+            ({"current": "25.9.0"}, "25.9.0"),
+            ({"current": ""}, get_goats_version()),
+            ({"current": None}, get_goats_version()),
+            ({}, get_goats_version()),
         ],
     )
     def test_fallback_logic_for_current(
-        self, monkeypatch, cached_data, expected_current, expected_url_fragment
+        self, monkeypatch, cached_data, expected_current
     ):
         """Test various fallback scenarios for the 'current' version."""
-        # Clear any previous Redis data
         caches["redis"].set("version_info", cached_data)
         ctx = goats_version_info_processor(None)
         current = ctx["version_info"]["current"]
         assert current == expected_current
-        assert expected_url_fragment in ctx["version_info"]["doc_url"]
+        assert (
+            ctx["version_info"]["doc_url"]
+            == "https://goats.readthedocs.io/en/latest/index.html"
+        )
 
     def test_handles_package_not_found(self, monkeypatch):
         """Test that get_goats_version returns 'unknown' if package is not found."""

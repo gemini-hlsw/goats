@@ -176,12 +176,9 @@ TIME_ZONE = "UTC"
 
 USE_I18N = True
 
-USE_L10N = False
-
 USE_TZ = True
 
-DATETIME_FORMAT = "Y-m-d H:i:s"
-DATE_FORMAT = "Y-m-d"
+FORMAT_MODULE_PATH = ["goats_tom.locale"]
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/

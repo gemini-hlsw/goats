@@ -75,19 +75,22 @@
           <a class="dropdown-item" href="{% url 'user-list' %}">Users</a>
           <a class="dropdown-item" href="{% url 'user-update' user.id %}">Settings</a>
           <div class="dropdown-divider"></div>
-          <a class="dropdown-item" href="{% url 'logout' %}">Logout</a>
+          <form method="post" action="{% url 'logout' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="dropdown-item">Logout</button>
+          </form>
         </div>
-      </li>
-      <li class="nav-item">
-        <button id="shutdownBtn" class="nav-link px-md-2 py-2" title="Shut down GOATS">
-          <i class="fa-solid fa-power-off fa-lg"></i><span class="d-md-none ms-2">Shut Down</span>
-        </button>
       </li>
       {% else %}
       <li class="nav-item {% if request.resolver_match.url_name == 'login' %}active fw-bold{% endif %}">
         <a class="nav-link" href="{% url 'login' %}" title="Login to GOATS">Login</a>
       </li>
       {% endif %}
+      <li class="nav-item">
+        <button id="shutdownBtn" class="nav-link px-md-2 py-2" title="Shut down GOATS">
+          <i class="fa-solid fa-power-off fa-lg"></i><span class="d-md-none ms-2">Shut Down</span>
+        </button>
+      </li>
     </ul>
   </div>
 </div>

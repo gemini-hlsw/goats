@@ -54,13 +54,8 @@ def goats_version_info_processor(request: HttpRequest) -> dict[str, Any]:
     current_version = version_info.get("current") or get_goats_version()
     latest_version = version_info.get("latest", "")
     is_outdated = version_info.get("is_outdated", False)
-    # Fallback to '/latest/' docs if 'current_version' is not known.
-    version_for_docs = (
-        current_version
-        if current_version and current_version != "unknown"
-        else "latest"
-    )
-    doc_url = f"https://goats.readthedocs.io/en/{version_for_docs}/index.html"
+    doc_url = "https://goats.readthedocs.io/en/latest/index.html"
+
     return {
         "version_info": {
             "current": current_version,

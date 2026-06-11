@@ -190,6 +190,14 @@ class ProgramObservationsPanel {
     this.#logDebug(`ToO select disabled: ${disabled}`);
   }
   /**
+   * Enable or disable only the Update button.
+   * @param {boolean} disabled
+   */
+  toggleUpdateButton(disabled) {
+    this.#updateButton.disabled = disabled;
+    this.#logDebug(`Update button disabled: ${disabled}`);
+  }
+  /**
    * Enable or disable the ToO toolbar buttons.
    * @param {boolean} disabled
    */

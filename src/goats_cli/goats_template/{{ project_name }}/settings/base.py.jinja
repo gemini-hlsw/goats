@@ -22,7 +22,7 @@ from .generated import *
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 """Base directory of the project."""
 
-DEBUG = True
+DEBUG = False
 """Enable debug mode."""
 
 ALLOWED_HOSTS = ["*"]
@@ -71,6 +71,7 @@ SITE_ID = 1
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -205,17 +206,11 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 """Internationalization."""
 
-USE_L10N = False
-"""Localization."""
-
 USE_TZ = True
 """Timezone support."""
 
-DATETIME_FORMAT = "Y-m-d H:i:s"
-"""Date and time format."""
-
-DATE_FORMAT = "Y-m-d"
-"""Date format."""
+FORMAT_MODULE_PATH = ["goats_tom.locale"]
+"""Custom locale format overrides."""
 
 STATIC_URL = "/static/"
 """URL to use for static files."""
@@ -225,6 +220,14 @@ STATIC_ROOT = BASE_DIR / "_static"
 
 STATICFILES_DIRS = [(BASE_DIR / "static")]
 """Additional directories for static files."""
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+"""Storage backends. WhiteNoise serves static files when DEBUG is False."""
 
 MEDIA_URL = "/data/"
 """URL to use for media files."""
@@ -432,8 +435,9 @@ slow."""
 # Set the GPP environment (DEVELOPMENT, STAGING, or PRODUCTION)
 GPP_ENV = "PRODUCTION"
 
-# Set the ANATARES environment (DEVELOPMENT or PRODUCTION).
+# Set the ANTARES environment (DEVELOPMENT or PRODUCTION).
 ANTARES_ENV = "PRODUCTION"
 
 ANTARES_TIMEOUT = 60 # Timeout for requests to ANTARES in seconds.
+
 

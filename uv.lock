@@ -1469,7 +1469,7 @@ wheels = [
 
 [[package]]
 name = "goats"
-version = "26.5.2"
+version = "26.6.0rc2"
 source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
@@ -1492,6 +1492,7 @@ dependencies = [
     { name = "tom-tns" },
     { name = "tomtoolkit" },
     { name = "typer" },
+    { name = "whitenoise" },
 ]
 
 [package.dev-dependencies]
@@ -1538,13 +1539,14 @@ requires-dist = [
     { name = "djangorestframework", specifier = ">=3.16.1,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
-    { name = "gpp-client", specifier = "==26.4.1.dev1" },
+    { name = "gpp-client", specifier = "==26.4.0" },
     { name = "marshmallow", specifier = "==3.26.2" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
     { name = "tom-tns", specifier = ">=0.3.4" },
     { name = "tomtoolkit", specifier = "==2.32.2" },
     { name = "typer", specifier = ">=0.19.2" },
+    { name = "whitenoise", specifier = ">=6.6.0,<7" },
 ]
 
 [package.metadata.requires-dev]
@@ -1576,7 +1578,7 @@ notebook = [{ name = "ipykernel", specifier = ">=7.2.0" }]
 
 [[package]]
 name = "gpp-client"
-version = "26.4.1.dev1"
+version = "26.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -1588,9 +1590,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/5f/4750c23281acb3313f4e38dd94f121bccc51df1a9eae5cd45c7557f9a951/gpp_client-26.4.1.dev1.tar.gz", hash = "sha256:3896a873c63449977a65f549f8ddbcfc7688efb29729ca6ff46c01f0908fb464", size = 174012, upload-time = "2026-04-28T18:56:05.422Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/40/c5/ccf696271ed18e70ccf76ab5f2f4637dc33aac340fff94d32a4d7aaa56ce/gpp_client-26.4.0.tar.gz", hash = "sha256:08a2eb9361312ef247891aca9b99de93e181236b05518a1f690c7278077ef2ff", size = 167379, upload-time = "2026-04-14T21:54:28.852Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/41/26/ae4666c97e57a76296b5bde0b4aaab6e18483a36736805f653ed3b159485/gpp_client-26.4.1.dev1-py3-none-any.whl", hash = "sha256:b0363e140f5165113ac7052e2d477e17ca7e557773a1bbf7900c94a4c5a95ecd", size = 209506, upload-time = "2026-04-28T18:56:03.796Z" },
+    { url = "https://files.pythonhosted.org/packages/01/0a/c75f43c8b40e76ae19ade0326293d2ff65dd1bda4c9e9cf39af2545dbd49/gpp_client-26.4.0-py3-none-any.whl", hash = "sha256:7d611887edd2a59f3a27c63ff794c4fd1edaec0d1e33f7e5e573043a5163f3c8", size = 203505, upload-time = "2026-04-14T21:54:27.311Z" },
 ]
 
 [[package]]
@@ -4057,6 +4059,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/86/eb/20b6cdf273913d0ad05a6a14aed4b9a85591c18a987a3d47f20fa13dcc47/websockets-15.0.1-cp313-cp313-win32.whl", hash = "sha256:ba9e56e8ceeeedb2e080147ba85ffcd5cd0711b89576b83784d8605a7df455fa", size = 176393, upload-time = "2025-03-05T20:02:53.814Z" },
     { url = "https://files.pythonhosted.org/packages/1b/6c/c65773d6cab416a64d191d6ee8a8b1c68a09970ea6909d16965d26bfed1e/websockets-15.0.1-cp313-cp313-win_amd64.whl", hash = "sha256:e09473f095a819042ecb2ab9465aee615bd9c2028e4ef7d933600a8401c79561", size = 176837, upload-time = "2025-03-05T20:02:55.237Z" },
     { url = "https://files.pythonhosted.org/packages/fa/a8/5b41e0da817d64113292ab1f8247140aac61cbf6cfd085d6a0fa77f4984f/websockets-15.0.1-py3-none-any.whl", hash = "sha256:f7a866fbc1e97b5c617ee4116daaa09b722101d4a3c170c787450ba409f9736f", size = 169743, upload-time = "2025-03-05T20:03:39.41Z" },
+]
+
+[[package]]
+name = "whitenoise"
+version = "6.12.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/2a/55b3f3a4ec326cd077c1c3defeee656b9298372a69229134d930151acd01/whitenoise-6.12.0.tar.gz", hash = "sha256:f723ebb76a112e98816ff80fcea0a6c9b8ecde835f8ddda25df7a30a3c2db6ad", size = 26841, upload-time = "2026-02-27T00:05:42.028Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/db/eb/d5583a11486211f3ebd4b385545ae787f32363d453c19fffd81106c9c138/whitenoise-6.12.0-py3-none-any.whl", hash = "sha256:fc5e8c572e33ebf24795b47b6a7da8da3c00cff2349f5b04c02f28d0cc5a3cc2", size = 20302, upload-time = "2026-02-27T00:05:40.086Z" },
 ]
 
 [[package]]
