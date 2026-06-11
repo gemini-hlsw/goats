@@ -1,1 +1,0 @@
-Improved DRAGONS file manager panels UI with an updated action bar layout and clearer file indicators
