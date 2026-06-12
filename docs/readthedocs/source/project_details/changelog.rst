@@ -3,6 +3,12 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.6.0 (2026-06-12)
+===========================
+
+No significant changes.
+
+
 Version 26.6.0rc2 (2026-06-11)
 ==============================
 
