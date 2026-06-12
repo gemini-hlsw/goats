@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOATS Dependencies Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet" type="text/css" />
+    <link href="styles.css" rel="stylesheet" type="text/css" />
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>🔭 GOATS Dependencies Viewer</h1>
+            <div class="version-badge">
+                <span class="version-label">GOATS version</span>
+                <span class="version-value" id="goatsVersion">—</span>
+            </div>
+        </div>
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-number" id="totalPkgs">0</div>
+                <div class="stat-label">Total</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number" id="okCount">0</div>
+                <div class="stat-label">OK</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number" id="conflictCount">0</div>
+                <div class="stat-label">Conflicts</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toolbar" id="toolbar" style="display: none;">
+        <div class="group">
+            <button class="btn active" id="viewGraph" onclick="setView('graph')">◉ Graph</button>
+            <button class="btn" id="viewSugiyama" onclick="setView('sugiyama')">⌬ Sugiyama</button>
+            <button class="btn" id="viewMatrix" onclick="setView('matrix')">▦ Matrix</button>
+        </div>
+        <div class="sep"></div>
+        <div class="group" id="filterGroup">
+            <button class="btn active" data-filter="all" onclick="setFilter('all')">All</button>
+            <button class="btn conflict" data-filter="conflicts" onclick="setFilter('conflicts')">Conflicts<span class="count" id="cntConflicts"></span></button>
+            <button class="btn" data-filter="shared" onclick="setFilter('shared')">Shared ≥2<span class="count" id="cntShared"></span></button>
+        </div>
+        <div class="sep"></div>
+        <div class="group">
+            <button class="btn" data-filter="goats" onclick="setFilter('goats')">goats</button>
+            <button class="btn" data-filter="tomtoolkit" onclick="setFilter('tomtoolkit')">tom</button>
+            <button class="btn" data-filter="dragons" onclick="setFilter('dragons')">dragons</button>
+            <button class="btn" data-filter="jdaviz" onclick="setFilter('jdaviz')">jdaviz</button>
+        </div>
+        <div class="sep"></div>
+        <input class="search-box" id="searchBox" placeholder="🔍 Search package…" oninput="onSearch(this.value)">
+    </div>
+
+    <div class="container">
+        <div id="graph-container">
+            <div id="network"></div>
+            <div id="matrix-container"></div>
+            <div class="upload-overlay" id="uploadOverlay">
+                <div class="upload-content">
+                    <div class="upload-icon">📦</div>
+                    <div class="upload-text">Load Dependency Graph</div>
+                    <div class="upload-subtext">Drag & drop or click to select deps.json</div>
+                    <button class="upload-button" onclick="document.getElementById('jsonFile').click()">
+                        📁 Select JSON File
+                    </button>
+                    <input type="file" id="jsonFile" accept=".json">
+                </div>
+            </div>
+            <div class="legend">
+                <div class="legend-title">Legend</div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #58a6ff;"></div>
+                    <span>GOATS</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #3fb950;"></div>
+                    <span>TOMToolkit</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #a371f7;"></div>
+                    <span>DRAGONS</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #d29922;"></div>
+                    <span>JDAViz</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background: #f48771;"></div>
+                    <span>Conflict</span>
+                </div>
+                <div class="legend-item" style="border-top: 1px solid #3e3e42; padding-top: 8px; margin-top: 8px;">
+                    <span style="font-size: 10px; color: #888;">node size = how many require it</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="side-panel">
+            <div class="panel-header">
+                <div class="panel-title" id="panelTitle">Dependencies</div>
+                <div id="panelStatus"></div>
+            </div>
+            <div class="panel-content">
+                <div class="panel-empty" id="panelEmpty">
+                    ← Click a package to view details
+                </div>
+                <div id="panelContent" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js" defer></script>
+</body>
+</html>
