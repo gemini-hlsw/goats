@@ -274,7 +274,6 @@ class ObservationForm {
 
     const body = Utils.createElement("div", bodyClasses);
     body.id = collapseId;
-    body.setAttribute("data-bs-parent", "#profile-accordion");
 
     const setExpandedState = (expanded) => {
       toggleBtn.setAttribute("aria-expanded", String(expanded));

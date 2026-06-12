@@ -1,1 +1,0 @@
-Fixed error occurring when the GPP client was not properly closed after a request

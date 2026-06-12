@@ -8,6 +8,7 @@ from goats_tom.views.delete_observation_dataproducts import (
 )
 from goats_tom.views.downloads import recent_downloads
 from goats_tom.views.dragons import DRAGONSView
+from goats_tom.views.goa_archive_redirect import GOAArchiveRedirectView
 from goats_tom.views.goa_query_form import GOAQueryFormView
 from goats_tom.views.logins import (
     AstroDatalabLoginView,
@@ -28,6 +29,7 @@ from goats_tom.views.user_generate_token import UserGenerateTokenView
 __all__ = [
     "DRAGONSView",
     "DeleteObservationDataProductsView",
+    "GOAArchiveRedirectView",
     "GOALoginView",
     "GOAQueryFormView",
     "DataProductDeleteView",

@@ -24,13 +24,23 @@ class TestSystemViewSet(APITestCase):
     def authenticate(self, request):
         force_authenticate(request, user=self.user)
 
-    def test_shutdown_unauthenticated(self):
-        """Test that unauthenticated requests return 401."""
-        request = self.factory.post(reverse("system-shutdown"))
+    @patch("goats_tom.api_views.system.os.kill")
+    def test_shutdown_unauthenticated(self, mock_kill):
+        """Test that unauthenticated requests are allowed and can shut down."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pid_file = Path(tmp_dir) / "goats.pid"
+            pid_file.write_text("12345")
 
-        response = self.view(request)
+            with patch(
+                "goats_tom.api_views.system.tempfile.gettempdir",
+                return_value=tmp_dir,
+            ):
+                request = self.factory.post(reverse("system-shutdown"))
+                response = self.view(request)
 
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "shutdown initiated")
+        mock_kill.assert_called_once_with(12345, signal.SIGINT)
 
     @patch("goats_tom.api_views.system.os.kill")
     def test_shutdown_pid_file_found(self, mock_kill):

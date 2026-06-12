@@ -1,1 +1,0 @@
-Fixed JS9 image display regression introduced by the debug mode change
