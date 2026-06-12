@@ -42,7 +42,7 @@ dependencies = [
     "tomtoolkit==2.32.2",
     "whitenoise>=6.6.0,<7",
 ]
-version = "26.6.0rc2"
+version = "26.6.0"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
