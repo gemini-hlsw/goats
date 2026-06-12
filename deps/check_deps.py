@@ -940,7 +940,7 @@ def main(
     if verbose:
         logger.setLevel(logging.DEBUG)
 
-    goats_ref = goats_version or latest_goats_release()
+    goats_ref = "Local" if goats_path else (goats_version or latest_goats_release())
     if not goats_ref:
         die("Could not determine GOATS version")
 
@@ -994,7 +994,9 @@ def main(
     # JDAViz (optional — GOATS may not pin it)
     jdaviz_dict: dict[str, list[SpecSource]] = {}
     if jdaviz_version:
-        jdaviz_py = fetch_github_raw(*JDAVIZ_REPO, f"v{jdaviz_version}", "pyproject.toml")
+        jdaviz_py = fetch_github_raw(
+            *JDAVIZ_REPO, f"v{jdaviz_version}", "pyproject.toml"
+        )
         if jdaviz_py:
             jdaviz_dict = build_source_dict(
                 parse_requirements(parse_pyproject(jdaviz_py)), "jdaviz"
