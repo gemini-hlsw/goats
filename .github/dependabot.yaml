@@ -11,9 +11,11 @@ updates:
         patterns:
           - "astropy"
           - "astroquery"
+          - "apscheduler"
           - "channels-redis"
           - "channels[daphne]"
           - "click"
+          - "copier"
           - "django"
           - "django-cors-headers"
           - "django-dramatiq"
@@ -26,9 +28,8 @@ updates:
           - "numpydoc"
           - "tom-tns"
           - "tomtoolkit"
-          - "apscheduler"
           - "typer"
-          - "copier"
+          - "whitenoise"
       development-dependencies:
         patterns:
           - "pytest*"
@@ -45,13 +46,10 @@ updates:
     ignore:
       # TOMToolkit limit.
       - dependency-name: "django"
-        versions: [">=5.0.0"]
+        versions: [">=6.0.0"]
       # ANTARES client workaround.
       - dependency-name: "marshmallow"
         versions: [">=4.0.0"]
-      # TOMToolkit limit.
-      - dependency-name: "astropy"
-        versions: [">=7.0.0"]
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
     # Workflow files stored in the default location of `.github/workflows`
