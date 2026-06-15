@@ -1,0 +1,1 @@
+Fixed a potential client-side cross-site scripting (XSS) vulnerability (code scanning alert #20)
