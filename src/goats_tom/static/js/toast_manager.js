@@ -32,6 +32,8 @@ class ToastManager {
    * @param {string} notification.message - Main body content of the toast.
    * @param {string} notification.color - One of "info", "success", "warning", or "danger".
    * @param {boolean} [notification.autohide] - Whether the toast should auto-hide.
+   * @param {boolean} [notification.allowHtml=false] - Render the message as HTML
+   * instead of plain text. Only enable for trusted, static markup.
    * @param {Object} [options] - Toast behavior options.
    * @param {number} [options.delay] - Delay override.
    * @param {boolean} [options.autohide] - Autohide override.
@@ -66,7 +68,7 @@ class ToastManager {
    * @returns {HTMLElement}
    */
   #create(notification) {
-    const { label, message, color } = notification;
+    const { label, message, color, allowHtml } = notification;
 
     const toast = document.createElement("div");
     toast.classList.add(
@@ -105,7 +107,13 @@ class ToastManager {
 
     const text = document.createElement("p");
     text.classList.add("mb-0");
-    text.textContent = String(message ?? "");
+    // Default to textContent (XSS-safe). Only render HTML when the caller
+    // explicitly opts in with allowHtml and the markup is trusted/static.
+    if (allowHtml) {
+      text.innerHTML = String(message ?? "");
+    } else {
+      text.textContent = String(message ?? "");
+    }
     body.appendChild(text);
 
     toast.appendChild(header);

@@ -16,10 +16,11 @@ def test_notification_instance():
         # Verify that _send was called with the correct parameters.
         mock_send.assert_called_once()
         args, _ = mock_send.call_args
-        unique_id, label, message, color, autohide = args
+        unique_id, label, message, color, autohide, allow_html = args
 
         assert label == "Alert", "Label not set correctly"
         assert message == "Test notification", "Message not set correctly"
         assert color == "warning", "Color not set correctly"
         assert isinstance(unique_id, str), "Unique ID not set correctly"
         assert isinstance(autohide, bool), "Auto hide not set correctly"
+        assert allow_html is False, "Allow HTML should default to False"

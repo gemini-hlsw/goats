@@ -38,6 +38,7 @@ async def test_notification_message_handling():
         "label": "Alert",
         "message": "Test notification message",
         "autohide": True,
+        "allowHtml": False,
     }
     assert response == expected_response, "Incorrect response received"
 
