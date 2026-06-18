@@ -20,7 +20,7 @@
     `
     const label = "Add Service Credentials"
     const color = "info"
-    const notification = {message, label, color}
+    const notification = {message, label, color, allowHtml: true}
     const options = {autohide: false}
     window.toast.show(notification, options)
   }

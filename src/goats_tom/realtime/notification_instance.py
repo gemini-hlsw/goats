@@ -21,6 +21,7 @@ class NotificationInstance:
         message: str = "",
         color: str = "primary",
         autohide: bool = True,
+        allow_html: bool = False,
     ) -> None:
         """Creates and sends a notification.
 
@@ -35,9 +36,12 @@ class NotificationInstance:
             "primary".
         autohide : bool = True
             Whether the notification should auto-hide after a delay.
+        allow_html : bool, optional
+            Whether the message should be rendered as HTML instead of plain text.
+            Only enable for trusted, static markup, by default ``False``.
         """
         unique_id = f"{uuid.uuid4()}"
-        cls._send(unique_id, label, message, color, autohide)
+        cls._send(unique_id, label, message, color, autohide, allow_html)
 
     @classmethod
     def _send(
@@ -47,6 +51,7 @@ class NotificationInstance:
         message: str,
         color: str,
         autohide: bool,
+        allow_html: bool = False,
     ) -> None:
         """Sends a notification.
 
@@ -62,6 +67,9 @@ class NotificationInstance:
             The bootstrap color scheme to apply to the notification.
         autohide : bool
             Whether the notification should auto-hide after a delay.
+        allow_html : bool, optional
+            Whether the message should be rendered as HTML instead of plain text.
+            Only enable for trusted, static markup, by default ``False``.
         """
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
@@ -73,5 +81,6 @@ class NotificationInstance:
                 "message": message,
                 "color": color,
                 "autohide": autohide,
+                "allow_html": allow_html,
             },
         )

@@ -109,4 +109,5 @@ def _send_notification(result: dict[str, str | None | bool | list[str]]) -> None
         message=message,
         color="warning",
         autohide=False,
+        allow_html=True,
     )
