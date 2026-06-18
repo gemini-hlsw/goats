@@ -54,7 +54,7 @@ Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 [dependency-groups]
 dev = [
     "factory-boy>=3.3.3",
-    "pytest>=9.0.3",
+    "pytest>=9.1.0",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "pytest-django>=4.12.0",
