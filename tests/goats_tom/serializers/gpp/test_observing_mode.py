@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from gpp_client.api.enums import ObservingModeType
+from gpp_client.generated.enums import ObservingModeType
 from rest_framework.exceptions import ValidationError
 
 from goats_tom.serializers.gpp.observing_mode import ObservingModeSerializer
@@ -99,7 +99,7 @@ def test_to_pydantic_model_returns_instance():
         assert serializer.is_valid()
 
         model = serializer.to_pydantic()
-        from gpp_client.api.input_types import ObservingModeInput
+        from gpp_client.generated.input_types import ObservingModeInput
 
         assert isinstance(model, ObservingModeInput)
         assert model.gmos_south_long_slit is not None

@@ -7,8 +7,8 @@ __all__ = ["SchedulingWindowsSerializer"]
 import json
 from typing import Any
 
-from gpp_client.api.enums import TimingWindowInclusion
-from gpp_client.api.input_types import TimingWindowInput
+from gpp_client.generated.enums import TimingWindowInclusion
+from gpp_client.generated.input_types import TimingWindowInput
 from rest_framework import serializers
 
 from ._base_gpp import _BaseGPPSerializer

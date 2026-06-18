@@ -6,7 +6,7 @@ __all__ = ["BlackBodySerializer"]
 
 from typing import Any
 
-from gpp_client.api.input_types import UnnormalizedSedInput
+from gpp_client.generated.input_types import UnnormalizedSedInput
 from rest_framework import serializers
 
 from ..._base_gpp import _BaseGPPSerializer

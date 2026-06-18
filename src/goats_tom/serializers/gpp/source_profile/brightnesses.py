@@ -3,8 +3,8 @@ __all__ = ["BrightnessesSerializer"]
 import re
 from typing import Any
 
-from gpp_client.api.enums import Band, BrightnessIntegratedUnits
-from gpp_client.api.input_types import BandBrightnessIntegratedInput
+from gpp_client.generated.enums import Band, BrightnessIntegratedUnits
+from gpp_client.generated.input_types import BandBrightnessIntegratedInput
 from rest_framework import serializers
 
 from .._base_gpp import _BaseGPPSerializer
@@ -17,8 +17,8 @@ class _BrightnessSerializer(serializers.Serializer):
     Notes
     -----
     This serializer is tied to
-    ``gpp_client.api.input_types.BandNormalizedIntegratedInput.`` and will eventually
-    need to support all types of ``SourceProfileInput``.
+    ``gpp_client.generated.input_types.BandNormalizedIntegratedInput.``
+    and will eventually need to support all types of ``SourceProfileInput``.
     """
 
     band = serializers.ChoiceField(choices=[c.value for c in Band])

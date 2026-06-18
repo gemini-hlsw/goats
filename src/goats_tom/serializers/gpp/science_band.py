@@ -2,7 +2,7 @@ __all__ = ["ScienceBandSerializer"]
 
 from typing import Any
 
-from gpp_client.api.enums import ScienceBand
+from gpp_client.generated.enums import ScienceBand
 from rest_framework import serializers
 
 from ._base_gpp import _BaseGPPSerializer

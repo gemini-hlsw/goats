@@ -64,8 +64,8 @@ class GPPStatusMixin(BaseStatusMixin):
         tuple[Status, str]
             A tuple containing the service status and a message.
         """
-        client = GPPClient(token=credentials["token"], env=credentials["env"])
-        reachable, error = async_to_sync(client.is_reachable)()
+        client = GPPClient(token=credentials["token"])
+        reachable, error = async_to_sync(client.ping)()
         if reachable:
             return Status.OK, "GPP service is reachable."
         else:

@@ -77,10 +77,6 @@ def test_run_with_client_returns_result_and_closes_client(mocker):
         "goats_tom.api_views.gpp.finder_chart.GPPClient",
         return_value=fake_client,
     )
-    mocker.patch(
-        "goats_tom.api_views.gpp.finder_chart.settings",
-        SimpleNamespace(GPP_ENV="test"),
-    )
 
     def fake_async_to_sync(async_fn):
         def runner():
@@ -113,10 +109,6 @@ def test_run_with_client_ignores_close_error(mocker):
     mocker.patch(
         "goats_tom.api_views.gpp.finder_chart.GPPClient",
         return_value=fake_client,
-    )
-    mocker.patch(
-        "goats_tom.api_views.gpp.finder_chart.settings",
-        SimpleNamespace(GPP_ENV="test"),
     )
 
     def fake_async_to_sync(async_fn):

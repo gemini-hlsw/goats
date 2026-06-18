@@ -6,7 +6,7 @@ __all__ = ["ExposureModeSerializer"]
 
 from typing import Any
 
-from gpp_client.api.input_types import ExposureTimeModeInput
+from gpp_client.generated.input_types import ExposureTimeModeInput
 from rest_framework import serializers
 
 from goats_tom.serializers.gpp._base_gpp import _BaseGPPSerializer

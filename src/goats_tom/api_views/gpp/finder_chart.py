@@ -1,7 +1,6 @@
 import logging
 
 from asgiref.sync import async_to_sync
-from django.conf import settings
 from django.core.cache import cache
 from gpp_client import GPPClient
 from rest_framework import permissions, status
@@ -74,7 +73,7 @@ class GPPFinderChartViewSet(GenericViewSet):
         """
 
         async def _runner():
-            client = GPPClient(env=settings.GPP_ENV, token=token)
+            client = GPPClient(token=token)
             try:
                 return await coro(client)
             finally:

@@ -6,7 +6,7 @@ __all__ = [
     "InstrumentRegistry",
 ]
 
-from gpp_client.api.enums import ObservingModeType
+from gpp_client.generated.enums import ObservingModeType
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 

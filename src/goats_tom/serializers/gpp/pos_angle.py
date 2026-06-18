@@ -6,8 +6,8 @@ __all__ = ["PosAngleSerializer"]
 
 from typing import Any
 
-from gpp_client.api.enums import PosAngleConstraintMode
-from gpp_client.api.input_types import PosAngleConstraintInput
+from gpp_client.generated.enums import PosAngleConstraintMode
+from gpp_client.generated.input_types import PosAngleConstraintInput
 from rest_framework import serializers
 
 from ._base_gpp import _BaseGPPSerializer

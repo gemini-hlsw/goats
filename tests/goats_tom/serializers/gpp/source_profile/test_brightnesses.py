@@ -1,5 +1,5 @@
 import pytest
-from gpp_client.api.enums import Band, BrightnessIntegratedUnits
+from gpp_client.generated.enums import Band, BrightnessIntegratedUnits
 from rest_framework.exceptions import ValidationError
 
 from goats_tom.serializers.gpp.source_profile.brightnesses import (

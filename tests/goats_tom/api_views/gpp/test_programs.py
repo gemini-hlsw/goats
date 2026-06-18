@@ -27,11 +27,9 @@ class TestGPPProgramViewSet:
 
     def test_list_programs_success(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.programs.GPPClient")
-        mock_director = mocker.patch("goats_tom.api_views.gpp.programs.GPPDirector")
-
-        mock_director.return_value.goats.program.get_all = AsyncMock(
-            return_value=[self.program_data]
-        )
+        mock_result = mocker.Mock()
+        mock_result.model_dump.return_value = {"programs": [self.program_data]}
+        mock_client.return_value.goats.get_programs = AsyncMock(return_value=mock_result)
 
         request = self.factory.get(self.programs_url)
         force_authenticate(request, user=self.user_with_login)
@@ -40,7 +38,7 @@ class TestGPPProgramViewSet:
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data == [self.program_data]
-        mock_director.assert_called_once_with(mock_client.return_value)
+        mock_client.return_value.goats.get_programs.assert_called_once()
 
     def test_list_programs_missing_gpplogin(self):
         request = self.factory.get(self.programs_url)
@@ -56,9 +54,9 @@ class TestGPPProgramViewSet:
 
     def test_retrieve_program_success(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.programs.GPPClient")
-        mock_client.return_value.program.get_by_id = AsyncMock(
-            return_value=self.program_data
-        )
+        mock_result = mocker.Mock()
+        mock_result.model_dump.return_value = {"program": self.program_data}
+        mock_client.return_value.program.get_by_id = AsyncMock(return_value=mock_result)
 
         request = self.factory.get(self.program_detail_url)
         force_authenticate(request, user=self.user_with_login)

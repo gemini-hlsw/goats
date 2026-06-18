@@ -6,7 +6,7 @@ __all__ = ["ElevationRangeSerializer"]
 
 from typing import Any
 
-from gpp_client.api.input_types import ElevationRangeInput
+from gpp_client.generated.input_types import ElevationRangeInput
 from rest_framework import serializers
 
 from ._base_gpp import _BaseGPPSerializer

@@ -1,5 +1,5 @@
 import pytest
-from gpp_client.api.input_types import ElevationRangeInput
+from gpp_client.generated.input_types import ElevationRangeInput
 from rest_framework.exceptions import ValidationError
 
 from goats_tom.serializers.gpp.elevation_range import ElevationRangeSerializer

@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from gpp_client.api.enums import (
+from gpp_client.generated.enums import (
     CloudExtinctionPreset,
     ImageQualityPreset,
     SkyBackground,

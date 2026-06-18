@@ -1,5 +1,5 @@
 import pytest
-from gpp_client.api.enums import ObservationWorkflowState
+from gpp_client.generated.enums import ObservationWorkflowState
 from rest_framework.exceptions import ValidationError
 
 from goats_tom.serializers.gpp import WorkflowStateSerializer

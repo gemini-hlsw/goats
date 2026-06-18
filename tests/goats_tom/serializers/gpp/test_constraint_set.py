@@ -1,11 +1,11 @@
 import pytest
-from gpp_client.api.enums import (
+from gpp_client.generated.enums import (
     CloudExtinctionPreset,
     ImageQualityPreset,
     SkyBackground,
     WaterVapor,
 )
-from gpp_client.api.input_types import ConstraintSetInput
+from gpp_client.generated.input_types import ConstraintSetInput
 
 from goats_tom.serializers.gpp.constraint_set import ConstraintSetSerializer
 
