@@ -6,6 +6,7 @@ class ObservationForm {
   #form;
   #handlers;
   #readOnly;
+  #allowStateEdit;
   #mode;
   #callbacks;
   #schedulingWindowsEditor;
@@ -18,6 +19,8 @@ class ObservationForm {
    * @param {Object=} options.observation - Initial observation data.
    * @param {"normal"|"too"} [options.mode="normal"] - Observation mode.
    * @param {boolean} [options.readOnly=false] - If true, disables all inputs.
+   * @param {boolean} [options.allowStateEdit=false] - If true, keeps the State
+   *   field editable even when the form is read-only.
    */
   constructor(
     parentElement,
@@ -25,12 +28,14 @@ class ObservationForm {
       observation = null,
       mode = "normal",
       readOnly = false,
+      allowStateEdit = false,
       callbacks = {},
     } = {},
   ) {
     this.#container = parentElement;
     this.#form = null;
     this.#readOnly = readOnly;
+    this.#allowStateEdit = allowStateEdit;
     //this.#readOnly = true;
     this.#mode = mode;
     this.#callbacks = callbacks ?? {};
@@ -355,7 +360,7 @@ class ObservationForm {
 
   // Apply read-only state if applicable.
   const isReadOnly =
-    this.#readOnly ||
+    (this.#readOnly && !(this.#allowStateEdit && labelText === "State")) ||
     (typeof readOnly === "string" &&
       (readOnly === "both" || readOnly === this.#mode));
 
@@ -517,6 +522,12 @@ class ObservationForm {
     if (!this.#form) return null;
 
     const formData = new FormData(this.#form);
+
+    // Calibrations are read-only except for the State field, so flag the request
+    // to update only the workflow state on the backend.
+    if (this.#allowStateEdit) {
+      formData.append("isCalibration", "true");
+    }
 
     // timing windows
     const timingWindows = this.#schedulingWindowsEditor.getValues();
