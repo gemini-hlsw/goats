@@ -6,6 +6,15 @@ It exposes the ASGI callable as a module-level variable named ``application``.
 
 import os
 
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "{{ project_name }}.settings")
+
+# Initialize the embedded jdaviz/Solara stack first, before any Django, Channels
+# or GOATS imports, so reacton's IPython initialization runs in a clean context
+# (see goats_tom.jdaviz_asgi.init_solara for why this avoids a startup crash).
+from goats_tom.jdaviz_asgi import init_solara, mount_jdaviz
+
+init_solara()
+
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
@@ -13,14 +22,13 @@ from django.core.asgi import get_asgi_application
 
 from goats_tom.routing import websocket_urlpatterns
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "{{ project_name }}.settings")
 # Initialize Django ASGI application early to ensure the AppRegistry
 # is populated before importing code that may import ORM models.
 django_asgi_app = get_asgi_application()
 
 import goats_tom.routing
 
-application = ProtocolTypeRouter(
+channels_app = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
         "websocket": AllowedHostsOriginValidator(
@@ -28,3 +36,6 @@ application = ProtocolTypeRouter(
         ),
     }
 )
+
+# Serve the embedded jdaviz Specviz viewer (the "Analyze" button) under /jdaviz.
+application = mount_jdaviz(channels_app)

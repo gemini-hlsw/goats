@@ -88,12 +88,12 @@ def test_copy_template_full_structure_normal_recopy(tmp_path, mocker):
         env_dir / "cli.py",
         env_dir / "development.py",
         env_dir / "production.py",
+        module_dir / "asgi.py",
     ]
 
     must_preserve = [
         project_path / "manage.py",
         module_dir / "__init__.py",
-        module_dir / "asgi.py",
         module_dir / "urls.py",
         module_dir / "wsgi.py",
         settings_dir / "generated.py",
