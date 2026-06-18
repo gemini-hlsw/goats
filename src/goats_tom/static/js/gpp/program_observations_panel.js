@@ -241,10 +241,7 @@ class ProgramObservationsPanel {
   onNormalSelect(handler) {
     this.#normalSelect.addEventListener("change", (e) => {
       this.#logDebug(`Normal selected: ${e.target.value}`);
-      // Disable Update button if the selected observation is a calibration.
-      const isCalibration = this.#normalSelect.selectedOptions[0]?.parentElement?.label === "Calibrations";
-      this.#updateButton.disabled = isCalibration;
-      this.#saveButton.disabled = false;
+      this.toggleNormalButtons(false);
       this.toggleTooButtons(true);
       // Reset tooSelect back to placeholder without clearing options.
       this.#tooSelect.selectedIndex = 0;

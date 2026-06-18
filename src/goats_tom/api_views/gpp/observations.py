@@ -555,42 +555,51 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         )
 
         logger.debug("Serializing data for GPP observation update")
+        # Calibrations are read-only except for their workflow state, so their
+        # target/observation serializers and updates are skipped.
+        is_calibration = normalized_data.get("isCalibration")
         client = None
         try:
             # Setup client to communicate with GPP.
             client = GPPClient(token=credentials.token)
 
-            # Validate and extract required IDs for observation update.
-            context_serializer = ContextSerializer(data=normalized_data)
-            context_serializer.is_valid(raise_exception=True)
-            gpp_target_id = context_serializer.gpp_target_id
-            gpp_observation_id = context_serializer.gpp_observation_id
-            gpp_program_id = context_serializer.gpp_program_id
-            goats_target = context_serializer.goats_target
-
-            # Serialize and validate target.
-            target_serializer = TargetSerializer(data=normalized_data)
-            target_serializer.is_valid(raise_exception=True)
-            target_properties = target_serializer.to_pydantic()
-            target_properties.name = (
-                normalized_data.get("titleInput") or goats_target.name
-            )
-            # Serialize and validate observation.
-            observation_serializer = ObservationSerializer(data=normalized_data)
-            observation_serializer.is_valid(raise_exception=True)
-            observation_properties = observation_serializer.to_pydantic()
-
-            # Set subtitle to a GOATS identifier for easier tracking.
-            try:
-                subtitle = f"GOATS:{get_goats_version()}"
-            except Exception:
-                subtitle = "GOATS"
-            observation_properties.subtitle = subtitle
-
-            # Serialize and validate workflow state.
+            # Serialize and validate workflow state (always updated).
             workflow_state_serializer = WorkflowStateSerializer(data=normalized_data)
             workflow_state_serializer.is_valid(raise_exception=True)
             workflow_state = workflow_state_serializer.workflow_state_enum
+
+            if not is_calibration:
+                # Validate and extract required IDs for observation update.
+                context_serializer = ContextSerializer(data=normalized_data)
+                context_serializer.is_valid(raise_exception=True)
+                gpp_target_id = context_serializer.gpp_target_id
+                gpp_observation_id = context_serializer.gpp_observation_id
+                gpp_program_id = context_serializer.gpp_program_id
+                goats_target = context_serializer.goats_target
+
+                # Serialize and validate target.
+                target_serializer = TargetSerializer(data=normalized_data)
+                target_serializer.is_valid(raise_exception=True)
+                target_properties = target_serializer.to_pydantic()
+                target_properties.name = (
+                    normalized_data.get("titleInput") or goats_target.name
+                )
+                # Serialize and validate observation.
+                observation_serializer = ObservationSerializer(data=normalized_data)
+                observation_serializer.is_valid(raise_exception=True)
+                observation_properties = observation_serializer.to_pydantic()
+
+                # Set subtitle to a GOATS identifier for easier tracking.
+                try:
+                    subtitle = f"GOATS:{get_goats_version()}"
+                except Exception:
+                    subtitle = "GOATS"
+                observation_properties.subtitle = subtitle
+            else:
+                # Only the observation ID is needed to update the workflow state.
+                gpp_observation_id = normalized_data.get("hiddenObservationIdInput")
+                if not gpp_observation_id:
+                    raise ValueError("Missing observation ID for calibration update.")
 
             messages.append(
                 StageMessage(
@@ -603,92 +612,98 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         except Exception as e:
             return build_failure_response(Stage.VALIDATION, e, messages)
 
-        # Update target.
-        logger.debug("Updating sidereal target in GPP")
-        try:
-            update_target_result = async_to_sync(client.target.update_by_id)(
-                gpp_target_id, properties=target_properties
-            )
-            update_target_dump = update_target_result.model_dump(by_alias=True)
-            targets = update_target_dump.get("updateTargets", {}).get("targets", [])
-            updated_target_id = targets[0].get("id") if targets else None
+        # Calibrations only update the workflow state; skip target/observation.
+        if not is_calibration:
+            # Update target.
+            logger.debug("Updating sidereal target in GPP")
+            try:
+                update_target_result = async_to_sync(client.target.update_by_id)(
+                    gpp_target_id, properties=target_properties
+                )
+                update_target_dump = update_target_result.model_dump(by_alias=True)
+                targets = update_target_dump.get("updateTargets", {}).get("targets", [])
+                updated_target_id = targets[0].get("id") if targets else None
 
-            if updated_target_id is None:
-                raise ValueError(
-                    "Failed to retrieve updated target ID from update result."
+                if updated_target_id is None:
+                    raise ValueError(
+                        "Failed to retrieve updated target ID from update result."
+                    )
+
+                messages.append(
+                    StageMessage(
+                        stage=Stage.UPDATE_TARGET,
+                        status=MessageStatus.SUCCESS,
+                        message=f"Target updated successfully as {updated_target_id}.",
+                    )
                 )
 
-            messages.append(
-                StageMessage(
-                    stage=Stage.UPDATE_TARGET,
-                    status=MessageStatus.SUCCESS,
-                    message=f"Target updated successfully as {updated_target_id}.",
+            except Exception as e:
+                # Continue to observation update even if target update fails.
+                messages.append(
+                    StageMessage(
+                        stage=Stage.UPDATE_TARGET,
+                        status=MessageStatus.ERROR,
+                        message=str(e),
+                    )
                 )
-            )
 
-        except Exception as e:
-            # Continue to observation update even if target update fails.
-            messages.append(
-                StageMessage(
-                    stage=Stage.UPDATE_TARGET,
-                    status=MessageStatus.ERROR,
-                    message=str(e),
-                )
-            )
+            # Update observation.
+            logger.debug("Updating observation in GPP")
+            try:
+                finder_charts = normalized_data.get("finderCharts") or {}
 
-        # Update observation.
-        logger.debug("Updating observation in GPP")
-        try:
-            finder_charts = normalized_data.get("finderCharts") or {}
+                if finder_charts.get("toAdd") or finder_charts.get("toDelete"):
+                    finder_chart_ids = self._process_finder_charts(
+                        client=client,
+                        observation_id=gpp_observation_id,
+                        program_id=gpp_program_id,
+                        finder_charts=finder_charts,
+                    )
+                    observation_properties.attachments = finder_chart_ids
 
-            if finder_charts.get("toAdd") or finder_charts.get("toDelete"):
-                finder_chart_ids = self._process_finder_charts(
-                    client=client,
+                # where = WhereObservation(id=WhereOrderObservationId
+                # (eq=gpp_observation_id))
+                update_observation_result = async_to_sync(
+                    client.observation.update_by_id
+                )(
                     observation_id=gpp_observation_id,
-                    program_id=gpp_program_id,
-                    finder_charts=finder_charts,
+                    properties=observation_properties,
                 )
-                observation_properties.attachments = finder_chart_ids
-
-            # where = WhereObservation(id=WhereOrderObservationId
-            # (eq=gpp_observation_id))
-            update_observation_result = async_to_sync(client.observation.update_by_id)(
-                observation_id=gpp_observation_id, properties=observation_properties
-            )
-            update_observation_dump = update_observation_result.model_dump(
-                by_alias=True
-            )
-            observations_list = update_observation_dump.get(
-                "updateObservations", {}
-            ).get("observations", [])
-            updated_observation_id = (
-                observations_list[0].get("id") if observations_list else None
-            )
-
-            if updated_observation_id is None:
-                raise ValueError(
-                    "Failed to retrieve updated observation ID from update result."
+                update_observation_dump = update_observation_result.model_dump(
+                    by_alias=True
+                )
+                observations_list = update_observation_dump.get(
+                    "updateObservations", {}
+                ).get("observations", [])
+                updated_observation_id = (
+                    observations_list[0].get("id") if observations_list else None
                 )
 
-            messages.append(
-                StageMessage(
-                    stage=Stage.UPDATE_OBSERVATION,
-                    status=MessageStatus.SUCCESS,
-                    message=(
-                        f"Observation updated successfully as {updated_observation_id}."
-                    ),
-                )
-            )
+                if updated_observation_id is None:
+                    raise ValueError(
+                        "Failed to retrieve updated observation ID from update result."
+                    )
 
-        except Exception as e:
-            # Continue to workflow state update even if observation update fails.
-            messages.append(
-                StageMessage(
-                    stage=Stage.UPDATE_OBSERVATION,
-                    status=MessageStatus.ERROR,
-                    message=str(e),
+                messages.append(
+                    StageMessage(
+                        stage=Stage.UPDATE_OBSERVATION,
+                        status=MessageStatus.SUCCESS,
+                        message=(
+                            "Observation updated successfully as "
+                            f"{updated_observation_id}."
+                        ),
+                    )
                 )
-            )
+
+            except Exception as e:
+                # Continue to workflow state update even if observation update fails.
+                messages.append(
+                    StageMessage(
+                        stage=Stage.UPDATE_OBSERVATION,
+                        status=MessageStatus.ERROR,
+                        message=str(e),
+                    )
+                )
 
         # Set workflow state.
         logger.debug("Setting workflow state for updated GPP observation")
