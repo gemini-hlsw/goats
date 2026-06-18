@@ -105,7 +105,7 @@ class ToastManager {
 
     const text = document.createElement("p");
     text.classList.add("mb-0");
-    text.textContent = String(message ?? "");
+    text.innerHTML = message;
     body.appendChild(text);
 
     toast.appendChild(header);
