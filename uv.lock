@@ -1292,8 +1292,8 @@ wheels = [
 
 [[package]]
 name = "dragons"
-version = "4.2.1"
-source = { git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.2.1#7c38668b1730cb69f20cf95357d04be20419f334" }
+version = "4.2.2"
+source = { git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.2.2#fe6429fe656e42a9b7837c18336600d77452db33" }
 dependencies = [
     { name = "asdf" },
     { name = "astropy" },
@@ -1734,7 +1734,7 @@ docs = [
     { name = "sphinxcontrib-video", specifier = ">=0.4.2" },
 ]
 github = [
-    { name = "dragons", git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.2.1" },
+    { name = "dragons", git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.2.2" },
     { name = "fits-storage", git = "https://github.com/GeminiDRSoftware/FitsStorage?tag=v3.5.2" },
 ]
 notebook = [{ name = "ipykernel", specifier = ">=7.3.0" }]
