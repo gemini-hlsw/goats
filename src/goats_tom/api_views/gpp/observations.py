@@ -831,8 +831,9 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             target_serializer = TargetSerializer(data=normalized_data)
             target_serializer.is_valid(raise_exception=True)
             target_properties = target_serializer.to_pydantic()
-            target_properties.name = goats_target.name
-
+            target_properties.name = (
+                normalized_data.get("titleInput") or goats_target.name
+            )
             # Serialize and validate observation.
             observation_serializer = ObservationSerializer(data=normalized_data)
             observation_serializer.is_valid(raise_exception=True)

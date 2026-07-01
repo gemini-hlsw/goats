@@ -9,6 +9,7 @@ class ObservationForm {
   #allowStateEdit;
   #mode;
   #callbacks;
+  #target;
   #schedulingWindowsEditor;
   #finderChartEditor;
 
@@ -21,6 +22,8 @@ class ObservationForm {
    * @param {boolean} [options.readOnly=false] - If true, disables all inputs.
    * @param {boolean} [options.allowStateEdit=false] - If true, keeps the State
    *   field editable even when the form is read-only.
+   * @param {Object=} options.target - Selected target info ({name, ra, dec}) used
+   *   by override fields to display the target's value when locked.
    */
   constructor(
     parentElement,
@@ -29,6 +32,7 @@ class ObservationForm {
       mode = "normal",
       readOnly = false,
       allowStateEdit = false,
+      target = null,
       callbacks = {},
     } = {},
   ) {
@@ -38,6 +42,7 @@ class ObservationForm {
     this.#allowStateEdit = allowStateEdit;
     //this.#readOnly = true;
     this.#mode = mode;
+    this.#target = target ?? {};
     this.#callbacks = callbacks ?? {};
 
     // Register special handlers like brightness, sourceProfile etc.
@@ -309,182 +314,234 @@ class ObservationForm {
     return { header, body };
   }
   /**
- * Create a form field from metadata.
- * @param {Object} field - Field configuration metadata.
- * @param {string} field.id - Field ID.
- * @param {*} field.value - Initial field value.
- * @param {string=} field.labelText - Field label.
- * @param {string=} field.prefix - Optional prefix text.
- * @param {string=} field.suffix - Optional suffix text.
- * @param {string=} field.element - Element type: input, textarea, or select.
- * @param {string=} field.type - Input type (e.g., "number", "text").
- * @param {string=} field.colSize - Bootstrap column class.
- * @param {string=} field.readOnly - Whether the field is read-only in what mode.
- * @param {boolean=} field.hasOverride - If true, field has a toggle button next to
- *     the label. When unlocked, the value is editable and sent to the serializer.
- *     When locked, the value is empty and the serializer falls back to the target value.
- * @param {string=} field.overridePlaceholder - Placeholder shown when field is locked.
- *     E.g. "Using selected target's RA".
- * @param {Array<string|{labelText: string, value: string}>=} field.options - Options for a
- * select element.
- * @returns {!HTMLElement}
- * @private
- */
-#createFormField({
-  id,
-  value = "",
-  labelText = null,
-  prefix = null,
-  suffix = null,
-  element = "input",
-  type = "text",
-  colSize = "col-md-6",
-  readOnly = undefined,
-  hasOverride = false,
-  overridePlaceholder = "Using selected target's value",
-  options = [],
-}) {
-  const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
+   * Create a form field from metadata.
+   * @param {Object} field - Field configuration metadata.
+   * @param {string} field.id - Field ID.
+   * @param {*} field.value - Initial field value.
+   * @param {string=} field.labelText - Field label.
+   * @param {string=} field.prefix - Optional prefix text.
+   * @param {string=} field.suffix - Optional suffix text.
+   * @param {string=} field.element - Element type: input, textarea, or select.
+   * @param {string=} field.type - Input type (e.g., "number", "text").
+   * @param {string=} field.colSize - Bootstrap column class.
+   * @param {string=} field.readOnly - Whether the field is read-only in what mode.
+   * @param {boolean=} field.hasOverride - If true, field has a "target" (bullseye)
+   *     button inside the input group. When active (locked), the field shows the
+   *     selected target's value but stays disabled, so it is not submitted and the
+   *     serializer falls back to the target value. When inactive, the value is
+   *     editable and the custom value is submitted.
+   * @param {string=} field.overridePlaceholder - Placeholder shown when field is locked.
+   *     E.g. "Using selected target's RA".
+   * @param {string=} field.lockOverrideInMode - Mode ("normal", "too", or "both") in which
+   *     the override starts locked (using the target's value). The toggle still lets the
+   *     user unlock to edit and lock again.
+   * @param {string=} field.targetValueKey - Key into the form's target info
+   *     ({name, ra, dec}) whose value is displayed while the override is locked.
+   * @param {Array<string|{labelText: string, value: string}>=} field.options - Options for a
+   * select element.
+   * @returns {!HTMLElement}
+   * @private
+   */
+  #createFormField({
+    id,
+    value = "",
+    labelText = null,
+    prefix = null,
+    suffix = null,
+    element = "input",
+    type = "text",
+    colSize = "col-md-6",
+    readOnly = undefined,
+    hasOverride = false,
+    overridePlaceholder = "Using selected target's value",
+    lockOverrideInMode = undefined,
+    targetValueKey = undefined,
+    options = [],
+  }) {
+    const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
 
-  // Handle creating a hidden input and return early to avoid breaking layout.
-  if (type === "hidden") {
-    const input = Utils.createElement("input");
-    input.type = type;
-    input.id = elementId;
-    input.name = elementId;
-    input.value = value;
-    return input;
-  }
+    // The selected target's value shown while the override is locked.
+    const targetValue = targetValueKey
+      ? (this.#target?.[targetValueKey] ?? "")
+      : "";
 
-  const col = Utils.createElement("div", [colSize]);
-
-  // Apply read-only state if applicable.
-  const isReadOnly =
-    (this.#readOnly && !(this.#allowStateEdit && labelText === "State")) ||
-    (typeof readOnly === "string" &&
-      (readOnly === "both" || readOnly === this.#mode));
-
-  // Create label (with toggle button if hasOverride).
-  if (labelText) {
-    const labelWrapper = Utils.createElement("div", [
-      "d-flex",
-      "align-items-center",
-      "gap-2",
-      "mb-1",
-    ]);
-    const label = Utils.createElement("label", ["form-label", "mb-0"]);
-    label.htmlFor = elementId;
-    label.textContent = labelText;
-    labelWrapper.append(label);
-
-    // Toggle button next to label (if hasOverride and not readOnly).
-    if (hasOverride && !isReadOnly) {
-      const toggleBtn = Utils.createElement("button", [
-        "btn",
-        "btn-sm",
-        "btn-link",
-        "px-1",
-      ]);
-      toggleBtn.type = "button";
-      toggleBtn.id = `${elementId}Toggle`;
-      // Initial state: editable (custom).
-      toggleBtn.dataset.locked = "false";
-      toggleBtn.title = "Switch to use target's value";
-      toggleBtn.innerHTML = `<i class="fa-solid fa-right-left"></i>`;
-      labelWrapper.append(toggleBtn);
+    // Handle creating a hidden input and return early to avoid breaking layout.
+    if (type === "hidden") {
+      const input = Utils.createElement("input");
+      input.type = type;
+      input.id = elementId;
+      input.name = elementId;
+      input.value = value;
+      return input;
     }
 
-    col.append(labelWrapper);
-  }
+    const col = Utils.createElement("div", [colSize]);
 
-  // Create form control.
-  let control;
-  if (element === "textarea") {
-    control = Utils.createElement("textarea", ["form-control"]);
-    control.rows = 3;
-    control.value = value;
-  } else if (element === "input") {
-    control = Utils.createElement("input", ["form-control"]);
-    control.type = type;
-    if (control.type === "number") {
-      control.step = "any"; // Allow decimals.
+    // Apply read-only state if applicable.
+    const isReadOnly =
+      (this.#readOnly && !(this.#allowStateEdit && labelText === "State")) ||
+      (typeof readOnly === "string" &&
+        (readOnly === "both" || readOnly === this.#mode));
+
+    // Whether the override should start locked (using the target's value) for the
+    // current mode. The toggle still lets the user unlock and re-lock afterwards.
+    const startLocked =
+      hasOverride &&
+      !isReadOnly &&
+      typeof lockOverrideInMode === "string" &&
+      (lockOverrideInMode === "both" || lockOverrideInMode === this.#mode);
+
+    // Create label (the override toggle lives inside the input group instead).
+    if (labelText) {
+      const label = Utils.createElement("label", ["form-label", "mb-1"]);
+      label.htmlFor = elementId;
+      label.textContent = labelText;
+      col.append(label);
     }
-    control.value = value;
-  } else if (element === "select") {
-    control = Utils.createElement("select", ["form-select"]);
-    options.forEach((opt) => {
-      const optionEl = Utils.createElement("option");
-      if (typeof opt === "string") {
-        optionEl.value = opt;
-        optionEl.textContent = opt;
-      } else {
-        optionEl.value = opt.value;
-        optionEl.textContent = opt.labelText;
-        if (opt.disabled) {
-          optionEl.disabled = true;
+
+    // Create form control.
+    let control;
+    if (element === "textarea") {
+      control = Utils.createElement("textarea", ["form-control"]);
+      control.rows = 3;
+      control.value = value;
+    } else if (element === "input") {
+      control = Utils.createElement("input", ["form-control"]);
+      control.type = type;
+      if (control.type === "number") {
+        control.step = "any"; // Allow decimals.
+      }
+      control.value = value;
+    } else if (element === "select") {
+      control = Utils.createElement("select", ["form-select"]);
+      options.forEach((opt) => {
+        const optionEl = Utils.createElement("option");
+        if (typeof opt === "string") {
+          optionEl.value = opt;
+          optionEl.textContent = opt;
+        } else {
+          optionEl.value = opt.value;
+          optionEl.textContent = opt.labelText;
+          if (opt.disabled) {
+            optionEl.disabled = true;
+          }
         }
-      }
-      if (optionEl.value === value) {
-        optionEl.selected = true;
-      }
-      control.appendChild(optionEl);
-    });
-  } else {
-    console.error("Unsupported element:", element);
+        if (optionEl.value === value) {
+          optionEl.selected = true;
+        }
+        control.appendChild(optionEl);
+      });
+    } else {
+      console.error("Unsupported element:", element);
+      return col;
+    }
+
+    control.id = elementId;
+    control.name = elementId;
+    control.disabled = isReadOnly;
+
+    // Override toggle: a "target" (bullseye) button inside the input group that
+    // switches the field between the selected target's value and a custom value.
+    let overrideButton = null;
+    if (hasOverride && !isReadOnly) {
+      overrideButton = this.#createOverrideToggle(control, {
+        elementId,
+        targetValue,
+        value,
+        overridePlaceholder,
+        startLocked,
+      });
+    }
+
+    // Wrap and append.
+    col.append(
+      this.#wrapWithGroup(control, { prefix, suffix, overrideButton }),
+    );
     return col;
   }
 
-  control.id = elementId;
-  control.name = elementId;
-  control.disabled = isReadOnly;
+  /**
+   * Create the "target" (bullseye) override toggle for a field.
+   *
+   * The returned button is rendered as the leading input-group addon. When active
+   * (locked) the control shows the selected target's value but stays disabled, so
+   * it is not submitted and the serializer falls back to the target value; when
+   * inactive the control is editable with a custom value.
+   *
+   * @param {HTMLElement} control - The field's input/textarea control.
+   * @param {Object} options
+   * @param {string} options.elementId - The control's DOM id (used for the button id).
+   * @param {string} options.targetValue - The selected target's value shown when locked.
+   * @param {string} options.value - The custom value restored when unlocked.
+   * @param {string} options.overridePlaceholder - Placeholder shown while locked.
+   * @param {boolean} options.startLocked - Whether the toggle starts locked.
+   * @returns {!HTMLElement} The toggle button.
+   * @private
+   */
+  #createOverrideToggle(
+    control,
+    { elementId, targetValue, value, overridePlaceholder, startLocked },
+  ) {
+    // Styled as an input-group addon (not a full button); only the bullseye icon
+    // changes color: primary when active, secondary when inactive.
+    const button = Utils.createElement("button", ["input-group-text"]);
+    button.type = "button";
+    button.id = `${elementId}Toggle`;
+    button.innerHTML = `<i class="fa-solid fa-location-crosshairs fa-lg"></i>`;
 
-  // Wire toggle button if hasOverride.
-  if (hasOverride && !isReadOnly) {
-    const toggleBtn = col.querySelector(`#${elementId}Toggle`);
-    toggleBtn?.addEventListener("click", () => {
-      const isLocked = toggleBtn.dataset.locked === "true";
-      if (isLocked) {
-        // Switch to custom: enable input and restore value.
+    // Keep the target's value legible while the field is disabled: `.text-body`
+    // uses `!important`, overriding the faded `:disabled` color from the theme.
+
+    const applyLocked = (locked) => {
+      button.dataset.locked = locked ? "true" : "false";
+      // FontAwesome swaps the <i> for an <svg> (fill: currentColor), so set the
+      // color on the button itself and let the icon inherit it.
+      button.classList.toggle("text-primary", locked);
+      button.classList.toggle("text-secondary", !locked);
+      if (locked) {
+        // Use the target's value: show it but keep the input disabled so it is
+        // not submitted and the serializer falls back to the target value.
+        control.disabled = true;
+        control.placeholder = overridePlaceholder;
+        control.value = targetValue;
+        button.title =
+          "Using the target's value. Click to enter a custom value.";
+      } else {
+        // Use a custom value: restore the editable value.
         control.disabled = false;
         control.placeholder = "";
         control.value = value;
-        toggleBtn.dataset.locked = "false";
-        toggleBtn.title = "Switch to use target's value";
-        toggleBtn.innerHTML = `<i class="fa-solid fa-right-left"></i>`;
-        toggleBtn.classList.remove("text-secondary");
-        toggleBtn.classList.add("text-primary");
-        control.focus();
-      } else {
-        // Switch to target: clear and disable input.
-        control.disabled = true;
-        control.placeholder = overridePlaceholder;
-        control.value = "";
-        toggleBtn.dataset.locked = "true";
-        toggleBtn.title = "Switch to custom value";
-        toggleBtn.innerHTML = `<i class="fa-solid fa-right-left"></i>`;
-        toggleBtn.classList.remove("text-primary");
-        toggleBtn.classList.add("text-secondary");
+        button.title = "Using a custom value. Click to use the target's value.";
       }
+    };
+
+    applyLocked(startLocked);
+
+    button.addEventListener("click", () => {
+      const wasLocked = button.dataset.locked === "true";
+      applyLocked(!wasLocked);
+      if (wasLocked) control.focus();
     });
+
+    return button;
   }
 
-  // Wrap and append.
-  col.append(this.#wrapWithGroup(control, { prefix, suffix }));
-  return col;
-}
-    /**
+  /**
    * Wrap form control in input group for prefix/suffix.
    * @param {HTMLElement} control - Form control.
    * @param {Object} options
    * @param {string=} options.prefix - Prefix text.
    * @param {string=} options.suffix - Suffix text.
+   * @param {HTMLElement=} options.overrideButton - Optional "target" toggle button
+   *     rendered as the leading input-group addon.
    * @returns {HTMLElement}
    * @private
    */
-  #wrapWithGroup(control, { prefix, suffix }) {
-    if (!prefix && !suffix) return control;
+  #wrapWithGroup(control, { prefix, suffix, overrideButton = null }) {
+    if (!prefix && !suffix && !overrideButton) return control;
 
     const group = Utils.createElement("div", ["input-group"]);
+    if (overrideButton) group.append(overrideButton);
     if (prefix) {
       const pre = Utils.createElement("span", ["input-group-text"]);
       pre.textContent = prefix;

@@ -432,6 +432,7 @@ class GPPView {
       mode: "normal",
       readOnly: isCalibration || isLocked,
       allowStateEdit: isCalibration && !isLocked,
+      target: this.#targetInfo(),
       callbacks: this.#buildObservationFormCallbacks(),
     });
   }
@@ -447,8 +448,23 @@ class GPPView {
       observation: observation,
       mode: "too",
       readOnly: false,
+      target: this.#targetInfo(),
       callbacks: this.#buildObservationFormCallbacks(),
     });
+  }
+
+  /**
+   * Build the target info (name and coordinates) exposed to the form so locked
+   * override fields can display the real target value.
+   * @returns {{name: string, ra: string, dec: string}}
+   * @private
+   */
+  #targetInfo() {
+    return {
+      name: this.#options.targetName,
+      ra: this.#options.targetRa,
+      dec: this.#options.targetDec,
+    };
   }
 
   /**
@@ -1065,6 +1081,9 @@ class GPP {
       userId: dataset.userId,
       facility: dataset.facility,
       targetId: dataset.targetId,
+      targetName: dataset.targetName,
+      targetRa: dataset.targetRa,
+      targetDec: dataset.targetDec,
     };
     this.#model = new GPPModel(this.#options);
     this.#template = new GPPTemplate(this.#options);
