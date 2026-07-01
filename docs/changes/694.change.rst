@@ -1,0 +1,1 @@
+Made the Name field editable in TOO creation in the GPP app and improved visual representation with icons for better clarity.
