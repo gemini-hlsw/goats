@@ -42,7 +42,7 @@
       </li>
     </ul>
     <div class="tab-content">
-      <div id="gppContainer" class="mt-4" data-user-id="{{ user.id }}" data-facility="{{ form.facility.value }}" data-target-id="{{ target.id }}"></div>
+      <div id="gppContainer" class="mt-4" data-user-id="{{ user.id }}" data-facility="{{ form.facility.value }}" data-target-id="{{ target.id }}" data-target-name="{{ target.name }}"{% if target.ra is not None %} data-target-ra="{{ target.ra|deg_to_sexigesimal:'hms' }}"{% endif %}{% if target.dec is not None %} data-target-dec="{{ target.dec|deg_to_sexigesimal:'dms' }}"{% endif %}></div>
     </div>
     {% else %}
     <ul class="nav nav-tabs" id="tabs">
