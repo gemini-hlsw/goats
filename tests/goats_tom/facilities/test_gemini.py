@@ -124,5 +124,5 @@ class TestGOATSGEMFacility:
 
         result = self.facility.get_observation_status("G-2024A-Q-100-1")
 
-        assert result["state"] == "Unknown"
+        assert result["state"] == "Error"
         assert result["parameters"] == {}
