@@ -1,0 +1,1 @@
+Fixed Gemini observation status to correctly display as observed when data files are present, removing the previous Unknown status workaround
