@@ -29,10 +29,9 @@ from goats_tom.utils import is_gpp_id, is_ocs_id
 
 logger = logging.getLogger(__name__)
 
-
 TERMINAL_OBSERVING_STATES = ["TRIGGERED", "ON_HOLD"]
 GOA_OBSERVING_STATES = ["observed", "ongoing", "completed"]
-
+GOA_JSONLIST_URL = "https://archive.gemini.edu/jsonfilelist/"
 # Units of flux and wavelength for converting to Specutils Spectrum1D objects
 FLUX_CONSTANT = (1 * u.erg) / (u.cm**2 * u.second * u.angstrom)
 WAVELENGTH_UNITS = u.angstrom
@@ -225,7 +224,8 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
             record.parameters = {**record.parameters, **status["parameters"]}
             record.save()
 
-    def get_observation_status(self, observation_id):
+    def get_observation_status(self, observation_id: str) -> dict[str, Any]:
+        """Fetch the workflow status for a Gemini (GPP or OCS) observation."""
         parameters: dict[str, Any] = {}
         try:
             # Here we need to either query the OCS or GPP to get the status.
@@ -233,18 +233,20 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
                 # For GPP, we use the observationWorkflow.
                 # The download button should be enabled for ONGOING or COMPLETED.
                 logger.debug("Fetching observation status from GPP.")
+
                 # Make sure user is provided.
                 uid = get_current_user_id()
                 if uid is None:
-                    raise Exception(
+                    raise PermissionError(
                         "User context required to fetch observation status."
                     )
+
                 # Get GPP credentials from user profile.
                 UserModel = get_user_model()
                 try:
                     user = UserModel.objects.select_related("gpplogin").get(pk=uid)
-                except UserModel.DoesNotExist:
-                    raise Exception(f"User {uid} does not exist")
+                except UserModel.DoesNotExist as exc:
+                    raise LookupError(f"User {uid} does not exist") from exc
 
                 credentials = user.gpplogin
                 # Create GPP client.
@@ -254,26 +256,40 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
                 )(observation_reference=observation_id).model_dump(by_alias=True)[
                     "observation"
                 ]
-                state = workflow_state_summary["workflow"]["value"]["state"]
-                # Save parameters needed for building Explore URL.
-                parameters["gpp_id"] = workflow_state_summary["id"]
-                parameters["gpp_program_id"] = workflow_state_summary["program"]["id"]
-                state = ObservationWorkflowState(state).value.capitalize()
+
+                if workflow_state_summary is None:
+                    # No workflow state from GPP (no access or no workflow yet).
+                    # Fall back to the archive to see if data products exist.
+                    logger.info(
+                        "GPP returned no workflow state for %s; checking the archive.",
+                        observation_id,
+                    )
+                    state = self._state_from_archive(observation_id)
+                else:
+                    state = workflow_state_summary["workflow"]["value"]["state"]
+                    # Save parameters needed for building Explore URL.
+                    parameters["gpp_id"] = workflow_state_summary["id"]
+                    parameters["gpp_program_id"] = workflow_state_summary["program"][
+                        "id"
+                    ]
+                    state = ObservationWorkflowState(state).value.capitalize()
 
             elif is_ocs_id(observation_id):
                 logger.debug("Fetching observation status from OCS.")
                 observation_summary = ocs_client.get_observation_summary(observation_id)
                 if not observation_summary["success"]:
-                    raise Exception(f"{observation_summary['error']}")
+                    raise RuntimeError(observation_summary["error"])
                 state = observation_summary["data"]["status"]
+
             else:
-                logger.info(f"Skipping not a GEMINI observation ID: {observation_id}")
+                logger.info("Skipping non-Gemini observation ID: %s", observation_id)
                 state = "Error"
+
         except Exception:
             logger.exception(
                 "Encountered an error fetching observation %s", observation_id
             )
-            state = "Unknown"
+            state = "Error"
 
         return {
             "state": state,
@@ -281,6 +297,31 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
             "scheduled_end": None,
             "parameters": parameters,
         }
+
+    def _state_from_archive(self, observation_id: str) -> str:
+        """Return an observing state by checking if the GOA has data for the ID.
+
+        Used as a fallback when GPP returns no workflow state. Answers a different
+        question than GPP ("are there data products?"), not the workflow state.
+        """
+        try:
+            response = requests.get(f"{GOA_JSONLIST_URL}{observation_id}", timeout=5)
+            response.raise_for_status()
+            files_list = response.json()
+        except requests.RequestException:
+            logger.exception("Archive lookup failed for %s", observation_id)
+            return "Error"
+
+        if files_list:
+            logger.info(
+                "Found %d data product(s) in the archive for %s.",
+                len(files_list),
+                observation_id,
+            )
+            return GOA_OBSERVING_STATES[0].capitalize()
+
+        logger.info("No data products found in the archive for %s.", observation_id)
+        return "Error"
 
     def get_flux_constant(self) -> u:
         """Returns the astropy quantity that a facility uses for its spectral flux
