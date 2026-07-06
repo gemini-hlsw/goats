@@ -3,6 +3,26 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.7.0 (2026-07-06)
+===========================
+
+Changes
+-------
+
+- Added support for changing calibration status to triggering in GPP (`PR #684 <https://github.com/gemini-hlsw/goats/pull/684>`_)
+- Upgraded Dragons to 4.2.2 (`PR #686 <https://github.com/gemini-hlsw/goats/pull/686>`_)
+- Made the Name field editable in TOO creation in the GPP app and improved visual representation with icons for better clarity. (`PR #694 <https://github.com/gemini-hlsw/goats/pull/694>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed a potential client-side cross-site scripting (XSS) vulnerability (code scanning alert #19) (`PR #678 <https://github.com/gemini-hlsw/goats/pull/678>`_)
+- Fixed a potential client-side cross-site scripting (XSS) vulnerability (code scanning alert #20) (`PR #679 <https://github.com/gemini-hlsw/goats/pull/679>`_)
+- Fixed broken toast messages (`PR #687 <https://github.com/gemini-hlsw/goats/pull/687>`_)
+- Fixed Gemini observation status to correctly display as observed when data files are present, removing the previous Unknown status workaround (`PR #695 <https://github.com/gemini-hlsw/goats/pull/695>`_)
+
+
 Version 26.6.0 (2026-06-12)
 ===========================
 
