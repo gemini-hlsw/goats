@@ -23,6 +23,11 @@ from goats_tom.antares_client.config import ANTARESConfig
 
 logger = logging.getLogger(__name__)
 
+SURVEY_LABELS = {
+    "lsst": "RUBIN",
+    "ztf": "P48-ZTF",
+}
+
 
 class ANTARESBrokerForm(GenericQueryForm):
     """A Django form class.
@@ -401,12 +406,17 @@ class ANTARESBroker(GenericBroker):
         lightcurve["limit"] = lightcurve["limit"].where(lightcurve["magnitude"].isna())
 
         try:
-            survey = alert_dict.get("properties", {}).get("survey", {})
-            telescope = list(survey.keys())[0].upper()
-            lightcurve["telescope"] = telescope
+            surveys_dict = alert_dict.get("properties", {}).get("survey", {})
+            surveys = list(surveys_dict.keys())
+            lightcurve["telescope"] = "UNKNOWN"
+            for s in surveys:
+                mask = lightcurve["alert_id"].str.startswith(s)
+                lightcurve.loc[mask, "telescope"] = SURVEY_LABELS.get(s, s.upper())
+                lightcurve.loc[mask, "filter"] = (
+                    lightcurve.loc[mask, "filter"] + "-" + s.upper()
+                )
         except Exception:
             logger.exception("ANTARES: failed to extract telescope")
-            lightcurve["telescope"] = "UNKNOWN"
 
         lightcurve["source"] = "ANTARES"
 

@@ -181,6 +181,7 @@ def test_process_lightcurve_data_success(broker):
     alert = {
         "lightcurve": [
             {
+                "alert_id": "ztf_192823",
                 "ant_mjd": 60000.0,
                 "ant_mag": 18.2,
                 "ant_magerr": 0.1,
@@ -192,16 +193,22 @@ def test_process_lightcurve_data_success(broker):
     }
 
     df = broker.process_lightcurve_data(alert=alert)
-
     assert df is not None
     assert "magnitude" in df.columns
     assert (df["source"] == "ANTARES").all()
-    assert (df["telescope"] == "ZTF").all()
+    assert (df["telescope"] == "P48-ZTF").all()
 
 
 def test_process_lightcurve_data_telescope_unknown(broker):
     alert = {
-        "lightcurve": [{"ant_mjd": 1.0, "ant_mag": 18.0, "ant_maglim": 19}],
+        "lightcurve": [
+            {
+                "alert_id": "adskhj_192823",
+                "ant_mjd": 1.0,
+                "ant_mag": 18.0,
+                "ant_maglim": 19,
+            }
+        ],
         "properties": {},
     }
 
