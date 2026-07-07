@@ -1,0 +1,1 @@
+Fixed telescope name and added filter suffix for LSST and ZTF data ingested from ANTARES
