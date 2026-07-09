@@ -90,6 +90,27 @@ def _mock_workflow_state_result(
             },
         ),
         (
+            # Exceptions raised without a message (e.g. httpx.ReadTimeout) must
+            # fall back to repr() instead of producing an empty message.
+            Stage.CREATE_OBSERVATION,
+            Exception(),
+            [],
+            None,
+            status.HTTP_400_BAD_REQUEST,
+            ResponseStatus.FAILURE,
+            {
+                "status": "Failure",
+                "messages": [
+                    {
+                        "stage": "Create Observation",
+                        "status": "Error",
+                        "message": "Exception()",
+                    }
+                ],
+                "data": {},
+            },
+        ),
+        (
             Stage.UPDATE_TARGET,
             "Target update failed",
             [
