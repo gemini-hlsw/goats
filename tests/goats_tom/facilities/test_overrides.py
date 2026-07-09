@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from goats_tom.context.user_context import user_id_context, get_current_user_id
 from goats_tom.facilities.overrides import (
+    InferDataProductTypeMixin,
     UserAwareLCOSettings,
     UserAwareFacilityMixin,
 )
@@ -164,3 +165,48 @@ def test_explicit_facility_settings_not_overridden():
 
     assert form.facility_settings is custom_settings
 
+
+class DummySaveDataProductsBase:
+    """
+    Minimal stub of a Facility whose save_data_products returns preset products.
+    """
+
+    def __init__(self, products):
+        self.products = products
+
+    def save_data_products(self, observation_record, product_id=None):
+        return self.products
+
+
+class DummyTypedFacility(InferDataProductTypeMixin, DummySaveDataProductsBase):
+    pass
+
+
+def _dp(name, data_product_type=""):
+    dp = MagicMock()
+    dp.data.name = name
+    dp.data_product_type = data_product_type
+    return dp
+
+
+@pytest.mark.parametrize(
+    "name, preset, expected_type, expect_save",
+    [
+        ("obs.fits", "", "fits_file", True),
+        ("obs.fits.fz", "", "fits_file", True),
+        ("lightcurve.csv", "", "", False),
+        ("obs.fits", "spectroscopy", "spectroscopy", False),
+    ],
+)
+def test_infer_data_product_type_mixin(name, preset, expected_type, expect_save):
+    """
+    Untyped FITS products get tagged and saved; anything else is untouched.
+    """
+    dp = _dp(name, preset)
+    facility = DummyTypedFacility([dp])
+
+    result = facility.save_data_products(observation_record=None)
+
+    assert result == [dp]
+    assert dp.data_product_type == expected_type
+    assert dp.save.called is expect_save

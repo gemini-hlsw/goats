@@ -1,7 +1,7 @@
 from .antares2goats import Antares2GoatsSerializer
 from .astro_datalab import AstroDatalabSerializer
 from .base_recipe import BaseRecipeSerializer
-from .dataproduct import DataProductSerializer
+from .dataproduct import DataProductSerializer, DataProductTypeUpdateSerializer
 from .dataproduct_metadata import DataProductMetadataSerializer
 from .dragons_caldb import DRAGONSCaldbSerializer
 from .dragons_file import DRAGONSFileFilterSerializer, DRAGONSFileSerializer
@@ -33,6 +33,7 @@ __all__ = [
     "BaseRecipeSerializer",
     "DRAGONSProcessedFilesSerializer",
     "DataProductSerializer",
+    "DataProductTypeUpdateSerializer",
     "RunProcessorSerializer",
     "DataProductMetadataSerializer",
     "Antares2GoatsSerializer",

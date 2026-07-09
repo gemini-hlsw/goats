@@ -9,8 +9,33 @@ from plotly import offline
 from tom_dataproducts.forms import DataShareForm
 from tom_dataproducts.models import ReducedDatum
 from tom_dataproducts.processors.data_serializers import SpectrumSerializer
+from tom_dataproducts.templatetags import dataproduct_extras
 
 register = template.Library()
+
+
+@register.inclusion_tag(
+    "tom_dataproducts/partials/dataproduct_list_for_target.html", takes_context=True
+)
+def dataproduct_list_for_target(context, target):
+    """
+    Override for TOMToolkit tag. Adds `data_product_type_choices` and a
+    `data_product_type_label` on each product so the "Type" column can offer an
+    editable dropdown, since `data_product_type` has no Django field `choices`.
+    """
+    tag_context = dataproduct_extras.dataproduct_list_for_target(context, target)
+
+    data_product_type_choices = list(settings.DATA_PRODUCT_TYPES.values())
+    labels = dict(data_product_type_choices)
+    for product in tag_context["products"]:
+        # Products ingested without a type (e.g. non-Gemini data) have an empty
+        # `data_product_type`; label them so they can still be retagged.
+        product.data_product_type_label = (
+            labels.get(product.data_product_type, product.data_product_type) or ""
+        )
+
+    tag_context["data_product_type_choices"] = data_product_type_choices
+    return tag_context
 
 
 def _define_data_product_type(products):

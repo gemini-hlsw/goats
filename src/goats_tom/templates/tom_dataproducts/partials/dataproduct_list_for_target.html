@@ -31,7 +31,6 @@
             <th></th>
           </tr>
         </thead>
-        {% define_data_product_type products %}
         <tbody id="manageDataTBody">
           {% for product in products %}
           <tr data-file="{{ product.product_id }}">
@@ -81,7 +80,31 @@
               >
             </td>
             <td>
-              {% if product.data_product_type %} {{ product.get_type_display }} {% endif %}
+              <div class="dropdown">
+                <button
+                  class="btn btn-secondary dropdown-toggle"
+                  type="button"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false">
+                  <span class="button-text">{{ product.data_product_type_label }}</span>
+                  <span
+                    class="spinner-border spinner-border-sm d-none"
+                    role="status"
+                    aria-hidden="true"></span>
+                </button>
+                <ul class="dropdown-menu" data-id="{{ product.id }}">
+                  {% for value, label in data_product_type_choices %}
+                  <li>
+                    <a
+                      class="dropdown-item {% if value == product.data_product_type %}active{% endif %}"
+                      href="#"
+                      data-value="{{ value }}"
+                      >{{ label }}</a
+                    >
+                  </li>
+                  {% endfor %}
+                </ul>
+              </div>
             </td>
             <!-- <td>
               {% if sharing_destinations %}
@@ -219,6 +242,78 @@
       // Call the function if it exists.
       await actions[action]?.();
     });
+
+    // Event listener for handling data product type changes.
+    tableBody.addEventListener("click", async (event) => {
+      const item = event.target.closest("a.dropdown-item[data-value]");
+
+      if (!item) return;
+      event.preventDefault();
+
+      const menu = item.closest("ul.dropdown-menu");
+      const { id } = menu.dataset;
+      const { value } = item.dataset;
+      const label = item.textContent.trim();
+
+      const dropdown = item.closest(".dropdown");
+      const mainButton = dropdown.querySelector(".btn-secondary");
+      const buttonText = mainButton.querySelector(".button-text");
+      const spinner = mainButton.querySelector(".spinner-border");
+
+      buttonText.classList.add("d-none");
+      spinner.classList.remove("d-none");
+      mainButton.disabled = true;
+
+      try {
+        await updateDataProductType(id, value);
+        buttonText.textContent = label;
+        menu.querySelectorAll(".dropdown-item").forEach((dropdownItem) => {
+          dropdownItem.classList.toggle("active", dropdownItem === item);
+        });
+        window.toast?.show({
+          label: "Data Product Type Updated",
+          message: `Type changed to "${label}".`,
+          color: "success",
+        });
+      } catch (error) {
+        window.toast?.show({
+          label: "Failed to Update Data Product Type",
+          message: error.message,
+          color: "danger",
+        });
+      } finally {
+        buttonText.classList.remove("d-none");
+        spinner.classList.add("d-none");
+        mainButton.disabled = false;
+      }
+    });
+
+    /**
+     * Updates the `data_product_type` of a data product.
+     * @param {string} id - The unique identifier of the file.
+     * @param {string} dataProductType - The new data product type.
+     * @returns {Promise<void>} - Resolves when the request is completed.
+     */
+    const updateDataProductType = async (id, dataProductType) => {
+      const url = `/api/dataproducttype/${id}/`;
+
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": "{{ csrf_token }}",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({ data_product_type: dataProductType }),
+      });
+      if (!response.ok) {
+        // The error response may not be JSON (e.g. an HTML error page).
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          data?.data_product_type?.[0] || "Failed to update data product type."
+        );
+      }
+    };
 
     /**
      * Sends a file to Astro DataLab.

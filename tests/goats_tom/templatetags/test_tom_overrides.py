@@ -97,6 +97,32 @@ def _setup_spectroscopy(mocker, settings, permissions_only, datums):
     return deserialize_mock, get_objs_mock
 
 
+def test_dataproduct_list_for_target_adds_labels_and_choices(mocker, mod, settings):
+    settings.DATA_PRODUCT_TYPES = {
+        "spectroscopy": ("spectroscopy", "Spectroscopy"),
+        "photometry": ("photometry", "Photometry"),
+    }
+    products = [
+        DummyProduct(data_product_type="spectroscopy"),
+        DummyProduct(data_product_type=""),  # e.g. non-Gemini data with no type
+        DummyProduct(data_product_type="mystery"),
+    ]
+    mocker.patch(
+        f"{MODULE}.dataproduct_extras.dataproduct_list_for_target",
+        return_value={"products": products},
+    )
+    ctx = mod.dataproduct_list_for_target({"request": None}, SimpleNamespace())
+    assert ctx["data_product_type_choices"] == [
+        ("spectroscopy", "Spectroscopy"),
+        ("photometry", "Photometry"),
+    ]
+    assert [p.data_product_type_label for p in products] == [
+        "Spectroscopy",
+        "",  # untyped products keep an empty label; typing happens at ingestion
+        "mystery",
+    ]
+
+
 @pytest.mark.parametrize(
     "url, preset, expected_type",
     [
