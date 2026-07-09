@@ -54,7 +54,7 @@ def test_dataproduct_visualizer_target_forwarded(mocker, mod, target):
 @pytest.mark.parametrize(
     "data_type, expected_q_calls",
     [
-        ("spectroscopy", 3),  # base Q + fits_file Q + fits.fz Q
+        ("spectroscopy", 1),  # only base Q
         ("photometry", 1),  # only base Q
         ("fits_file", 1),
         ("custom", 1),
@@ -75,7 +75,7 @@ def test_dataproduct_visualizer_filter_composition(
     "product_type, data_suffix, data_type, should_appear",
     [
         ("spectroscopy", ".fits", "spectroscopy", True),
-        ("fits_file", ".fits", "spectroscopy", True),
+        ("fits_file", ".fits", "spectroscopy", False),
         ("photometry", ".fits", "spectroscopy", False),
         ("photometry", ".fits", "photometry", True),
         ("spectroscopy", ".fits", "photometry", False),

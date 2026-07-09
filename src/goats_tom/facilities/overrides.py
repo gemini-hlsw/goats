@@ -141,6 +141,26 @@ class UserAwareBLANCOSettings(UserTokenMixin, BLANCOSettings):
     credential_attr = "lcologin"
 
 
+class InferDataProductTypeMixin:
+    """
+    Infer and persist `data_product_type` for products saved without one.
+
+    TOMToolkit's generic `save_data_products` creates `DataProduct` rows with
+    an empty `data_product_type`; views like the visualizer filter on the
+    stored value, so tag them at ingestion instead of at display time.
+    """
+
+    def save_data_products(self, observation_record, product_id=None):
+        products = super().save_data_products(observation_record, product_id)
+        for dp in products:
+            if not dp.data_product_type and dp.data.name.endswith(
+                (".fits", ".fits.fz")
+            ):
+                dp.data_product_type = "fits_file"
+                dp.save(update_fields=["data_product_type"])
+        return products
+
+
 class UserAwareFacilityMixin:
     """
     Mixin for facility classes that ensures user-aware facility settings
@@ -202,7 +222,7 @@ class UserAwareFacilityMixin:
         return {key: self._wrap_form_class(cls) for key, cls in base_map.items()}
 
 
-class LCOFacility(UserAwareFacilityMixin, BaseLCOFacility):
+class LCOFacility(InferDataProductTypeMixin, UserAwareFacilityMixin, BaseLCOFacility):
     """
     LCO facility with per-user API keys.
     """
@@ -210,7 +230,7 @@ class LCOFacility(UserAwareFacilityMixin, BaseLCOFacility):
     settings_cls = UserAwareLCOSettings
 
 
-class SOARFacility(UserAwareFacilityMixin, BaseSOARFacility):
+class SOARFacility(InferDataProductTypeMixin, UserAwareFacilityMixin, BaseSOARFacility):
     """
     SOAR facility with per-user API keys.
     """
@@ -218,7 +238,9 @@ class SOARFacility(UserAwareFacilityMixin, BaseSOARFacility):
     settings_cls = UserAwareSOARSettings
 
 
-class BLANCOFacility(UserAwareFacilityMixin, BaseBLANCOFacility):
+class BLANCOFacility(
+    InferDataProductTypeMixin, UserAwareFacilityMixin, BaseBLANCOFacility
+):
     """
     BLANCO facility with per-user API keys.
     """

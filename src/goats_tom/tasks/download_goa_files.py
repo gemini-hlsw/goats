@@ -23,6 +23,7 @@ from goats_tom.realtime import DownloadState, NotificationInstance
 from goats_tom.utils import create_name_reduction_map
 
 logger = logging.getLogger(__name__)
+SPEC_FILE_SUFFIX = ("_1D", "_2D")
 
 
 @dramatiq.actor(
@@ -252,9 +253,12 @@ def download_goa_files(
 
             product_id = str(file_path.relative_to(settings.MEDIA_ROOT))
 
-            # Use the mapping to get the data product type.
-            # If not found, return default for calibration.
-            data_product_type = name_reduction_map.get(file_path.name, "fits_file")
+            # Spectra follow the _1D/_2D naming convention; otherwise use the
+            # reduction mapping, defaulting to calibration ("fits_file").
+            if file_path.stem.endswith(SPEC_FILE_SUFFIX):
+                data_product_type = "spectroscopy"
+            else:
+                data_product_type = name_reduction_map.get(file_path.name, "fits_file")
             # Query DataProduct by product_id.
             candidates = DataProduct.objects.filter(
                 product_id=product_id,
