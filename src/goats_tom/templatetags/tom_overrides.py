@@ -13,6 +13,21 @@ from tom_dataproducts.processors.data_serializers import SpectrumSerializer
 register = template.Library()
 
 
+@register.inclusion_tag("partials/dataproduct_type_dropdown.html")
+def dataproduct_type_dropdown(product):
+    """
+    Render an editable dropdown for a product's `data_product_type`, backed by
+    `PATCH /api/dataproducttype/<id>/` (see static/js/dataproduct_type.js).
+    `data_product_type` has no Django field `choices`, so the label is resolved
+    from `settings.DATA_PRODUCT_TYPES`. Products ingested without a type (e.g.
+    non-Gemini data) get an empty label so they can still be retagged.
+    """
+    choices = list(settings.DATA_PRODUCT_TYPES.values())
+    labels = dict(choices)
+    label = labels.get(product.data_product_type, product.data_product_type) or ""
+    return {"product": product, "choices": choices, "label": label}
+
+
 def _define_data_product_type(products):
     """
     Set `data_product_type` on products that do not have one, based on the URL.

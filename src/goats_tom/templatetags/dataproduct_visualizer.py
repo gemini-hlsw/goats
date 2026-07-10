@@ -39,10 +39,6 @@ def dataproduct_visualizer(
 
     active_filter = Q(data_product_type=data_type)
 
-    if data_type == "spectroscopy":
-        active_filter |= Q(data_product_type="fits_file")
-        active_filter |= Q(data__iendswith="fits.fz")
-
     dataproducts = DataProduct.objects.filter(target=target).filter(active_filter)
 
     return {"target": target, "dataproducts": dataproducts, "data_type": data_type}
