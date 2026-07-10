@@ -306,7 +306,7 @@
 
     Object.keys(photometryData).forEach((filter) => {
       const { time, magnitude, error, limit } = photometryData[filter];
-      const color = colorMap[filter] || null;
+      const color = colorMap[filter[0]] || null;
 
       // --- Detection trace ---
       const detectionName = `${filter} detection`;
