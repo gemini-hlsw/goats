@@ -1,0 +1,1 @@
+Fixed color scheme regression in the light curve photometry data display
