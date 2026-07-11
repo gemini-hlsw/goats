@@ -1,0 +1,126 @@
+{% extends "tom_common/base.html" %}
+{% block content %}
+<div class="mb-3">
+  <p class="h2">Live ANTARES Stream Dashboard</p>
+  <p class="text-muted">
+    Loci seen on the ANTARES Kafka alert stream. New loci appear at the top
+    by default; click a column header to sort. The table refreshes itself
+    every 15 seconds. Rows are removed after 1 day of inactivity. Clicking a
+    locus ID opens it on the ANTARES portal in a new tab and marks it as
+    seen in this browser.
+  </p>
+</div>
+<div id="antares-locus-table-container">
+  {% include "partials/antares_locus_table.html" %}
+</div>
+
+<style>
+  .antares-locus-row.antares-locus-seen {
+    opacity: 0.55;
+  }
+  .antares-locus-row.antares-locus-seen .antares-locus-link {
+    text-decoration-style: dashed;
+  }
+
+  @keyframes antares-locus-flash-anim {
+    0% { background-color: rgba(255, 230, 0, 0.35); }
+    100% { background-color: transparent; }
+  }
+  .antares-locus-flash-active {
+    animation: antares-locus-flash-anim 0.6s ease-out;
+  }
+</style>
+
+<script>
+(function () {
+  var STORAGE_KEY = "antaresSeenLoci";
+
+  function getSeenSet() {
+    try {
+      var raw = window.localStorage.getItem(STORAGE_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (err) {
+      // Private browsing / storage disabled -- degrade to "nothing seen
+      // yet" rather than break the page.
+      return new Set();
+    }
+  }
+
+  function markSeen(locusId) {
+    try {
+      var seen = getSeenSet();
+      seen.add(locusId);
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(seen)));
+    } catch (err) {
+      // Ignore storage failures; highlighting is a convenience, not
+      // critical to the dashboard's function.
+    }
+  }
+
+  function applySeenHighlighting() {
+    var seen = getSeenSet();
+    document.querySelectorAll(".antares-locus-row").forEach(function (row) {
+      var locusId = row.getAttribute("data-locus-id");
+      if (seen.has(locusId)) {
+        row.classList.add("antares-locus-seen");
+      }
+    });
+  }
+
+  function flashTable() {
+    var wrapper = document.getElementById("antares-locus-table-wrapper");
+    if (!wrapper) return;
+    // Force a reflow before re-adding the class so the CSS animation
+    // restarts every time, even if the element already had this class
+    // from a previous flash (re-adding an already-present class alone
+    // does not retrigger a CSS animation).
+    wrapper.classList.remove("antares-locus-flash-active");
+    void wrapper.offsetWidth;
+    wrapper.classList.add("antares-locus-flash-active");
+  }
+
+  function setUpSaveTargetCheckboxes() {
+    var selectAll = document.querySelector(".antares-select-all");
+    if (selectAll) {
+      selectAll.checked = false;
+      selectAll.addEventListener("change", function () {
+        document.querySelectorAll(".antares-locus-select").forEach(function (cb) {
+          cb.checked = selectAll.checked;
+        });
+      });
+    }
+  }
+
+  document.body.addEventListener("click", function (evt) {
+    var link = evt.target.closest(".antares-locus-link");
+    if (!link) return;
+    var row = link.closest(".antares-locus-row");
+    if (!row) return;
+    markSeen(row.getAttribute("data-locus-id"));
+    row.classList.add("antares-locus-seen");
+  });
+
+  // htmx's `outerHTML` swap replaces #antares-locus-table-wrapper itself
+  // (it's both the hx-target and, for pagination/sort links, the element
+  // containing the triggering link). htmx does not reliably fire
+  // htmx:afterSwap in that self-replacement case, so a MutationObserver on
+  // the stable #antares-locus-table-container instead: it fires on any DOM
+  // change underneath it regardless of how htmx performed the swap. This
+  // script block itself lives in the parent (non-swapped) template so it
+  // only runs once per page load, rather than re-attaching a duplicate
+  // observer/listener on every table refresh.
+  var container = document.getElementById("antares-locus-table-container");
+  if (container) {
+    var observer = new MutationObserver(function () {
+      applySeenHighlighting();
+      flashTable();
+      setUpSaveTargetCheckboxes();
+    });
+    observer.observe(container, { childList: true, subtree: true });
+  }
+
+  applySeenHighlighting();
+  setUpSaveTargetCheckboxes();
+})();
+</script>
+{% endblock %}

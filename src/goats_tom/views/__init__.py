@@ -1,4 +1,9 @@
 from goats_tom.views.antares import RefreshAntaresPhotometryView
+from goats_tom.views.antares_locus_dashboard import (      # add these 3 lines
+    antares_locus_dashboard,
+    antares_locus_table,
+)
+
 from goats_tom.views.astro_datalab import AstroDatalabView
 from goats_tom.views.brokerquery_name import update_brokerquery_name
 from goats_tom.views.dataproduct_delete import DataProductDeleteView
@@ -50,4 +55,6 @@ __all__ = [
     "TNSLoginView",
     "status_view",
     "RefreshAntaresPhotometryView",
+    "antares_locus_dashboard",
+    "antares_locus_table",
 ]

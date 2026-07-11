@@ -139,4 +139,14 @@ urlpatterns = [
         views.RefreshAntaresPhotometryView.as_view(),
         name="refresh_antares_photometry",
     ),
+    path(
+        "antares/loci/",
+        views.antares_locus_dashboard,
+        name="antares-locus-dashboard",
+    ),
+    path(
+        "antares/loci/table/",
+        views.antares_locus_table,
+        name="antares-locus-table",
+    ),
 ]

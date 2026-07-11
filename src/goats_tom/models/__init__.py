@@ -1,3 +1,4 @@
+from goats_tom.models.antares_locus import AntaresLocus
 from goats_tom.models.base_recipe import BaseRecipe
 from goats_tom.models.dataproduct_metadata import DataProductMetadata
 from goats_tom.models.download import Download
@@ -15,6 +16,7 @@ from goats_tom.models.logins import (
 from goats_tom.models.recipes_module import RecipesModule
 
 __all__ = [
+    "AntaresLocus",
     "DRAGONSFile",
     "Download",
     "DRAGONSRun",
