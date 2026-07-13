@@ -25,8 +25,24 @@
             <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp</a>
             {% endif %}
           </th>
-          <th>Latest Alert Magnitude</th>
-          <th>In TNS</th>
+          <th>
+            {% if sort == "-magnitude" %}
+            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9660;</a>
+            {% elif sort == "magnitude" %}
+            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9650;</a>
+            {% else %}
+            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude</a>
+            {% endif %}
+          </th>
+          <th>
+            {% if sort == "-in_tns" %}
+            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS &#9660;</a>
+            {% elif sort == "in_tns" %}
+            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS &#9650;</a>
+            {% else %}
+            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS</a>
+            {% endif %}
+          </th>
           <th>
             {% if sort == "-alert_count" %}
             <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts &#9660;</a>

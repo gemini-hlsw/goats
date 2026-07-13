@@ -18,6 +18,8 @@ SORTABLE_FIELDS = {
     "latest_alert": "latest_alert_mjd",
     "first_seen": "first_seen",
     "alert_count": "alert_count",
+    "magnitude": "latest_alert_magnitude",
+    "in_tns": "in_tns",
 }
 
 
