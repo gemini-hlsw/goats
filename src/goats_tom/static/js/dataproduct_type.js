@@ -39,6 +39,31 @@
     }
   };
 
+  /**
+   * Runs the photometry processor on a data product, generating its
+   * `ReducedDatum` points immediately instead of waiting for a manual
+   * "Plot" click in the Photometry tab.
+   * @param {string} id - The unique identifier of the data product.
+   * @returns {Promise<void>} - Resolves when the request is completed.
+   */
+  const runPhotometryProcessor = async (id) => {
+    const url = `/api/runprocessor/`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": getCsrfToken(),
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ data_product: id, data_product_type: "photometry" }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.detail || "Failed to process photometry data.");
+    }
+  };
+
   document.addEventListener("click", async (event) => {
     const item = event.target.closest(
       ".dataproduct-type-dropdown a.dropdown-item[data-value]"
@@ -50,7 +75,6 @@
     const dropdown = item.closest(".dataproduct-type-dropdown");
     const { id } = dropdown.dataset;
     const { value } = item.dataset;
-    const label = item.textContent.trim();
 
     const mainButton = dropdown.querySelector(".btn-secondary");
     const buttonText = mainButton.querySelector(".button-text");
@@ -62,15 +86,21 @@
 
     try {
       await updateDataProductType(id, value);
-      buttonText.textContent = label;
-      dropdown.querySelectorAll(".dropdown-item").forEach((dropdownItem) => {
-        dropdownItem.classList.toggle("active", dropdownItem === item);
-      });
-      window.toast?.show({
-        label: "Data Product Type Updated",
-        message: `Type changed to "${label}".`,
-        color: "success",
-      });
+
+      if (value === "photometry") {
+        try {
+          await runPhotometryProcessor(id);
+        } catch (error) {
+          // Best-effort: the retag already succeeded, so don't block the
+          // reload on a processing failure (e.g. an unsupported file).
+          console.error(error);
+        }
+      }
+
+      // Reload so every part of the page that depends on data product type
+      // (photometry/spectroscopy plots, sharing table, recent photometry)
+      // picks up the change from a fresh server render.
+      window.location.reload();
     } catch (error) {
       window.toast?.show({
         label: "Failed to Update Data Product Type",
