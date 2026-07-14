@@ -3,10 +3,11 @@
 __all__ = ["DataProductTypeViewSet"]
 
 from django.conf import settings
+from django.contrib import messages
 from guardian.shortcuts import get_objects_for_user
 from rest_framework import mixins, permissions
 from rest_framework.viewsets import GenericViewSet
-from tom_dataproducts.models import DataProduct
+from tom_dataproducts.models import DataProduct, ReducedDatum
 
 from goats_tom.serializers import DataProductTypeUpdateSerializer
 
@@ -31,4 +32,29 @@ class DataProductTypeViewSet(mixins.UpdateModelMixin, GenericViewSet):
             self.request.user,
             "tom_dataproducts.view_dataproduct",
             klass=super().get_queryset(),
+        )
+
+    def perform_update(self, serializer: DataProductTypeUpdateSerializer) -> None:
+        """Save the retag, clean up orphaned photometry points, and queue a
+        confirmation message.
+
+        Parameters
+        ----------
+        serializer : DataProductTypeUpdateSerializer
+            Validated serializer wrapping the data product being retagged.
+        """
+        previous_type = serializer.instance.data_product_type
+        instance = serializer.save()
+
+        # Retagging away from photometry orphans any photometry ReducedDatum
+        # points already derived from this file, so drop them along with the
+        # retag rather than leaving stale points behind.
+        if previous_type == "photometry" and instance.data_product_type != "photometry":
+            ReducedDatum.objects.filter(data_product=instance).delete()
+
+        labels = dict(settings.DATA_PRODUCT_TYPES.values())
+        label = labels.get(instance.data_product_type, instance.data_product_type)
+        # Rendered by `{% bootstrap_messages %}` after the frontend reloads.
+        messages.success(
+            self.request, f'Type changed to "{label}".', fail_silently=True
         )
