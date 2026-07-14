@@ -1,0 +1,1 @@
+Fixed light curve CSV file getting an unwanted suffix when updating photometry
