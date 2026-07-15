@@ -460,6 +460,8 @@ class ANTARESBroker(GenericBroker):
         except IntegrityError:
             dp = DataProduct.objects.get(product_id=product_id)
 
+        if dp.data:
+            dp.data.delete(save=False)
         dp.data.save(file_name, data, save=True)
         return dp
 
