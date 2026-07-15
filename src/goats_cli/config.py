@@ -30,6 +30,7 @@ class Config:
         "!{{ project_name }}/settings/base.py",
         "!{{ project_name }}/settings/dynamic.py",
         "!{{ project_name }}/settings/environments/**",
+        "!{{ project_name }}/asgi.py",
     )
     """Files to exclude from recopy in 'normal' mode."""
 

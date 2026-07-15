@@ -1,0 +1,1 @@
+Integrated JDaviz into GOATS for interactive spectral analysis and data visualization

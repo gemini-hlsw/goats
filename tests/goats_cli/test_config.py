@@ -14,6 +14,7 @@ def test_config_defaults():
         "!{{ project_name }}/settings/base.py",
         "!{{ project_name }}/settings/dynamic.py",
         "!{{ project_name }}/settings/environments/**",
+        "!{{ project_name }}/asgi.py",
     )
     assert config.recopy_exclude_full == (
         "**",
