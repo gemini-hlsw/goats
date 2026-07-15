@@ -42,10 +42,12 @@
                   title="Click to add this data product to the plot">
                   Plot
                 </button>
+                {% if data_type == "spectroscopy" %}
                 <button type="button" class="btn btn-primary btn-sm plot-button" data-action="analyze"
                   title="Click to open this data product in the Specviz analyzer">
                   Analyze
                 </button>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}

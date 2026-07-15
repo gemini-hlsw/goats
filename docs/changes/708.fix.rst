@@ -1,0 +1,1 @@
+Removed the Analyze button from the Photometry tab
