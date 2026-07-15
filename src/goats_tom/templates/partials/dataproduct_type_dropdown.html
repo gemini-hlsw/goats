@@ -1,0 +1,25 @@
+<div class="dropdown dataproduct-type-dropdown" data-id="{{ product.id }}">
+  <button
+    class="btn btn-secondary dropdown-toggle"
+    type="button"
+    data-bs-toggle="dropdown"
+    aria-expanded="false">
+    <span class="button-text">{{ label }}</span>
+    <span
+      class="spinner-border spinner-border-sm d-none"
+      role="status"
+      aria-hidden="true"></span>
+  </button>
+  <ul class="dropdown-menu">
+    {% for value, choice_label in choices %}
+    <li>
+      <a
+        class="dropdown-item {% if value == product.data_product_type %}active{% endif %}"
+        href="#"
+        data-value="{{ value }}"
+        >{{ choice_label }}</a
+      >
+    </li>
+    {% endfor %}
+  </ul>
+</div>

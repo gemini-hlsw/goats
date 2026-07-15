@@ -42,8 +42,9 @@ dependencies = [
     "typer>=0.19.2",
     "tomtoolkit==2.32.2",
     "whitenoise>=6.6.0,<7",
+    "jdaviz==5.0.1",
 ]
-version = "26.7.0"
+version = "26.8.0rc1"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
@@ -55,14 +56,14 @@ Changelog = "https://github.com/gemini-hlsw/goats/blob/main/CHANGES.md"
 [dependency-groups]
 dev = [
     "factory-boy>=3.3.3",
-    "pytest>=9.1.0",
+    "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "pytest-django>=4.12.0",
     "pytest-mock>=3.15.1",
     "pytest-remotedata>=0.4.1",
     "pytest-xdist>=3.8.0",
-    "ruff>=0.15.17",
+    "ruff>=0.15.20",
     "towncrier>=25.8.0",
 ]
 docs = [
@@ -76,6 +77,7 @@ docs = [
 github = [
     "dragons",
     "fits-storage",
+    "jdaviz",
 ]
 notebook = [
     "ipykernel>=7.3.0",
@@ -160,7 +162,7 @@ docstring-code-line-length = "dynamic"
 [tool.uv.sources]
 dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.2.2" }
 fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.5.2" }
-
+jdaviz = { git = "https://github.com/spacetelescope/jdaviz", tag = "v5.0.1" }
 [tool.numpydoc_validation]
 checks = [
     "all",  # All except the rules listed below.

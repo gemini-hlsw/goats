@@ -90,6 +90,27 @@ def _mock_workflow_state_result(
             },
         ),
         (
+            # Exceptions raised without a message (e.g. httpx.ReadTimeout) must
+            # fall back to repr() instead of producing an empty message.
+            Stage.CREATE_OBSERVATION,
+            Exception(),
+            [],
+            None,
+            status.HTTP_400_BAD_REQUEST,
+            ResponseStatus.FAILURE,
+            {
+                "status": "Failure",
+                "messages": [
+                    {
+                        "stage": "Create Observation",
+                        "status": "Error",
+                        "message": "Exception()",
+                    }
+                ],
+                "data": {},
+            },
+        ),
+        (
             Stage.UPDATE_TARGET,
             "Target update failed",
             [
@@ -194,9 +215,7 @@ class TestGPPObservationViewSet:
         )
         force_authenticate(request, user=self.user_with_login)
 
-        view = GPPObservationViewSet.as_view(
-            {"post": "create_and_save_observation"}
-        )
+        view = GPPObservationViewSet.as_view({"post": "create_and_save_observation"})
         response = view(request)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -261,9 +280,7 @@ class TestGPPObservationViewSet:
         goats_target.id = 99
         goats_target.name = "test-target"
 
-        context = mocker.patch(
-            "goats_tom.api_views.gpp.observations.ContextSerializer"
-        )
+        context = mocker.patch("goats_tom.api_views.gpp.observations.ContextSerializer")
         context_inst = context.return_value
         context_inst.is_valid.return_value = True
         context_inst.gpp_target_id = "t-1"
@@ -382,9 +399,7 @@ class TestGPPObservationViewSet:
         # CloneObservationInput is a pydantic model that rejects Mock objects for
         # `set_`, so stub it out — observation_properties comes from a mocked
         # serializer.
-        mocker.patch(
-            "goats_tom.api_views.gpp.observations.CloneObservationInput"
-        )
+        mocker.patch("goats_tom.api_views.gpp.observations.CloneObservationInput")
 
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
         client = mock_client.return_value
@@ -413,9 +428,7 @@ class TestGPPObservationViewSet:
         mocker.patch.object(
             GPPObservationViewSet,
             "_create_goats_observation",
-            return_value=Response(
-                {"id": 1}, status=status.HTTP_201_CREATED
-            ),
+            return_value=Response({"id": 1}, status=status.HTTP_201_CREATED),
         )
 
         request = self.factory.post(
@@ -467,9 +480,7 @@ class TestGPPObservationViewSet:
         assert response.status_code == status.HTTP_201_CREATED
         assert spy.call_count == 0
 
-    def test_update_only_processes_finder_charts_when_to_delete_present(
-        self, mocker
-    ):
+    def test_update_only_processes_finder_charts_when_to_delete_present(self, mocker):
         """_process_finder_charts is invoked when toDelete is non-empty."""
         self._mock_validated_serializers(mocker)
         spy = mocker.patch.object(
@@ -508,9 +519,7 @@ class TestGPPObservationViewSet:
         assert response.status_code == status.HTTP_201_CREATED
         spy.assert_called_once()
 
-    def test_update_only_workflow_state_missing_state_renders_unknown(
-        self, mocker
-    ):
+    def test_update_only_workflow_state_missing_state_renders_unknown(self, mocker):
         """Workflow stage message degrades to 'unknown' when state is absent."""
         self._mock_validated_serializers(mocker)
 
@@ -551,9 +560,7 @@ class TestGPPObservationViewSet:
         client = mock_client.return_value
 
         clone_target_result = mocker.Mock()
-        clone_target_result.model_dump.return_value = {
-            "cloneTarget": {"newTarget": {}}
-        }
+        clone_target_result.model_dump.return_value = {"cloneTarget": {"newTarget": {}}}
         client.target.clone = AsyncMock(return_value=clone_target_result)
 
         request = self.factory.post(
@@ -572,7 +579,9 @@ class TestGPPObservationViewSet:
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
         mock_result = mocker.Mock()
         mock_result.model_dump.return_value = [self.observation_data]
-        mock_client.return_value.observation.get_all = AsyncMock(return_value=mock_result)
+        mock_client.return_value.observation.get_all = AsyncMock(
+            return_value=mock_result
+        )
 
         request = self.factory.get(self.observations_url)
         force_authenticate(request, user=self.user_with_login)
@@ -606,9 +615,7 @@ class TestGPPObservationViewSet:
         }
         normal_obs = {
             "id": "o-norm",
-            "targetEnvironment": {
-                "asterism": [{"id": "t-2", "opportunity": None}]
-            },
+            "targetEnvironment": {"asterism": [{"id": "t-2", "opportunity": None}]},
         }
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
         mock_payload = mocker.Mock()
@@ -669,7 +676,9 @@ class TestGPPObservationViewSet:
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
         mock_result = mocker.Mock()
         mock_result.model_dump.return_value = {"observation": self.observation_data}
-        mock_client.return_value.observation.get_by_id = AsyncMock(return_value=mock_result)
+        mock_client.return_value.observation.get_by_id = AsyncMock(
+            return_value=mock_result
+        )
 
         request = self.factory.get(self.observation_detail_url)
         force_authenticate(request, user=self.user_with_login)

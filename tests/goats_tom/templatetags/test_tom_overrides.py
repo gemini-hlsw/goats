@@ -98,6 +98,45 @@ def _setup_spectroscopy(mocker, settings, permissions_only, datums):
 
 
 @pytest.mark.parametrize(
+    "product_type, expected_label",
+    [
+        ("spectroscopy", "Spectroscopy"),
+        ("", ""),  # e.g. non-Gemini data with no type
+        ("mystery", "mystery"),  # unknown type falls back to the raw value
+    ],
+)
+def test_dataproduct_type_dropdown_resolves_label(
+    mod, settings, product_type, expected_label
+):
+    settings.DATA_PRODUCT_TYPES = {
+        "spectroscopy": ("spectroscopy", "Spectroscopy"),
+        "photometry": ("photometry", "Photometry"),
+    }
+    ctx = mod.dataproduct_type_dropdown(DummyProduct(data_product_type=product_type))
+    assert ctx["label"] == expected_label
+    assert ctx["choices"] == [
+        ("spectroscopy", "Spectroscopy"),
+        ("photometry", "Photometry"),
+    ]
+
+
+def test_dataproduct_type_dropdown_renders_active_choice(settings):
+    settings.DATA_PRODUCT_TYPES = {
+        "spectroscopy": ("spectroscopy", "Spectroscopy"),
+        "photometry": ("photometry", "Photometry"),
+    }
+    product = SimpleNamespace(id=42, data_product_type="photometry")
+    html = Template(
+        "{% load tom_overrides %}{% dataproduct_type_dropdown product %}"
+    ).render(Context({"product": product}))
+    assert 'data-id="42"' in html
+    assert "dataproduct-type-dropdown" in html
+    assert '<span class="button-text">Photometry</span>' in html
+    assert 'data-value="photometry"' in html
+    assert html.count("active") == 1
+
+
+@pytest.mark.parametrize(
     "url, preset, expected_type",
     [
         ("http://x/y/file.fits.fz", None, "fits_file"),

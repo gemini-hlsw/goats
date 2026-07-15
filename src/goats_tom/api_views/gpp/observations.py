@@ -110,8 +110,8 @@ def build_failure_response(
     Response
         The response containing the failure details.
     """
-    logger.error("Error at stage %s: %s", stage.value, error)
-    error_message = str(error)
+    error_message = str(error) or repr(error)
+    logger.error("Error at stage %s: %s", stage.value, error_message)
     messages = previous_messages + [
         StageMessage(stage=stage, status=MessageStatus.ERROR, message=error_message)
     ]

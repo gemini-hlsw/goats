@@ -13,13 +13,14 @@ avoid the overhead of handling file uploads that are already managed by the syst
 This custom serializer will only be used in DRAGONS reductions.
 """
 
-__all__ = ["DataProductSerializer"]
+__all__ = ["DataProductSerializer", "DataProductTypeUpdateSerializer"]
 
 from pathlib import Path
 
 from django.conf import settings
 from django.core.files.storage import default_storage
 from rest_framework import serializers
+from tom_dataproducts.models import DataProduct
 from tom_dataproducts.serializers import (
     DataProductSerializer as BaseDataProductSerializer,
 )
@@ -83,3 +84,15 @@ class DataProductSerializer(BaseDataProductSerializer):
         dp.save()
 
         return dp
+
+
+class DataProductTypeUpdateSerializer(serializers.ModelSerializer):
+    """Serializer to handle retagging a `DataProduct`'s `data_product_type`."""
+
+    data_product_type = serializers.ChoiceField(
+        choices=list(settings.DATA_PRODUCT_TYPES.keys())
+    )
+
+    class Meta:
+        model = DataProduct
+        fields = ["data_product_type"]

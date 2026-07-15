@@ -156,6 +156,30 @@
     main.prepend(alertDiv);
   };
 
+  /**
+   * Open the jdaviz Specviz analyzer for a data product in the shared GOATS
+   * modal. The viewer is served by Solara under /jdaviz/?dataproduct=<id>
+   * (see goats_tom.jdaviz_app).
+   * @param {string} dataproductId - The data product primary key.
+   * @param {string} file - The file name, shown in the modal title.
+   */
+  const openAnalyzer = (dataproductId, file) => {
+    // Escape the file name before interpolating into modal HTML (avoid XSS via
+    // crafted file names).
+    const safeFile = file.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+    // Cache-buster (_) forces a fresh Solara session each open, avoiding a
+    // stale cached kernel running older code.
+    const src = `/jdaviz/?dataproduct=${encodeURIComponent(dataproductId)}&_=${Date.now()}`;
+    window.modal.show({
+      title: `Analyze: ${safeFile}`,
+      body: `<iframe src="${src}" title="Specviz analyzer for ${safeFile}"
+        style="width:100%;height:calc(100vh - 120px);border:0;"></iframe>`,
+      dialogClasses: ["modal-fullscreen"],
+    });
+  };
+
   // Global color map for filters.
   const colorMap = {
     "g": "rgb(0, 174, 0)",
@@ -306,7 +330,7 @@
 
     Object.keys(photometryData).forEach((filter) => {
       const { time, magnitude, error, limit } = photometryData[filter];
-      const color = colorMap[filter] || null;
+      const color = colorMap[filter[0]] || null;
 
       // --- Detection trace ---
       const detectionName = `${filter} detection`;
@@ -476,7 +500,7 @@
       // Event listener for plot button clicks.
       tbody.addEventListener("click", async (event) => {
         const action = event.target.dataset.action;
-        if (action !== "plot") return;
+        if (action !== "plot" && action !== "analyze") return;
 
         const button = event.target;
         const row = button.closest("tr");
@@ -485,6 +509,12 @@
         const dataproductId = row.dataset.dataproductId;
         const dataType = row.dataset.dataType;
         const file = row.dataset.file;
+
+        // Open the Specviz analyzer for this data product in a modal overlay.
+        if (action === "analyze") {
+          openAnalyzer(dataproductId, file);
+          return;
+        }
 
         button.disabled = true;
         try {
