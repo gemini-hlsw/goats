@@ -1,4 +1,5 @@
 from goats_tom.models.antares_locus import AntaresLocus
+from goats_tom.models.antares_stream_subscription import AntaresStreamSubscription
 from goats_tom.models.base_recipe import BaseRecipe
 from goats_tom.models.dataproduct_metadata import DataProductMetadata
 from goats_tom.models.download import Download
@@ -7,6 +8,7 @@ from goats_tom.models.dragons_recipe import DRAGONSRecipe
 from goats_tom.models.dragons_reduce import DRAGONSReduce
 from goats_tom.models.dragons_run import DRAGONSRun
 from goats_tom.models.logins import (
+    AntaresKafkaLogin,
     AstroDatalabLogin,
     GOALogin,
     GPPLogin,
@@ -17,6 +19,8 @@ from goats_tom.models.recipes_module import RecipesModule
 
 __all__ = [
     "AntaresLocus",
+    "AntaresStreamSubscription",
+    "AntaresKafkaLogin",
     "DRAGONSFile",
     "Download",
     "DRAGONSRun",

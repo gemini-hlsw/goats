@@ -1,9 +1,9 @@
 from goats_tom.views.antares import RefreshAntaresPhotometryView
-from goats_tom.views.antares_locus_dashboard import (      # add these 3 lines
+from goats_tom.views.antares_locus_dashboard import (
     antares_locus_dashboard,
     antares_locus_table,
 )
-
+from goats_tom.views.antares_stream_subscribe import antares_stream_subscribe
 from goats_tom.views.astro_datalab import AstroDatalabView
 from goats_tom.views.brokerquery_name import update_brokerquery_name
 from goats_tom.views.dataproduct_delete import DataProductDeleteView
@@ -16,6 +16,7 @@ from goats_tom.views.dragons import DRAGONSView
 from goats_tom.views.goa_archive_redirect import GOAArchiveRedirectView
 from goats_tom.views.goa_query_form import GOAQueryFormView
 from goats_tom.views.logins import (
+    AntaresKafkaLoginView,
     AstroDatalabLoginView,
     GOALoginView,
     GPPLoginView,
@@ -57,4 +58,6 @@ __all__ = [
     "RefreshAntaresPhotometryView",
     "antares_locus_dashboard",
     "antares_locus_table",
+    "antares_stream_subscribe",
+    "AntaresKafkaLoginView",
 ]

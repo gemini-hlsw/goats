@@ -96,6 +96,15 @@
                   >
                 </li>
                 {% if request.user.is_superuser %}
+                <li>
+                  <a
+                    href="{% url 'user-antares-kafka-login' user.id %}"
+                    class="dropdown-item"
+                    >ANTARES Kafka Stream</a
+                  >
+                </li>
+                {% endif %}
+                {% if request.user.is_superuser %}
                 <li><hr class="dropdown-divider" /></li>
                 <li><h6 class="dropdown-header">Generate</h6></li>
                 <li>

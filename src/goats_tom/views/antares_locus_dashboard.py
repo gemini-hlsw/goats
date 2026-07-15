@@ -1,5 +1,6 @@
 __all__ = ["antares_locus_dashboard", "antares_locus_table"]
 
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -79,6 +80,7 @@ def _get_page(request: HttpRequest):
     return page, sort_param
 
 
+@login_required
 def antares_locus_dashboard(request: HttpRequest) -> HttpResponse:
     """Render the ANTARES alert/locus browse page.
 
@@ -105,6 +107,7 @@ def antares_locus_dashboard(request: HttpRequest) -> HttpResponse:
     )
 
 
+@login_required
 def antares_locus_table(request: HttpRequest) -> HttpResponse:
     """Render one page of the `<table>` of `AntaresLocus` rows.
 

@@ -1,0 +1,86 @@
+{% extends "tom_common/base.html" %}
+{% load crispy_forms_tags static %}
+{% block content %}
+<div class="mb-3">
+  <p class="h2">Ingest from ANTARES Kafka Stream</p>
+  <p class="text-muted">
+    Subscribe to one or more ANTARES Kafka topics. Submitting this form
+    stops any currently-running consumer and starts a new one with the
+    topics below -- this does not require editing settings or restarting
+    GOATS.
+  </p>
+</div>
+
+{% if current and current.topics %}
+<div class="alert alert-info d-flex justify-content-between align-items-center">
+  <div>
+    <strong>Currently subscribed to:</strong> {{ current.topics|join:", " }}
+    {% if current.is_running %}<span class="badge badge-success">Running</span>{% else %}<span class="badge badge-secondary">Stopped</span>{% endif %}
+  </div>
+  {% if current.is_running %}
+  <form method="post" class="mb-0">
+    {% csrf_token %}
+    <button type="submit" name="action" value="stop" class="btn btn-outline-danger btn-sm">Stop ingestion</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+{% crispy form %}
+<a href="{% url 'antares-locus-dashboard' %}" class="btn btn-secondary">View dashboard</a>
+
+<style>
+  /* The real form field (submitted on POST) is kept in the DOM but
+     visually replaced by the Ace editor overlay rendered next to it. */
+  .antares-handler-code-raw {
+    display: none;
+  }
+  #antares-handler-code-editor {
+    height: 320px;
+    width: 100%;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+  }
+</style>
+
+<script src="{% static 'ace-builds/src-noconflict/ace.js' %}"></script>
+<script src="{% static 'ace-builds/src-noconflict/mode-python.js' %}"></script>
+<script src="{% static 'ace-builds/src-noconflict/theme-cloud9_night.js' %}"></script>
+<script src="{% static 'ace-builds/src-noconflict/theme-dawn.js' %}"></script>
+<script>
+(function () {
+  var textarea = document.getElementById("id_handler_code");
+  if (!textarea || typeof ace === "undefined") return;
+
+  var editorDiv = document.createElement("div");
+  editorDiv.id = "antares-handler-code-editor";
+  textarea.insertAdjacentElement("afterend", editorDiv);
+
+  var editor = ace.edit(editorDiv.id);
+  editor.session.setMode("ace/mode/python");
+  editor.setValue(textarea.value, -1); // -1 moves cursor to start
+  editor.setOptions({ fontSize: "13px", showPrintMargin: false });
+
+  var storedTheme = window.localStorage.getItem("theme");
+  editor.setTheme(
+    storedTheme === "dark"
+      ? "ace/theme/cloud9_night"
+      : "ace/theme/dawn"
+  );
+
+  // Keep the hidden textarea in sync so its value is what actually gets
+  // submitted with the form -- Ace is a visual overlay, not a real form
+  // control on its own.
+  editor.session.on("change", function () {
+    textarea.value = editor.getValue();
+  });
+
+  var form = textarea.closest("form");
+  if (form) {
+    form.addEventListener("submit", function () {
+      textarea.value = editor.getValue();
+    });
+  }
+})();
+</script>
+{% endblock %}

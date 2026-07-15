@@ -7,7 +7,6 @@ import signal
 import sys
 
 from apscheduler.schedulers.blocking import BlockingScheduler
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 # Ensure tasks are imported so that scheduled jobs are registered.
@@ -23,12 +22,16 @@ class Command(BaseCommand):
     This command:
       - Boots a BlockingScheduler
       - Registers all cron-decorated jobs from the registry
-      - Enqueues the long-running ANTARES Kafka stream consumer exactly
-        once, if ANTARES_KAFKA_* settings are configured (see
-        `goats_tom.tasks.ingest_antares_stream`). This runs here, in the
-        single scheduler process, rather than from `AppConfig.ready()`,
-        which would fire in every process (web server, every Dramatiq
-        worker) and enqueue duplicate consumers.
+      - Resumes the ANTARES Kafka stream consumer exactly once, if a
+        subscription was previously configured and left running (see
+        `goats_tom.tasks.ingest_antares_stream` and
+        `goats_tom.models.AntaresStreamSubscription`). Topics and
+        credentials both come from stored configuration (the subscription
+        row and a superuser's Credential Manager entry, respectively) --
+        there is no settings-based fallback for either. This runs here,
+        in the single scheduler process, rather than from
+        `AppConfig.ready()`, which would fire in every process (web
+        server, every Dramatiq worker) and enqueue duplicate consumers.
       - Installs signal handlers for graceful shutdown
       - Starts the scheduler loop
     """
@@ -63,7 +66,7 @@ class Command(BaseCommand):
                 replace_existing=job["replace_existing"],
             )
 
-        self._start_antares_stream_if_configured()
+        self._resume_antares_stream_if_previously_running()
 
         def _stop(_sig, _frame):
             try:
@@ -77,21 +80,37 @@ class Command(BaseCommand):
         self.stdout.write("* Running Task Scheduler")
         scheduler.start()
 
-    def _start_antares_stream_if_configured(self) -> None:
-        """Enqueue the ANTARES Kafka stream consumer, once, if configured.
+    def _resume_antares_stream_if_previously_running(self) -> None:
+        """Re-enqueue the ANTARES Kafka stream consumer on startup, if a
+        subscription exists and was left in a running state.
 
-        Skips quietly (with a message) if `ANTARES_KAFKA_TOPICS` isn't set,
-        rather than raising -- most GOATS installs won't have ANTARES
-        streaming credentials, and that should not prevent `goats run` from
-        starting everything else.
+        Skips quietly if no subscription has ever been configured (most
+        GOATS installs won't use ANTARES streaming), or if the last
+        subscription was explicitly stopped. Does not validate that
+        credentials are actually present -- if they're missing, the actor
+        itself raises and logs a clear error (see
+        `goats_tom.tasks.ingest_antares_stream._get_streaming_config`)
+        rather than this command silently failing to start it.
         """
+        from goats_tom.models import AntaresStreamSubscription
         from goats_tom.tasks import ingest_antares_stream
 
-        if not getattr(settings, "ANTARES_KAFKA_TOPICS", None):
+        subscription = (
+            AntaresStreamSubscription.objects.order_by("-updated_at").first()
+        )
+        if subscription is None or not subscription.is_running:
             self.stdout.write(
-                "* ANTARES_KAFKA_TOPICS not set; skipping ANTARES stream consumer."
+                "* No active ANTARES Kafka stream subscription to resume."
             )
             return
 
-        self.stdout.write("* Enqueuing ANTARES Kafka stream consumer...")
-        ingest_antares_stream.send()
+        self.stdout.write(
+            f"* Resuming ANTARES Kafka stream consumer for topics: "
+            f"{subscription.topics}"
+        )
+        message = ingest_antares_stream.send(
+            topics=subscription.topics,
+            handler_code=subscription.handler_code,
+        )
+        subscription.dramatiq_message_id = message.message_id
+        subscription.save(update_fields=["dramatiq_message_id"])

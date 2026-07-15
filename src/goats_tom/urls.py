@@ -113,6 +113,11 @@ urlpatterns = [
         name="user-tns-login",
     ),
     path("users/<int:pk>/gpp/", views.GPPLoginView.as_view(), name="user-gpp-login"),
+    path(
+        "users/<int:pk>/antares-kafka/",
+        views.AntaresKafkaLoginView.as_view(),
+        name="user-antares-kafka-login",
+    ),
     path("goa_query/<int:pk>/", views.GOAQueryFormView.as_view(), name="goa_query"),
     path(
         "observations/<int:pk>/goa-archive/",
@@ -148,5 +153,10 @@ urlpatterns = [
         "antares/loci/table/",
         views.antares_locus_table,
         name="antares-locus-table",
+    ),
+    path(
+        "antares/stream/subscribe/",
+        views.antares_stream_subscribe,
+        name="antares-stream-subscribe",
     ),
 ]

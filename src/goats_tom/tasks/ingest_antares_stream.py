@@ -6,20 +6,17 @@ Uses `antares_client.StreamingClient`, which handles the Kafka connection,
 SASL auth, and Avro decoding internally and yields `(topic, Locus)` tuples --
 so this module only has to translate a `Locus` into a staging-table row.
 
-Requires Django settings:
+Credentials come from the first superuser's stored ANTARES Kafka
+credentials (Users -> Manage -> "ANTARES Kafka Stream" in the Credential
+Manager), since the consumer is a single shared background process, not
+tied to any particular request/user. There is no `local_settings.py`
+fallback for credentials -- a superuser must store them via the
+Credential Manager before the consumer can start.
 
-    ANTARES_KAFKA_API_KEY = "..."
-    ANTARES_KAFKA_API_SECRET = "..."
-    ANTARES_KAFKA_TOPICS = ["<your_alert_stream_topic>"]
-
-Optional:
-
-    ANTARES_KAFKA_GROUP = "goats-antares-locus-dashboard"  # Kafka consumer
-        # group name. Defaults to DEFAULT_GROUP below if unset. Set this
-        # explicitly (rather than relying on antares_client's own default,
-        # which falls back to the machine's hostname) so the consumer
-        # group -- and therefore offset tracking -- stays stable across
-        # restarts and across different hosts/containers.
+Topics are passed explicitly via `ingest_antares_stream.send(topics=[...])`
+(from the "Ingest from Kafka stream" form, or from the scheduler resuming
+a previously-running subscription on startup). There is no
+`settings.ANTARES_KAFKA_TOPICS` fallback.
 
 (Streaming credentials are issued separately from ANTARES Portal/API
 credentials -- contact the ANTARES team to request them.)
@@ -35,9 +32,9 @@ __all__ = ["ingest_antares_stream"]
 import logging
 
 import dramatiq
-from django.conf import settings
 from django.db import transaction
 
+from goats_tom.antares_locus_handler import LocusHandlerError, run_locus_handler
 from goats_tom.models import AntaresLocus
 
 logger = logging.getLogger(__name__)
@@ -45,8 +42,24 @@ logger = logging.getLogger(__name__)
 DEFAULT_GROUP = "goats-antares-locus-dashboard"
 
 
-def _get_streaming_config() -> dict:
-    """Build the `StreamingClient` kwargs from Django settings.
+def _get_streaming_config(topics: list[str]) -> dict:
+    """Build the `StreamingClient` kwargs from an explicit topic list and
+    stored ANTARES Kafka credentials.
+
+    Credentials come exclusively from the first superuser's
+    `AntaresKafkaLogin` row (see
+    `goats_tom.views.logins.antares_kafka.AntaresKafkaLoginView`), since
+    the consumer is a single shared background process, not tied to any
+    particular request/user. There is no `local_settings.py` fallback for
+    credentials -- a superuser must store them via the Credential Manager
+    first.
+
+    Parameters
+    ----------
+    topics : list of str
+        Topics to subscribe to, e.g. passed in by
+        `ingest_antares_stream.send(topics=[...])` from a form submission.
+        Required -- there is no `settings.ANTARES_KAFKA_TOPICS` fallback.
 
     Returns
     -------
@@ -56,26 +69,40 @@ def _get_streaming_config() -> dict:
     Raises
     ------
     ValueError
-        If required ANTARES Kafka streaming settings are missing.
+        If `topics` is empty, no superuser exists, or no superuser has
+        stored ANTARES Kafka credentials.
     """
-    topics = list(getattr(settings, "ANTARES_KAFKA_TOPICS", []))
-    api_key = getattr(settings, "ANTARES_KAFKA_API_KEY", None)
-    api_secret = getattr(settings, "ANTARES_KAFKA_API_SECRET", None)
-    group = getattr(settings, "ANTARES_KAFKA_GROUP", DEFAULT_GROUP)
+    from django.contrib.auth import get_user_model  # noqa: PLC0415
 
-    if not topics:
-        raise ValueError("ANTARES_KAFKA_TOPICS must list at least one topic.")
-    if not api_key or not api_secret:
+    from goats_tom.models import AntaresKafkaLogin  # noqa: PLC0415
+
+    resolved_topics = list(topics or [])
+    if not resolved_topics:
         raise ValueError(
-            "ANTARES_KAFKA_API_KEY and ANTARES_KAFKA_API_SECRET must both be "
-            "set to ingest the ANTARES Kafka stream."
+            "No ANTARES Kafka topics given: `topics` must be a non-empty "
+            "list."
+        )
+
+    User = get_user_model()
+    superuser = User.objects.filter(is_superuser=True).order_by("pk").first()
+    login = (
+        AntaresKafkaLogin.objects.filter(user=superuser).first()
+        if superuser
+        else None
+    )
+
+    if login is None:
+        raise ValueError(
+            "No ANTARES Kafka credentials found. A superuser must store "
+            "them via the Credential Manager (Users -> Manage -> ANTARES "
+            "Kafka Stream) before the consumer can start."
         )
 
     return {
-        "topics": topics,
-        "api_key": api_key,
-        "api_secret": api_secret,
-        "group": group,
+        "topics": resolved_topics,
+        "api_key": login.api_key,
+        "api_secret": login.api_secret,
+        "group": login.group or DEFAULT_GROUP,
     }
 
 
@@ -89,6 +116,12 @@ def _upsert_locus(locus) -> None:
 
     Notes
     -----
+    `locus.alerts` (and its backing `_alerts`) is `None` on stream
+    payloads -- confirmed by direct testing against the live stream, not
+    just the lazy-load risk noted in earlier code. `alerts` only ever
+    populates via a synchronous REST fetch (`Locus._fetch_alerts()`),
+    which we deliberately never trigger inside this hot loop.
+
     `locus.properties`, by contrast, IS always populated on every locus
     update from the stream (it's not one of the lazy-loaded attributes).
     `properties["newest_alert_observation_time"]`, `properties["newest_alert_id"]`,
@@ -96,7 +129,8 @@ def _upsert_locus(locus) -> None:
     were all confirmed against a live stream payload or ANTARES' own docs,
     so those back `latest_alert_mjd`, `latest_alert_id`, `alert_count`, and
     `latest_alert_magnitude` respectively. `alert_count` uses ANTARES' own
-    running total rather than a locally-incremented counter.
+    running total rather than a locally-incremented counter, since a local
+    counter would drift from reality if this consumer ever missed messages.
 
     `locus.catalogs` (plural -- not `catalog_objects`, which IS lazy-loaded)
     is a plain constructor-set list, not one of the three lazy-loaded
@@ -145,29 +179,46 @@ def _upsert_locus(locus) -> None:
 
 
 @dramatiq.actor(max_retries=0, time_limit=float("inf"))
-def ingest_antares_stream() -> None:
+def ingest_antares_stream(
+    topics: list[str], handler_code: str | None = None
+) -> None:
     """Continuously consume the ANTARES Kafka alert stream.
 
     Blocks indefinitely, receiving loci from `StreamingClient.iter()` and
-    upserting rows into `AntaresLocus`. Enqueued once by
-    `goats_scheduler.management.commands.run_scheduler` (not from
-    `AppConfig.ready()`, which would fire in every process and enqueue
-    duplicate consumers).
+    upserting rows into `AntaresLocus`. Started either by
+    `goats_scheduler.management.commands.run_scheduler` (resuming a
+    previously-running `AntaresStreamSubscription` on startup) or by
+    submitting the "Ingest from Kafka stream" form (see
+    `goats_tom.antares_stream_control.restart_antares_stream`). Not
+    started from `AppConfig.ready()`, which would fire in every process
+    and enqueue duplicate consumers.
 
     `time_limit=float("inf")` disables Dramatiq's default 10-minute actor
     time limit. Without this, Dramatiq forcibly kills the worker thread
     after the default timeout, since this actor is designed to never
     return under normal operation.
 
+    Parameters
+    ----------
+    topics : list of str
+        Topics to subscribe to. Required -- there is no settings-based
+        fallback.
+    handler_code : str, optional
+        User-defined function body run against each locus before it's
+        upserted, as an additional filter. See
+        `goats_tom.antares_locus_handler.run_locus_handler`. If the code
+        raises, that locus is logged and skipped (not the whole consumer)
+        so one bad handler invocation doesn't kill ingestion entirely.
+
     Raises
     ------
     ValueError
-        If required Kafka streaming settings are missing (see
-        `_get_streaming_config`).
+        If `topics` is empty, or no ANTARES Kafka credentials are stored
+        (see `_get_streaming_config`).
     """
     from antares_client import StreamingClient  # noqa: PLC0415
 
-    config = _get_streaming_config()
+    config = _get_streaming_config(topics)
     logger.info("ANTARES Kafka consumer started for topics: %s", config["topics"])
 
     with StreamingClient(
@@ -178,6 +229,18 @@ def ingest_antares_stream() -> None:
     ) as client:
         for topic, locus in client.iter():
             try:
+                if handler_code:
+                    try:
+                        keep = run_locus_handler(handler_code, locus)
+                    except LocusHandlerError:
+                        logger.exception(
+                            "User-defined locus handler failed for "
+                            "locus_id=%s; keeping locus by default.",
+                            getattr(locus, "locus_id", None),
+                        )
+                        keep = True
+                    if not keep:
+                        continue
                 _upsert_locus(locus)
             except Exception:
                 logger.exception(

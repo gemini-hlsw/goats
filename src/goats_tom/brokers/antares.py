@@ -12,6 +12,7 @@ from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
 from django.forms.widgets import Textarea
 from django.templatetags.static import static
+from django.urls import reverse
 from tom_alerts.alerts import GenericAlert, GenericBroker, GenericQueryForm
 from tom_dataproducts.data_processor import run_data_processor
 from tom_dataproducts.exceptions import InvalidFileFormatException
@@ -63,17 +64,20 @@ class ANTARESBrokerForm(GenericQueryForm):
             "https://addons.mozilla.org/en-US/firefox/addon/antares2goats/"
         )
         chrome_extension_url = "https://chromewebstore.google.com/detail/antares2goats/nmnbkpfjnpachfajklpjimbdpkoebcba"
+        kafka_stream_url = reverse("antares-stream-subscribe")
 
         # ruff: noqa: E501
         self.helper.layout = Layout(
             self.common_layout,
             HTML(
-                """
+                f"""
                 <p>
                 Users can query objects in the ANTARES database using one of the following
-                two methods: <br><br>1. Using the antares2goats Browser Extension (recommended).<br>2.
+                three methods: <br><br>1. Using the antares2goats Browser Extension (recommended).<br>2.
                 An advanced
-                query with Elastic Search syntax.
+                query with Elastic Search syntax.<br>3. Ingesting live Kafka alert streams (option to
+                automatically trigger Gemini observations).
+                <br><a href="{kafka_stream_url}">Go to the Kafka stream ingestion page.</a>
             </p>
             """,
             ),
