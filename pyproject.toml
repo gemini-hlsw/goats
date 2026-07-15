@@ -43,7 +43,7 @@ dependencies = [
     "whitenoise>=6.6.0,<7",
     "jdaviz==5.0.1",
 ]
-version = "26.7.0"
+version = "26.8.0rc1"
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
