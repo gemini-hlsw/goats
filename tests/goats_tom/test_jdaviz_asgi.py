@@ -11,12 +11,16 @@ import pytest
 from goats_tom import jdaviz_asgi
 from goats_tom.jdaviz_asgi import (
     JDAVIZ_PREFIX,
+    SOLARA_APP_MODULE,
+    WEBSOCKET_MAX_MESSAGE_SIZE,
     READYZ_PROBE_PATH,
     READYZ_TARGET_PATH,
     _deny,
     _is_authenticated,
     _quiet_jdaviz_logging,
+    _raise_daphne_ws_message_limit,
     _requires_auth,
+    _session_has_user,
     _session_key_from_scope,
     init_solara,
     mount_jdaviz,
@@ -46,9 +50,7 @@ class _Recorder:
         return {"type": "websocket.connect"}
 
 
-# --------------------------------------------------------------------------- #
-# _requires_auth
-# --------------------------------------------------------------------------- #
+
 class TestRequiresAuth:
     def test_websocket_always_requires_auth(self):
         assert _requires_auth("websocket", JDAVIZ_PREFIX + "/anything") is True
@@ -63,9 +65,7 @@ class TestRequiresAuth:
         assert _requires_auth("http", JDAVIZ_PREFIX + "/static/app.js") is False
 
 
-# --------------------------------------------------------------------------- #
-# _session_key_from_scope
-# --------------------------------------------------------------------------- #
+
 class TestSessionKeyFromScope:
     def test_no_cookie_header_returns_none(self):
         assert _session_key_from_scope(_http_scope(JDAVIZ_PREFIX)) is None
@@ -84,10 +84,50 @@ class TestSessionKeyFromScope:
         )
         assert _session_key_from_scope(scope) == "abc123"
 
+    def test_cookie_parse_error_returns_none(self, monkeypatch):
+        import http.cookies
 
-# --------------------------------------------------------------------------- #
-# _deny
-# --------------------------------------------------------------------------- #
+        class ExplodingCookie(http.cookies.SimpleCookie):
+            def load(self, rawdata):
+                raise http.cookies.CookieError("bad cookie")
+
+        monkeypatch.setattr(http.cookies, "SimpleCookie", ExplodingCookie)
+        scope = _http_scope(JDAVIZ_PREFIX, cookie="sessionid=abc123")
+        assert _session_key_from_scope(scope) is None
+
+
+
+class TestSessionHasUser:
+    @staticmethod
+    def _session_store():
+        from importlib import import_module
+
+        from django.conf import settings
+
+        return import_module(settings.SESSION_ENGINE).SessionStore
+
+    @pytest.mark.django_db
+    def test_session_with_user_is_true(self):
+        from django.contrib.auth import SESSION_KEY
+
+        session = self._session_store()()
+        session[SESSION_KEY] = "1"
+        session.create()
+        assert _session_has_user(session.session_key) is True
+
+    @pytest.mark.django_db
+    def test_session_without_user_is_false(self):
+        session = self._session_store()()
+        session["something-else"] = "x"
+        session.create()
+        assert _session_has_user(session.session_key) is False
+
+    @pytest.mark.django_db
+    def test_unknown_session_key_is_false(self):
+        assert _session_has_user("does-not-exist") is False
+
+
+
 class TestDeny:
     @pytest.mark.asyncio()
     async def test_http_deny_sends_403(self):
@@ -108,9 +148,6 @@ class TestDeny:
         assert rec.sent == [{"type": "websocket.close", "code": 4403}]
 
 
-# --------------------------------------------------------------------------- #
-# _is_authenticated
-# --------------------------------------------------------------------------- #
 class TestIsAuthenticated:
     @pytest.mark.asyncio()
     async def test_no_session_key_is_unauthenticated(self, monkeypatch):
@@ -139,9 +176,6 @@ class TestIsAuthenticated:
         assert await _is_authenticated({}) is False
 
 
-# --------------------------------------------------------------------------- #
-# init_solara
-# --------------------------------------------------------------------------- #
 class TestInitSolara:
     @pytest.fixture(autouse=True)
     def _reset_state(self):
@@ -163,10 +197,109 @@ class TestInitSolara:
         jdaviz_asgi._state["app"] = None
         assert init_solara() is None
 
+    def test_failed_initialization_disables_viewer_and_is_cached(self, monkeypatch):
+        def boom():
+            raise ImportError("solara stack unavailable")
 
-# --------------------------------------------------------------------------- #
-# mount_jdaviz
-# --------------------------------------------------------------------------- #
+        monkeypatch.setattr(jdaviz_asgi, "_quiet_jdaviz_logging", boom)
+        assert init_solara() is None
+
+        # The failure must be cached: a later call may not retry the init.
+        monkeypatch.setattr(
+            jdaviz_asgi,
+            "_quiet_jdaviz_logging",
+            lambda: pytest.fail("init must not be retried after a failure"),
+        )
+        assert init_solara() is None
+
+    def test_successful_initialization_returns_app_and_sets_env(self, monkeypatch):
+        import os
+        import sys
+        import types
+
+        # Fake the solara.server.starlette module chain so no real Solara
+        # (kernel manager, asset proxy, ...) is started by the import.
+        sentinel = object()
+        starlette_mod = types.ModuleType("solara.server.starlette")
+        starlette_mod.app = sentinel
+        server_mod = types.ModuleType("solara.server")
+        server_mod.starlette = starlette_mod
+        solara_mod = types.ModuleType("solara")
+        solara_mod.server = server_mod
+        monkeypatch.setitem(sys.modules, "solara", solara_mod)
+        monkeypatch.setitem(sys.modules, "solara.server", server_mod)
+        monkeypatch.setitem(sys.modules, "solara.server.starlette", starlette_mod)
+
+        # Keep the daphne patch from mutating the real daphne class.
+        patched = []
+        monkeypatch.setattr(
+            jdaviz_asgi,
+            "_raise_daphne_ws_message_limit",
+            lambda: patched.append(True),
+        )
+
+        # setenv-then-delenv registers the original value for restore, then
+        # clears the variable so the setdefaults in init_solara take effect.
+        for var in ("SOLARA_APP", "SOLARA_ROOT_PATH", "SOLARA_ASSETS_PROXY"):
+            monkeypatch.setenv(var, "sentinel")
+            monkeypatch.delenv(var)
+
+        assert init_solara() is sentinel
+        assert os.environ["SOLARA_APP"] == SOLARA_APP_MODULE
+        assert os.environ["SOLARA_ROOT_PATH"] == JDAVIZ_PREFIX
+        assert os.environ["SOLARA_ASSETS_PROXY"] == "True"
+        assert patched == [True]
+
+
+class TestRaiseDaphneWsMessageLimit:
+    @pytest.fixture()
+    def fake_daphne(self, monkeypatch):
+        """Install a fake ``daphne.server`` so the real class is never patched."""
+        import sys
+        import types
+
+        server_mod = types.ModuleType("daphne.server")
+
+        class Server:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        server_mod.Server = Server
+        daphne_mod = types.ModuleType("daphne")
+        daphne_mod.server = server_mod
+        monkeypatch.setitem(sys.modules, "daphne", daphne_mod)
+        monkeypatch.setitem(sys.modules, "daphne.server", server_mod)
+        return server_mod
+
+    def test_defaults_message_and_frame_sizes(self, fake_daphne):
+        _raise_daphne_ws_message_limit()
+        server = fake_daphne.Server()
+        assert server.kwargs["websocket_max_message_size"] == (
+            WEBSOCKET_MAX_MESSAGE_SIZE
+        )
+        assert server.kwargs["websocket_max_frame_size"] == WEBSOCKET_MAX_MESSAGE_SIZE
+
+    def test_explicit_kwargs_are_not_overridden(self, fake_daphne):
+        _raise_daphne_ws_message_limit()
+        server = fake_daphne.Server(websocket_max_message_size=5)
+        assert server.kwargs["websocket_max_message_size"] == 5
+
+    def test_patch_is_idempotent(self, fake_daphne):
+        _raise_daphne_ws_message_limit()
+        patched_init = fake_daphne.Server.__init__
+        _raise_daphne_ws_message_limit()
+        assert fake_daphne.Server.__init__ is patched_init
+
+    def test_missing_daphne_is_noop(self, monkeypatch):
+        import sys
+
+        # A None entry in sys.modules makes ``import daphne.server`` raise.
+        monkeypatch.setitem(sys.modules, "daphne", None)
+        monkeypatch.setitem(sys.modules, "daphne.server", None)
+        _raise_daphne_ws_message_limit()
+
+
+
 class TestMountJdaviz:
     @staticmethod
     def _channels_app():
@@ -295,9 +428,7 @@ class TestMountJdaviz:
         assert forwarded["raw_path"] == READYZ_TARGET_PATH.encode()
 
 
-# --------------------------------------------------------------------------- #
-# _quiet_jdaviz_logging
-# --------------------------------------------------------------------------- #
+
 def test_quiet_jdaviz_logging_raises_levels_to_warning():
     import logging
 

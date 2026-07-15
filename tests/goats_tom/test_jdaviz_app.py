@@ -8,6 +8,7 @@ tests.
 """
 
 import types
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -16,7 +17,11 @@ from astropy.io import fits
 from goats_tom import jdaviz_app
 from goats_tom.jdaviz_app import (
     SCIENCE_EXTENSION,
+    UNSUPPORTED_MESSAGE,
+    _build_specviz,
+    _call_off_event_loop,
     _dragons_hdu_to_spectrum,
+    _hide_popout,
     _query_param,
     _read_dragons_spectra,
     _resolve_spectra,
@@ -43,9 +48,6 @@ def _linear_wcs_header(data, ctype="WAVE", bunit="count"):
     return header
 
 
-# --------------------------------------------------------------------------- #
-# _query_param
-# --------------------------------------------------------------------------- #
 class TestQueryParam:
     def test_none_search_returns_none(self):
         assert _query_param(None, "dataproduct") is None
@@ -66,9 +68,6 @@ class TestQueryParam:
         assert _query_param("dataproduct=1&dataproduct=2", "dataproduct") == "1"
 
 
-# --------------------------------------------------------------------------- #
-# _spectra_are_2d
-# --------------------------------------------------------------------------- #
 class TestSpectraAre2d:
     def test_none_is_not_2d(self):
         assert _spectra_are_2d(None) is False
@@ -83,9 +82,7 @@ class TestSpectraAre2d:
         assert _spectra_are_2d([("a", _spectrum(1)), ("b", _spectrum(2))]) is True
 
 
-# --------------------------------------------------------------------------- #
-# _dragons_hdu_to_spectrum
-# --------------------------------------------------------------------------- #
+
 class TestDragonsHduToSpectrum:
     def test_reads_1d_flux_with_bunit(self):
         data = np.arange(5, dtype="float64")
@@ -117,9 +114,7 @@ class TestDragonsHduToSpectrum:
         assert _dragons_hdu_to_spectrum(hdu) is None
 
 
-# --------------------------------------------------------------------------- #
-# _read_dragons_spectra
-# --------------------------------------------------------------------------- #
+
 class TestReadDragonsSpectra:
     def test_non_fits_file_returns_none(self, tmp_path):
         path = tmp_path / "data.csv"
@@ -176,10 +171,42 @@ class TestReadDragonsSpectra:
         assert spectra is not None
         assert spectra[0][1].flux.ndim == 2
 
+    def test_unreadable_sci_extension_is_skipped(self, tmp_path, monkeypatch):
+        path = tmp_path / "multi.fits"
+        data = np.arange(5, dtype="float64")
+        hdus = [fits.PrimaryHDU()]
+        for ver in (1, 2):
+            sci = fits.ImageHDU(
+                data=data, header=_linear_wcs_header(data), name=SCIENCE_EXTENSION
+            )
+            sci.ver = ver
+            hdus.append(sci)
+        fits.HDUList(hdus).writeto(path)
 
-# --------------------------------------------------------------------------- #
-# _resolve_spectra
-# --------------------------------------------------------------------------- #
+        real = jdaviz_app._dragons_hdu_to_spectrum
+        monkeypatch.setattr(
+            jdaviz_app,
+            "_dragons_hdu_to_spectrum",
+            lambda hdu: None if hdu.ver == 2 else real(hdu),
+        )
+
+        spectra = _read_dragons_spectra(path)
+        assert spectra is not None
+        assert [label for label, _ in spectra] == ["multi [SCI,1]"]
+
+    def test_all_sci_extensions_unreadable_returns_none(self, tmp_path, monkeypatch):
+        path = tmp_path / "spec.fits"
+        data = np.arange(5, dtype="float64")
+        sci = fits.ImageHDU(
+            data=data, header=_linear_wcs_header(data), name=SCIENCE_EXTENSION
+        )
+        fits.HDUList([fits.PrimaryHDU(), sci]).writeto(path)
+
+        monkeypatch.setattr(jdaviz_app, "_dragons_hdu_to_spectrum", lambda hdu: None)
+        assert _read_dragons_spectra(path) is None
+
+
+
 class TestResolveSpectra:
     def test_no_pk_returns_all_none(self):
         assert _resolve_spectra(None) == (None, None, None)
@@ -202,12 +229,39 @@ class TestResolveSpectra:
 
         dp = DataProductFactory()
         # Remove the backing file so the on-disk existence check fails.
-        from pathlib import Path
-
         Path(dp.data.path).unlink()
         path, spectra, error = _resolve_spectra(str(dp.pk))
         assert path is None and spectra is None
         assert "missing on disk" in error
+
+    @pytest.mark.django_db
+    def test_dataproduct_without_file_returns_error(self):
+        from goats_tom.tests.factories import DataProductFactory
+
+        dp = DataProductFactory()
+        dp.data = ""
+        dp.save()
+        path, spectra, error = _resolve_spectra(str(dp.pk))
+        assert path is None and spectra is None
+        assert "no associated file" in error
+
+    @pytest.mark.django_db
+    def test_processor_error_falls_back_to_path(self, monkeypatch):
+        from goats_tom.tests.factories import DataProductFactory
+
+        dp = DataProductFactory()
+        monkeypatch.setattr(jdaviz_app, "_read_dragons_spectra", lambda p: None)
+
+        def boom(dp):
+            raise RuntimeError("corrupt file")
+
+        monkeypatch.setattr(jdaviz_app, "_read_processor_spectra", boom)
+
+        path, spectra, error = _resolve_spectra(str(dp.pk))
+        # A processor crash is not fatal: jdaviz's own loaders get to try path.
+        assert error is None
+        assert spectra is None
+        assert path is not None
 
     @pytest.mark.django_db
     def test_dragons_reader_result_is_returned(self, monkeypatch):
@@ -268,3 +322,142 @@ class TestResolveSpectra:
         assert error is None
         assert len(spectra) == 1
         assert spectra[0][0] == path.stem
+
+
+
+class TestCallOffEventLoop:
+    def test_returns_result(self):
+        assert _call_off_event_loop(lambda: 42) == 42
+
+    def test_propagates_exception(self):
+        def boom():
+            raise ValueError("nope")
+
+        with pytest.raises(ValueError, match="nope"):
+            _call_off_event_loop(boom)
+
+    def test_closes_db_connections_after_call(self, monkeypatch):
+        from django.db import connections
+
+        closed = []
+        monkeypatch.setattr(connections, "close_all", lambda: closed.append(True))
+        _call_off_event_loop(lambda: None)
+        assert closed == [True]
+
+    def test_closes_db_connections_even_on_error(self, monkeypatch):
+        from django.db import connections
+
+        closed = []
+        monkeypatch.setattr(connections, "close_all", lambda: closed.append(True))
+
+        def boom():
+            raise RuntimeError("db exploded")
+
+        with pytest.raises(RuntimeError):
+            _call_off_event_loop(boom)
+        assert closed == [True]
+
+
+
+class TestHidePopout:
+    def test_hides_popout_button(self):
+        layout = types.SimpleNamespace(display=None)
+        viz = types.SimpleNamespace(
+            app=types.SimpleNamespace(
+                popout_button=types.SimpleNamespace(layout=layout)
+            )
+        )
+        _hide_popout(viz)
+        assert layout.display == "none"
+
+    def test_missing_popout_button_is_noop(self):
+        viz = types.SimpleNamespace(app=types.SimpleNamespace())
+        _hide_popout(viz)
+
+
+
+class _FakeSpecviz:
+    """Stand-in for a ``Specviz`` helper recording ``load`` calls."""
+
+    def __init__(self, fail=False):
+        self.loads = []
+        self._fail = fail
+
+    def load(self, spectrum, data_label=None):
+        if self._fail:
+            raise RuntimeError("cannot load")
+        self.loads.append((spectrum, data_label))
+
+
+class _FakeSpecviz2d:
+    """Stand-in for a ``Specviz2d`` helper recording ``load_data`` calls."""
+
+    def __init__(self, fail=False):
+        self.loads = []
+        self._fail = fail
+
+    def load_data(self, **kwargs):
+        if self._fail:
+            raise RuntimeError("cannot load")
+        self.loads.append(kwargs)
+
+
+class TestBuildSpecviz:
+    PATH = Path("spec.fits")
+
+    def test_1d_spectra_load_into_specviz(self, monkeypatch):
+        fake = _FakeSpecviz()
+        monkeypatch.setattr(jdaviz_app, "_create_specviz", lambda: fake)
+        s1, s2 = _spectrum(1), _spectrum(1)
+
+        viz, load_error = _build_specviz(self.PATH, [("a", s1), ("b", s2)])
+        assert viz is fake
+        assert load_error is None
+        assert fake.loads == [(s1, "a"), (s2, "b")]
+
+    def test_no_spectra_uses_jdaviz_loader_on_path(self, monkeypatch):
+        fake = _FakeSpecviz()
+        monkeypatch.setattr(jdaviz_app, "_create_specviz", lambda: fake)
+
+        viz, load_error = _build_specviz(self.PATH, None)
+        assert viz is fake
+        assert load_error is None
+        assert fake.loads == [(str(self.PATH), None)]
+
+    def test_2d_spectrum_routes_to_specviz2d(self, monkeypatch):
+        fake = _FakeSpecviz2d()
+        monkeypatch.setattr(jdaviz_app, "_create_specviz2d", lambda: fake)
+        s2d = _spectrum(2)
+
+        viz, load_error = _build_specviz(self.PATH, [("img", s2d)])
+        assert viz is fake
+        assert load_error is None
+        assert fake.loads == [{"spectrum_2d": s2d, "spectrum_2d_label": "img"}]
+
+    def test_mixed_spectra_route_1d_and_2d_into_specviz2d(self, monkeypatch):
+        fake = _FakeSpecviz2d()
+        monkeypatch.setattr(jdaviz_app, "_create_specviz2d", lambda: fake)
+        s2d, s1d = _spectrum(2), _spectrum(1)
+
+        viz, load_error = _build_specviz(self.PATH, [("img", s2d), ("trace", s1d)])
+        assert load_error is None
+        assert fake.loads == [
+            {"spectrum_2d": s2d, "spectrum_2d_label": "img"},
+            {"spectrum_1d": s1d, "spectrum_1d_label": "trace"},
+        ]
+
+    def test_1d_load_failure_keeps_viewer_and_reports(self, monkeypatch):
+        fake = _FakeSpecviz(fail=True)
+        monkeypatch.setattr(jdaviz_app, "_create_specviz", lambda: fake)
+
+        viz, load_error = _build_specviz(self.PATH, None)
+        assert viz is fake
+        assert load_error == UNSUPPORTED_MESSAGE.format(name=self.PATH.name)
+
+    def test_2d_load_failure_keeps_viewer_and_reports(self, monkeypatch):
+        fake = _FakeSpecviz2d(fail=True)
+        monkeypatch.setattr(jdaviz_app, "_create_specviz2d", lambda: fake)
+
+        viz, load_error = _build_specviz(self.PATH, [("img", _spectrum(2))])
+        assert viz is fake
+        assert load_error == UNSUPPORTED_MESSAGE.format(name=self.PATH.name)
