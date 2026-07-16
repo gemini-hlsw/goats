@@ -11,9 +11,9 @@ from goats_tom.antares_locus_handler import LocusHandlerError, check_handler_sou
 
 
 class AntaresStreamSubscribeForm(forms.Form):
-    """Collects a comma-separated topic list, two (currently no-op) radio
-    options, and optional custom locus-handler code for the ANTARES Kafka
-    stream consumer.
+    """Collects a comma-separated topic list, two radio options (one now
+    operational, one still a no-op), and optional custom locus-handler
+    code for the ANTARES Kafka stream consumer.
 
     Attributes
     ----------
@@ -21,8 +21,10 @@ class AntaresStreamSubscribeForm(forms.Form):
         Comma-separated Kafka topic names, e.g.
         ``"extragalactic_staging, nuclear_transient_staging"``.
     save_all_targets : `forms.ChoiceField`
-        Single radio option, unselected by default. Not yet wired to any
-        behavior -- selecting it currently does nothing.
+        Single radio option, unselected by default. When selected, every
+        newly-ingested locus (not already saved) is saved as a GOATS
+        `Target`, including its light curve -- see
+        `goats_tom.antares_target_save.save_locus_as_target`.
     trigger_gemini_observations : `forms.ChoiceField`
         Single radio option, unselected by default. Not yet wired to any
         behavior -- selecting it currently does nothing.
@@ -48,7 +50,10 @@ class AntaresStreamSubscribeForm(forms.Form):
         required=False,
         initial=None,
         widget=forms.RadioSelect,
-        help_text="Not yet active; selecting this currently has no effect.",
+        help_text=(
+            "Only applies to loci ingested after this is enabled -- it "
+            "does not retroactively save loci already in the dashboard."
+        ),
     )
     trigger_gemini_observations = forms.ChoiceField(
         label="",

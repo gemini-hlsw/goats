@@ -66,8 +66,10 @@ def restart_antares_stream(
     topics : list of str
         Kafka topics to subscribe to.
     save_all_targets : bool, optional
-        Stored on the subscription row for future use. Currently a no-op
-        (default `False`).
+        If `True`, every locus ingested while this subscription is active
+        is saved as a GOATS `Target` (see
+        `goats_tom.tasks.ingest_antares_stream` and
+        `goats_tom.antares_target_save`).
     trigger_gemini_observations : bool, optional
         Stored on the subscription row for future use. Currently a no-op
         (default `False`).
@@ -100,7 +102,11 @@ def restart_antares_stream(
 
     _abort_running_consumer(subscription)
 
-    message = ingest_antares_stream.send(topics=topics, handler_code=handler_code)
+    message = ingest_antares_stream.send(
+        topics=topics,
+        handler_code=handler_code,
+        save_all_targets=save_all_targets,
+    )
 
     subscription.topics = topics
     subscription.save_all_targets = save_all_targets

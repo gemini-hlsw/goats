@@ -160,6 +160,16 @@ urlpatterns = [
         name="antares-locus-table",
     ),
     path(
+        "antares/loci/save/",
+        views.antares_locus_save_targets,
+        name="antares-locus-save-targets",
+    ),
+    path(
+        "antares/loci/saved-status/",
+        views.antares_locus_saved_status,
+        name="antares-locus-saved-status",
+    ),
+    path(
         "antares/stream/subscribe/",
         views.antares_stream_subscribe,
         name="antares-stream-subscribe",

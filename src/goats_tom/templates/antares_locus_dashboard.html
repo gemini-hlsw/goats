@@ -92,6 +92,43 @@
     }
   }
 
+  // Fast poll (independent of the main 15s table refresh) for loci that
+  // just became saved as targets -- most notably via the antares2goats
+  // browser extension, which saves directly from the ANTARES portal, in a
+  // different tab this page has no other way of knowing about. Only
+  // updates the "Save target" cell in place (checkbox -> badge); doesn't
+  // touch anything else on the row, so it's a much smaller visual change
+  // than a full table refresh.
+  function pollSavedStatus() {
+    var checkboxes = document.querySelectorAll(".antares-locus-select");
+    if (checkboxes.length === 0) return;
+
+    var params = new URLSearchParams();
+    checkboxes.forEach(function (cb) {
+      params.append("locus_id", cb.value);
+    });
+
+    fetch("{% url 'antares-locus-saved-status' %}?" + params.toString())
+      .then(function (resp) {
+        return resp.ok ? resp.json() : null;
+      })
+      .then(function (data) {
+        if (!data || !data.saved) return;
+        var savedSet = new Set(data.saved);
+        checkboxes.forEach(function (cb) {
+          if (!savedSet.has(cb.value)) return;
+          var cell = cb.closest("td");
+          if (!cell) return;
+          cell.innerHTML =
+            '<span class="badge badge-success" title="Already saved as a target">&#10003; Saved</span>';
+        });
+      })
+      .catch(function () {
+        // Ignore transient failures; the next poll or the 15s table
+        // refresh will pick up the change either way.
+      });
+  }
+
   document.body.addEventListener("click", function (evt) {
     var link = evt.target.closest(".antares-locus-link");
     if (!link) return;
@@ -122,6 +159,7 @@
 
   applySeenHighlighting();
   setUpSaveTargetCheckboxes();
+  setInterval(pollSavedStatus, 3000);
 })();
 </script>
 {% endblock %}

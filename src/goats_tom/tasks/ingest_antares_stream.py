@@ -35,6 +35,11 @@ import dramatiq
 from django.db import transaction
 
 from goats_tom.antares_locus_handler import LocusHandlerError, run_locus_handler
+from goats_tom.antares_target_save import (
+    SaveLocusError,
+    locus_is_saved_as_target,
+    save_locus_as_target,
+)
 from goats_tom.models import AntaresLocus
 
 logger = logging.getLogger(__name__)
@@ -180,7 +185,9 @@ def _upsert_locus(locus) -> None:
 
 @dramatiq.actor(max_retries=0, time_limit=float("inf"))
 def ingest_antares_stream(
-    topics: list[str], handler_code: str | None = None
+    topics: list[str],
+    handler_code: str | None = None,
+    save_all_targets: bool = False,
 ) -> None:
     """Continuously consume the ANTARES Kafka alert stream.
 
@@ -209,6 +216,14 @@ def ingest_antares_stream(
         `goats_tom.antares_locus_handler.run_locus_handler`. If the code
         raises, that locus is logged and skipped (not the whole consumer)
         so one bad handler invocation doesn't kill ingestion entirely.
+    save_all_targets : bool, optional
+        If `True`, every locus that passes the handler filter (or every
+        locus, if no handler is set) is saved as a GOATS `Target` -- once
+        per locus, checked via `locus_is_saved_as_target` before saving,
+        since the same locus can receive many alerts and we don't want to
+        re-save (or error trying to) on every single one. A save failure
+        is logged and does not stop ingestion of that locus into
+        `AntaresLocus`, nor the consumer as a whole.
 
     Raises
     ------
@@ -242,6 +257,18 @@ def ingest_antares_stream(
                     if not keep:
                         continue
                 _upsert_locus(locus)
+
+                if save_all_targets and not locus_is_saved_as_target(
+                    locus.locus_id
+                ):
+                    try:
+                        save_locus_as_target(locus.locus_id)
+                    except SaveLocusError:
+                        logger.exception(
+                            "Auto-save failed for locus_id=%s; ingestion "
+                            "continues.",
+                            locus.locus_id,
+                        )
             except Exception:
                 logger.exception(
                     "Failed to process ANTARES locus update: topic=%s locus_id=%s",

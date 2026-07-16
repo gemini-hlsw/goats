@@ -111,6 +111,7 @@ class Command(BaseCommand):
         message = ingest_antares_stream.send(
             topics=subscription.topics,
             handler_code=subscription.handler_code,
+            save_all_targets=subscription.save_all_targets,
         )
         subscription.dramatiq_message_id = message.message_id
         subscription.save(update_fields=["dramatiq_message_id"])

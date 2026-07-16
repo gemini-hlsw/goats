@@ -4,94 +4,104 @@
      hx-trigger="every 15s"
      hx-target="#antares-locus-table-wrapper"
      hx-swap="outerHTML">
-  <div class="table-responsive">
-    <table class="table table-striped table-sm" id="antares-locus-table">
-      <thead>
-        <tr>
-          <th>
-            <input type="checkbox" class="antares-select-all" title="Select all rows on this page">
-            Save target
-          </th>
-          <th>Locus ID</th>
-          <th>RA</th>
-          <th>Dec</th>
-          <th>Latest Alert ID</th>
-          <th>
-            {% if sort == "-latest_alert" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp &#9660;</a>
-            {% elif sort == "latest_alert" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp &#9650;</a>
-            {% else %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp</a>
-            {% endif %}
-          </th>
-          <th>
-            {% if sort == "-magnitude" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9660;</a>
-            {% elif sort == "magnitude" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9650;</a>
-            {% else %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude</a>
-            {% endif %}
-          </th>
-          <th>
-            {% if sort == "-in_tns" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS &#9660;</a>
-            {% elif sort == "in_tns" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS &#9650;</a>
-            {% else %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS</a>
-            {% endif %}
-          </th>
-          <th>
-            {% if sort == "-alert_count" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts &#9660;</a>
-            {% elif sort == "alert_count" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts &#9650;</a>
-            {% else %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts</a>
-            {% endif %}
-          </th>
-          <th>
-            {% if sort == "-first_seen" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">First Seen &#9660;</a>
-            {% elif sort == "first_seen" %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">First Seen &#9650;</a>
-            {% else %}
-            <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">First Seen</a>
-            {% endif %}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for locus in page %}
-        <tr class="antares-locus-row" data-locus-id="{{ locus.locus_id }}">
-          <td>
-            <input type="checkbox" class="antares-locus-select" value="{{ locus.locus_id }}" aria-label="Save target {{ locus.locus_id }}">
-          </td>
-          <td>
-            <a href="{% antares_url locus.locus_id '' '' %}"
-               target="_blank"
-               rel="noopener noreferrer"
-               class="antares-locus-link">{{ locus.locus_id }}</a>
-          </td>
-          <td>{{ locus.ra|deg_to_ra_sexagesimal }}</td>
-          <td>{{ locus.dec|deg_to_dec_sexagesimal }}</td>
-          <td style="max-width: 180px;">{{ locus.latest_alert_id|wrap_after_colon }}</td>
-          <td>{{ locus.latest_alert_mjd|mjd_to_utc }}</td>
-          <td>{{ locus.latest_alert_magnitude|default_if_none:"&mdash;"|floatformat:2 }}</td>
-          <td>{% if locus.in_tns %}<span class="badge badge-success">Yes</span>{% else %}<span class="text-muted">No</span>{% endif %}</td>
-          <td>{{ locus.alert_count }}</td>
-          <td>{{ locus.first_seen }}</td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="10" class="text-center">No ANTARES loci seen yet.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <form method="post" action="{% url 'antares-locus-save-targets' %}">
+    {% csrf_token %}
+    <input type="hidden" name="page" value="{{ page.number }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <button type="submit" class="btn btn-primary btn-sm mb-2">Save selected</button>
+    <div class="table-responsive">
+      <table class="table table-striped table-sm" id="antares-locus-table">
+        <thead>
+          <tr>
+            <th>
+              <input type="checkbox" class="antares-select-all" title="Select all rows on this page">
+              Save target
+            </th>
+            <th>Locus ID</th>
+            <th>RA</th>
+            <th>Dec</th>
+            <th>Latest Alert ID</th>
+            <th>
+              {% if sort == "-latest_alert" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp &#9660;</a>
+              {% elif sort == "latest_alert" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp &#9650;</a>
+              {% else %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp</a>
+              {% endif %}
+            </th>
+            <th>
+              {% if sort == "-magnitude" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9660;</a>
+              {% elif sort == "magnitude" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9650;</a>
+              {% else %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude</a>
+              {% endif %}
+            </th>
+            <th>
+              {% if sort == "-in_tns" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS &#9660;</a>
+              {% elif sort == "in_tns" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS &#9650;</a>
+              {% else %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS</a>
+              {% endif %}
+            </th>
+            <th>
+              {% if sort == "-alert_count" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts &#9660;</a>
+              {% elif sort == "alert_count" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts &#9650;</a>
+              {% else %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts</a>
+              {% endif %}
+            </th>
+            <th>
+              {% if sort == "-first_seen" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">First Seen &#9660;</a>
+              {% elif sort == "first_seen" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">First Seen &#9650;</a>
+              {% else %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">First Seen</a>
+              {% endif %}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for locus in page %}
+          <tr class="antares-locus-row" data-locus-id="{{ locus.locus_id }}">
+            <td>
+              {% if locus.is_saved_target %}
+              <span class="badge badge-success" title="Already saved as a target">&#10003; Saved</span>
+              {% else %}
+              <input type="checkbox" name="locus_id" class="antares-locus-select" value="{{ locus.locus_id }}" aria-label="Save target {{ locus.locus_id }}">
+              {% endif %}
+            </td>
+            <td>
+              <a href="{% antares_url locus.locus_id '' '' %}"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="antares-locus-link">{{ locus.locus_id }}</a>
+            </td>
+            <td>{{ locus.ra|deg_to_ra_sexagesimal }}</td>
+            <td>{{ locus.dec|deg_to_dec_sexagesimal }}</td>
+            <td style="max-width: 180px;">{{ locus.latest_alert_id|wrap_after_colon }}</td>
+            <td>{{ locus.latest_alert_mjd|mjd_to_utc }}</td>
+            <td>{{ locus.latest_alert_magnitude|default_if_none:"&mdash;"|floatformat:2 }}</td>
+            <td>{% if locus.in_tns %}<span class="badge badge-success">Yes</span>{% else %}<span class="text-muted">No</span>{% endif %}</td>
+            <td>{{ locus.alert_count }}</td>
+            <td>{{ locus.first_seen }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="10" class="text-center">No ANTARES loci seen yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
 
   <nav aria-label="ANTARES locus table pages">
     <ul class="pagination pagination-sm">
