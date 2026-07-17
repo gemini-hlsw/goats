@@ -38,6 +38,14 @@ class AntaresStreamSubscription(models.Model):
     is_running : `models.BooleanField`
         Whether a consumer is believed to currently be running for this
         subscription.
+    last_handler_warning : `models.TextField`
+        The most recent warning from `handler_code` (e.g. `myfilter`
+        returning a non-bool value), if any. Shown on the ingestion page
+        so a broken filter is visible without checking server logs.
+        Cleared automatically the next time `handler_code` runs without a
+        warning.
+    last_handler_warning_at : `models.DateTimeField`
+        When `last_handler_warning` was last set.
     updated_at : `models.DateTimeField`
         When this subscription was last changed.
 
@@ -59,6 +67,8 @@ class AntaresStreamSubscription(models.Model):
     )
     dramatiq_message_id = models.CharField(max_length=64, null=True, blank=True)
     is_running = models.BooleanField(default=False)
+    last_handler_warning = models.TextField(blank=True, default="")
+    last_handler_warning_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

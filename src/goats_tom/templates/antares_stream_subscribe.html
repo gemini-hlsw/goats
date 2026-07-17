@@ -26,6 +26,17 @@
 </div>
 {% endif %}
 
+{% if current and current.last_handler_warning %}
+<div class="alert alert-warning">
+  <strong>Custom locus handler warning</strong> (as of {{ current.last_handler_warning_at }}):
+  <div class="font-monospace" style="white-space: pre-wrap;">{{ current.last_handler_warning }}</div>
+  <div class="small text-muted mt-1">
+    The affected locus was kept by default rather than dropped. This
+    clears automatically the next time the handler runs without an error.
+  </div>
+</div>
+{% endif %}
+
 {% crispy form %}
 <a href="{% url 'antares-locus-dashboard' %}" class="btn btn-secondary">View dashboard</a>
 

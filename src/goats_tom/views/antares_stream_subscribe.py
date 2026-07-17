@@ -48,10 +48,10 @@ def antares_stream_subscribe(request):
         form = AntaresStreamSubscribeForm(request.POST)
         if form.is_valid():
             topics = form.cleaned_data["topics"]
-            save_all_targets = form.cleaned_data["save_all_targets"] == "yes"
-            trigger_gemini_observations = (
-                form.cleaned_data["trigger_gemini_observations"] == "yes"
-            )
+            save_all_targets = form.cleaned_data["save_all_targets"]
+            trigger_gemini_observations = form.cleaned_data[
+                "trigger_gemini_observations"
+            ]
             handler_code = form.cleaned_data["handler_code"]
             restart_antares_stream(
                 topics,
@@ -69,10 +69,10 @@ def antares_stream_subscribe(request):
         initial = {}
         if current is not None:
             initial["topics"] = ", ".join(current.topics)
-            if current.save_all_targets:
-                initial["save_all_targets"] = "yes"
-            if current.trigger_gemini_observations:
-                initial["trigger_gemini_observations"] = "yes"
+            initial["save_all_targets"] = current.save_all_targets
+            initial["trigger_gemini_observations"] = (
+                current.trigger_gemini_observations
+            )
             initial["handler_code"] = current.handler_code
         form = AntaresStreamSubscribeForm(initial=initial)
 

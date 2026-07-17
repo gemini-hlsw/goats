@@ -111,6 +111,55 @@ def _get_streaming_config(topics: list[str]) -> dict:
     }
 
 
+def _record_handler_warning(message: str) -> None:
+    """Save a handler-code warning to the current subscription row, so it
+    shows up on the ingestion page without needing to check server logs.
+
+    Parameters
+    ----------
+    message : str
+        The warning/error message to display.
+
+    Notes
+    -----
+    Updates the most recently-updated `AntaresStreamSubscription` row --
+    same "current subscription" lookup used throughout this feature (see
+    `goats_tom.antares_stream_control`), since only one subscription is
+    meant to be active at a time.
+    """
+    from django.utils import timezone  # noqa: PLC0415
+
+    from goats_tom.models import AntaresStreamSubscription  # noqa: PLC0415
+
+    subscription = AntaresStreamSubscription.objects.order_by("-updated_at").first()
+    if subscription is None:
+        return
+    subscription.last_handler_warning = message
+    subscription.last_handler_warning_at = timezone.now()
+    subscription.save(
+        update_fields=["last_handler_warning", "last_handler_warning_at"]
+    )
+
+
+def _clear_handler_warning() -> None:
+    """Clear any previously-recorded handler warning, if one is set.
+
+    Only writes to the database if there's actually something to clear
+    (checked first), since this runs on every successful handler call --
+    a write on every single message, even when there's nothing to change,
+    would be wasteful.
+    """
+    from goats_tom.models import AntaresStreamSubscription  # noqa: PLC0415
+
+    subscription = AntaresStreamSubscription.objects.order_by("-updated_at").first()
+    if subscription is not None and subscription.last_handler_warning:
+        subscription.last_handler_warning = ""
+        subscription.last_handler_warning_at = None
+        subscription.save(
+            update_fields=["last_handler_warning", "last_handler_warning_at"]
+        )
+
+
 def _upsert_locus(locus) -> None:
     """Create or update the `AntaresLocus` staging row for one locus update.
 
@@ -247,12 +296,14 @@ def ingest_antares_stream(
                 if handler_code:
                     try:
                         keep = run_locus_handler(handler_code, locus)
-                    except LocusHandlerError:
+                        _clear_handler_warning()
+                    except LocusHandlerError as exc:
                         logger.exception(
                             "User-defined locus handler failed for "
                             "locus_id=%s; keeping locus by default.",
                             getattr(locus, "locus_id", None),
                         )
+                        _record_handler_warning(str(exc))
                         keep = True
                     if not keep:
                         continue

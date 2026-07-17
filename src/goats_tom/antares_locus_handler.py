@@ -172,16 +172,17 @@ def run_locus_handler(source: str, locus) -> bool:
     Returns
     -------
     bool
-        Whether this locus should be kept/processed. If `myfilter` returns
-        `None` or a non-boolean value, or raises, the locus is kept by
-        default (fail open, so a handler bug doesn't silently drop
-        everything).
+        Whether this locus should be kept/processed.
 
     Raises
     ------
     LocusHandlerError
         If the code contains disallowed patterns, doesn't define
-        `myfilter`, fails to compile, or raises while defining/calling it.
+        `myfilter`, fails to compile, raises while defining/calling it, or
+        returns a non-bool value. Callers (see
+        `goats_tom.tasks.ingest_antares_stream`) catch this and keep the
+        locus by default rather than let a broken handler drop everything
+        silently.
     """
     check_handler_source(source)
 
@@ -215,11 +216,11 @@ def run_locus_handler(source: str, locus) -> bool:
         is_bool = isinstance(result, bool)
 
     if not is_bool:
-        logger.warning(
-            "%s() returned non-bool (%r); keeping locus by default.",
-            HANDLER_FUNCTION_NAME,
-            result,
+        raise LocusHandlerError(
+            f"{HANDLER_FUNCTION_NAME}() returned a non-bool value ({result!r}); "
+            f"return True or False explicitly (e.g. use 'and'/'or' or wrap "
+            f"the result in bool(...), not arithmetic like '*' between "
+            f"comparisons, which produces an int)."
         )
-        return True
 
     return bool(result)
