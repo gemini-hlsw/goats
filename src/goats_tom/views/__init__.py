@@ -6,7 +6,10 @@ from goats_tom.views.antares_locus_dashboard import (
     antares_locus_saved_status,
     antares_locus_table,
 )
-from goats_tom.views.antares_stream_subscribe import antares_stream_subscribe
+from goats_tom.views.antares_stream_subscribe import (
+    antares_stream_status,
+    antares_stream_subscribe,
+)
 from goats_tom.views.astro_datalab import AstroDatalabView
 from goats_tom.views.brokerquery_name import update_brokerquery_name
 from goats_tom.views.dataproduct_delete import DataProductDeleteView
@@ -65,5 +68,6 @@ __all__ = [
     "antares_locus_saved_status",
     "antares_locus_clear",
     "antares_stream_subscribe",
+    "antares_stream_status",
     "AntaresKafkaLoginView",
 ]

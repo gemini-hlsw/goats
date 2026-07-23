@@ -21,9 +21,23 @@ a previously-running subscription on startup). There is no
 (Streaming credentials are issued separately from ANTARES Portal/API
 credentials -- contact the ANTARES team to request them.)
 
+KNOWN LIMITATION -- invalid credentials fail silently: the underlying
+`confluent_kafka`/`librdkafka` client does not raise a Python exception,
+or invoke any registered error callback, when SASL authentication fails
+(confirmed against confluentinc/librdkafka#5108 and
+confluentinc/confluent-kafka-python#1398, both open/unfixed as of this
+writing). A consumer given wrong credentials just retries authentication
+forever, completely silently. We work around this with a bounded
+first-message timeout (see `STARTUP_SILENCE_WARNING_SECONDS` and the main
+polling loop): if nothing is received within that window, we warn (not
+stop -- a genuinely quiet topic looks identical from our side, so this is
+a best-effort heuristic, not a reliable detector).
+
 This actor is intended to run inside the existing `rundramatiq` worker
 process that GOATS already starts via `goats run` -- no new process type is
-introduced. It runs `while True` via `StreamingClient.iter()`, so it occupies
+introduced. It runs `while True`, polling `StreamingClient.poll(timeout=...)`
+directly (not `StreamingClient.iter()`, which blocks unboundedly and would
+give us no way to implement the silence detection above), so it occupies
 one Dramatiq worker thread/process for the lifetime of the app.
 """
 
@@ -49,6 +63,77 @@ from goats_tom.models import AntaresLocus
 logger = logging.getLogger(__name__)
 
 DEFAULT_GROUP = "goats-antares-locus-dashboard"
+
+# antares_client.stream.StreamingClient.__init__ makes a synchronous
+# requests.get() call (fetching its own remote streaming config) BEFORE
+# constructing the actual Kafka consumer -- see antares_client's
+# stream.py `fetch_config`/`_get_resource`. That HTTP call defaults to a
+# 60-second timeout (antares_client.config.config["API_TIMEOUT"]) and is
+# NOT interruptible by dramatiq_abort's async-exception mechanism while
+# it's blocked: Python can only deliver an async exception the next time
+# the thread returns to executing Python bytecode, which doesn't happen
+# until the blocking socket call returns or times out. A slow/unresponsive
+# ANTARES config endpoint can therefore stall either a new consumer's
+# startup, or an old consumer's abort/shutdown, for up to the full 60
+# seconds -- confirmed as the likely cause of an observed ~1 minute delay
+# before the ingestion page's status caught up, independent of Dramatiq
+# worker thread availability. Lowering this to a few seconds means a slow
+# endpoint fails fast (raising, which our own error handling already
+# surfaces on the ingestion page) instead of silently stalling.
+ANTARES_API_TIMEOUT_SECONDS = 10
+
+
+def _apply_antares_api_timeout() -> None:
+    """Lower antares_client's own HTTP request timeout for its internal
+    streaming-config fetch, so a slow ANTARES endpoint fails fast instead
+    of blocking consumer startup/shutdown for up to a minute.
+
+    Notes
+    -----
+    `antares_client.config.config` is a plain module-level dict, read
+    fresh (not cached) on every `requests.get(..., timeout=...)` call
+    inside the library (confirmed by reading `antares_client`'s own
+    source), so mutating it here, once, before any `StreamingClient` is
+    constructed, is sufficient -- no monkeypatching needed.
+    """
+    from antares_client.config import config as antares_client_config  # noqa: PLC0415
+
+    antares_client_config["API_TIMEOUT"] = ANTARES_API_TIMEOUT_SECONDS
+
+
+# How long each individual client.poll(timeout=...) call blocks waiting
+# for a message before returning (None, None). Short enough that the
+# generation-fencing check (see the main loop) runs frequently, so a
+# restart/stop is noticed promptly.
+POLL_TIMEOUT_SECONDS = 5
+
+# If zero messages have been received within this many seconds of
+# starting, warn (see the main loop's poll-timeout handling) -- this is
+# the only available signal for a silently-failed SASL authentication,
+# since confluent_kafka/librdkafka does not raise an exception or invoke
+# any callback for that failure (see the main loop's comment for the
+# confirmed upstream issue references). Deliberately generous, since a
+# legitimately quiet topic is a real, valid case this can't be told apart
+# from -- this trades slower detection for fewer false alarms.
+STARTUP_SILENCE_WARNING_SECONDS = 120
+
+
+def _seconds_since(start_time) -> float:
+    """Return the number of seconds elapsed since `start_time`.
+
+    Parameters
+    ----------
+    start_time : datetime.datetime
+        A timezone-aware timestamp, e.g. from `django.utils.timezone.now()`.
+
+    Returns
+    -------
+    float
+        Elapsed seconds.
+    """
+    from django.utils import timezone  # noqa: PLC0415
+
+    return (timezone.now() - start_time).total_seconds()
 
 
 def _get_streaming_config(topics: list[str], group: str | None = None) -> dict:
@@ -426,6 +511,8 @@ def ingest_antares_stream(
     from antares_client import StreamingClient  # noqa: PLC0415
     from dramatiq_abort import Abort  # noqa: PLC0415
 
+    _apply_antares_api_timeout()
+
     if handler_code and is_effectively_blank(handler_code):
         logger.info(
             "handler_code is effectively blank (comments/whitespace "
@@ -460,7 +547,12 @@ def ingest_antares_stream(
             api_secret=config["api_secret"],
             group=config["group"],
         ) as client:
-            for topic, locus in client.iter():
+            from django.utils import timezone  # noqa: PLC0415
+
+            consumer_started_at = timezone.now()
+            received_first_message = False
+            warned_about_silence = False
+            while True:
                 if not _is_current_generation(generation):
                     logger.info(
                         "Generation %d superseded; stopping consumer for "
@@ -469,6 +561,71 @@ def ingest_antares_stream(
                         topics,
                     )
                     break
+
+                # client.poll(timeout=N) returns (None, None) if N seconds
+                # elapse with nothing received -- used instead of
+                # client.iter() (which blocks unboundedly with no way to
+                # detect a stuck consumer) specifically because
+                # confluent_kafka/librdkafka does not raise a Python
+                # exception, or invoke any registered callback, when SASL
+                # authentication fails (confirmed: this is a known, still-
+                # open upstream limitation -- see
+                # confluentinc/librdkafka#5108 and
+                # confluentinc/confluent-kafka-python#1398). A consumer
+                # given wrong credentials just retries authentication
+                # forever, completely silently: no exception, no error
+                # callback, nothing our own try/except could ever catch.
+                # We have no reliable way to distinguish that from a
+                # genuinely quiet topic, so this is a best-effort signal,
+                # not a guarantee: after STARTUP_SILENCE_WARNING_SECONDS
+                # with zero messages received since starting, warn once
+                # (not stop -- the topic may simply be quiet) so the
+                # operator has *something* to go on instead of an
+                # indefinitely stuck "Running" status with no explanation.
+                topic, locus = client.poll(timeout=POLL_TIMEOUT_SECONDS)
+
+                if topic is None and locus is None:
+                    if (
+                        not received_first_message
+                        and not warned_about_silence
+                        and _seconds_since(consumer_started_at)
+                        >= STARTUP_SILENCE_WARNING_SECONDS
+                    ):
+                        logger.warning(
+                            "No messages received on topics=%s within %d "
+                            "seconds of starting. May mean credentials are "
+                            "being silently rejected (see module "
+                            "docstring's KNOWN LIMITATION), or the "
+                            "topic(s) are simply quiet. Not stopped "
+                            "automatically.",
+                            topics,
+                            STARTUP_SILENCE_WARNING_SECONDS,
+                        )
+                        _record_handler_warning(
+                            f"No messages received on topics={topics} "
+                            f"within {STARTUP_SILENCE_WARNING_SECONDS} "
+                            f"seconds of starting. This can mean the "
+                            f"credentials are being silently rejected by "
+                            f"ANTARES (a known limitation: the underlying "
+                            f"Kafka client does not report invalid "
+                            f"credentials as an error), or simply that "
+                            f"the topic(s) have had no new alerts yet. "
+                            f"Still running -- not stopped automatically, "
+                            f"since a quiet topic is a legitimate "
+                            f"possibility this can't be distinguished "
+                            f"from. If you're confident the topic should "
+                            f"be active, double-check your credentials."
+                        )
+                        warned_about_silence = True
+                    continue
+
+                received_first_message = True
+                if warned_about_silence:
+                    # Real data arrived after all -- clear the warning
+                    # rather than leave a stale "might be broken" message
+                    # once we have direct evidence it's actually working.
+                    _clear_stale_handler_warning()
+                    warned_about_silence = False
 
                 if handler_code:
                     try:

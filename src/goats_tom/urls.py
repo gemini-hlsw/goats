@@ -174,4 +174,9 @@ urlpatterns = [
         views.antares_stream_subscribe,
         name="antares-stream-subscribe",
     ),
+    path(
+        "antares/stream/status/",
+        views.antares_stream_status,
+        name="antares-stream-status",
+    ),
 ]

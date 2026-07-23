@@ -1,4 +1,4 @@
-__all__ = ["antares_stream_subscribe"]
+__all__ = ["antares_stream_subscribe", "antares_stream_status"]
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -113,8 +113,7 @@ def antares_stream_subscribe(request):
             messages.success(
                 request,
                 f"ANTARES Kafka stream consumer requested for topics: "
-                f"{', '.join(topics)}. Check the status above -- it may "
-                f"take a moment to confirm as running.",
+                f"{', '.join(topics)}.",
             )
             return redirect("antares-stream-subscribe")
         else:
@@ -164,4 +163,41 @@ def antares_stream_subscribe(request):
         request,
         "antares_stream_subscribe.html",
         {"form": form, "current": current},
+    )
+
+
+@login_required
+def antares_stream_status(request):
+    """Render just the status box and error banners, for htmx polling.
+
+    The actor that actually starts/stops ingestion runs asynchronously in
+    a Dramatiq worker, not synchronously as part of the form submission --
+    `.send()` only enqueues it, and the redirect after a successful POST
+    completes before the actor has necessarily run at all. The page
+    rendered right after that redirect is a single, static server-render:
+    it reflects whatever `AntaresStreamSubscription` looked like at that
+    exact moment, and nothing on it re-queries the database afterward, so
+    if the actor's first real update (e.g. recording a startup failure)
+    lands even a fraction of a second later, the page silently misses it
+    until some other navigation triggers a fresh render. Polled from the
+    main page via htmx (see `antares_stream_subscribe.html`) so the status
+    catches up on its own instead of requiring a manual reload or
+    navigating away and back.
+
+    Parameters
+    ----------
+    request : `HttpRequest`
+        The HTTP request object.
+
+    Returns
+    -------
+    `HttpResponse`
+        The rendered status partial.
+
+    """
+    current = AntaresStreamSubscription.objects.order_by("-updated_at").first()
+    return render(
+        request,
+        "partials/antares_stream_status.html",
+        {"current": current},
     )

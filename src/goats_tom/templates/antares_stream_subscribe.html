@@ -23,43 +23,7 @@
   </p>
 </div>
 
-{% if current and current.topics %}
-<div class="alert alert-info d-flex justify-content-between align-items-center">
-  <div>
-    <strong>Currently subscribed to:</strong> {{ current.topics|join:", " }}
-    {% if current.group %}<span class="text-muted">(group: {{ current.group }})</span>{% endif %}
-    {% if current.is_running %}<span class="badge badge-success">Running</span>{% else %}<span class="badge badge-secondary">Stopped</span>{% endif %}
-    <br>
-    <strong>Custom locus handler:</strong>
-    {% if current.handler_code|is_active_handler_code %}
-      <span class="badge badge-primary">Set</span>
-      <span class="text-muted small">(shown below, in the editor)</span>
-    {% else %}
-      <span class="text-muted">None</span>
-    {% endif %}
-  </div>
-  {% if current.is_running %}
-  <form method="post" class="mb-0">
-    {% csrf_token %}
-    <button type="submit" name="action" value="stop" class="btn btn-outline-danger btn-sm">Stop ingestion</button>
-  </form>
-  {% endif %}
-</div>
-{% endif %}
-
-{% if current and current.draft_error %}
-<div class="alert alert-danger">
-  <strong>Ingestion error</strong>:
-  <div class="font-monospace" style="white-space: pre-wrap;">{{ current.draft_error }}</div>
-</div>
-{% endif %}
-
-{% if current and current.last_handler_warning %}
-<div class="alert alert-danger">
-  <strong>Ingestion error</strong> (as of {{ current.last_handler_warning_at }}):
-  <div class="font-monospace" style="white-space: pre-wrap;">{{ current.last_handler_warning }}</div>
-</div>
-{% endif %}
+{% include "partials/antares_stream_status.html" %}
 
 {% crispy form %}
 <a href="{% url 'antares-locus-dashboard' %}" class="btn btn-secondary">View dashboard</a>
