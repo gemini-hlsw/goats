@@ -40,11 +40,6 @@ router.register(
     api_views.DataProductsViewSet,
     basename="dragonsdataproducts",
 )
-router.register(
-    r"dataproducttype",
-    api_views.DataProductTypeViewSet,
-    basename="dataproducttype",
-)
 router.register(r"dragonsdata", api_views.DRAGONSDataViewSet, basename="dragonsdata")
 router.register(r"runprocessor", api_views.RunProcessorViewSet, basename="runprocessor")
 router.register(
@@ -168,6 +163,11 @@ urlpatterns = [
         "antares/loci/saved-status/",
         views.antares_locus_saved_status,
         name="antares-locus-saved-status",
+    ),
+    path(
+        "antares/loci/clear/",
+        views.antares_locus_clear,
+        name="antares-locus-clear",
     ),
     path(
         "antares/stream/subscribe/",

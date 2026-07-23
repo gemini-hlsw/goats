@@ -40,15 +40,6 @@
               {% endif %}
             </th>
             <th>
-              {% if sort == "-in_tns" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS &#9660;</a>
-              {% elif sort == "in_tns" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS &#9650;</a>
-              {% else %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-in_tns" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">In TNS</a>
-              {% endif %}
-            </th>
-            <th>
               {% if sort == "-alert_count" %}
               <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts &#9660;</a>
               {% elif sort == "alert_count" %}
@@ -59,11 +50,11 @@
             </th>
             <th>
               {% if sort == "-first_seen" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">First Seen &#9660;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Added to Dashboard &#9660;</a>
               {% elif sort == "first_seen" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">First Seen &#9650;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Added to Dashboard &#9650;</a>
               {% else %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">First Seen</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Added to Dashboard</a>
               {% endif %}
             </th>
           </tr>
@@ -89,13 +80,12 @@
             <td style="max-width: 180px;">{{ locus.latest_alert_id|wrap_after_colon }}</td>
             <td>{{ locus.latest_alert_mjd|mjd_to_utc }}</td>
             <td>{{ locus.latest_alert_magnitude|default_if_none:"&mdash;"|floatformat:2 }}</td>
-            <td>{% if locus.in_tns %}<span class="badge badge-success">Yes</span>{% else %}<span class="text-muted">No</span>{% endif %}</td>
             <td>{{ locus.alert_count }}</td>
             <td>{{ locus.first_seen }}</td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="10" class="text-center">No ANTARES loci seen yet.</td>
+            <td colspan="9" class="text-center">No ANTARES loci seen yet.</td>
           </tr>
           {% endfor %}
         </tbody>

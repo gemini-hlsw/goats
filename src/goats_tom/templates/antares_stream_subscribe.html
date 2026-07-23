@@ -1,5 +1,5 @@
 {% extends "tom_common/base.html" %}
-{% load crispy_forms_tags static %}
+{% load crispy_forms_tags static antares_locus_extras %}
 {% block content %}
 <div class="mb-3">
   <p class="h2">Ingest from ANTARES Kafka Stream</p>
@@ -9,13 +9,34 @@
     topics below -- this does not require editing settings or restarting
     GOATS.
   </p>
+  <p class="text-muted">
+    Before ingesting, make sure your ANTARES Kafka API key and secret are
+    stored -- the consumer uses the first superuser's stored credentials,
+    so these must be entered by an admin (superuser) account.
+    {% if request.user.is_superuser %}
+    If not already done, store them
+    <a href="{% url 'user-antares-kafka-login' request.user.pk %}">here</a>.
+    {% else %}
+    If not already done, ask an admin to store them via their Credential
+    Manager (Users &rarr; Manage &rarr; ANTARES Kafka Stream).
+    {% endif %}
+  </p>
 </div>
 
 {% if current and current.topics %}
 <div class="alert alert-info d-flex justify-content-between align-items-center">
   <div>
     <strong>Currently subscribed to:</strong> {{ current.topics|join:", " }}
+    {% if current.group %}<span class="text-muted">(group: {{ current.group }})</span>{% endif %}
     {% if current.is_running %}<span class="badge badge-success">Running</span>{% else %}<span class="badge badge-secondary">Stopped</span>{% endif %}
+    <br>
+    <strong>Custom locus handler:</strong>
+    {% if current.handler_code|is_active_handler_code %}
+      <span class="badge badge-primary">Set</span>
+      <span class="text-muted small">(shown below, in the editor)</span>
+    {% else %}
+      <span class="text-muted">None</span>
+    {% endif %}
   </div>
   {% if current.is_running %}
   <form method="post" class="mb-0">
@@ -26,14 +47,17 @@
 </div>
 {% endif %}
 
+{% if current and current.draft_error %}
+<div class="alert alert-danger">
+  <strong>Ingestion error</strong>:
+  <div class="font-monospace" style="white-space: pre-wrap;">{{ current.draft_error }}</div>
+</div>
+{% endif %}
+
 {% if current and current.last_handler_warning %}
-<div class="alert alert-warning">
-  <strong>Custom locus handler warning</strong> (as of {{ current.last_handler_warning_at }}):
+<div class="alert alert-danger">
+  <strong>Ingestion error</strong> (as of {{ current.last_handler_warning_at }}):
   <div class="font-monospace" style="white-space: pre-wrap;">{{ current.last_handler_warning }}</div>
-  <div class="small text-muted mt-1">
-    The affected locus was kept by default rather than dropped. This
-    clears automatically the next time the handler runs without an error.
-  </div>
 </div>
 {% endif %}
 
@@ -51,6 +75,24 @@
     width: 100%;
     border: 1px solid #ced4da;
     border-radius: 0.25rem;
+    position: relative;
+  }
+  /* Ace has no built-in placeholder support, and the hidden textarea's
+     native `placeholder` attribute is invisible (it's on an element with
+     display:none) -- this overlay mimics a native placeholder: shown only
+     while the editor is empty, removed the moment real content exists. */
+  #antares-handler-code-placeholder {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    padding: 4px 0 0 4px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.3;
+    white-space: pre;
+    pointer-events: none;
+    z-index: 1;
   }
 </style>
 
@@ -72,18 +114,54 @@
   editor.setValue(textarea.value, -1); // -1 moves cursor to start
   editor.setOptions({ fontSize: "13px", showPrintMargin: false });
 
+  // Ace has no built-in placeholder support (see the CSS comment above).
+  // Build a real overlay from the textarea's own `placeholder` attribute,
+  // so the example text is defined once, in the Django form field, not
+  // duplicated here in the template. Created AFTER ace.edit() above, not
+  // before: ace.edit() does `el.innerHTML = ""` on the container div
+  // during its own setup (confirmed by reading Ace's source), which would
+  // silently delete this element -- and could even read its text as the
+  // editor's initial content -- if it existed beforehand.
+  var placeholderDiv = document.createElement("div");
+  placeholderDiv.id = "antares-handler-code-placeholder";
+  placeholderDiv.textContent = textarea.getAttribute("placeholder") || "";
+  editorDiv.appendChild(placeholderDiv);
+
+  // Offset the placeholder to start where Ace's own text (not the
+  // line-number gutter) starts, so the two don't overlap. gutterWidth is
+  // 0 immediately after ace.edit() (it's computed on first render), so
+  // this is set on the next frame rather than synchronously here.
+  requestAnimationFrame(function () {
+    placeholderDiv.style.left = editor.renderer.gutterWidth + "px";
+  });
+
   var storedTheme = window.localStorage.getItem("theme");
-  editor.setTheme(
-    storedTheme === "dark"
-      ? "ace/theme/cloud9_night"
-      : "ace/theme/dawn"
-  );
+  var isDarkTheme = storedTheme === "dark";
+  editor.setTheme(isDarkTheme ? "ace/theme/cloud9_night" : "ace/theme/dawn");
+
+  // Match each theme's own "comment" color (a deliberately muted,
+  // already-tuned-for-that-background color) rather than a single
+  // hardcoded grey that might have poor contrast against one theme.
+  placeholderDiv.style.color = isDarkTheme ? "#969896" : "#5A525F";
+
+  function updatePlaceholderVisibility() {
+    placeholderDiv.style.display = editor.getValue().length === 0 ? "block" : "none";
+  }
+  updatePlaceholderVisibility();
 
   // Keep the hidden textarea in sync so its value is what actually gets
   // submitted with the form -- Ace is a visual overlay, not a real form
-  // control on its own.
+  // control on its own. Attached AFTER setValue() above, not before:
+  // setValue() internally fires its own synchronous "change" events (a
+  // remove() delta, then an insert() delta), and a listener registered
+  // beforehand would see the transient empty state between those two
+  // deltas and write it into the textarea -- which is exactly what was
+  // happening: the editor's on-screen content was correct, but the
+  // hidden textarea (and therefore whatever got submitted) could end up
+  // with a stale/empty value depending on timing.
   editor.session.on("change", function () {
     textarea.value = editor.getValue();
+    updatePlaceholderVisibility();
   });
 
   var form = textarea.closest("form");

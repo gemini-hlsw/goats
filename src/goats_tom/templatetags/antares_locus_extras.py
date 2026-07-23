@@ -8,6 +8,41 @@ register = template.Library()
 
 
 @register.filter
+def is_active_handler_code(value) -> bool:
+    """Whether `value` (a subscription's `handler_code`) represents an
+    actually-active filter, not just non-empty text.
+
+    Parameters
+    ----------
+    value : str or None
+        The handler code to check.
+
+    Returns
+    -------
+    bool
+        `False` if `value` is empty or effectively blank (whitespace
+        and/or comments only, e.g. a fully commented-out handler --
+        see `goats_tom.antares_locus_handler.is_effectively_blank`).
+        `True` otherwise.
+
+    Notes
+    -----
+    A separate filter from just checking `{% if current.handler_code %}`
+    in the template, since a fully commented-out handler is non-empty
+    text but functionally "no filter" (see
+    `goats_tom.antares_locus_handler.is_effectively_blank`) -- this
+    filter reflects the actual running behavior, not just field
+    presence.
+    """
+    if not value:
+        return False
+
+    from goats_tom.antares_locus_handler import is_effectively_blank  # noqa: PLC0415
+
+    return not is_effectively_blank(value)
+
+
+@register.filter
 def wrap_after_colon(value) -> str:
     """Insert a zero-width space after every ``:`` so long colon-delimited
     strings (e.g. alert IDs like ``ztf_candidate:3477295020415015022``)

@@ -1,5 +1,6 @@
 from goats_tom.views.antares import RefreshAntaresPhotometryView
 from goats_tom.views.antares_locus_dashboard import (
+    antares_locus_clear,
     antares_locus_dashboard,
     antares_locus_save_targets,
     antares_locus_saved_status,
@@ -62,6 +63,7 @@ __all__ = [
     "antares_locus_table",
     "antares_locus_save_targets",
     "antares_locus_saved_status",
+    "antares_locus_clear",
     "antares_stream_subscribe",
     "AntaresKafkaLoginView",
 ]

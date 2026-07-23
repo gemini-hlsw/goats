@@ -22,11 +22,16 @@ class AntaresKafkaLogin(BaseLogin):
         The ANTARES Kafka streaming API key.
     api_secret : str
         The ANTARES Kafka streaming API secret.
-    group : str
-        Optional Kafka consumer group name. If blank, a built-in default
-        is used (see `goats_tom.tasks.ingest_antares_stream.DEFAULT_GROUP`).
+
+    Notes
+    -----
+    The Kafka consumer group name is set on the ingestion page (see
+    `goats_tom.models.AntaresStreamSubscription.group`), not here -- it's
+    changed far more often than the credentials themselves (e.g. to
+    force a full replay from a fresh group with no committed offset), so
+    keeping it separate means switching groups doesn't require
+    re-entering API credentials each time.
     """
 
     api_key = models.CharField(max_length=128, blank=False, null=False)
     api_secret = models.CharField(max_length=128, blank=False, null=False)
-    group = models.CharField(max_length=128, blank=True, null=False, default="")

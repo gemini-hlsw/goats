@@ -439,3 +439,31 @@ GPP_ENV = "PRODUCTION"
 ANTARES_ENV = "PRODUCTION"
 
 ANTARES_TIMEOUT = 60 # Timeout for requests to ANTARES in seconds.
+
+# SQLite tuning: enable Write-Ahead Logging so readers (e.g. the ANTARES
+# locus dashboard) don't block writers (e.g. the ANTARES Kafka ingestion
+# consumer) and vice versa, which otherwise surfaces as intermittent
+# "database is locked" errors under concurrent read/write load. Mutates
+# the OPTIONS dict already set up in DATABASES above rather than
+# redefining DATABASES, so this stays a small, additive change.
+DATABASES["default"]["OPTIONS"]["init_command"] = "PRAGMA journal_mode=WAL;"
+
+# Suppress noisy per-request access-log INFO lines (e.g.
+# "HTTP GET /some/path/ 200 [0.00, 127.0.0.1:12345]"). These come from
+# Daphne's `runserver` management command, which registers its own
+# request/response access logger as "django.channels.server" (see
+# daphne/management/commands/runserver.py, Command.log_action) -- not
+# "django.server" (Django's plain WSGI dev-server logger, unused under
+# GOATS's ASGI/Channels stack) or "daphne.*" (Daphne's internal protocol
+# loggers, which log at DEBUG and don't produce this line). Confirmed
+# directly against a real occurrence in goats.log, which -- thanks to the
+# "file" handler's "verbose" formatter above -- includes the logger name
+# and source line: "django.channels.server runserver.py:181". This is
+# unrelated to the "goats_tom"/root loggers configured in LOGGING above,
+# so this only affects request-level access logging, not application
+# logging -- WARNING+ (e.g. 4xx/5xx responses) still comes through.
+LOGGING["loggers"]["django.channels.server"] = {
+    "handlers": ["console", "file"],
+    "level": "WARNING",
+    "propagate": False,
+}

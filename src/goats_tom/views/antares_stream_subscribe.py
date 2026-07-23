@@ -9,17 +9,65 @@ from goats_tom.forms import AntaresStreamSubscribeForm
 from goats_tom.models import AntaresStreamSubscription
 
 
+def _save_draft(subscription: AntaresStreamSubscription, request, error: str) -> None:
+    """Persist a failed submission's raw values and error message as a
+    draft, so they survive navigating away and back.
+
+    Parameters
+    ----------
+    subscription : `AntaresStreamSubscription`
+        The row to save the draft onto (created if none existed yet).
+    request : `HttpRequest`
+        The POST request whose raw (unvalidated) values to save.
+    error : str
+        The validation error message to show, via the same banner used
+        for runtime handler failures.
+    """
+    subscription.draft_topics = request.POST.get("topics", "")
+    subscription.draft_group = request.POST.get("group", "")
+    subscription.draft_save_all_targets = bool(request.POST.get("save_all_targets"))
+    subscription.draft_trigger_gemini_observations = bool(
+        request.POST.get("trigger_gemini_observations")
+    )
+    subscription.draft_handler_code = request.POST.get("handler_code", "")
+    subscription.draft_error = error
+    subscription.save()
+
+
+def _clear_draft(subscription: AntaresStreamSubscription) -> None:
+    """Clear any saved draft, e.g. after a successful submission.
+
+    Parameters
+    ----------
+    subscription : `AntaresStreamSubscription`
+        The row whose draft fields to clear.
+    """
+    subscription.draft_topics = ""
+    subscription.draft_group = ""
+    subscription.draft_save_all_targets = False
+    subscription.draft_trigger_gemini_observations = False
+    subscription.draft_handler_code = ""
+    subscription.draft_error = ""
+    subscription.save()
+
+
 @login_required
 def antares_stream_subscribe(request):
     """Show and handle the "Ingest from Kafka stream" subscription form.
 
-    On GET, shows the form pre-filled with the current subscription (if
-    any). On POST:
+    On GET, shows the form pre-filled with a saved draft (a previous
+    submission that failed validation, so the attempt isn't lost across
+    navigation) if one exists, otherwise the current live subscription.
+    On POST:
 
     - If the "Start ingesting" button was used (``action=start``),
-      validates the form, aborts any previously-running consumer, and
-      starts a new one with the submitted topics and handler code (see
-      `goats_tom.antares_stream_control.restart_antares_stream`).
+      validates the form. On success, clears any draft, aborts any
+      previously-running consumer, and starts a new one with the
+      submitted topics and handler code (see
+      `goats_tom.antares_stream_control.restart_antares_stream`). On
+      failure, saves the raw submitted values and error message as a
+      draft (see `_save_draft`) and re-renders the form with the error
+      shown in the same banner used for runtime handler failures.
     - If the "Stop ingestion" button was used (``action=stop``), aborts
       the running consumer without starting a new one (see
       `goats_tom.antares_stream_control.stop_antares_stream`), skipping
@@ -48,32 +96,68 @@ def antares_stream_subscribe(request):
         form = AntaresStreamSubscribeForm(request.POST)
         if form.is_valid():
             topics = form.cleaned_data["topics"]
+            group = form.cleaned_data["group"]
             save_all_targets = form.cleaned_data["save_all_targets"]
             trigger_gemini_observations = form.cleaned_data[
                 "trigger_gemini_observations"
             ]
             handler_code = form.cleaned_data["handler_code"]
-            restart_antares_stream(
+            subscription = restart_antares_stream(
                 topics,
+                group=group,
                 save_all_targets=save_all_targets,
                 trigger_gemini_observations=trigger_gemini_observations,
                 handler_code=handler_code,
             )
+            _clear_draft(subscription)
             messages.success(
                 request,
-                f"ANTARES Kafka stream consumer (re)started for topics: "
-                f"{', '.join(topics)}",
+                f"ANTARES Kafka stream consumer requested for topics: "
+                f"{', '.join(topics)}. Check the status above -- it may "
+                f"take a moment to confirm as running.",
             )
             return redirect("antares-stream-subscribe")
+        else:
+            # Collect all field errors into one message for the unified
+            # banner, rather than relying on crispy's separate inline
+            # per-field error rendering -- so a validation failure looks
+            # and feels the same as a runtime handler failure. No
+            # field-label prefixes, to match the plain style of
+            # last_handler_warning (the runtime banner).
+            error_lines = [
+                str(err)
+                for field_errors in form.errors.values()
+                for err in field_errors
+            ]
+            error_message = "\n".join(error_lines)
+
+            subscription = current or AntaresStreamSubscription()
+            _save_draft(subscription, request, error_message)
+            current = subscription
     else:
         initial = {}
         if current is not None:
-            initial["topics"] = ", ".join(current.topics)
-            initial["save_all_targets"] = current.save_all_targets
-            initial["trigger_gemini_observations"] = (
-                current.trigger_gemini_observations
+            has_draft = bool(
+                current.draft_topics
+                or current.draft_handler_code
+                or current.draft_error
             )
-            initial["handler_code"] = current.handler_code
+            if has_draft:
+                initial["topics"] = current.draft_topics
+                initial["group"] = current.draft_group
+                initial["save_all_targets"] = current.draft_save_all_targets
+                initial["trigger_gemini_observations"] = (
+                    current.draft_trigger_gemini_observations
+                )
+                initial["handler_code"] = current.draft_handler_code
+            else:
+                initial["topics"] = ", ".join(current.topics)
+                initial["group"] = current.group
+                initial["save_all_targets"] = current.save_all_targets
+                initial["trigger_gemini_observations"] = (
+                    current.trigger_gemini_observations
+                )
+                initial["handler_code"] = current.handler_code
         form = AntaresStreamSubscribeForm(initial=initial)
 
     return render(

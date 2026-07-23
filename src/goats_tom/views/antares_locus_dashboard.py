@@ -3,6 +3,7 @@ __all__ = [
     "antares_locus_table",
     "antares_locus_save_targets",
     "antares_locus_saved_status",
+    "antares_locus_clear",
 ]
 
 import logging
@@ -21,7 +22,7 @@ from goats_tom.antares_target_save import (
     locus_is_saved_as_target,
     save_locus_as_target,
 )
-from goats_tom.models import AntaresLocus
+from goats_tom.models import AntaresLocus, AntaresStreamSubscription
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,6 @@ SORTABLE_FIELDS = {
     "first_seen": "first_seen",
     "alert_count": "alert_count",
     "magnitude": "latest_alert_magnitude",
-    "in_tns": "in_tns",
 }
 
 
@@ -157,10 +157,13 @@ def antares_locus_dashboard(request: HttpRequest) -> HttpResponse:
 
     """
     page, sort_param = _get_page(request)
+    current_subscription = (
+        AntaresStreamSubscription.objects.order_by("-updated_at").first()
+    )
     return render(
         request,
         "antares_locus_dashboard.html",
-        {"page": page, "sort": sort_param},
+        {"page": page, "sort": sort_param, "current_subscription": current_subscription},
     )
 
 
@@ -292,3 +295,33 @@ def antares_locus_saved_status(request: HttpRequest) -> JsonResponse:
     locus_ids = request.GET.getlist("locus_id")
     saved = _saved_locus_ids(locus_ids) if locus_ids else set()
     return JsonResponse({"saved": sorted(saved)})
+
+
+@login_required
+@require_POST
+def antares_locus_clear(request: HttpRequest) -> HttpResponse:
+    """Delete all `AntaresLocus` rows, clearing the dashboard manually.
+
+    This is independent of the 1-day auto-cleanup
+    (`goats_tom.tasks.cleanup_stale_antares_loci`) and of the Kafka
+    consumer itself -- deleting these staging rows does not stop
+    ingestion, and does not touch any GOATS `Target`s already saved from
+    loci in this table. New loci will simply start repopulating the table
+    again as the stream continues (or resume with the next locus update,
+    if ingestion is currently stopped).
+
+    Parameters
+    ----------
+    request : `HttpRequest`
+        The HTTP request object.
+
+    Returns
+    -------
+    `HttpResponse`
+        Redirect back to the dashboard.
+
+    """
+    deleted_count, _ = AntaresLocus.objects.all().delete()
+    logger.info("Manually cleared %d ANTARES locus rows from the dashboard.", deleted_count)
+    messages.success(request, f"Cleared {deleted_count} loci from the dashboard.")
+    return redirect("antares-locus-dashboard")

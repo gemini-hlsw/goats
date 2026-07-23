@@ -91,7 +91,18 @@ class Command(BaseCommand):
         itself raises and logs a clear error (see
         `goats_tom.tasks.ingest_antares_stream._get_streaming_config`)
         rather than this command silently failing to start it.
+
+        Advances the subscription's generation the same way
+        `goats_tom.antares_stream_control.restart_antares_stream` does,
+        rather than reusing the old generation number -- this guarantees
+        correctness (via the fencing-token check in
+        `ingest_antares_stream`) even in the edge case where a stale
+        worker process from a previous `goats run` invocation is somehow
+        still alive: it will see its generation has been superseded and
+        stop, rather than potentially clashing with this newly-resumed
+        consumer.
         """
+        from goats_tom.antares_stream_control import advance_generation
         from goats_tom.models import AntaresStreamSubscription
         from goats_tom.tasks import ingest_antares_stream
 
@@ -108,10 +119,13 @@ class Command(BaseCommand):
             f"* Resuming ANTARES Kafka stream consumer for topics: "
             f"{subscription.topics}"
         )
+        new_generation = advance_generation(subscription)
         message = ingest_antares_stream.send(
             topics=subscription.topics,
             handler_code=subscription.handler_code,
             save_all_targets=subscription.save_all_targets,
+            group=subscription.group,
+            generation=new_generation,
         )
         subscription.dramatiq_message_id = message.message_id
         subscription.save(update_fields=["dramatiq_message_id"])
