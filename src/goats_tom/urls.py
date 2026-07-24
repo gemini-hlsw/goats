@@ -170,6 +170,11 @@ urlpatterns = [
         name="antares-locus-clear",
     ),
     path(
+        "antares/loci/status/",
+        views.antares_dashboard_status,
+        name="antares-dashboard-status",
+    ),
+    path(
         "antares/stream/subscribe/",
         views.antares_stream_subscribe,
         name="antares-stream-subscribe",
@@ -178,5 +183,10 @@ urlpatterns = [
         "antares/stream/status/",
         views.antares_stream_status,
         name="antares-stream-status",
+    ),
+    path(
+        "antares/stream/topics/",
+        views.antares_available_topics,
+        name="antares-available-topics",
     ),
 ]

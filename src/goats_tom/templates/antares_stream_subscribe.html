@@ -58,7 +58,151 @@
     pointer-events: none;
     z-index: 1;
   }
+  .antares-topics-dropdown-hint {
+    display: block;
+    margin-top: 0.5rem;
+    margin-bottom: 0.35rem;
+  }
+  .antares-topics-dropdown {
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    background-color: #fff;
+    padding: 0.25rem 0;
+  }
+  .antares-topics-dropdown-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.4rem 0.75rem;
+    font-weight: normal;
+    cursor: pointer;
+    user-select: none;
+  }
+  .antares-topics-dropdown-row:hover {
+    background-color: #f1f3f5;
+  }
+  .antares-topics-dropdown-row-checked {
+    background-color: #fff8e6;
+  }
+  .antares-topics-dropdown-row input[type="checkbox"] {
+    margin: 0;
+    flex-shrink: 0;
+  }
 </style>
+
+<script>
+(function () {
+  var topicsInput = document.getElementById("id_topics");
+  if (!topicsInput) return;
+
+  // Parse whatever's currently in the text field (from a draft, the
+  // current subscription, or a fresh empty form) so the list starts
+  // pre-checked to match, rather than out of sync with the text input.
+  function currentTopicsFromInput() {
+    return topicsInput.value
+      .split(",")
+      .map(function (t) { return t.trim(); })
+      .filter(function (t) { return t.length > 0; });
+  }
+
+  // A scrollable list of checkboxes, not a native <select multiple> --
+  // select-multiple requires Ctrl/Cmd-click (a browser-level HTML
+  // semantic, not something changeable via an attribute) to pick more
+  // than one option, which isn't the plain-click UX wanted here.
+  function renderTopicList(topics, placeholder) {
+    placeholder.remove();
+    if (!topics || !topics.length) return;
+
+    var container = document.createElement("div");
+    container.id = "id_topics_dropdown";
+    container.className = "antares-topics-dropdown";
+
+    var selected = currentTopicsFromInput();
+
+    function syncInputFromCheckboxes() {
+      var chosen = Array.prototype.filter
+        .call(container.querySelectorAll("input[type=checkbox]"), function (cb) {
+          return cb.checked;
+        })
+        .map(function (cb) { return cb.value; });
+      topicsInput.value = chosen.join(", ");
+    }
+
+    topics.forEach(function (topic, i) {
+      var row = document.createElement("label");
+      row.className = "antares-topics-dropdown-row";
+
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = topic;
+      checkbox.id = "id_topics_dropdown_" + i;
+      checkbox.checked = selected.indexOf(topic) !== -1;
+
+      function updateRowState() {
+        row.classList.toggle("antares-topics-dropdown-row-checked", checkbox.checked);
+      }
+      checkbox.addEventListener("change", function () {
+        updateRowState();
+        syncInputFromCheckboxes();
+      });
+      updateRowState();
+
+      var label = document.createElement("span");
+      label.textContent = topic;
+
+      row.appendChild(checkbox);
+      row.appendChild(label);
+      container.appendChild(row);
+    });
+
+    var hint = document.createElement("small");
+    hint.className = "form-text text-muted antares-topics-dropdown-hint";
+    hint.textContent = "Click to select one or more topics. Selecting here replaces the text field above.";
+
+    topicsInput.insertAdjacentElement("afterend", hint);
+    hint.insertAdjacentElement("afterend", container);
+  }
+
+  // Fetches only when the user actually focuses the topics field -- not
+  // automatically on page load, and not on every focus (guarded by
+  // `fetched` below), so a real Kafka connection only happens once per
+  // visit to this page, and only if the topics field is actually used.
+  // No caching server-side either (see antares_available_topics): every
+  // fetch is live, so a topic added/removed on the broker shows up
+  // immediately rather than waiting on a TTL.
+  var fetched = false;
+  topicsInput.addEventListener("focus", function () {
+    if (fetched) return;
+    fetched = true;
+
+    var placeholder = document.createElement("small");
+    placeholder.className = "form-text text-muted antares-topics-dropdown-hint";
+    placeholder.textContent = "Loading available topics...";
+    topicsInput.insertAdjacentElement("afterend", placeholder);
+
+    fetch("{% url 'antares-available-topics' %}")
+      .then(function (resp) { return resp.json(); })
+      .then(function (data) {
+        renderTopicList(data.topics || [], placeholder);
+        if (data.error) {
+          var errorMsg = document.createElement("small");
+          errorMsg.className = "form-text text-muted antares-topics-dropdown-hint";
+          errorMsg.textContent =
+            "Couldn't load available topics -- type names directly above.";
+          topicsInput.insertAdjacentElement("afterend", errorMsg);
+        }
+      })
+      .catch(function () {
+        placeholder.textContent =
+          "Couldn't load available topics -- type names directly above.";
+      });
+  });
+})();
+</script>
+
 
 <script src="{% static 'ace-builds/src-noconflict/ace.js' %}"></script>
 <script src="{% static 'ace-builds/src-noconflict/mode-python.js' %}"></script>

@@ -52,12 +52,16 @@ class AntaresStreamSubscribeForm(forms.Form):
     topics = forms.CharField(
         label="Kafka topics (comma separated)",
         widget=forms.TextInput(
-            attrs={"placeholder": "extragalactic_staging, nuclear_transient_staging"}
+            attrs={
+                "id": "id_topics",
+                "placeholder": "extragalactic_staging, nuclear_transient_staging",
+            }
         ),
         help_text=mark_safe(
-            "One or more ANTARES Kafka topic names, separated by commas. "
-            'Refer <a href="https://nsf-noirlab.gitlab.io/csdc/antares/'
-            'devkit/reference/filters/" target="_blank" '
+            "One or more ANTARES Kafka topic names, separated by commas -- "
+            "if a topic-selection list is available, use it, or type/paste "
+            "names directly. Refer <a href=\"https://nsf-noirlab.gitlab.io/"
+            'csdc/antares/devkit/reference/filters/" target="_blank" '
             'rel="noopener noreferrer">here</a> for the filters running '
             "on ANTARES."
         ),
@@ -97,8 +101,12 @@ class AntaresStreamSubscribeForm(forms.Form):
                 "placeholder": (
                     "def myfilter(locus):\n"
                     "    # Return True to keep this locus, False to skip it.\n"
-                    "    # numpy, pandas, astropy, and astroquery are already\n"
-                    "    # available by name. Importing is not allowed.\n"
+                    "    # numpy, pandas, astropy, astroquery, and\n"
+                    "    # dashboard_locus_count() are already available by\n"
+                    "    # name. Importing is not allowed.\n"
+                    "    if dashboard_locus_count() >= 500:\n"
+                    "        return False  # stop once the dashboard has 500 loci\n"
+                    "\n"
                     "    mag = locus.properties.get(\"newest_alert_magnitude\") or 99\n"
                     "    bright_enough = bool(numpy.all(numpy.array([mag]) < 19))\n"
                     "\n"
@@ -115,7 +123,11 @@ class AntaresStreamSubscribeForm(forms.Form):
             "Optional. Define <code>myfilter(locus)</code> returning "
             "True (keep) or False (skip). numpy, pandas, astropy, and "
             "astroquery are available by name -- no 'import' (blocked, "
-            "along with file/network access, eval/exec). See "
+            "along with file/network access, eval/exec). "
+            "<code>dashboard_locus_count()</code> returns how many loci "
+            "are currently on the dashboard, e.g. to stop after N loci: "
+            "<code>if dashboard_locus_count() >= 10: return False</code>. "
+            "See "
             '<a href="https://nsf-noirlab.gitlab.io/csdc/antares/client/'
             'api.html#antares_client.models.Locus" target="_blank" '
             'rel="noopener noreferrer">the Locus API</a> for available '
@@ -123,8 +135,9 @@ class AntaresStreamSubscribeForm(forms.Form):
         ),
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, available_topics: list[str] | None = None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.available_topics = available_topics or []
         self.helper = FormHelper()
         self.helper.add_input(Submit("submit", "Start ingesting"))
         # Errors are shown via a unified banner in the template (the same

@@ -41,7 +41,7 @@ give us no way to implement the silence detection above), so it occupies
 one Dramatiq worker thread/process for the lifetime of the app.
 """
 
-__all__ = ["ingest_antares_stream"]
+__all__ = ["ingest_antares_stream", "get_antares_kafka_login"]
 
 import logging
 
@@ -112,10 +112,12 @@ POLL_TIMEOUT_SECONDS = 5
 # the only available signal for a silently-failed SASL authentication,
 # since confluent_kafka/librdkafka does not raise an exception or invoke
 # any callback for that failure (see the main loop's comment for the
-# confirmed upstream issue references). Deliberately generous, since a
-# legitimately quiet topic is a real, valid case this can't be told apart
-# from -- this trades slower detection for fewer false alarms.
-STARTUP_SILENCE_WARNING_SECONDS = 120
+# confirmed upstream issue references). A legitimately quiet topic is a
+# real, valid case this can't be told apart from, so this can false-alarm
+# on a genuinely working but low-traffic topic -- 45s balances catching
+# real problems reasonably quickly against not firing on every brief,
+# normal lull.
+STARTUP_SILENCE_WARNING_SECONDS = 45
 
 
 def _seconds_since(start_time) -> float:
@@ -134,6 +136,33 @@ def _seconds_since(start_time) -> float:
     from django.utils import timezone  # noqa: PLC0415
 
     return (timezone.now() - start_time).total_seconds()
+
+
+def get_antares_kafka_login():
+    """Look up the first superuser's stored ANTARES Kafka credentials.
+
+    Returns
+    -------
+    `AntaresKafkaLogin` or None
+        The credential row, or `None` if no superuser exists or no
+        superuser has stored credentials yet.
+
+    Notes
+    -----
+    Shared by `_get_streaming_config` (building the consumer's connection
+    config) and `fetch_available_topics` (listing topics for the
+    ingestion form's dropdown) -- both need the same credentials, so this
+    is the single place that decides which user's login to use.
+    """
+    from django.contrib.auth import get_user_model  # noqa: PLC0415
+
+    from goats_tom.models import AntaresKafkaLogin  # noqa: PLC0415
+
+    User = get_user_model()
+    superuser = User.objects.filter(is_superuser=True).order_by("pk").first()
+    if superuser is None:
+        return None
+    return AntaresKafkaLogin.objects.filter(user=superuser).first()
 
 
 def _get_streaming_config(topics: list[str], group: str | None = None) -> dict:
@@ -170,10 +199,6 @@ def _get_streaming_config(topics: list[str], group: str | None = None) -> dict:
         If `topics` is empty, no superuser exists, or no superuser has
         stored ANTARES Kafka credentials.
     """
-    from django.contrib.auth import get_user_model  # noqa: PLC0415
-
-    from goats_tom.models import AntaresKafkaLogin  # noqa: PLC0415
-
     resolved_topics = list(topics or [])
     if not resolved_topics:
         raise ValueError(
@@ -181,13 +206,7 @@ def _get_streaming_config(topics: list[str], group: str | None = None) -> dict:
             "list."
         )
 
-    User = get_user_model()
-    superuser = User.objects.filter(is_superuser=True).order_by("pk").first()
-    login = (
-        AntaresKafkaLogin.objects.filter(user=superuser).first()
-        if superuser
-        else None
-    )
+    login = get_antares_kafka_login()
 
     if login is None:
         raise ValueError(
@@ -603,18 +622,12 @@ def ingest_antares_stream(
                         )
                         _record_handler_warning(
                             f"No messages received on topics={topics} "
-                            f"within {STARTUP_SILENCE_WARNING_SECONDS} "
-                            f"seconds of starting. This can mean the "
-                            f"credentials are being silently rejected by "
-                            f"ANTARES (a known limitation: the underlying "
-                            f"Kafka client does not report invalid "
-                            f"credentials as an error), or simply that "
-                            f"the topic(s) have had no new alerts yet. "
-                            f"Still running -- not stopped automatically, "
-                            f"since a quiet topic is a legitimate "
-                            f"possibility this can't be distinguished "
-                            f"from. If you're confident the topic should "
-                            f"be active, double-check your credentials."
+                            f"within {STARTUP_SILENCE_WARNING_SECONDS}s. "
+                            f"Possibly invalid credentials (ANTARES's Kafka "
+                            f"client doesn't report bad credentials as an "
+                            f"error) or just a quiet topic. Still running. "
+                            f"If you expect activity, double-check your "
+                            f"credentials."
                         )
                         warned_about_silence = True
                     continue

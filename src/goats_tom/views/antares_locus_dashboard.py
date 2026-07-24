@@ -4,6 +4,7 @@ __all__ = [
     "antares_locus_save_targets",
     "antares_locus_saved_status",
     "antares_locus_clear",
+    "antares_dashboard_status",
 ]
 
 import logging
@@ -164,6 +165,41 @@ def antares_locus_dashboard(request: HttpRequest) -> HttpResponse:
         request,
         "antares_locus_dashboard.html",
         {"page": page, "sort": sort_param, "current_subscription": current_subscription},
+    )
+
+
+@login_required
+def antares_dashboard_status(request: HttpRequest) -> HttpResponse:
+    """Render just the dashboard's Kafka subscription status/error banner,
+    for htmx polling.
+
+    Mirrors `goats_tom.views.antares_stream_subscribe.antares_stream_status`
+    (the ingestion page's equivalent): the actor that starts/stops
+    ingestion runs asynchronously in a Dramatiq worker, so a static,
+    one-time render of `current_subscription` on page load can miss a
+    status change (e.g. a startup failure recorded moments after the page
+    was loaded) until some other navigation triggers a fresh render. This
+    endpoint is polled every few seconds so the dashboard's banner catches
+    up on its own too, not just the ingestion page's.
+
+    Parameters
+    ----------
+    request : `HttpRequest`
+        The HTTP request object.
+
+    Returns
+    -------
+    `HttpResponse`
+        The rendered status partial.
+
+    """
+    current_subscription = (
+        AntaresStreamSubscription.objects.order_by("-updated_at").first()
+    )
+    return render(
+        request,
+        "partials/antares_dashboard_status.html",
+        {"current_subscription": current_subscription},
     )
 
 

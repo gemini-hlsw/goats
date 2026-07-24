@@ -31,10 +31,15 @@ class AntaresKafkaLoginView(SuperuserRequiredMixin, BaseLoginView):
     )
     model_class = AntaresKafkaLogin
     form_class = AntaresKafkaLoginForm
+    credentials_are_verifiable = False
 
     def perform_login_and_logout(self, **kwargs) -> bool:
         # No live verification available for Kafka streaming credentials
         # without actually opening a stream connection, which isn't worth
         # doing synchronously in a form submission -- same approach TNS
-        # takes for its own unverifiable credentials.
+        # takes for its own unverifiable credentials. See
+        # `credentials_are_verifiable = False` above: this is what makes
+        # the post-save message honestly say "saved" rather than falsely
+        # claim "verified" (the base view's default assumption for
+        # anything reaching this success path).
         return True

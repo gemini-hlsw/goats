@@ -15,6 +15,7 @@ class TNSLoginView(BaseLoginView):
     )
     model_class = TNSLogin
     form_class = TNSLoginForm
+    credentials_are_verifiable = False
 
     def perform_login_and_logout(self, **kwargs: Any) -> bool:
         # TODO: Figure out if there is a test or not.

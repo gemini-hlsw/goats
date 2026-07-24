@@ -116,6 +116,33 @@ _SAFE_BUILTINS = {
 }
 
 
+def _dashboard_locus_count() -> int:
+    """Return how many rows are currently in the `AntaresLocus` staging
+    table (i.e. how many loci are currently shown on the dashboard).
+
+    Exposed to handler code as the pre-bound name `dashboard_locus_count`
+    (a function, not the count itself -- call it as
+    `dashboard_locus_count()` to get a fresh, current value each time).
+
+    Returns
+    -------
+    int
+        Current row count.
+
+    Notes
+    -----
+    Deliberately a single, narrow, read-only function -- not the ORM, not
+    the `AntaresLocus` model itself -- so handler code can implement
+    things like "stop once the dashboard has N loci" without gaining any
+    broader database access (no `.delete()`, no `.update()`, no querying
+    other models). This is the specific, safe carve-out for that one use
+    case, not a general database access mechanism.
+    """
+    from goats_tom.models import AntaresLocus  # noqa: PLC0415
+
+    return AntaresLocus.objects.count()
+
+
 def _build_preimported_modules() -> dict:
     """Pre-import the small set of allowed third-party packages once.
 
@@ -138,6 +165,7 @@ def _build_preimported_modules() -> dict:
         "pandas": pandas,
         "astropy": astropy,
         "astroquery": astroquery,
+        "dashboard_locus_count": _dashboard_locus_count,
     }
 
 

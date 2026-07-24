@@ -6,17 +6,292 @@ topic list, or stop it entirely, without editing `local_settings.py` or
 restarting the whole `goats run` process.
 """
 
-__all__ = ["restart_antares_stream", "stop_antares_stream", "advance_generation"]
+__all__ = [
+    "restart_antares_stream",
+    "stop_antares_stream",
+    "advance_generation",
+    "fetch_available_topics",
+]
 
+import datetime
 import logging
 
 from django.db.models import F
+from django.utils import timezone
 from dramatiq_abort import abort
 
 from goats_tom.models import AntaresStreamSubscription
 from goats_tom.tasks import ingest_antares_stream
+from goats_tom.tasks.ingest_antares_stream import get_antares_kafka_login
 
 logger = logging.getLogger(__name__)
+
+# How long to wait for the Kafka broker's topic-listing admin request
+# before giving up. This is a single, direct request/response (unlike the
+# consumer's own long-lived polling loop), so a short timeout is
+# appropriate -- a slow/unreachable broker should fail fast here rather
+# than hang the "Ingest from Kafka stream" page.
+TOPIC_LIST_TIMEOUT_SECONDS = 10
+
+# antares_client.stream.StreamingClient prefixes every topic with this
+# string before subscribing (see antares_client's own
+# StreamingClient._TOPIC_PREFIX) -- topics on the broker are named e.g.
+# "client.young-rubin-transients", but users type/select just
+# "young-rubin-transients" (matching what StreamingClient itself expects
+# as input). Confirmed by reading antares_client's source directly.
+ANTARES_TOPIC_PREFIX = "client."
+
+# A topic is considered "active" (shown in the ingestion form's dropdown)
+# if its most recent message is within this many days. There is no
+# Kafka-level "last message time" field on topic metadata itself -- this
+# requires actually fetching each topic's single most recent message and
+# checking its timestamp (see _topic_has_recent_message), one broker
+# round-trip per topic. Deliberately not cached (see the calling view):
+# only checked when the user actually opens the dropdown, not on every
+# page load, so the added latency is an accepted, on-demand cost, not one
+# that compounds across every page view.
+ACTIVE_TOPIC_MAX_AGE_DAYS = 30
+
+# How long to wait for the single batched offsets_for_times() call that
+# checks every candidate topic's activity at once (see
+# _find_active_topics). Longer than a typical single-topic request would
+# need, since this one call now covers every partition of every candidate
+# topic together -- if it times out, every topic is excluded (see
+# _find_active_topics' except branch), not just one, so it's worth
+# giving it more room than the old per-topic design did.
+ACTIVE_TOPIC_CHECK_TIMEOUT_SECONDS = 15
+
+
+class TopicListError(Exception):
+    """Raised when the available topic list can't be fetched."""
+
+
+def _find_active_topics(
+    consumer, candidate_names: list[str], topic_partitions: dict, max_age_days: int
+) -> set[str]:
+    """Check which of `candidate_names` have a message newer than
+    `max_age_days`, in one batched broker call.
+
+    Parameters
+    ----------
+    consumer : `confluent_kafka.Consumer`
+        An already-connected consumer to query with.
+    candidate_names : list of str
+        Full (prefixed) topic names to check.
+    topic_partitions : dict
+        Maps each name in `candidate_names` to its partition IDs (from
+        `ClusterMetadata.topics[name].partitions`).
+    max_age_days : int
+        How many days back counts as "recent".
+
+    Returns
+    -------
+    set of str
+        The subset of `candidate_names` with at least one partition whose
+        latest message is newer than `max_age_days` ago. Topics with no
+        partitions, or where the check fails entirely, are excluded
+        rather than included by default -- the point is to hide topics
+        that might be inactive or unreachable.
+
+    Notes
+    -----
+    Kafka has no "last message time" field on topic metadata itself, but
+    `Consumer.offsets_for_times()` answers a closely related, sufficient
+    question directly, server-side, for many partitions across many
+    topics in a single call: "what is the earliest offset at or after
+    this timestamp, for each of these partitions". If a partition's
+    latest message is older than the cutoff, the given timestamp exceeds
+    every message in it, and the broker returns `offset == -1` for that
+    partition (per `offsets_for_times`' own documented behavior) --
+    checking `offset != -1` is therefore exactly "this partition has a
+    message at or after the cutoff", with no need to separately fetch or
+    inspect any actual message. This replaced an earlier, working but
+    much less efficient per-topic implementation (`assign()` + `poll()`
+    for each topic's single latest message, checking its real
+    timestamp) -- functionally equivalent, but this needs roughly one
+    broker round-trip total instead of up to two per topic.
+    """
+    from confluent_kafka import TopicPartition  # noqa: PLC0415
+
+    cutoff = timezone.now() - datetime.timedelta(days=max_age_days)
+    cutoff_ms = int(cutoff.timestamp() * 1000)
+
+    query_partitions = [
+        TopicPartition(name, partition_id, cutoff_ms)
+        for name in candidate_names
+        for partition_id in topic_partitions.get(name, {})
+    ]
+    if not query_partitions:
+        return set()
+
+    try:
+        results = consumer.offsets_for_times(
+            query_partitions, timeout=ACTIVE_TOPIC_CHECK_TIMEOUT_SECONDS
+        )
+    except Exception:
+        logger.exception(
+            "Failed to check topic activity via offsets_for_times; "
+            "excluding all candidate topics from the dropdown."
+        )
+        return set()
+
+    active = set()
+    for tp in results:
+        if tp.offset is not None and tp.offset >= 0:
+            active.add(tp.topic)
+    return active
+
+
+def fetch_available_topics() -> list[str]:
+    """List ANTARES Kafka topics available to the stored credentials,
+    filtered to only "active" ones.
+
+    Used by the "Ingest from Kafka stream" form to offer a dropdown of
+    real, currently-active topic names instead of requiring free-text
+    entry, and instead of showing every topic ever created regardless of
+    whether it's still receiving alerts.
+
+    Returns
+    -------
+    list of str
+        Active topic names, with ANTARES's internal "client." prefix
+        stripped (so they match what `StreamingClient`/the ingestion form
+        itself expects -- see `ANTARES_TOPIC_PREFIX`), sorted
+        alphabetically. Topics without that prefix (any other topics the
+        broker happens to expose that aren't ANTARES's own client-facing
+        streams) are excluded, since they wouldn't be valid input to the
+        form anyway. A topic only appears here if it has a message newer
+        than `ACTIVE_TOPIC_MAX_AGE_DAYS` (see `_topic_has_recent_message`)
+        -- topics that are empty, too old, or fail the activity check for
+        any reason are silently excluded rather than shown.
+
+    Raises
+    ------
+    TopicListError
+        If no superuser has stored ANTARES Kafka credentials, or the
+        broker request fails (network issue, invalid credentials, etc.).
+
+    Notes
+    -----
+    `antares_client.StreamingClient` has no built-in way to list
+    available topics -- its own `topics` property just echoes back
+    whatever topics were passed into its constructor (confirmed by
+    reading its source), and there is no dedicated listing endpoint
+    anywhere in the `antares_client` package.
+
+    Two earlier approaches were tried and ruled out, both confirmed by
+    directly testing against the real broker, not guessed:
+
+    1. Constructing `StreamingClient` with an empty topic list, purely to
+       reuse its internal `Consumer` for `.list_topics()`. Rejected:
+       `StreamingClient.__init__` unconditionally calls
+       `self._consumer.subscribe([])`, which `librdkafka` rejects
+       (`KafkaError._INVALID_ARG`: "Failed to set subscription: Invalid
+       argument or configuration").
+    2. `confluent_kafka.admin.AdminClient.list_topics()`, built with the
+       same connection config `StreamingClient` itself constructs
+       internally. Rejected: `AdminClient` opens its connection in a
+       different broker-facing role (`librdkafka` logs show it as
+       `rdkafka#producer-1`, not a consumer), and ANTARES's broker
+       rejected that role's SASL authentication outright (`Broker
+       transport failure` / `SaslAuthenticateRequest failed`) even with
+       valid credentials -- apparently these credentials are scoped for
+       consuming, not admin/producer operations.
+
+    This third approach avoids both problems: it constructs a real,
+    fully valid `StreamingClient` -- the exact same object, connection
+    role, and code path already proven to work for actual ingestion
+    throughout this project -- subscribed via a regex topic pattern
+    (`confluent_kafka.Consumer.subscribe()` supports `"^pattern"`
+    subscriptions) matching every ANTARES client-facing topic, rather
+    than an empty list or a guessed specific topic name. `.list_topics()`
+    is then called on that real `Consumer` (accessible as the
+    `StreamingClient` instance's own `_consumer` attribute), which is the
+    same consumer role/credentials scope that already works.
+
+    Reaching into `StreamingClient._consumer` (a single-underscore,
+    conventionally-private attribute) is a real coupling to
+    `antares_client`'s internal implementation, not its public API --
+    `StreamingClient` has no public method that exposes `.list_topics()`
+    itself. If a future `antares_client` release renames or restructures
+    this attribute, this function would need updating. Accepted as a
+    reasonable tradeoff given `antares_client` has no supported way to do
+    this at all, and this is the only approach (of three tried) that
+    actually works against ANTARES's real broker permissions.
+    """
+    from antares_client.stream import StreamingClient  # noqa: PLC0415
+
+    login = get_antares_kafka_login()
+    if login is None:
+        raise TopicListError(
+            "No ANTARES Kafka credentials found. A superuser must store "
+            "them via the Credential Manager (Users -> Manage -> ANTARES "
+            "Kafka Stream) first."
+        )
+
+    try:
+        # A regex-pattern subscription ("^" prefix, per confluent_kafka's
+        # Consumer.subscribe() docs) matching every ANTARES client-facing
+        # topic -- a real, valid, non-empty subscription that doesn't
+        # require guessing any specific topic name in advance.
+        pattern = "^" + ANTARES_TOPIC_PREFIX.replace(".", r"\.") + ".*"
+        client = StreamingClient(
+            topics=[pattern],
+            api_key=login.api_key,
+            api_secret=login.api_secret,
+        )
+    except Exception as exc:
+        raise TopicListError(
+            f"Failed to connect to the ANTARES Kafka broker: {exc}"
+        ) from exc
+
+    try:
+        cluster_metadata = client._consumer.list_topics(
+            timeout=TOPIC_LIST_TIMEOUT_SECONDS
+        )
+
+        candidate_names = sorted(
+            name
+            for name in cluster_metadata.topics
+            if name.startswith(ANTARES_TOPIC_PREFIX)
+        )
+        topic_partitions = {
+            name: cluster_metadata.topics[name].partitions for name in candidate_names
+        }
+
+        # Only topics with a message in the last ACTIVE_TOPIC_MAX_AGE_DAYS
+        # days are shown -- checked in one batched broker call across
+        # every partition of every candidate topic (see
+        # _find_active_topics), not triggered on every page load, only
+        # when the dropdown is actually opened. Reuses this same
+        # `client._consumer` (already in subscribe() mode from
+        # StreamingClient's own __init__) rather than a separate
+        # dedicated consumer: `offsets_for_times()` is a pure metadata
+        # query, not partition assignment, so -- unlike `assign()`, which
+        # is genuinely incompatible with an active subscribe() on the
+        # same consumer -- it doesn't conflict. Confirmed directly (not
+        # assumed): calling it on a subscribed consumer against an
+        # unreachable test broker fails with `_ALL_BROKERS_DOWN` (a plain
+        # network error), not a local mode-conflict rejection, meaning
+        # the call itself is accepted and would proceed normally against
+        # a real, reachable broker.
+        active_topic_names = _find_active_topics(
+            client._consumer,
+            candidate_names,
+            topic_partitions,
+            ACTIVE_TOPIC_MAX_AGE_DAYS,
+        )
+    except Exception as exc:
+        raise TopicListError(
+            f"Failed to list topics from the ANTARES Kafka broker: {exc}"
+        ) from exc
+    finally:
+        client.close()
+
+    topics = sorted(
+        name[len(ANTARES_TOPIC_PREFIX) :] for name in active_topic_names
+    )
+    return topics
 
 
 def _get_or_create_subscription() -> AntaresStreamSubscription:

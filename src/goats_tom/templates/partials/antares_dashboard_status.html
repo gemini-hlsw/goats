@@ -1,0 +1,28 @@
+{% load antares_locus_extras %}
+<div id="antares-dashboard-status"
+     hx-get="{% url 'antares-dashboard-status' %}"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML">
+{% if current_subscription and current_subscription.topics %}
+<div class="alert alert-info">
+  <strong>Kafka subscription:</strong> {{ current_subscription.topics|join:", " }}
+  {% if current_subscription.group %}<span class="text-muted">(group: {{ current_subscription.group }})</span>{% endif %}
+  {% if current_subscription.is_running %}<span class="badge badge-success">Running</span>{% else %}<span class="badge badge-secondary">Stopped</span>{% endif %}
+  <br>
+  <strong>Custom locus handler:</strong>
+  {% if current_subscription.handler_code|is_active_handler_code %}
+    <span class="badge badge-primary">Set</span>
+  {% else %}
+    <span class="text-muted">None</span>
+  {% endif %}
+  <a href="{% url 'antares-stream-subscribe' %}" class="small">(manage)</a>
+</div>
+{% endif %}
+
+{% if current_subscription and current_subscription.last_handler_warning %}
+<div class="alert alert-danger">
+  <strong>Ingestion error</strong> (as of {{ current_subscription.last_handler_warning_at }}):
+  <div class="font-monospace" style="white-space: pre-wrap;">{{ current_subscription.last_handler_warning }}</div>
+</div>
+{% endif %}
+</div>

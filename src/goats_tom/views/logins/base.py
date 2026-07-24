@@ -21,6 +21,17 @@ class BaseLoginView(LoginRequiredMixin, FormView):
     service_description = None
     login_client = None
     model_class = None
+    credentials_are_verifiable = True
+    """Whether `perform_login_and_logout` actually checks credentials
+    against the service (e.g. "is the endpoint reachable and the token
+    valid"), rather than always returning `True` because no live check is
+    available. Controls which success message is shown -- an honest
+    "saved, but not verified" message when `False`, matching the
+    subclass's own documented behavior, instead of falsely claiming
+    "verified" for a credential that was never actually checked. Override
+    to `False` in any subclass whose `perform_login_and_logout` doesn't
+    perform a real check (see `TNSLoginView`, `AntaresKafkaLoginView`).
+    """
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -65,20 +76,20 @@ class BaseLoginView(LoginRequiredMixin, FormView):
                 self.request,
                 f"Failed to verify {self.service_name} credentials. Please try again.",
             )
+        elif not self.credentials_are_verifiable:
+            messages.success(
+                self.request,
+                f"{self.service_name} login information saved. It cannot be "
+                f"automatically verified at this time. If you experience "
+                f"issues communicating with {self.service_name}, please "
+                f"double-check your credentials and try again.",
+            )
         else:
-            if self.service_name == "TNS":
-                messages.success(
-                    self.request,
-                    "TNS login information saved. It cannot be automatically verified "
-                    "at this time. If you experience issues communicating with TNS, "
-                    "please double-check your credentials and try again.",
-                )
-            else:
-                messages.success(
-                    self.request,
-                    f"{self.service_name} login information verified and saved "
-                    "successfully.",
-                )
+            messages.success(
+                self.request,
+                f"{self.service_name} login information verified and saved "
+                "successfully.",
+            )
 
         # Update or create credentials.
         self.model_class.objects.update_or_create(

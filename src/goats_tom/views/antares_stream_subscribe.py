@@ -1,12 +1,26 @@
-__all__ = ["antares_stream_subscribe", "antares_stream_status"]
+__all__ = [
+    "antares_stream_subscribe",
+    "antares_stream_status",
+    "antares_available_topics",
+]
+
+import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
-from goats_tom.antares_stream_control import restart_antares_stream, stop_antares_stream
+from goats_tom.antares_stream_control import (
+    TopicListError,
+    fetch_available_topics,
+    restart_antares_stream,
+    stop_antares_stream,
+)
 from goats_tom.forms import AntaresStreamSubscribeForm
 from goats_tom.models import AntaresStreamSubscription
+
+logger = logging.getLogger(__name__)
 
 
 def _save_draft(subscription: AntaresStreamSubscription, request, error: str) -> None:
@@ -162,7 +176,10 @@ def antares_stream_subscribe(request):
     return render(
         request,
         "antares_stream_subscribe.html",
-        {"form": form, "current": current},
+        {
+            "form": form,
+            "current": current,
+        },
     )
 
 
@@ -201,3 +218,40 @@ def antares_stream_status(request):
         "partials/antares_stream_status.html",
         {"current": current},
     )
+
+
+@login_required
+def antares_available_topics(request):
+    """Return available ANTARES Kafka topics as JSON, fetched live.
+
+    Called via JS only when the user actually interacts with the topics
+    field (see the template), not automatically on page load -- so a
+    real Kafka connection (SASL handshake, broker round-trip) only
+    happens when someone genuinely wants to see the topic list, not on
+    every visit to this page. Not cached: since this is now on-demand
+    rather than automatic, the cost of a live fetch each time is small,
+    and it means a topic added or removed on the broker shows up
+    immediately rather than waiting for a cache entry to expire.
+
+    Parameters
+    ----------
+    request : `HttpRequest`
+        The HTTP request object.
+
+    Returns
+    -------
+    `JsonResponse`
+        ``{"topics": [...]}`` on success, or ``{"topics": [], "error":
+        "..."}`` if the fetch failed (e.g. no credentials stored, broker
+        unreachable) -- still a 200 response either way, since an empty
+        dropdown with an explanatory message is a normal, handled
+        outcome for this endpoint, not a server error.
+
+    """
+    try:
+        topics = fetch_available_topics()
+    except TopicListError as exc:
+        logger.warning("Could not fetch available ANTARES topics: %s", exc)
+        return JsonResponse({"topics": [], "error": str(exc)})
+
+    return JsonResponse({"topics": topics})
