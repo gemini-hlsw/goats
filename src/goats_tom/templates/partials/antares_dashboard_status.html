@@ -20,9 +20,16 @@
 {% endif %}
 
 {% if current_subscription and current_subscription.last_handler_warning %}
+{% if current_subscription.is_running %}
+<div class="alert alert-warning">
+  <strong>Warning</strong> (as of {{ current_subscription.last_handler_warning_at }}):
+  <div class="font-monospace" style="white-space: pre-wrap;">{{ current_subscription.last_handler_warning }}</div>
+</div>
+{% else %}
 <div class="alert alert-danger">
   <strong>Ingestion error</strong> (as of {{ current_subscription.last_handler_warning_at }}):
   <div class="font-monospace" style="white-space: pre-wrap;">{{ current_subscription.last_handler_warning }}</div>
 </div>
+{% endif %}
 {% endif %}
 </div>

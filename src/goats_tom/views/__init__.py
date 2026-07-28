@@ -29,6 +29,7 @@ from goats_tom.views.logins import (
     GOALoginView,
     GPPLoginView,
     LCOLoginView,
+    RSPTapLoginView,
     TNSLoginView,
 )
 from goats_tom.views.observation_record_delete import ObservationRecordDeleteView
@@ -74,4 +75,5 @@ __all__ = [
     "antares_stream_status",
     "antares_available_topics",
     "AntaresKafkaLoginView",
+    "RSPTapLoginView",
 ]

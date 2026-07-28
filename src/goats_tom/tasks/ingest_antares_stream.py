@@ -456,6 +456,7 @@ def ingest_antares_stream(
     save_all_targets: bool = False,
     group: str | None = None,
     generation: int = 0,
+    configured_by_user_id: int | None = None,
 ) -> None:
     """Continuously consume the ANTARES Kafka alert stream.
 
@@ -517,6 +518,17 @@ def ingest_antares_stream(
         happened), this consumer stops immediately without writing,
         guaranteeing it can never clash with a newer consumer even if its
         `abort()` signal was delayed or lost.
+    configured_by_user_id : int, optional
+        The primary key of the user who configured this subscription
+        (see `AntaresStreamSubscription.configured_by`), passed as a
+        plain ID rather than a `User` object since Dramatiq actor
+        arguments must be JSON-serializable. Looked up once here, not
+        per-message, and passed to `run_locus_handler` so `handler_code`
+        can use `RSP_tap_service` (RSP TAP queries) under this specific
+        user's own stored RSP access token -- not a superuser's, since
+        RSP tokens are personal, per-researcher credentials. `None` (no
+        `RSP_tap_service` available to handler code) if not given or if the
+        user no longer exists.
 
     Raises
     ------
@@ -531,6 +543,13 @@ def ingest_antares_stream(
     from dramatiq_abort import Abort  # noqa: PLC0415
 
     _apply_antares_api_timeout()
+
+    configured_by_user = None
+    if configured_by_user_id is not None:
+        from django.contrib.auth import get_user_model  # noqa: PLC0415
+
+        User = get_user_model()
+        configured_by_user = User.objects.filter(pk=configured_by_user_id).first()
 
     if handler_code and is_effectively_blank(handler_code):
         logger.info(
@@ -642,7 +661,9 @@ def ingest_antares_stream(
 
                 if handler_code:
                     try:
-                        keep = run_locus_handler(handler_code, locus)
+                        keep = run_locus_handler(
+                            handler_code, locus, configured_by_user=configured_by_user
+                        )
                     except LocusHandlerError as exc:
                         logger.error(
                             "User-defined locus handler failed for locus_id=%s; "

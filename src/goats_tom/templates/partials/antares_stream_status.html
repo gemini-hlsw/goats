@@ -35,9 +35,16 @@
 {% endif %}
 
 {% if current and current.last_handler_warning %}
+{% if current.is_running %}
+<div class="alert alert-warning">
+  <strong>Warning</strong> (as of {{ current.last_handler_warning_at }}):
+  <div class="font-monospace" style="white-space: pre-wrap;">{{ current.last_handler_warning }}</div>
+</div>
+{% else %}
 <div class="alert alert-danger">
   <strong>Ingestion error</strong> (as of {{ current.last_handler_warning_at }}):
   <div class="font-monospace" style="white-space: pre-wrap;">{{ current.last_handler_warning }}</div>
 </div>
+{% endif %}
 {% endif %}
 </div>

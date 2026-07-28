@@ -126,6 +126,11 @@ class Command(BaseCommand):
             save_all_targets=subscription.save_all_targets,
             group=subscription.group,
             generation=new_generation,
+            configured_by_user_id=(
+                subscription.configured_by_id
+                if subscription.configured_by_id is not None
+                else None
+            ),
         )
         subscription.dramatiq_message_id = message.message_id
         subscription.save(update_fields=["dramatiq_message_id"])

@@ -107,7 +107,9 @@ def antares_stream_subscribe(request):
         return redirect("antares-stream-subscribe")
 
     if request.method == "POST":
-        form = AntaresStreamSubscribeForm(request.POST)
+        form = AntaresStreamSubscribeForm(
+            request.POST, configured_by_user=request.user
+        )
         if form.is_valid():
             topics = form.cleaned_data["topics"]
             group = form.cleaned_data["group"]
@@ -122,6 +124,7 @@ def antares_stream_subscribe(request):
                 save_all_targets=save_all_targets,
                 trigger_gemini_observations=trigger_gemini_observations,
                 handler_code=handler_code,
+                configured_by_user=request.user,
             )
             _clear_draft(subscription)
             messages.success(
@@ -171,7 +174,9 @@ def antares_stream_subscribe(request):
                     current.trigger_gemini_observations
                 )
                 initial["handler_code"] = current.handler_code
-        form = AntaresStreamSubscribeForm(initial=initial)
+        form = AntaresStreamSubscribeForm(
+            initial=initial, configured_by_user=request.user
+        )
 
     return render(
         request,

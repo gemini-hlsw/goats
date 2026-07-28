@@ -118,6 +118,11 @@ urlpatterns = [
         views.AntaresKafkaLoginView.as_view(),
         name="user-antares-kafka-login",
     ),
+    path(
+        "users/<int:pk>/rsp-tap/",
+        views.RSPTapLoginView.as_view(),
+        name="user-rsp-tap-login",
+    ),
     path("goa_query/<int:pk>/", views.GOAQueryFormView.as_view(), name="goa_query"),
     path(
         "observations/<int:pk>/goa-archive/",

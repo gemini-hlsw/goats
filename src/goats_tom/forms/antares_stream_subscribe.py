@@ -5,6 +5,7 @@ __all__ = ["AntaresStreamSubscribeForm"]
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Submit
 from django import forms
+from django.urls import reverse
 from django.utils.safestring import mark_safe
 
 from goats_tom.antares_locus_handler import (
@@ -121,23 +122,37 @@ class AntaresStreamSubscribeForm(forms.Form):
         ),
         help_text=mark_safe(
             "Optional. Define <code>myfilter(locus)</code> returning "
-            "True (keep) or False (skip). numpy, pandas, astropy, and "
-            "astroquery are available by name -- no 'import' (blocked, "
-            "along with file/network access, eval/exec). "
-            "<code>dashboard_locus_count()</code> returns how many loci "
-            "are currently on the dashboard, e.g. to stop after N loci: "
-            "<code>if dashboard_locus_count() >= 10: return False</code>. "
-            "See "
+            "True (keep) or False (skip). See "
             '<a href="https://nsf-noirlab.gitlab.io/csdc/antares/client/'
             'api.html#antares_client.models.Locus" target="_blank" '
             'rel="noopener noreferrer">the Locus API</a> for available '
-            "attributes. Leave blank to keep every locus."
+            "attributes. Leave blank to keep every locus. "
+            "numpy, pandas, astropy, and astroquery are available by "
+            "name -- no 'import' (blocked, along with file access, "
+            "eval/exec). "
+            "<code>dashboard_locus_count()</code> returns how many loci "
+            "are currently on the dashboard, e.g. to stop after N loci: "
+            "<code>if dashboard_locus_count() >= 10: return False</code>. "
+            "<code>RSP_tap_service</code> (if you've stored an "
+            "{rsp_token_link}) queries Rubin catalog data, e.g. "
+            "<code>RSP_tap_service.run_async(\"SELECT ...\").to_table()"
+            "</code> -- <code>None</code> if no token is stored. See "
+            '<a href="https://sdm-schemas.lsst.io/" target="_blank" '
+            'rel="noopener noreferrer">here</a> for tables and schemas '
+            "for Rubin data products."
         ),
     )
 
-    def __init__(self, *args, available_topics: list[str] | None = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        available_topics: list[str] | None = None,
+        configured_by_user=None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.available_topics = available_topics or []
+        self.configured_by_user = configured_by_user
         self.helper = FormHelper()
         self.helper.add_input(Submit("submit", "Start ingesting"))
         # Errors are shown via a unified banner in the template (the same
@@ -145,6 +160,30 @@ class AntaresStreamSubscribeForm(forms.Form):
         # inline per-field rendering -- avoids showing the same error
         # twice in two different visual styles.
         self.helper.form_show_errors = False
+
+        # help_text is defined once, at class-body level, with no access
+        # to a specific request/user -- but the RSP token storage link
+        # needs a specific user's pk (`user-rsp-tap-login` takes one),
+        # which we only have per-instance, from `configured_by_user`
+        # (== request.user, passed in by the view). Filled in here,
+        # rather than in the static help_text string above, for that
+        # reason.
+        if self.configured_by_user is not None and self.configured_by_user.pk:
+            rsp_token_link = mark_safe(
+                '<a href="{}" target="_blank" '
+                'rel="noopener noreferrer">RSP access token</a>'.format(
+                    reverse(
+                        "user-rsp-tap-login", args=[self.configured_by_user.pk]
+                    )
+                )
+            )
+        else:
+            rsp_token_link = "RSP access token"
+        self.fields["handler_code"].help_text = mark_safe(
+            self.fields["handler_code"].help_text.format(
+                rsp_token_link=rsp_token_link
+            )
+        )
 
     def clean_topics(self) -> list[str]:
         """Split and clean the comma-separated topics field.
@@ -198,7 +237,7 @@ class AntaresStreamSubscribeForm(forms.Form):
             return source
 
         try:
-            validate_handler_code(source)
+            validate_handler_code(source, configured_by_user=self.configured_by_user)
         except LocusHandlerError as exc:
             raise forms.ValidationError(str(exc)) from exc
 

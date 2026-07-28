@@ -2,6 +2,7 @@
 
 __all__ = ["AntaresStreamSubscription"]
 
+from django.conf import settings
 from django.db import models
 
 
@@ -94,6 +95,20 @@ class AntaresStreamSubscription(models.Model):
         so there's one consistent error presentation regardless of
         whether the failure happened at form-submission time or later at
         runtime in the live consumer.
+    configured_by : `models.ForeignKey`
+        The user who most recently successfully started this
+        subscription (i.e. the person who submitted the ingestion form).
+        Used specifically for GPP observation triggering: unlike ANTARES
+        Kafka credentials (deliberately shared/superuser-scoped, since
+        ANTARES issues a small number of credentials per team/institution,
+        not per individual), GPP credentials are personal, per-researcher
+        accounts -- so triggering a GPP observation for a newly-saved
+        target uses *this* user's own stored GPP credentials and
+        identity, not a superuser's. `SET_NULL` on delete (rather than
+        cascading) so deleting a user account doesn't delete the whole
+        subscription row, just this link -- if `configured_by` is `None`,
+        GPP triggering has no user to act as and should fail clearly for
+        that target rather than fall back to any other user.
 
     """
 
@@ -138,6 +153,13 @@ class AntaresStreamSubscription(models.Model):
     draft_trigger_gemini_observations = models.BooleanField(default=False)
     draft_handler_code = models.TextField(blank=True, default="")
     draft_error = models.TextField(blank=True, default="")
+    configured_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="antares_stream_subscriptions",
+    )
 
     class Meta:
         verbose_name = "ANTARES stream subscription"

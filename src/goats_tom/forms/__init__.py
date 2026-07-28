@@ -6,6 +6,7 @@ from goats_tom.forms.logins import (
     GOALoginForm,
     GPPLoginForm,
     LCOLoginForm,
+    RSPTapLoginForm,
     TNSLoginForm,
 )
 
@@ -18,4 +19,5 @@ __all__ = [
     "GOALoginForm",
     "GPPLoginForm",
     "LCOLoginForm",
+    "RSPTapLoginForm",
 ]

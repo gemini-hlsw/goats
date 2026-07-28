@@ -388,6 +388,7 @@ def restart_antares_stream(
     save_all_targets: bool = False,
     trigger_gemini_observations: bool = False,
     handler_code: str = "",
+    configured_by_user=None,
 ) -> AntaresStreamSubscription:
     """Abort the currently-running ANTARES consumer, if any, and start a
     new one with the given topics -- guaranteed not to clash with the old
@@ -411,6 +412,18 @@ def restart_antares_stream(
     handler_code : str, optional
         User-defined locus filter/handler function body, passed through to
         the consumer. See `goats_tom.antares_locus_handler`.
+    configured_by_user : `django.contrib.auth.models.User`, optional
+        The user submitting this form (`request.user` from the calling
+        view) -- saved as `AntaresStreamSubscription.configured_by`.
+        Unlike ANTARES Kafka credentials (deliberately shared across
+        users, since ANTARES issues a small number of credentials per
+        team/institution, not per individual -- see
+        `goats_tom.tasks.ingest_antares_stream.get_antares_kafka_login`),
+        GPP credentials are personal, per-researcher accounts, so
+        triggering a GPP observation for a newly-saved target needs to
+        know specifically *which* user's GPP credentials/identity to use
+        -- this is how that's recorded, at the moment ingestion is
+        configured, rather than guessed later.
 
     Returns
     -------
@@ -453,6 +466,9 @@ def restart_antares_stream(
         save_all_targets=save_all_targets,
         group=group,
         generation=new_generation,
+        configured_by_user_id=(
+            configured_by_user.pk if configured_by_user is not None else None
+        ),
     )
 
     subscription.topics = topics
@@ -461,6 +477,7 @@ def restart_antares_stream(
     subscription.trigger_gemini_observations = trigger_gemini_observations
     subscription.handler_code = handler_code
     subscription.dramatiq_message_id = message.message_id
+    subscription.configured_by = configured_by_user
     # Deliberately NOT setting is_running = True here. `.send()` only
     # enqueues the actor; it may not actually run for some time after
     # this web request (and its redirect) complete. Setting is_running

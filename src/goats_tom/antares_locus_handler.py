@@ -26,7 +26,13 @@ treated as trusted (per product decision) -- do not reuse this module to
 run untrusted code. Note also that `astroquery` performs real network
 requests to external services -- allowing it means user code can make
 outbound network calls (e.g. catalog cross-matches), which is intentional
-here but worth knowing.
+here but worth knowing. `RSP_tap_service` (see `_build_rsp_tap_service`) is
+similar but goes further: it's a live, authenticated connection to the
+Rubin Science Platform TAP service, using the *specific* user who
+configured the current subscription's own stored RSP access token (not a
+shared/superuser credential) -- handler code with `RSP_tap_service` access can
+issue real, authenticated queries against Rubin catalog data under that
+user's own identity.
 """
 
 __all__ = [
@@ -323,7 +329,7 @@ def _build_test_locus():
     )
 
 
-def validate_handler_code(source: str) -> None:
+def validate_handler_code(source: str, configured_by_user=None) -> None:
     """Fully validate handler code at submission time: structure AND an
     actual dry run against a realistic test locus.
 
@@ -331,6 +337,12 @@ def validate_handler_code(source: str) -> None:
     ----------
     source : str
         User-submitted source defining ``def myfilter(locus): ...``.
+    configured_by_user : `django.contrib.auth.models.User`, optional
+        The user submitting this form (`request.user`), passed through so
+        a handler using `RSP_tap_service` is dry-run against that same user's
+        real stored RSP token -- catching a bad/missing token, or an
+        unreachable TAP service, at submission time rather than only
+        after it's already caused a failure in the live consumer.
 
     Raises
     ------
@@ -343,10 +355,126 @@ def validate_handler_code(source: str) -> None:
         already caused a failure there.
     """
     check_handler_source(source)
-    run_locus_handler(source, _build_test_locus())
+    run_locus_handler(source, _build_test_locus(), configured_by_user=configured_by_user)
 
 
-def run_locus_handler(source: str, locus) -> bool:
+def _references_rsp_tap_service(source: str) -> bool:
+    """Check whether `source` genuinely uses `RSP_tap_service` as a real
+    Python name, not merely as text inside a comment or string literal.
+
+    Parameters
+    ----------
+    source : str
+        Handler source, already confirmed to parse cleanly by
+        `check_handler_source` (called before this in `run_locus_handler`,
+        so a syntax error here would mean this function is never reached
+        in the first place).
+
+    Returns
+    -------
+    bool
+        `True` if `RSP_tap_service` appears as an `ast.Name` node anywhere in
+        the parsed source.
+
+    Notes
+    -----
+    Deliberately not a plain substring search (`"RSP_tap_service" in source`):
+    that would also match the word appearing in a comment (e.g.
+    ``# might use RSP_tap_service later``) or inside a string literal,
+    triggering a real network call (`_build_rsp_tap_service` constructing a
+    live `TAPService`, which probes the RSP endpoint) for handler code
+    that never actually touches `RSP_tap_service` at all. Parsing and
+    checking for a real `ast.Name` reference avoids that: Python's parser
+    already discards comments before producing the AST, and a string
+    literal is an `ast.Constant` node, not a `Name`, so neither can cause
+    a false positive here (verified directly against both cases, not
+    assumed).
+    """
+    import ast as _ast  # noqa: PLC0415
+
+    tree = _ast.parse(source)
+    return any(
+        isinstance(node, _ast.Name) and node.id == "RSP_tap_service"
+        for node in _ast.walk(tree)
+    )
+
+
+def _build_rsp_tap_service(configured_by_user):
+    """Build a `pyvo.dal.TAPService` for the Rubin Science Platform (RSP)
+    TAP endpoint, authenticated with `configured_by_user`'s own stored
+    RSP access token.
+
+    Parameters
+    ----------
+    configured_by_user : `django.contrib.auth.models.User` or None
+        The user whose stored `RSPTapLogin` token to use. `None` if no
+        user is associated with the current subscription (e.g. never
+        set, or the user account was since deleted -- see
+        `AntaresStreamSubscription.configured_by`).
+
+    Returns
+    -------
+    `pyvo.dal.TAPService` or None
+        A real, usable TAP service client bound to the pre-bound name
+        `RSP_tap_service` -- callers can do
+        ``RSP_tap_service.run_async("SELECT ...").to_table()`` directly,
+        exactly matching the RSP Notebook environment's own documented
+        usage (https://rsp.lsst.io/guides/api/tap.html), including
+        `run_async`'s built-in default of deleting the job after fetching
+        results (`delete=True` is `pyvo`'s own default, confirmed
+        directly from its source -- not something reimplemented here).
+        `None` if `configured_by_user` is `None`, has no stored RSP
+        token, or if constructing the service fails for any reason (e.g.
+        network issue, invalid token) -- handler code should check for
+        `None` before using `RSP_tap_service`, the same way it already has
+        to handle other optional/lazy `Locus` attributes being `None`.
+
+    Notes
+    -----
+    Built fresh on every `run_locus_handler` call, not cached as a
+    module-level constant the way `numpy`/`pandas`/`astropy`/`astroquery`
+    are -- those are stateless, credential-free library imports safe to
+    share across every consumer run and every user; this is
+    per-user-credentialed state that must match whichever user
+    configured the *current* subscription, so it can never be a shared,
+    static singleton. Uses the exact construction pattern documented in
+    RSP's "External access" section (an `AuthSession` with the token
+    passed as an HTTP Basic Auth password, username ``x-oauth-basic``)
+    rather than `lsst.rsp.get_tap_service`, which only works inside an
+    actual RSP Notebook environment (it relies on an auto-provisioned
+    token that doesn't exist here, in a plain Django background worker).
+    """
+    if configured_by_user is None:
+        return None
+
+    try:
+        rsp_login = configured_by_user.rsptaplogin
+    except Exception:
+        # No RSPTapLogin row for this user (OneToOneField reverse
+        # accessor raises RelatedObjectDoesNotExist, a subclass of
+        # ObjectDoesNotExist, if unset) -- not an error, just means this
+        # user hasn't stored an RSP token.
+        return None
+
+    try:
+        import pyvo  # noqa: PLC0415
+        from pyvo.auth import AuthSession  # noqa: PLC0415
+
+        session = AuthSession()
+        session.credentials.set_password("x-oauth-basic", rsp_login.access_token)
+        return pyvo.dal.TAPService(
+            "https://data.lsst.cloud/api/tap", session=session
+        )
+    except Exception:
+        logger.exception(
+            "Failed to build RSP TAP service for user_id=%s; "
+            "RSP_tap_service will be unavailable to handler code this run.",
+            configured_by_user.pk,
+        )
+        return None
+
+
+def run_locus_handler(source: str, locus, configured_by_user=None) -> bool:
     """Run a user-submitted ``myfilter(locus)`` function against one locus.
 
     Parameters
@@ -362,6 +490,14 @@ def run_locus_handler(source: str, locus) -> bool:
         The locus to evaluate. See the ANTARES `Locus` API for available
         attributes/methods:
         https://nsf-noirlab.gitlab.io/csdc/antares/client/api.html#antares_client.models.Locus
+    configured_by_user : `django.contrib.auth.models.User`, optional
+        The user who configured the current subscription (see
+        `AntaresStreamSubscription.configured_by`), if any. Used to build
+        `RSP_tap_service` (see `_build_rsp_tap_service`) fresh for this call,
+        using that user's own stored RSP TAP access token -- not a
+        superuser's or anyone else's, since RSP tokens are personal
+        credentials. `RSP_tap_service` is bound to `None` if not given, or if
+        the user has no stored token, or if building the service fails.
 
     Returns
     -------
@@ -381,6 +517,19 @@ def run_locus_handler(source: str, locus) -> bool:
     check_handler_source(source)
 
     restricted_globals = {"__builtins__": _SAFE_BUILTINS, **_PREIMPORTED_MODULES}
+    # Only pay for constructing RSP_tap_service (a real network call --
+    # TAPService.__init__ probes the RSP TAP endpoint's /capabilities) if
+    # the handler code genuinely *uses* it. A plain substring search
+    # (`"RSP_tap_service" in source`) would also trigger on the word merely
+    # appearing in a comment or a string literal, e.g. a note like
+    # `# might use RSP_tap_service later` -- wasting a real network call for
+    # code that never actually touches it. Parsing the source and
+    # checking for a real `ast.Name` reference is precise: Python's own
+    # parser already discards comments, and a string literal is a
+    # separate `ast.Constant` node, not a `Name`, so neither can produce
+    # a false positive here (confirmed directly, not assumed).
+    if _references_rsp_tap_service(source):
+        restricted_globals["RSP_tap_service"] = _build_rsp_tap_service(configured_by_user)
     local_vars = {}
 
     try:

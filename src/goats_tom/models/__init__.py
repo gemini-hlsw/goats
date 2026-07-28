@@ -13,6 +13,7 @@ from goats_tom.models.logins import (
     GOALogin,
     GPPLogin,
     LCOLogin,
+    RSPTapLogin,
     TNSLogin,
 )
 from goats_tom.models.recipes_module import RecipesModule
@@ -33,5 +34,6 @@ __all__ = [
     "AstroDatalabLogin",
     "GPPLogin",
     "LCOLogin",
+    "RSPTapLogin",
     "TNSLogin",
 ]

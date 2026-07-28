@@ -95,6 +95,13 @@
                     >Transient Name Server</a
                   >
                 </li>
+                <li>
+                  <a
+                    href="{% url 'user-rsp-tap-login' user.id %}"
+                    class="dropdown-item"
+                    >Rubin Science Platform TAP</a
+                  >
+                </li>
                 {% if request.user.is_superuser %}
                 <li>
                   <a
