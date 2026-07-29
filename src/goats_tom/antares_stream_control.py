@@ -473,6 +473,18 @@ def restart_antares_stream(
     subscription.handler_code = handler_code
     subscription.dramatiq_message_id = message.message_id
     subscription.configured_by = configured_by_user
+    # Clear any warning/error left over from the previous run. An earlier
+    # version deliberately left this for the actor to clear on successful
+    # startup, reasoning that clearing here would briefly blank a
+    # still-relevant message if the new attempt also failed. In practice
+    # the opposite problem was worse: a banner surviving across a restart
+    # is ambiguous -- there's no way to tell whether it describes the run
+    # you just started or the previous one. Clearing here makes the
+    # banner mean exactly one thing ("this is about the current attempt"),
+    # and the 3s status poll fills in any new failure quickly enough that
+    # the blank window is brief.
+    subscription.last_handler_warning = ""
+    subscription.last_handler_warning_at = None
     # Deliberately NOT setting is_running = True here. `.send()` only
     # enqueues the actor; it may not actually run for some time after
     # this web request (and its redirect) complete. Setting is_running

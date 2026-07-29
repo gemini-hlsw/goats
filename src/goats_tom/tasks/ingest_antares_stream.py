@@ -50,6 +50,8 @@ from django.db import transaction
 
 from goats_tom.antares_locus_handler import (
     LocusHandlerError,
+    build_rsp_tap_service,
+    references_rsp_tap_service,
     is_effectively_blank,
     run_locus_handler,
 )
@@ -611,6 +613,25 @@ def ingest_antares_stream(
     _mark_running()
     _clear_stale_handler_warning()
 
+    # Built once here, not per message. The client is identical for every
+    # locus in this run (same configuring user, same token), but
+    # constructing it costs a DB lookup plus a real HTTP request to the
+    # TAP /capabilities endpoint -- doing that per incoming alert was
+    # significant wasted work against Rubin's servers. Only built at all
+    # if the handler genuinely references it (same AST check the handler
+    # runner uses), so handlers that don't touch TAP pay nothing.
+    #
+    # Consequence worth knowing: a token changed mid-run isn't picked up
+    # until ingestion is restarted, since this instance is reused for the
+    # life of the loop.
+    rsp_tap_service = None
+    if handler_code and references_rsp_tap_service(handler_code):
+        rsp_tap_service = build_rsp_tap_service(configured_by_user)
+        logger.info(
+            "Built RSP TAP client for this consumer run (available=%s).",
+            rsp_tap_service is not None,
+        )
+
     try:
         with StreamingClient(
             config["topics"],
@@ -695,7 +716,7 @@ def ingest_antares_stream(
                 if handler_code:
                     try:
                         keep = run_locus_handler(
-                            handler_code, locus, configured_by_user=configured_by_user
+                            handler_code, locus, rsp_tap_service=rsp_tap_service
                         )
                     except LocusHandlerError as exc:
                         logger.error(

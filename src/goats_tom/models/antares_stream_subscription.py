@@ -88,6 +88,12 @@ class AntaresStreamSubscription(models.Model):
         main motivating case: a broken handler someone is actively
         editing/debugging should stay visible across navigation, not
         vanish because it never successfully saved.
+    draft_error_at : `models.DateTimeField`
+        When `draft_error` was last set. Shown alongside the error in the
+        banner, matching how `last_handler_warning_at` is shown for
+        runtime failures -- without it a validation error appears with no
+        indication of when it happened, so it's impossible to tell a
+        fresh failure from a stale one.
     draft_error : `models.TextField`
         The validation error message from the failed attempt that
         produced these draft_* fields, if any. Shown in the same danger
@@ -153,6 +159,7 @@ class AntaresStreamSubscription(models.Model):
     draft_trigger_gemini_observations = models.BooleanField(default=False)
     draft_handler_code = models.TextField(blank=True, default="")
     draft_error = models.TextField(blank=True, default="")
+    draft_error_at = models.DateTimeField(null=True, blank=True)
     configured_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

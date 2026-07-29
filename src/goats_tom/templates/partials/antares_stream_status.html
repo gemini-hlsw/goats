@@ -29,7 +29,7 @@
 
 {% if current and current.draft_error %}
 <div class="alert alert-danger">
-  <strong>Ingestion error</strong>:
+  <strong>Ingestion error</strong> (as of {{ current.draft_error_at }}):
   <div class="font-monospace" style="white-space: pre-wrap;">{{ current.draft_error }}</div>
 </div>
 {% endif %}

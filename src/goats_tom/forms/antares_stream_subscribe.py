@@ -240,7 +240,9 @@ class AntaresStreamSubscribeForm(forms.Form):
             return source
 
         try:
-            validate_handler_code(source, configured_by_user=self.configured_by_user)
+            validate_handler_code(
+                source, configured_by_user=self.configured_by_user
+            )
         except LocusHandlerError as exc:
             raise forms.ValidationError(str(exc)) from exc
 

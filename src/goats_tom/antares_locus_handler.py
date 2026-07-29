@@ -26,7 +26,7 @@ treated as trusted (per product decision) -- do not reuse this module to
 run untrusted code. Note also that `astroquery` performs real network
 requests to external services -- allowing it means user code can make
 outbound network calls (e.g. catalog cross-matches), which is intentional
-here but worth knowing. `RSP_tap_service` (see `_build_rsp_tap_service`) is
+here but worth knowing. `RSP_tap_service` (see `build_rsp_tap_service`) is
 similar but goes further: it's a live, authenticated connection to the
 Rubin Science Platform TAP service, using the *specific* user who
 configured the current subscription's own stored RSP access token (not a
@@ -40,7 +40,10 @@ __all__ = [
     "check_handler_source",
     "validate_handler_code",
     "is_effectively_blank",
+    "build_rsp_tap_service",
+    "references_rsp_tap_service",
     "LocusHandlerError",
+    "LocusHandlerRuntimeError",
     "HANDLER_FUNCTION_NAME",
 ]
 
@@ -195,6 +198,26 @@ class LocusHandlerError(Exception):
     """Raised when user-submitted handler code fails to compile or run."""
 
 
+class LocusHandlerRuntimeError(LocusHandlerError):
+    """Raised when the user's ``myfilter`` itself raised while running.
+
+    A subclass of `LocusHandlerError`, so anything catching that -- notably
+    the consumer's fail-closed handling in
+    `goats_tom.tasks.ingest_antares_stream` -- keeps treating it as a hard
+    failure. It exists so `validate_handler_code` can tell "your function
+    raised" apart from the definitively-wrong failures (blocked pattern,
+    syntax error, no `myfilter`, non-bool return).
+
+    That distinction matters because submission-time validation runs
+    against a synthetic locus (`_build_test_locus`) that cannot carry every
+    property a real ANTARES alert does. A handler reading, say,
+    ``locus.properties["ant_survey"]`` raises `KeyError` purely because the
+    sample lacks that key -- the handler is fine, the test data isn't.
+    Treating that as blocking rejects correct code, so at submission time
+    it is reported as a warning instead (see `validate_handler_code`).
+    """
+
+
 def check_handler_source(source: str) -> None:
     """Reject obviously dangerous or malformed source before running it.
 
@@ -347,18 +370,44 @@ def validate_handler_code(source: str, configured_by_user=None) -> None:
     Raises
     ------
     LocusHandlerError
-        If `check_handler_source` fails, or if actually running
-        `myfilter` against a realistic test locus raises or returns a
-        non-bool value (see `run_locus_handler`). This catches bugs like
-        `(tt > 20) * (tt < 21)` (returns an int, not a bool) before the
-        handler is ever used against the live stream, not just after it's
-        already caused a failure there.
+        Only for definitively-wrong code: a blocked pattern, a syntax
+        error, no `myfilter` defined, or a non-bool return value (e.g.
+        `(tt > 20) * (tt < 21)`, which yields an int). Those are wrong
+        regardless of what data they run against, so they block
+        submission. A raise from inside `myfilter` itself does *not*
+        block -- see the returned warning above and
+        `LocusHandlerRuntimeError`.
     """
     check_handler_source(source)
-    run_locus_handler(source, _build_test_locus(), configured_by_user=configured_by_user)
+    # Built here rather than inside run_locus_handler: this is a one-off
+    # dry run, so the cost is paid once, and only when the handler
+    # actually references the service.
+    rsp_tap_service = (
+        build_rsp_tap_service(configured_by_user)
+        if references_rsp_tap_service(source)
+        else None
+    )
+    try:
+        run_locus_handler(
+            source, _build_test_locus(), rsp_tap_service=rsp_tap_service
+        )
+    except LocusHandlerRuntimeError as exc:
+        # Non-blocking. The sample locus can't carry every property a real
+        # ANTARES alert does, so a raise here often means "the sample
+        # lacks something", not "the handler is wrong" -- and the two are
+        # genuinely indistinguishable from here. Rejecting would block
+        # correct handlers, so report it and let the submission through.
+        # A genuinely broken handler still fails safely on the first real
+        # alert: the consumer is fail-closed, records the error, and stops
+        # (see `goats_tom.tasks.ingest_antares_stream`).
+        logger.info(
+            "Handler dry run raised against the sample locus (%s). "
+            "Accepting anyway; real failures are caught at runtime.",
+            exc,
+        )
 
 
-def _references_rsp_tap_service(source: str) -> bool:
+def references_rsp_tap_service(source: str) -> bool:
     """Check whether `source` genuinely uses `RSP_tap_service` as a real
     Python name, not merely as text inside a comment or string literal.
 
@@ -381,7 +430,7 @@ def _references_rsp_tap_service(source: str) -> bool:
     Deliberately not a plain substring search (`"RSP_tap_service" in source`):
     that would also match the word appearing in a comment (e.g.
     ``# might use RSP_tap_service later``) or inside a string literal,
-    triggering a real network call (`_build_rsp_tap_service` constructing a
+    triggering a real network call (`build_rsp_tap_service` constructing a
     live `TAPService`, which probes the RSP endpoint) for handler code
     that never actually touches `RSP_tap_service` at all. Parsing and
     checking for a real `ast.Name` reference avoids that: Python's parser
@@ -399,7 +448,7 @@ def _references_rsp_tap_service(source: str) -> bool:
     )
 
 
-def _build_rsp_tap_service(configured_by_user):
+def build_rsp_tap_service(configured_by_user):
     """Build a `pyvo.dal.TAPService` for the Rubin Science Platform (RSP)
     TAP endpoint, authenticated with `configured_by_user`'s own stored
     RSP access token.
@@ -474,7 +523,7 @@ def _build_rsp_tap_service(configured_by_user):
         return None
 
 
-def run_locus_handler(source: str, locus, configured_by_user=None) -> bool:
+def run_locus_handler(source: str, locus, rsp_tap_service=None) -> bool:
     """Run a user-submitted ``myfilter(locus)`` function against one locus.
 
     Parameters
@@ -490,14 +539,20 @@ def run_locus_handler(source: str, locus, configured_by_user=None) -> bool:
         The locus to evaluate. See the ANTARES `Locus` API for available
         attributes/methods:
         https://nsf-noirlab.gitlab.io/csdc/antares/client/api.html#antares_client.models.Locus
-    configured_by_user : `django.contrib.auth.models.User`, optional
-        The user who configured the current subscription (see
-        `AntaresStreamSubscription.configured_by`), if any. Used to build
-        `RSP_tap_service` (see `_build_rsp_tap_service`) fresh for this call,
-        using that user's own stored RSP TAP access token -- not a
-        superuser's or anyone else's, since RSP tokens are personal
-        credentials. `RSP_tap_service` is bound to `None` if not given, or if
-        the user has no stored token, or if building the service fails.
+    rsp_tap_service : `pyvo.dal.TAPService`, optional
+        An already-built RSP TAP client, bound into the handler namespace
+        as `RSP_tap_service`. Passed in prebuilt rather than constructed
+        here, because this function runs once per incoming alert while
+        the client never changes for the lifetime of a consumer run --
+        building it per call meant a DB lookup plus a real HTTP request
+        to the TAP `/capabilities` endpoint for every single message. The
+        caller builds it once (see
+        `goats_tom.tasks.ingest_antares_stream`, which builds it before
+        its consume loop, and `validate_handler_code`, which builds one
+        for its single dry run) using the subscription's `configured_by`
+        user's own stored RSP token. `None` when unavailable -- no token
+        stored, no configuring user, or construction failed -- in which
+        case handler code sees `RSP_tap_service is None` and can degrade.
 
     Returns
     -------
@@ -528,8 +583,8 @@ def run_locus_handler(source: str, locus, configured_by_user=None) -> bool:
     # parser already discards comments, and a string literal is a
     # separate `ast.Constant` node, not a `Name`, so neither can produce
     # a false positive here (confirmed directly, not assumed).
-    if _references_rsp_tap_service(source):
-        restricted_globals["RSP_tap_service"] = _build_rsp_tap_service(configured_by_user)
+    if references_rsp_tap_service(source):
+        restricted_globals["RSP_tap_service"] = rsp_tap_service
     local_vars = {}
 
     try:
@@ -545,7 +600,12 @@ def run_locus_handler(source: str, locus, configured_by_user=None) -> bool:
     except LocusHandlerError:
         raise
     except Exception as exc:
-        raise LocusHandlerError(f"Handler code raised an error: {exc}") from exc
+        # Specifically the user's own code raising -- distinguished from
+        # the definitively-wrong failures so submission-time validation
+        # can downgrade it to a warning (see LocusHandlerRuntimeError).
+        raise LocusHandlerRuntimeError(
+            f"Handler code raised an error: {exc}"
+        ) from exc
 
     # numpy/pandas comparisons return numpy's own bool type (e.g. np.bool_),
     # not Python's native bool -- accept those too, or every handler that

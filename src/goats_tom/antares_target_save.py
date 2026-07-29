@@ -134,6 +134,37 @@ def save_locus_as_target(locus_id: str, saved_by=None) -> Target:
             locus_id,
         )
 
+    # Grant the saving user access to the target they just created.
+    # TOM Toolkit's `TARGET_DEFAULT_PERMISSION` defaults to PRIVATE, and
+    # `targets_for_user` (which backs the target list/detail pages) shows
+    # a non-superuser only public targets plus private ones they hold an
+    # explicit guardian permission on. Superusers bypass that filter
+    # entirely -- which is exactly why an admin could see these targets
+    # and the user who actually saved them could not. TOM's own create
+    # path grants these permissions; this save path previously did not.
+    # Uses `Target.give_user_access` rather than calling guardian's
+    # `assign_perm` directly, so the exact set of permissions granted
+    # stays whatever TOM Toolkit defines it to be.
+    if saved_by is not None:
+        try:
+            target.give_user_access(saved_by)
+        except Exception:
+            logger.exception(
+                "Saved target id=%s for locus %s, but failed to grant "
+                "access to user id=%s -- they may not be able to see it.",
+                target.pk,
+                locus_id,
+                saved_by.pk,
+            )
+    else:
+        logger.warning(
+            "Saved target id=%s for locus %s with no attributed user, so "
+            "no access was granted -- with the default PRIVATE "
+            "permission only superusers will see it.",
+            target.pk,
+            locus_id,
+        )
+
     # Record who saved it. TOM Toolkit's Target has no "created by" field
     # of its own, so without this there is no way to attribute a saved
     # target to a user (see `goats_tom.models.AntaresTargetSave`). Kept in

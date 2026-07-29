@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
 from goats_tom.antares_stream_control import (
     TopicListError,
@@ -45,6 +46,7 @@ def _save_draft(subscription: AntaresStreamSubscription, request, error: str) ->
     )
     subscription.draft_handler_code = request.POST.get("handler_code", "")
     subscription.draft_error = error
+    subscription.draft_error_at = timezone.now()
     subscription.save()
 
 
@@ -62,6 +64,7 @@ def _clear_draft(subscription: AntaresStreamSubscription) -> None:
     subscription.draft_trigger_gemini_observations = False
     subscription.draft_handler_code = ""
     subscription.draft_error = ""
+    subscription.draft_error_at = None
     subscription.save()
 
 
@@ -107,6 +110,29 @@ def antares_stream_subscribe(request):
         return redirect("antares-stream-subscribe")
 
     if request.method == "POST":
+        # Clear any banner from a previous attempt up front, before doing
+        # anything else. Otherwise a stale error/warning stays on screen
+        # and there's no way to tell whether it came from this submission
+        # or an earlier one -- particularly for `last_handler_warning`,
+        # which is otherwise only cleared asynchronously by the actor once
+        # it has actually started (see `_clear_stale_handler_warning`), so
+        # it would linger through the redirect. Whatever happens next
+        # (validation failure, or a real runtime failure) writes fresh
+        # state, so nothing that's still true gets lost.
+        if current is not None:
+            current.last_handler_warning = ""
+            current.last_handler_warning_at = None
+            current.draft_error = ""
+            current.draft_error_at = None
+            current.save(
+                update_fields=[
+                    "last_handler_warning",
+                    "last_handler_warning_at",
+                    "draft_error",
+                    "draft_error_at",
+                ]
+            )
+
         form = AntaresStreamSubscribeForm(
             request.POST, configured_by_user=request.user
         )
