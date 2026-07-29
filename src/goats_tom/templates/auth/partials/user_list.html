@@ -46,6 +46,7 @@
       </thead>
       <tbody>
         {% for user in users %}
+        {% if request.user.is_superuser or user.pk == request.user.pk %}
         <tr>
           <td>{{ user.username }}</td>
           <td>{{ user.first_name }} {{ user.last_name }}</td>
@@ -141,6 +142,7 @@
           </td>
           {% endif %}
         </tr>
+        {% endif %}
         {% endfor %}
       </tbody>
     </table>

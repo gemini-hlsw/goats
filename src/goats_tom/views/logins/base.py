@@ -4,6 +4,7 @@ from typing import Any
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
+from django.core.exceptions import PermissionDenied
 from django.http import (
     HttpResponse,
 )
@@ -32,6 +33,33 @@ class BaseLoginView(LoginRequiredMixin, FormView):
     to `False` in any subclass whose `perform_login_and_logout` doesn't
     perform a real check (see `TNSLoginView`, `AntaresKafkaLoginView`).
     """
+
+    def dispatch(self, request, *args, **kwargs):
+        """Reject attempts to view or edit another user's credentials.
+
+        Credentials here are per-user secrets (GPP tokens, RSP access
+        tokens, TNS keys, etc.). Without this check, the target user is
+        taken straight from the URL (`kwargs["pk"]`) and
+        `form_valid` writes to it via
+        `model_class.objects.update_or_create(user=user, ...)` -- meaning
+        any logged-in user could overwrite anyone else's stored
+        credentials just by visiting `/users/<other_pk>/<service>/`.
+        `LoginRequiredMixin` alone only checks *that* you're logged in,
+        not *who* you are relative to the record being edited.
+
+        Superusers are still allowed through, since the Credential
+        Manager is an admin-facing tool and admins legitimately manage
+        other users' entries. Mirrors the same guard TOM Toolkit already
+        applies in its own `UserDeleteView`.
+        """
+        if (
+            not request.user.is_superuser
+            and str(request.user.pk) != str(self.kwargs.get("pk"))
+        ):
+            raise PermissionDenied(
+                "You may only manage your own credentials."
+            )
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

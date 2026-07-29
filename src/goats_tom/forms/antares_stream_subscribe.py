@@ -59,8 +59,8 @@ class AntaresStreamSubscribeForm(forms.Form):
             }
         ),
         help_text=mark_safe(
-            "One or more ANTARES Kafka topic names, separated by commas -- "
-            "if a topic-selection list is available, use it, or type/paste "
+            "One or more ANTARES Kafka topic names, separated by commas. "
+            "If a topic-selection list is available, use it, or type/paste "
             "names directly. Refer <a href=\"https://nsf-noirlab.gitlab.io/"
             'csdc/antares/devkit/reference/filters/" target="_blank" '
             'rel="noopener noreferrer">here</a> for the filters running '
@@ -81,8 +81,7 @@ class AntaresStreamSubscribeForm(forms.Form):
         label="Automatically save all ingested loci as targets",
         required=False,
         help_text=(
-            "Only applies to loci ingested after this is enabled -- it "
-            "does not retroactively save loci already in the dashboard."
+            "Only applies to loci ingested after this is enabled."
         ),
     )
     trigger_gemini_observations = forms.BooleanField(
@@ -102,21 +101,25 @@ class AntaresStreamSubscribeForm(forms.Form):
                 "placeholder": (
                     "def myfilter(locus):\n"
                     "    # Return True to keep this locus, False to skip it.\n"
-                    "    # numpy, pandas, astropy, astroquery, and\n"
-                    "    # dashboard_locus_count() are already available by\n"
-                    "    # name. Importing is not allowed.\n"
-                    "    if dashboard_locus_count() >= 500:\n"
-                    "        return False  # stop once the dashboard has 500 loci\n"
-                    "\n"
+                    "    # Available by name (no 'import'): numpy, pandas,\n"
+                    "    # astropy, astroquery, dashboard_locus_count(),\n"
+                    "    # RSP_tap_service.\n"
                     "    mag = locus.properties.get(\"newest_alert_magnitude\") or 99\n"
-                    "    bright_enough = bool(numpy.all(numpy.array([mag]) < 19))\n"
+                    "    if mag > 19:\n"
+                    "        return False\n"
                     "\n"
-                    "    coord = astropy.coordinates.SkyCoord(\n"
-                    "        ra=locus.ra, dec=locus.dec, unit=\"deg\"\n"
-                    "    )\n"
-                    "    away_from_plane = abs(coord.galactic.b.degree) > 10\n"
+                    "    if RSP_tap_service is not None:\n"
+                    "        radius = 1.0 / 3600.0\n"
+                    "        query = (\n"
+                    "            \"SELECT objectId, refExtendedness FROM dp1.Object \"\n"
+                    "            \"WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), \"\n"
+                    "            f\"CIRCLE('ICRS', {locus.ra}, {locus.dec}, {radius})) = 1\"\n"
+                    "        )\n"
+                    "        table = RSP_tap_service.run_async(query).to_table()\n"
+                    "        if len(table) > 0 and table[\"refExtendedness\"][0] >= 0.5:\n"
+                    "            return False\n"
                     "\n"
-                    "    return bright_enough and away_from_plane"
+                    "    return True"
                 ),
             }
         ),
@@ -128,15 +131,15 @@ class AntaresStreamSubscribeForm(forms.Form):
             'rel="noopener noreferrer">the Locus API</a> for available '
             "attributes. Leave blank to keep every locus. "
             "numpy, pandas, astropy, and astroquery are available by "
-            "name -- no 'import' (blocked, along with file access, "
-            "eval/exec). "
+            "name. 'import' is not allowed (blocked, along with file "
+            "access, eval/exec). "
             "<code>dashboard_locus_count()</code> returns how many loci "
             "are currently on the dashboard, e.g. to stop after N loci: "
             "<code>if dashboard_locus_count() >= 10: return False</code>. "
             "<code>RSP_tap_service</code> (if you've stored an "
             "{rsp_token_link}) queries Rubin catalog data, e.g. "
             "<code>RSP_tap_service.run_async(\"SELECT ...\").to_table()"
-            "</code> -- <code>None</code> if no token is stored. See "
+            "</code>. See "
             '<a href="https://sdm-schemas.lsst.io/" target="_blank" '
             'rel="noopener noreferrer">here</a> for tables and schemas '
             "for Rubin data products."

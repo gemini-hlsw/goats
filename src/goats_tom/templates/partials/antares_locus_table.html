@@ -17,6 +17,7 @@
               <input type="checkbox" class="antares-select-all" title="Select all rows on this page">
               Save target
             </th>
+            <th>Saved By</th>
             <th>Locus ID</th>
             <th>RA</th>
             <th>Dec</th>
@@ -40,12 +41,12 @@
               {% endif %}
             </th>
             <th>
-              {% if sort == "-alert_count" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts &#9660;</a>
-              {% elif sort == "alert_count" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts &#9650;</a>
+              {% if sort == "-topic" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=topic" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Topic &#9660;</a>
+              {% elif sort == "topic" %}
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-topic" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Topic &#9650;</a>
               {% else %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-alert_count" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML"># Alerts</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-topic" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Topic</a>
               {% endif %}
             </th>
             <th>
@@ -70,6 +71,17 @@
               {% endif %}
             </td>
             <td>
+              {% if locus.is_saved_target %}
+                {% if locus.saved_by_user %}
+                <span title="Saved by {{ locus.saved_by_user.username }}">{{ locus.saved_by_user.username }}</span>
+                {% else %}
+                <span class="text-muted" title="Saved, but no record of who saved it (e.g. saved before attribution was tracked, or by a since-deleted account)">unknown</span>
+                {% endif %}
+              {% else %}
+              <span class="text-muted">&mdash;</span>
+              {% endif %}
+            </td>
+            <td>
               <a href="{% antares_url locus.locus_id '' '' %}"
                  target="_blank"
                  rel="noopener noreferrer"
@@ -80,12 +92,12 @@
             <td style="max-width: 180px;">{{ locus.latest_alert_id|wrap_after_colon }}</td>
             <td>{{ locus.latest_alert_mjd|mjd_to_utc }}</td>
             <td>{{ locus.latest_alert_magnitude|default_if_none:"&mdash;"|floatformat:2 }}</td>
-            <td>{{ locus.alert_count }}</td>
+            <td>{{ locus.latest_alert_topic|default:"&mdash;" }}</td>
             <td>{{ locus.first_seen }}</td>
           </tr>
           {% empty %}
           <tr>
-            <td colspan="9" class="text-center">No ANTARES loci seen yet.</td>
+            <td colspan="10" class="text-center">No ANTARES loci seen yet.</td>
           </tr>
           {% endfor %}
         </tbody>

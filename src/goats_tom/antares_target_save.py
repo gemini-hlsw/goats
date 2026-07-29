@@ -24,6 +24,8 @@ import logging
 from tom_alerts.alerts import get_service_class as tom_alerts_get_service_class
 from tom_targets.models import Target
 
+from goats_tom.models import AntaresTargetSave
+
 logger = logging.getLogger(__name__)
 
 
@@ -60,7 +62,7 @@ def locus_is_saved_as_target(locus_id: str) -> bool:
     return Target.objects.filter(aliases__name=locus_id).exists()
 
 
-def save_locus_as_target(locus_id: str) -> Target:
+def save_locus_as_target(locus_id: str, saved_by=None) -> Target:
     """Fetch a locus from ANTARES and save it as a GOATS `Target`, including
     its light curve.
 
@@ -74,6 +76,14 @@ def save_locus_as_target(locus_id: str) -> Target:
     ----------
     locus_id : str
         ANTARES locus ID to fetch and save.
+    saved_by : `django.contrib.auth.models.User`, optional
+        The user this save should be attributed to -- `request.user` for
+        the dashboard's manual "Save selected" button, or the
+        subscription's `configured_by` user for the consumer's auto-save.
+        Recorded in `goats_tom.models.AntaresTargetSave`, since TOM
+        Toolkit's `Target` has no "created by" field of its own. `None`
+        leaves the save unattributed (shown as unknown on the dashboard)
+        rather than guessing at a user.
 
     Returns
     -------
@@ -120,6 +130,25 @@ def save_locus_as_target(locus_id: str) -> Target:
         logger.exception(
             "Saved target id=%s for locus %s, but failed to ingest its "
             "light curve.",
+            target.pk,
+            locus_id,
+        )
+
+    # Record who saved it. TOM Toolkit's Target has no "created by" field
+    # of its own, so without this there is no way to attribute a saved
+    # target to a user (see `goats_tom.models.AntaresTargetSave`). Kept in
+    # its own try/except for the same reason as the light curve block
+    # above: losing attribution shouldn't discard an already-created
+    # target, just be logged.
+    try:
+        AntaresTargetSave.objects.update_or_create(
+            locus_id=locus_id,
+            defaults={"saved_by": saved_by},
+        )
+    except Exception:
+        logger.exception(
+            "Saved target id=%s for locus %s, but failed to record who "
+            "saved it.",
             target.pk,
             locus_id,
         )

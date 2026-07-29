@@ -6,12 +6,11 @@
   <p class="text-muted">
     Subscribe to one or more ANTARES Kafka topics. Submitting this form
     stops any currently-running consumer and starts a new one with the
-    topics below -- this does not require editing settings or restarting
-    GOATS.
+    topics below.
   </p>
   <p class="text-muted">
     Before ingesting, make sure your ANTARES Kafka API key and secret are
-    stored -- the consumer uses the first superuser's stored credentials,
+    stored. The consumer uses the first superuser's stored credentials,
     so these must be entered by an admin (superuser) account.
     {% if request.user.is_superuser %}
     If not already done, store them
@@ -35,11 +34,18 @@
     display: none;
   }
   #antares-handler-code-editor {
-    height: 320px;
+    height: 380px;
+    min-height: 160px;
     width: 100%;
     border: 1px solid #ced4da;
     border-radius: 0.25rem;
     position: relative;
+    /* Ace scrolls its own content natively once there's more than fits;
+       this additionally lets the box be dragged taller. Paired with a
+       ResizeObserver below, since Ace needs an explicit resize() call to
+       re-lay-out when its container changes size. */
+    resize: vertical;
+    overflow: hidden;
   }
   /* Ace has no built-in placeholder support, and the hidden textarea's
      native `placeholder` attribute is invisible (it's on an element with
@@ -57,6 +63,10 @@
     white-space: pre;
     pointer-events: none;
     z-index: 1;
+    /* Long placeholder text should clip at the box edge rather than
+       overflow it -- an overlay can't scroll (pointer-events: none), so
+       spilling past the border just looks broken. */
+    overflow: hidden;
   }
   .antares-topics-dropdown-hint {
     display: block;
@@ -205,6 +215,7 @@
 
 
 <script src="{% static 'ace-builds/src-noconflict/ace.js' %}"></script>
+<script src="{% static 'ace-builds/src-noconflict/ext-language_tools.js' %}"></script>
 <script src="{% static 'ace-builds/src-noconflict/mode-python.js' %}"></script>
 <script src="{% static 'ace-builds/src-noconflict/theme-cloud9_night.js' %}"></script>
 <script src="{% static 'ace-builds/src-noconflict/theme-dawn.js' %}"></script>
@@ -220,7 +231,123 @@
   var editor = ace.edit(editorDiv.id);
   editor.session.setMode("ace/mode/python");
   editor.setValue(textarea.value, -1); // -1 moves cursor to start
-  editor.setOptions({ fontSize: "13px", showPrintMargin: false });
+  editor.setOptions({
+    fontSize: "13px",
+    showPrintMargin: false,
+    // Both require ext-language_tools.js (loaded above) -- without it
+    // these options are silently ignored. Basic = Ctrl+Space on demand;
+    // live = suggestions appear as you type, which is the point here:
+    // the available names (RSP_tap_service, dashboard_locus_count, the
+    // Locus attributes) aren't guessable, so surfacing them while
+    // typing is the whole discoverability win.
+    enableBasicAutocompletion: true,
+    enableLiveAutocompletion: true,
+  });
+
+  // Completions for the names actually available inside handler code.
+  // Kept deliberately in sync with what `goats_tom.antares_locus_handler`
+  // really pre-binds (see `_PREIMPORTED_MODULES`, `_dashboard_locus_count`,
+  // and `_build_rsp_tap_service`) plus the ANTARES `Locus` attributes --
+  // suggesting a name that isn't genuinely bound would be worse than
+  // suggesting nothing, since it'd fail only at submission/runtime.
+  var handlerCompletions = [
+    // Pre-bound packages (no `import` needed -- and `import` is blocked).
+    { caption: "numpy", value: "numpy", meta: "pre-bound package" },
+    { caption: "pandas", value: "pandas", meta: "pre-bound package" },
+    { caption: "astropy", value: "astropy", meta: "pre-bound package" },
+    { caption: "astroquery", value: "astroquery", meta: "pre-bound package" },
+    // GOATS-provided helpers.
+    {
+      caption: "dashboard_locus_count",
+      snippet: "dashboard_locus_count()",
+      meta: "GOATS helper",
+      docText: "Number of loci currently on the dashboard.",
+    },
+    {
+      caption: "RSP_tap_service",
+      snippet:
+        "RSP_tap_service.run_async(${1:query}).to_table()",
+      meta: "GOATS helper",
+      docText:
+        "Rubin TAP service (None if no RSP token stored). " +
+        "Returns an astropy Table.",
+    },
+    // Locus attributes.
+    { caption: "locus.locus_id", value: "locus.locus_id", meta: "Locus" },
+    { caption: "locus.ra", value: "locus.ra", meta: "Locus" },
+    { caption: "locus.dec", value: "locus.dec", meta: "Locus" },
+    { caption: "locus.properties", value: "locus.properties", meta: "Locus" },
+    { caption: "locus.tags", value: "locus.tags", meta: "Locus" },
+    { caption: "locus.catalogs", value: "locus.catalogs", meta: "Locus" },
+    { caption: "locus.coordinates", value: "locus.coordinates", meta: "Locus" },
+    { caption: "locus.lightcurve", value: "locus.lightcurve", meta: "Locus (lazy)" },
+    { caption: "locus.alerts", value: "locus.alerts", meta: "Locus (lazy)" },
+    {
+      caption: "locus.catalog_objects",
+      value: "locus.catalog_objects",
+      meta: "Locus (lazy)",
+    },
+    { caption: "locus.timeseries", value: "locus.timeseries", meta: "Locus" },
+    {
+      caption: "locus.watch_list_ids",
+      value: "locus.watch_list_ids",
+      meta: "Locus",
+    },
+    {
+      caption: "locus.watch_object_ids",
+      value: "locus.watch_object_ids",
+      meta: "Locus",
+    },
+    {
+      caption: "locus.grav_wave_events",
+      value: "locus.grav_wave_events",
+      meta: "Locus",
+    },
+    {
+      // Distinct from `grav_wave_events` above: that one is the plain
+      // constructor-set attribute, this is a property that fetches over
+      // the network on access -- worth flagging, since a handler runs
+      // once per incoming alert.
+      caption: "locus.grav_wave_events_data",
+      value: "locus.grav_wave_events_data",
+      meta: "Locus (lazy)",
+    },
+    // Commonly used property keys.
+    {
+      caption: "newest_alert_magnitude",
+      value: '"newest_alert_magnitude"',
+      meta: "property key",
+    },
+    {
+      caption: "newest_alert_observation_time",
+      value: '"newest_alert_observation_time"',
+      meta: "property key",
+    },
+    {
+      caption: "newest_alert_id",
+      value: '"newest_alert_id"',
+      meta: "property key",
+    },
+    { caption: "num_alerts", value: '"num_alerts"', meta: "property key" },
+  ];
+
+  if (typeof ace.require === "function") {
+    try {
+      var langTools = ace.require("ace/ext/language_tools");
+      langTools.addCompleter({
+        getCompletions: function (ed, session, pos, prefix, callback) {
+          callback(null, handlerCompletions.map(function (c) {
+            // score keeps these above Ace's generic word-matching
+            // suggestions, which otherwise bury them.
+            return Object.assign({ score: 1000 }, c);
+          }));
+        },
+      });
+    } catch (e) {
+      // Autocompletion is a convenience, not a requirement -- if the
+      // extension failed to load, the editor must still work normally.
+    }
+  }
 
   // Ace has no built-in placeholder support (see the CSS comment above).
   // Build a real overlay from the textarea's own `placeholder` attribute,
@@ -256,6 +383,18 @@
     placeholderDiv.style.display = editor.getValue().length === 0 ? "block" : "none";
   }
   updatePlaceholderVisibility();
+
+  // The editor box is CSS-resizable (see `resize: vertical` above), but
+  // Ace lays itself out against a cached size -- without an explicit
+  // resize() call it keeps rendering at the old height and the extra
+  // space comes out blank. ResizeObserver is well supported; the guard
+  // just means an older browser degrades to a fixed-height editor rather
+  // than erroring.
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(function () {
+      editor.resize();
+    }).observe(editorDiv);
+  }
 
   // Keep the hidden textarea in sync so its value is what actually gets
   // submitted with the form -- Ace is a visual overlay, not a real form

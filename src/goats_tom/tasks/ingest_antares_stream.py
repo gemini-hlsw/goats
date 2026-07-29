@@ -64,6 +64,39 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_GROUP = "goats-antares-locus-dashboard"
 
+# antares_client.stream.StreamingClient prefixes every topic with this
+# before subscribing (its own `StreamingClient._TOPIC_PREFIX`), so topics
+# coming back from the broker are named e.g.
+# "client.young-rubin-transients", while users type/select just
+# "young-rubin-transients". Defined here rather than in
+# `goats_tom.antares_stream_control` (which imports it from this module)
+# because that module already depends on this one -- putting it the other
+# way round would be a circular import.
+ANTARES_TOPIC_PREFIX = "client."
+
+
+def strip_topic_prefix(topic: str | None) -> str:
+    """Strip ANTARES's internal ``client.`` prefix from a broker topic name.
+
+    Parameters
+    ----------
+    topic : str or None
+        Raw topic name as returned by the Kafka consumer, e.g.
+        ``"client.young-rubin-transients"``.
+
+    Returns
+    -------
+    str
+        The topic without the prefix, matching the names shown and
+        selected on the ingestion page. Returns ``""`` for `None`, and
+        returns the name unchanged if it doesn't carry the prefix.
+    """
+    if not topic:
+        return ""
+    if topic.startswith(ANTARES_TOPIC_PREFIX):
+        return topic[len(ANTARES_TOPIC_PREFIX) :]
+    return topic
+
 # antares_client.stream.StreamingClient.__init__ makes a synchronous
 # requests.get() call (fetching its own remote streaming config) BEFORE
 # constructing the actual Kafka consumer -- see antares_client's
@@ -365,13 +398,21 @@ def _is_current_generation(generation: int) -> bool:
     return subscription is not None and subscription.generation == generation
 
 
-def _upsert_locus(locus) -> None:
+def _upsert_locus(locus, topic: str | None = None) -> None:
     """Create or update the `AntaresLocus` staging row for one locus update.
 
     Parameters
     ----------
     locus : `antares_client.models.Locus`
         The locus received from the stream.
+    topic : str, optional
+        The raw Kafka topic this alert arrived on (as returned alongside
+        the locus by the consumer). Stored on the row -- with ANTARES's
+        internal ``client.`` prefix stripped, see `strip_topic_prefix` --
+        as `latest_alert_topic`, so the dashboard can show which
+        subscribed topic delivered the most recent alert. A locus can
+        appear on several subscribed topics; this records the latest
+        one, overwriting on each update, not an accumulated set.
 
     Notes
     -----
@@ -384,12 +425,10 @@ def _upsert_locus(locus) -> None:
     `locus.properties`, by contrast, IS always populated on every locus
     update from the stream (it's not one of the lazy-loaded attributes).
     `properties["newest_alert_observation_time"]`, `properties["newest_alert_id"]`,
-    `properties["num_alerts"]`, and `properties["newest_alert_magnitude"]`
-    were all confirmed against a live stream payload or ANTARES' own docs,
-    so those back `latest_alert_mjd`, `latest_alert_id`, `alert_count`, and
-    `latest_alert_magnitude` respectively. `alert_count` uses ANTARES' own
-    running total rather than a locally-incremented counter, since a local
-    counter would drift from reality if this consumer ever missed messages.
+    and `properties["newest_alert_magnitude"]` were all confirmed against
+    a live stream payload or ANTARES' own docs, so those back
+    `latest_alert_mjd`, `latest_alert_id`, and `latest_alert_magnitude`
+    respectively.
 
     `locus.catalogs` (plural -- not `catalog_objects`, which IS lazy-loaded)
     is a plain constructor-set list, not one of the three lazy-loaded
@@ -403,6 +442,7 @@ def _upsert_locus(locus) -> None:
         "latest_alert_id": "",
         "latest_alert_mjd": None,
         "latest_alert_magnitude": None,
+        "latest_alert_topic": strip_topic_prefix(topic),
         "in_tns": "tns_public_objects" in (locus.catalogs or []),
     }
 
@@ -417,13 +457,6 @@ def _upsert_locus(locus) -> None:
     newest_alert_id = locus.properties.get("newest_alert_id")
     if newest_alert_id is not None:
         field_updates["latest_alert_id"] = newest_alert_id
-
-    # Use ANTARES' own authoritative count rather than incrementing locally,
-    # since a local counter drifts from reality if this consumer ever misses
-    # messages (restarts, consumer group rebalances, downtime).
-    num_alerts = locus.properties.get("num_alerts")
-    alert_count = num_alerts if num_alerts is not None else 1
-    field_updates["alert_count"] = alert_count
 
     with transaction.atomic():
         # Note: no select_for_update() here. Confirmed via Django's own
@@ -679,13 +712,15 @@ def ingest_antares_stream(
                         continue
 
                 try:
-                    _upsert_locus(locus)
+                    _upsert_locus(locus, topic)
 
                     if save_all_targets and not locus_is_saved_as_target(
                         locus.locus_id
                     ):
                         try:
-                            save_locus_as_target(locus.locus_id)
+                            save_locus_as_target(
+                                locus.locus_id, saved_by=configured_by_user
+                            )
                         except SaveLocusError:
                             logger.exception(
                                 "Auto-save failed for locus_id=%s; ingestion "

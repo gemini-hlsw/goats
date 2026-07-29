@@ -23,7 +23,11 @@ from goats_tom.antares_target_save import (
     locus_is_saved_as_target,
     save_locus_as_target,
 )
-from goats_tom.models import AntaresLocus, AntaresStreamSubscription
+from goats_tom.models import (
+    AntaresLocus,
+    AntaresStreamSubscription,
+    AntaresTargetSave,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +42,7 @@ DEFAULT_SORT = "-first_seen"
 SORTABLE_FIELDS = {
     "latest_alert": "latest_alert_mjd",
     "first_seen": "first_seen",
-    "alert_count": "alert_count",
+    "topic": "latest_alert_topic",
     "magnitude": "latest_alert_magnitude",
 }
 
@@ -132,8 +136,27 @@ def _get_page(request: HttpRequest):
 
     page_locus_ids = [locus.locus_id for locus in page]
     saved_locus_ids = _saved_locus_ids(page_locus_ids)
+
+    # Who saved each one. One extra query for the whole page (not per
+    # row), matching how `_saved_locus_ids` batches its own lookup.
+    # `select_related` avoids a further query per row to resolve the
+    # user. Only loci confirmed saved above get attribution shown, so a
+    # stale row here (target deleted outside this module) is never
+    # displayed -- see `AntaresTargetSave`'s docstring.
+    saved_by_locus_id = {
+        record.locus_id: record.saved_by
+        for record in AntaresTargetSave.objects.filter(
+            locus_id__in=page_locus_ids
+        ).select_related("saved_by")
+    }
+
     for locus in page:
         locus.is_saved_target = locus.locus_id in saved_locus_ids
+        locus.saved_by_user = (
+            saved_by_locus_id.get(locus.locus_id)
+            if locus.is_saved_target
+            else None
+        )
 
     return page, sort_param
 
@@ -268,7 +291,7 @@ def antares_locus_save_targets(request: HttpRequest) -> HttpResponse:
                 skipped += 1
                 continue
             try:
-                save_locus_as_target(locus_id)
+                save_locus_as_target(locus_id, saved_by=request.user)
                 saved += 1
             except SaveLocusError:
                 logger.exception("Failed to save locus_id=%s as a target.", locus_id)
@@ -324,13 +347,26 @@ def antares_locus_saved_status(request: HttpRequest) -> JsonResponse:
     Returns
     -------
     `JsonResponse`
-        ``{"saved": [locus_id, ...]}`` -- the subset of the requested
-        locus IDs that are currently saved as targets.
+        ``{"saved": [locus_id, ...], "saved_by": {locus_id: username}}``
+        -- the subset of the requested locus IDs currently saved as
+        targets, plus who saved each one where that's known. Attribution
+        is included here (rather than left to the slower full-table
+        refresh) so the "Saved By" column updates in step with the
+        "Saved" badge instead of lagging behind it.
 
     """
     locus_ids = request.GET.getlist("locus_id")
     saved = _saved_locus_ids(locus_ids) if locus_ids else set()
-    return JsonResponse({"saved": sorted(saved)})
+
+    saved_by = {}
+    if saved:
+        for record in AntaresTargetSave.objects.filter(
+            locus_id__in=saved
+        ).select_related("saved_by"):
+            if record.saved_by is not None:
+                saved_by[record.locus_id] = record.saved_by.username
+
+    return JsonResponse({"saved": sorted(saved), "saved_by": saved_by})
 
 
 @login_required

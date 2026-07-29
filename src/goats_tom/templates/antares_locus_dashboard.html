@@ -129,6 +129,20 @@
           if (!cell) return;
           cell.innerHTML =
             '<span class="badge badge-success" title="Already saved as a target">&#10003; Saved</span>';
+
+          // The "Saved By" column is the next cell along. Update it in
+          // the same pass so attribution appears with the badge rather
+          // than lagging until the slower full-table refresh.
+          var byCell = cell.nextElementSibling;
+          if (byCell) {
+            var who = (data.saved_by || {})[cb.value];
+            if (who) {
+              byCell.textContent = who;
+            } else {
+              byCell.innerHTML =
+                '<span class="text-muted" title="Saved, but no record of who saved it">unknown</span>';
+            }
+          }
         });
       })
       .catch(function () {

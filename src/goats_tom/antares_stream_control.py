@@ -22,7 +22,10 @@ from dramatiq_abort import abort
 
 from goats_tom.models import AntaresStreamSubscription
 from goats_tom.tasks import ingest_antares_stream
-from goats_tom.tasks.ingest_antares_stream import get_antares_kafka_login
+from goats_tom.tasks.ingest_antares_stream import (
+    ANTARES_TOPIC_PREFIX,
+    get_antares_kafka_login,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,14 +35,6 @@ logger = logging.getLogger(__name__)
 # appropriate -- a slow/unreachable broker should fail fast here rather
 # than hang the "Ingest from Kafka stream" page.
 TOPIC_LIST_TIMEOUT_SECONDS = 10
-
-# antares_client.stream.StreamingClient prefixes every topic with this
-# string before subscribing (see antares_client's own
-# StreamingClient._TOPIC_PREFIX) -- topics on the broker are named e.g.
-# "client.young-rubin-transients", but users type/select just
-# "young-rubin-transients" (matching what StreamingClient itself expects
-# as input). Confirmed by reading antares_client's source directly.
-ANTARES_TOPIC_PREFIX = "client."
 
 # A topic is considered "active" (shown in the ingestion form's dropdown)
 # if its most recent message is within this many days. There is no

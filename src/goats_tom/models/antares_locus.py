@@ -32,13 +32,17 @@ class AntaresLocus(models.Model):
     latest_alert_magnitude : `models.FloatField`
         Magnitude of the most recently seen alert, from ANTARES
         ``properties["newest_alert_magnitude"]``, if known.
+    latest_alert_topic : `models.CharField`
+        The ANTARES Kafka topic the most recent alert for this locus
+        arrived on, with ANTARES's internal "client." prefix stripped so
+        it matches the topic names shown/selected on the ingestion page.
+        A locus can appear on more than one subscribed topic; this
+        records whichever one delivered the latest alert, not all of
+        them. Indexed, since the dashboard allows sorting by it.
     in_tns : `models.BooleanField`
         Whether this locus is cross-matched to a TNS (Transient Name
         Server) public object, from ``"tns_public_objects" in
         locus.catalogs``.
-    alert_count : `models.PositiveIntegerField`
-        Running count of alerts seen for this locus, from ANTARES'
-        authoritative ``properties["num_alerts"]``.
     first_seen : `models.DateTimeField`
         When this locus first appeared in the staging table.
     last_updated : `models.DateTimeField`
@@ -53,8 +57,10 @@ class AntaresLocus(models.Model):
     latest_alert_id = models.CharField(max_length=128)
     latest_alert_mjd = models.FloatField(null=True, blank=True)
     latest_alert_magnitude = models.FloatField(null=True, blank=True)
+    latest_alert_topic = models.CharField(
+        max_length=256, blank=True, default="", db_index=True
+    )
     in_tns = models.BooleanField(default=False)
-    alert_count = models.PositiveIntegerField(default=1)
     first_seen = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True, db_index=True)
 
