@@ -92,6 +92,7 @@ goats = "goats_cli:cli"
 "goats_tom.templates" = ["**/*.html"]
 "goats_tom.static" = ["**/*.*"]
 "goats_setup.templates" = ["**/*.tmpl"]
+"goats_cli.goats_template" = ["**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
