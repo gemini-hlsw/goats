@@ -16,7 +16,14 @@ def test_processname_startup_and_shutdown_order():
     shutdown = ProcessName.shutdown_order()
     startup = ProcessName.startup_order()
     assert startup == list(reversed(shutdown))
-    assert len(startup) == len(shutdown) == 4
+    assert len(startup) == len(shutdown) == 5
+    # ANTARES workers must start before the task scheduler: on startup the
+    # scheduler resumes every running subscription by enqueueing onto the
+    # ANTARES queue, so a worker has to be listening before those messages
+    # are sent.
+    assert startup.index(ProcessName.ANTARES_WORKERS) < startup.index(
+        ProcessName.TASK_SCHEDULER
+    )
 
 
 @pytest.mark.parametrize(

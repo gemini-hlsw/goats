@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -115,12 +116,32 @@ ASGI_APPLICATION = "goats_tom.asgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
-    },
-}
+# In-memory SQLite by default, so the suite needs no database server. Set
+# GOATS_DB_ENGINE=postgres (with the usual GOATS_DB_* variables) to run the
+# same tests against PostgreSQL -- worth doing before a multi-user deployment,
+# since SQLite is far more permissive about column types and constraint
+# enforcement, and will happily accept schemas Postgres rejects.
+if os.getenv("GOATS_DB_ENGINE", "sqlite").strip().lower() in {
+    "postgres",
+    "postgresql",
+}:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("GOATS_DB_NAME", "goats_test"),
+            "USER": os.getenv("GOATS_DB_USER", "goats"),
+            "PASSWORD": os.getenv("GOATS_DB_PASSWORD", ""),
+            "HOST": os.getenv("GOATS_DB_HOST", "localhost"),
+            "PORT": os.getenv("GOATS_DB_PORT", "5432"),
+        },
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:",
+        },
+    }
 
 DRAMATIQ_REDIS_URL = "redis://127.0.0.1:6379/1"
 
@@ -322,7 +343,10 @@ AUTH_STRATEGY = "READ_ONLY"
 # the object belongs. Setting this value to True will allow all `ObservationRecord`, `DataProduct`, and `ReducedDatum`
 # objects to be seen by everyone. Setting it to False will allow users to specify which groups can access
 # `ObservationRecord`, `DataProduct`, and `ReducedDatum` objects.
-TARGET_PERMISSIONS_ONLY = True
+# Mirrors the value shipped in the project template, so tests exercise the
+# permission model GOATS actually runs with (ANTARES targets are shared
+# between teams, so observations must be permissioned individually).
+TARGET_PERMISSIONS_ONLY = False
 
 # URLs that should be allowed access even with AUTH_STRATEGY = LOCKED
 # for example: OPEN_URLS = ['/', '/about']

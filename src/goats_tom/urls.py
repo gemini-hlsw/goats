@@ -180,6 +180,54 @@ urlpatterns = [
         name="antares-dashboard-status",
     ),
     path(
+        "register/",
+        views.register,
+        name="register",
+    ),
+    path(
+        "users/requests/",
+        views.registration_requests,
+        name="registration-requests",
+    ),
+    path(
+        "users/requests/<int:pk>/decide/",
+        views.decide_registration_request,
+        name="decide-registration-request",
+    ),
+    # Shadow tom_common's user create/update so the group picker hides
+    # automatically-managed groups. goats_tom.urls is included before
+    # tom_common.urls (see the project urls.py), so these win.
+    path(
+        "users/create/",
+        views.GOATSUserCreateView.as_view(),
+        name="user-create",
+    ),
+    path(
+        "users/<int:pk>/update/",
+        views.GOATSUserUpdateView.as_view(),
+        name="user-update",
+    ),
+    path(
+        "antares/access/request/",
+        views.antares_request_access,
+        name="antares-request-access",
+    ),
+    path(
+        "antares/access/manage/",
+        views.antares_manage_access,
+        name="antares-manage-access",
+    ),
+    path(
+        "antares/access/requests/<int:pk>/decide/",
+        views.antares_decide_join_request,
+        name="antares-decide-join-request",
+    ),
+    path(
+        "antares/access/members/<int:pk>/revoke/",
+        views.antares_revoke_membership,
+        name="antares-revoke-membership",
+    ),
+    path(
         "antares/stream/subscribe/",
         views.antares_stream_subscribe,
         name="antares-stream-subscribe",

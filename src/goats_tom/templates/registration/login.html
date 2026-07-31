@@ -1,0 +1,31 @@
+{% extends 'tom_common/base.html' %}
+{% load bootstrap4 %}
+{% comment %}
+Overrides tom_common/templates/registration/login.html purely to add a link
+to the sign-up page. Django resolves app template directories in
+INSTALLED_APPS order and "goats_tom" is listed before "tom_common", so this
+file wins.
+
+Kept as a copy rather than a template that extends TOM's, because TOM's login
+template defines no blocks to hook into -- everything lives in one "content"
+block, so extending it could only replace the whole thing anyway.
+{% endcomment %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="row justify-content-md-center">
+  <div class="col-md-4">
+    <form action="{% url 'login' %}?next={{next}}" method="POST" class="form">
+      {% csrf_token %}
+      {% bootstrap_form form %}
+      {% buttons %}
+        <button type="submit" class="btn btn-primary">Login</button>
+      {% endbuttons %}
+    </form>
+    <hr>
+    <p class="small mb-0">
+      No account? <a href="{% url 'register' %}">Request one</a>.
+      An administrator reviews every request.
+    </p>
+  </div>
+</div>
+{% endblock %}

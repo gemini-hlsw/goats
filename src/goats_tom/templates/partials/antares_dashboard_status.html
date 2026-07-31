@@ -5,8 +5,8 @@
      hx-swap="outerHTML">
 {% if current_subscription and current_subscription.topics %}
 <div class="alert alert-info">
-  <strong>Kafka subscription:</strong> {{ current_subscription.topics|join:", " }}
-  {% if current_subscription.group %}<span class="text-muted">(group: {{ current_subscription.group }})</span>{% endif %}
+  {% if not is_owner %}<strong>{{ current_subscription.owner.username }}'s dashboard</strong> &mdash; {% endif %}<strong>Kafka subscription:</strong> {{ current_subscription.topics|join:", " }}
+  <span class="text-muted">(group: {{ current_subscription.resolved_consumer_group }})</span>
   {% if current_subscription.is_running %}<span class="badge badge-success">Running</span>{% else %}<span class="badge badge-secondary">Stopped</span>{% endif %}
   <br>
   <strong>Custom locus handler:</strong>
@@ -15,7 +15,12 @@
   {% else %}
     <span class="text-muted">None</span>
   {% endif %}
+  {% if is_owner %}
   <a href="{% url 'antares-stream-subscribe' %}" class="small">(manage)</a>
+  {% else %}
+  <a href="{% url 'antares-stream-subscribe' %}?subscription={{ current_subscription.pk }}"
+     class="small">(view configuration)</a>
+  {% endif %}
 </div>
 {% endif %}
 

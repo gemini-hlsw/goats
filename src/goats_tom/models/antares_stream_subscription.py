@@ -7,27 +7,57 @@ from django.db import models
 
 
 class AntaresStreamSubscription(models.Model):
-    """Tracks the currently-configured ANTARES Kafka stream subscription.
+    """One user's ANTARES Kafka stream subscription and its dashboard.
 
-    Only one row is expected to be meaningfully "current" at a time -- the
-    most recently updated one. Submitting a new topic list creates/updates
-    this row and (once wired up) restarts the `ingest_antares_stream`
-    consumer with the new topics.
+    There is one row per owning user (enforced by `owner` being a
+    `OneToOneField`), and each row backs exactly one locus dashboard --
+    see `goats_tom.models.AntaresLocus.subscription`. Rows are looked up
+    by primary key or by owner, never by "whichever was updated most
+    recently": an earlier version of this model was a de facto singleton,
+    with every state transition resolving "the current subscription" as
+    ``objects.order_by("-updated_at").first()``, which cannot express more
+    than one concurrently-configured subscription.
 
     Attributes
     ----------
+    owner : `models.OneToOneField`
+        The user this subscription belongs to. Their stored
+        `goats_tom.models.AntaresKafkaLogin` credentials are what the
+        consumer authenticates with (one Kafka connection authenticates
+        as exactly one credential, which is why there is one consumer per
+        owner), and their personal RSP/GPP credentials are what
+        `handler_code` and observation triggering act as -- these are
+        per-researcher accounts, not shared ones, so the consumer must
+        know whose identity to use rather than falling back to a
+        superuser's.
+
+        `SET_NULL` on delete rather than cascading, so deleting a user
+        account doesn't delete the subscription row (and, transitively,
+        its ingested loci) -- it just orphans it. An orphaned row cannot
+        start a consumer, since there are no credentials to authenticate
+        with, and should be reported as such rather than silently falling
+        back to another user's credentials.
+
+        Replaces an earlier `configured_by` field, which recorded the
+        user who most recently submitted the ingestion form. With one
+        subscription per user, "the owner" and "whoever configured it"
+        are necessarily the same person, so two fields holding the same
+        value was a source of confusion rather than information.
     topics : `models.JSONField`
         List of Kafka topic names to subscribe to, e.g.
         ``["extragalactic_staging", "nuclear_transient_staging"]``.
-    group : `models.CharField`
-        Optional Kafka consumer group name. If blank, a built-in default
-        is used (see `goats_tom.tasks.ingest_antares_stream.DEFAULT_GROUP`).
-        Set here rather than alongside the API credentials, since it's
-        changed far more often than the credentials themselves (e.g. to
-        force a full replay from a fresh group with no committed offset).
+    consumer_group : `models.CharField`
+        Optional *suffix* for this subscription's Kafka consumer group
+        name. The effective name is always derived, never used verbatim
+        -- see `resolved_consumer_group` for why, which is a correctness
+        issue rather than a naming preference.
+
+        Named `consumer_group` rather than `group` (its original name) to
+        keep it distinct from `django.contrib.auth.models.Group`, which
+        this feature also uses for per-PI access control. The two are
+        entirely unrelated, and the collision was actively misleading.
     save_all_targets : `models.BooleanField`
         Whether all ingested loci should be saved as GOATS targets.
-        Currently a no-op placeholder; not yet wired to any behavior.
     trigger_gemini_observations : `models.BooleanField`
         Whether ingested loci should automatically trigger Gemini
         observations. Currently a no-op placeholder; not yet wired to any
@@ -38,9 +68,9 @@ class AntaresStreamSubscription(models.Model):
         filter on top of the topic subscription. See
         `goats_tom.antares_locus_handler` for the execution model and its
         restrictions. Validated with a real dry run at submission time;
-        if it still fails against a real locus from the stream, the
-        consumer stops entirely (fail-closed) rather than skipping that
-        locus and continuing.
+        if it still fails against a real locus from the stream, this
+        subscription's consumer stops entirely (fail-closed) rather than
+        skipping that locus and continuing.
     dramatiq_message_id : `models.CharField`
         Message ID of the currently-running `ingest_antares_stream`
         actor invocation, if any. Used to abort the running consumer
@@ -50,26 +80,33 @@ class AntaresStreamSubscription(models.Model):
         subscription. Set to `False` both by deliberate stop/restart
         actions and by the consumer itself if `handler_code` fails.
     last_handler_warning : `models.TextField`
-        The error from `handler_code` that stopped the consumer, if any,
-        including the handler source itself. Shown on the ingestion page
-        so a broken filter is visible without checking server logs.
-        Cleared the next time a (new) consumer is successfully started.
+        The error from `handler_code` that stopped this subscription's
+        consumer, if any, including the handler source itself. Shown on
+        the ingestion page so a broken filter is visible without checking
+        server logs. Cleared the next time a (new) consumer is
+        successfully started.
     last_handler_warning_at : `models.DateTimeField`
         When `last_handler_warning` was last set.
     generation : `models.PositiveIntegerField`
-        Incremented every time a new consumer is started (restart or
-        stop). Passed into `ingest_antares_stream` as the generation it
-        was started with; the actor checks, before every write, that its
-        generation still matches the subscription's *current* generation
-        in the database, and stops immediately if not. This is a fencing
-        token: it guarantees an old, not-yet-fully-stopped consumer can
-        never write data after a newer one has started, closing the
+        Incremented every time a new consumer is started for this
+        subscription (restart or stop). Passed into
+        `ingest_antares_stream` as the generation it was started with;
+        the actor checks, before every write, that its generation still
+        matches *this row's* current generation in the database, and
+        stops immediately if not. This is a fencing token: it guarantees
+        an old, not-yet-fully-stopped consumer can never write data after
+        a newer one has started for the same subscription, closing the
         window that a fixed delay after `abort()` could only shrink, not
         eliminate (`dramatiq_abort` can't interrupt a blocking C-level
         Kafka call, and provides no way to confirm a specific message has
         actually stopped).
+
+        Scoped per row, so one user restarting their consumer has no
+        effect on any other user's.
     updated_at : `models.DateTimeField`
-        When this subscription was last changed.
+        When this subscription was last changed. Informational only --
+        deliberately not used to identify "the current" subscription (see
+        the class docstring).
     draft_topics : `models.TextField`
         The raw (unparsed, possibly malformed) topics text from the most
         recent form submission that FAILED validation, if any. Separate
@@ -77,8 +114,8 @@ class AntaresStreamSubscription(models.Model):
         consumer) so a failed attempt's typed values survive navigating
         away and back, until either a successful submission (which clears
         all draft_* fields) or the user explicitly starts over.
-    draft_group : `models.CharField`
-        Same idea as `draft_topics`, for the group field.
+    draft_consumer_group : `models.CharField`
+        Same idea as `draft_topics`, for the consumer group field.
     draft_save_all_targets : `models.BooleanField`
         Same idea as `draft_topics`, for the save-all-targets checkbox.
     draft_trigger_gemini_observations : `models.BooleanField`
@@ -101,37 +138,30 @@ class AntaresStreamSubscription(models.Model):
         so there's one consistent error presentation regardless of
         whether the failure happened at form-submission time or later at
         runtime in the live consumer.
-    configured_by : `models.ForeignKey`
-        The user who most recently successfully started this
-        subscription (i.e. the person who submitted the ingestion form).
-        Used specifically for GPP observation triggering: unlike ANTARES
-        Kafka credentials (deliberately shared/superuser-scoped, since
-        ANTARES issues a small number of credentials per team/institution,
-        not per individual), GPP credentials are personal, per-researcher
-        accounts -- so triggering a GPP observation for a newly-saved
-        target uses *this* user's own stored GPP credentials and
-        identity, not a superuser's. `SET_NULL` on delete (rather than
-        cascading) so deleting a user account doesn't delete the whole
-        subscription row, just this link -- if `configured_by` is `None`,
-        GPP triggering has no user to act as and should fail clearly for
-        that target rather than fall back to any other user.
 
     """
 
+    owner = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="antares_subscription",
+    )
     topics = models.JSONField(default=list)
-    group = models.CharField(
+    consumer_group = models.CharField(
         max_length=128,
         blank=True,
         default="",
         help_text=(
-            "Optional. If left blank, a built-in default group name is "
-            "used. Set this explicitly rather than relying on the "
-            "underlying client's own default (which falls back to the "
-            "machine's hostname), so the consumer group -- and "
-            "therefore offset tracking -- stays stable across restarts "
-            "and across hosts. Use a brand-new group name to force a "
+            "Optional. Appended to an automatically-generated, "
+            "per-subscription consumer group name; leave blank to use "
+            "that generated name on its own. Set a new value to force a "
             "full replay from the earliest available message on the "
-            "subscribed topics."
+            "subscribed topics, which is what a brand-new consumer "
+            "group name does. Note this is a suffix, not the whole "
+            "name: the generated prefix is always applied, so your "
+            "consumer group can never collide with another user's."
         ),
     )
     save_all_targets = models.BooleanField(default=False)
@@ -154,23 +184,57 @@ class AntaresStreamSubscription(models.Model):
     generation = models.PositiveIntegerField(default=0)
     updated_at = models.DateTimeField(auto_now=True)
     draft_topics = models.TextField(blank=True, default="")
-    draft_group = models.CharField(max_length=128, blank=True, default="")
+    draft_consumer_group = models.CharField(max_length=128, blank=True, default="")
     draft_save_all_targets = models.BooleanField(default=False)
     draft_trigger_gemini_observations = models.BooleanField(default=False)
     draft_handler_code = models.TextField(blank=True, default="")
     draft_error = models.TextField(blank=True, default="")
     draft_error_at = models.DateTimeField(null=True, blank=True)
-    configured_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="antares_stream_subscriptions",
-    )
 
     class Meta:
         verbose_name = "ANTARES stream subscription"
         verbose_name_plural = "ANTARES stream subscriptions"
 
+    # Prefix for every generated consumer group name. Changing this
+    # invalidates every existing consumer's committed offsets (a new group
+    # name means Kafka has no offset for it, so consumption restarts from
+    # the earliest available message), so it should be treated as stable.
+    CONSUMER_GROUP_PREFIX = "goats-antares"
+
+    @property
+    def resolved_consumer_group(self) -> str:
+        """The Kafka consumer group name this subscription must use.
+
+        Returns
+        -------
+        str
+            ``"goats-antares-<pk>"``, with ``"-<consumer_group>"``
+            appended if `consumer_group` is set.
+
+        Notes
+        -----
+        The primary key is always included, and user input is only ever a
+        suffix, because two subscriptions sharing a consumer group name
+        is a silent data-loss bug rather than a cosmetic clash. Kafka
+        treats same-named consumers as one consumer group and balances
+        partitions *between* them, so each subscription would receive
+        only an arbitrary subset of the alerts on its topics -- with no
+        error, no warning, and nothing in the logs to indicate it. The
+        dashboard would simply be missing loci.
+
+        Deriving from the primary key rather than the owner's username
+        keeps the name stable across a username change, which would
+        otherwise silently reset that subscription's offsets.
+
+        This replaced a module-level `DEFAULT_GROUP` constant shared by
+        every consumer, which was safe only while at most one
+        subscription could exist at a time.
+        """
+        base = f"{self.CONSUMER_GROUP_PREFIX}-{self.pk}"
+        suffix = (self.consumer_group or "").strip()
+        return f"{base}-{suffix}" if suffix else base
+
     def __str__(self) -> str:
-        return f"ANTARES topics: {', '.join(self.topics)}" if self.topics else "ANTARES topics: (none)"
+        who = self.owner.username if self.owner else "unowned"
+        topics = ", ".join(self.topics) if self.topics else "(none)"
+        return f"ANTARES subscription for {who}: {topics}"

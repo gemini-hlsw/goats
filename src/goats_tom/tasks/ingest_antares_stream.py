@@ -6,17 +6,18 @@ Uses `antares_client.StreamingClient`, which handles the Kafka connection,
 SASL auth, and Avro decoding internally and yields `(topic, Locus)` tuples --
 so this module only has to translate a `Locus` into a staging-table row.
 
-Credentials come from the first superuser's stored ANTARES Kafka
-credentials (Users -> Manage -> "ANTARES Kafka Stream" in the Credential
-Manager), since the consumer is a single shared background process, not
-tied to any particular request/user. There is no `local_settings.py`
-fallback for credentials -- a superuser must store them via the
-Credential Manager before the consumer can start.
+There is one consumer per `AntaresStreamSubscription`, and each one
+authenticates as that subscription's owner using their own stored ANTARES
+Kafka credentials (Users -> Manage -> "ANTARES Kafka Stream" in the
+Credential Manager). A single Kafka connection authenticates as exactly
+one credential, which is why the consumer is per-owner rather than a
+single shared process using a superuser's credentials. There is no
+`local_settings.py` fallback for credentials, and no fallback to another
+user's -- the owner must store their own before their consumer can start.
 
-Topics are passed explicitly via `ingest_antares_stream.send(topics=[...])`
-(from the "Ingest from Kafka stream" form, or from the scheduler resuming
-a previously-running subscription on startup). There is no
-`settings.ANTARES_KAFKA_TOPICS` fallback.
+Everything the consumer needs is read from the subscription row, given
+just its primary key: `ingest_antares_stream.send(subscription_id=...,
+generation=...)`. There is no `settings.ANTARES_KAFKA_TOPICS` fallback.
 
 (Streaming credentials are issued separately from ANTARES Portal/API
 credentials -- contact the ANTARES team to request them.)
@@ -33,12 +34,16 @@ polling loop): if nothing is received within that window, we warn (not
 stop -- a genuinely quiet topic looks identical from our side, so this is
 a best-effort heuristic, not a reliable detector).
 
-This actor is intended to run inside the existing `rundramatiq` worker
-process that GOATS already starts via `goats run` -- no new process type is
-introduced. It runs `while True`, polling `StreamingClient.poll(timeout=...)`
-directly (not `StreamingClient.iter()`, which blocks unboundedly and would
-give us no way to implement the silence detection above), so it occupies
-one Dramatiq worker thread/process for the lifetime of the app.
+This actor runs on its own Dramatiq queue (`ANTARES_QUEUE_NAME`), served
+by a dedicated `rundramatiq` process that `goats run` starts alongside the
+default one -- no new process *type* is introduced, just a second worker
+bound to a different queue. It runs `while True`, polling
+`StreamingClient.poll(timeout=...)` directly (not `StreamingClient.iter()`,
+which blocks unboundedly and would give us no way to implement the silence
+detection above), so it occupies one worker thread for as long as its
+subscription is running. Keeping that off the default queue is what stops
+a set of long-lived consumers from starving every other GOATS background
+task; see `ANTARES_QUEUE_NAME`.
 """
 
 __all__ = ["ingest_antares_stream", "get_antares_kafka_login"]
@@ -57,14 +62,25 @@ from goats_tom.antares_locus_handler import (
 )
 from goats_tom.antares_target_save import (
     SaveLocusError,
-    locus_is_saved_as_target,
     save_locus_as_target,
 )
 from goats_tom.models import AntaresLocus
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_GROUP = "goats-antares-locus-dashboard"
+# Dedicated Dramatiq queue for the stream consumers, kept off the
+# default queue that every other GOATS task uses. Each consumer is a
+# `while True` loop with `time_limit=float("inf")`, so it occupies its
+# worker thread for as long as ingestion is enabled -- with one
+# subscription per user, enough concurrent consumers would fill the
+# default pool (started as `--threads 3`, see
+# `goats_cli.commands.run.start_background_workers`) and leave nothing
+# to run DRAGONS reductions or GOA downloads, which would simply queue
+# forever with no visible error. `goats run` starts a second
+# `rundramatiq` bound to this queue with its own, much larger thread
+# count; consumers block in librdkafka's `poll()`, which releases the
+# GIL, so mostly-idle consumer threads are cheap.
+ANTARES_QUEUE_NAME = "antares"
 
 # antares_client.stream.StreamingClient prefixes every topic with this
 # before subscribing (its own `StreamingClient._TOPIC_PREFIX`), so topics
@@ -173,14 +189,24 @@ def _seconds_since(start_time) -> float:
     return (timezone.now() - start_time).total_seconds()
 
 
-def get_antares_kafka_login():
-    """Look up the first superuser's stored ANTARES Kafka credentials.
+def get_antares_kafka_login(user):
+    """Look up a specific user's stored ANTARES Kafka credentials.
+
+    Parameters
+    ----------
+    user : `django.contrib.auth.models.User` or None
+        The user whose credentials to fetch -- the owner of the
+        subscription being started (see
+        `goats_tom.models.AntaresStreamSubscription.owner`), or the user
+        viewing the ingestion form. `None` returns `None` rather than
+        raising, so an orphaned subscription (owner deleted) is reported
+        as "no credentials" by the caller.
 
     Returns
     -------
     `AntaresKafkaLogin` or None
-        The credential row, or `None` if no superuser exists or no
-        superuser has stored credentials yet.
+        The credential row, or `None` if `user` is `None` or has not
+        stored credentials yet.
 
     Notes
     -----
@@ -188,40 +214,40 @@ def get_antares_kafka_login():
     config) and `fetch_available_topics` (listing topics for the
     ingestion form's dropdown) -- both need the same credentials, so this
     is the single place that decides which user's login to use.
-    """
-    from django.contrib.auth import get_user_model  # noqa: PLC0415
 
+    This previously ignored its caller entirely and always returned the
+    *first superuser's* credentials, on the reasoning that the consumer
+    was a single shared background process not tied to any user. That no
+    longer holds: each subscription is owned by a user and authenticates
+    as that user, since one Kafka connection authenticates as exactly one
+    credential. Falling back to any other user's credentials would mean
+    silently consuming on someone else's ANTARES account.
+    """
     from goats_tom.models import AntaresKafkaLogin  # noqa: PLC0415
 
-    User = get_user_model()
-    superuser = User.objects.filter(is_superuser=True).order_by("pk").first()
-    if superuser is None:
+    if user is None:
         return None
-    return AntaresKafkaLogin.objects.filter(user=superuser).first()
+    return AntaresKafkaLogin.objects.filter(user=user).first()
 
 
-def _get_streaming_config(topics: list[str], group: str | None = None) -> dict:
-    """Build the `StreamingClient` kwargs from an explicit topic list,
-    optional group name, and stored ANTARES Kafka credentials.
+def _get_streaming_config(subscription) -> dict:
+    """Build the `StreamingClient` kwargs for one subscription.
 
-    Credentials come exclusively from the first superuser's
-    `AntaresKafkaLogin` row (see
-    `goats_tom.views.logins.antares_kafka.AntaresKafkaLoginView`), since
-    the consumer is a single shared background process, not tied to any
-    particular request/user. There is no `local_settings.py` fallback for
-    credentials -- a superuser must store them via the Credential Manager
-    first.
+    Credentials come from the subscription owner's `AntaresKafkaLogin` row
+    (see `goats_tom.views.logins.antares_kafka.AntaresKafkaLoginView`) --
+    each subscription authenticates as its own owner, since one Kafka
+    connection authenticates as exactly one credential. There is no
+    `local_settings.py` fallback for credentials, and no fallback to
+    another user's: the owner must store their own via the Credential
+    Manager first.
 
     Parameters
     ----------
-    topics : list of str
-        Topics to subscribe to, e.g. passed in by
-        `ingest_antares_stream.send(topics=[...])` from a form submission.
-        Required -- there is no `settings.ANTARES_KAFKA_TOPICS` fallback.
-    group : str, optional
-        Kafka consumer group name, set on the ingestion page (see
-        `goats_tom.models.AntaresStreamSubscription.group`). Falls back
-        to `DEFAULT_GROUP` if not given or blank.
+    subscription : `goats_tom.models.AntaresStreamSubscription`
+        The subscription to build a connection for. Its `topics`,
+        `owner`, and `resolved_consumer_group` are all read from the row
+        rather than passed separately, so the connection can't drift from
+        the stored configuration it's supposed to represent.
 
     Returns
     -------
@@ -231,36 +257,45 @@ def _get_streaming_config(topics: list[str], group: str | None = None) -> dict:
     Raises
     ------
     ValueError
-        If `topics` is empty, no superuser exists, or no superuser has
-        stored ANTARES Kafka credentials.
+        If the subscription has no topics, or its owner is unset or has
+        not stored ANTARES Kafka credentials.
     """
-    resolved_topics = list(topics or [])
+    resolved_topics = list(subscription.topics or [])
     if not resolved_topics:
         raise ValueError(
             "No ANTARES Kafka topics given: `topics` must be a non-empty "
             "list."
         )
 
-    login = get_antares_kafka_login()
+    if subscription.owner is None:
+        raise ValueError(
+            "This ANTARES stream subscription has no owner, so there are "
+            "no credentials to connect with. This happens if the owning "
+            "user account was deleted; reconfigure the subscription as a "
+            "current user to start it again."
+        )
+
+    login = get_antares_kafka_login(subscription.owner)
 
     if login is None:
         raise ValueError(
-            "No ANTARES Kafka credentials found. A superuser must store "
-            "them via the Credential Manager (Users -> Manage -> ANTARES "
-            "Kafka Stream) before the consumer can start."
+            f"No ANTARES Kafka credentials found for user "
+            f"{subscription.owner.username!r}. Store them via the "
+            f"Credential Manager (Users -> Manage -> ANTARES Kafka "
+            f"Stream) before starting the consumer."
         )
 
     return {
         "topics": resolved_topics,
         "api_key": login.api_key,
         "api_secret": login.api_secret,
-        "group": group or DEFAULT_GROUP,
+        "group": subscription.resolved_consumer_group,
     }
 
 
-def _record_handler_warning(message: str) -> None:
-    """Save a consumer error to the current subscription row, so it shows
-    up on the ingestion page without needing to check server logs.
+def _record_handler_warning(subscription_id: int, message: str) -> None:
+    """Save a consumer error to this subscription's row, so it shows up on
+    the ingestion page without needing to check server logs.
 
     Despite the name (kept to avoid a migration renaming the underlying
     `last_handler_warning` field), this covers any failure that stops the
@@ -270,15 +305,18 @@ def _record_handler_warning(message: str) -> None:
 
     Parameters
     ----------
+    subscription_id : int
+        Primary key of the subscription to record the error against.
     message : str
         The error message to display.
 
     Notes
     -----
-    Updates the most recently-updated `AntaresStreamSubscription` row --
-    same "current subscription" lookup used throughout this feature (see
-    `goats_tom.antares_stream_control`), since only one subscription is
-    meant to be active at a time.
+    Targets one specific row by primary key. This previously updated
+    whichever row had the most recent `updated_at`, which was only ever
+    correct while at most one subscription could exist -- with per-user
+    subscriptions it would attribute one user's failure to whichever
+    user happened to have saved most recently.
 
     Called at most once per consumer run: with the fail-closed design
     (see `ingest_antares_stream`), any of these failures immediately
@@ -289,18 +327,14 @@ def _record_handler_warning(message: str) -> None:
 
     from goats_tom.models import AntaresStreamSubscription  # noqa: PLC0415
 
-    subscription = AntaresStreamSubscription.objects.order_by("-updated_at").first()
-    if subscription is None:
-        return
-    subscription.last_handler_warning = message
-    subscription.last_handler_warning_at = timezone.now()
-    subscription.save(
-        update_fields=["last_handler_warning", "last_handler_warning_at"]
+    AntaresStreamSubscription.objects.filter(pk=subscription_id).update(
+        last_handler_warning=message,
+        last_handler_warning_at=timezone.now(),
     )
 
 
-def _clear_stale_handler_warning() -> None:
-    """Clear any previously-recorded handler warning, if one is set.
+def _clear_stale_handler_warning(subscription_id: int) -> None:
+    """Clear any previously-recorded handler warning on this subscription.
 
     Called once, right after a new consumer has genuinely started
     (past credential lookup and Kafka connection setup) -- not
@@ -312,20 +346,21 @@ def _clear_stale_handler_warning() -> None:
     between. Clearing only after real startup succeeds means the banner
     reflects either the previous failure (if this run also fails before
     reaching here) or nothing (once a run has genuinely gotten underway).
+
+    Parameters
+    ----------
+    subscription_id : int
+        Primary key of the subscription whose warning to clear.
     """
     from goats_tom.models import AntaresStreamSubscription  # noqa: PLC0415
 
-    subscription = AntaresStreamSubscription.objects.order_by("-updated_at").first()
-    if subscription is not None and subscription.last_handler_warning:
-        subscription.last_handler_warning = ""
-        subscription.last_handler_warning_at = None
-        subscription.save(
-            update_fields=["last_handler_warning", "last_handler_warning_at"]
-        )
+    AntaresStreamSubscription.objects.filter(pk=subscription_id).exclude(
+        last_handler_warning=""
+    ).update(last_handler_warning="", last_handler_warning_at=None)
 
 
-def _mark_not_running() -> None:
-    """Mark the current subscription as not running.
+def _mark_not_running(subscription_id: int) -> None:
+    """Mark this subscription as not running.
 
     Called when the consumer stops due to a handler failure (fail-closed
     design -- see `ingest_antares_stream`'s docstring), so `is_running`
@@ -333,17 +368,21 @@ def _mark_not_running() -> None:
     crash. Aborting/stopping via `goats_tom.antares_stream_control`
     already does this for the deliberate stop/restart paths; this covers
     the case where the consumer stops itself.
+
+    Parameters
+    ----------
+    subscription_id : int
+        Primary key of the subscription to mark stopped.
     """
     from goats_tom.models import AntaresStreamSubscription  # noqa: PLC0415
 
-    subscription = AntaresStreamSubscription.objects.order_by("-updated_at").first()
-    if subscription is not None:
-        subscription.is_running = False
-        subscription.save(update_fields=["is_running"])
+    AntaresStreamSubscription.objects.filter(pk=subscription_id).update(
+        is_running=False
+    )
 
 
-def _mark_running() -> None:
-    """Mark the current subscription as running.
+def _mark_running(subscription_id: int) -> None:
+    """Mark this subscription as running.
 
     Called by the actor itself, once it has genuinely confirmed startup
     (credentials found, topics resolved) -- not set optimistically by the
@@ -357,22 +396,28 @@ def _mark_running() -> None:
     -- right alongside the error that had, by then, actually already
     happened but not yet been recorded. Setting it here instead means
     `is_running` only ever reflects genuine, confirmed state.
+
+    Parameters
+    ----------
+    subscription_id : int
+        Primary key of the subscription to mark running.
     """
     from goats_tom.models import AntaresStreamSubscription  # noqa: PLC0415
 
-    subscription = AntaresStreamSubscription.objects.order_by("-updated_at").first()
-    if subscription is not None:
-        subscription.is_running = True
-        subscription.save(update_fields=["is_running"])
+    AntaresStreamSubscription.objects.filter(pk=subscription_id).update(
+        is_running=True
+    )
 
 
-def _is_current_generation(generation: int) -> bool:
-    """Check whether `generation` still matches the subscription's current
+def _is_current_generation(subscription_id: int, generation: int) -> bool:
+    """Check whether `generation` still matches this subscription's current
     generation in the database -- the fencing-token guarantee against
     consumer clashes.
 
     Parameters
     ----------
+    subscription_id : int
+        Primary key of the subscription this consumer run belongs to.
     generation : int
         The generation this consumer run was started with.
 
@@ -381,11 +426,12 @@ def _is_current_generation(generation: int) -> bool:
     bool
         `True` if this consumer is still the current one and should keep
         writing; `False` if it's been superseded by a newer restart/stop
-        and should stop immediately without writing.
+        (or the subscription row was deleted) and should stop immediately
+        without writing.
 
     Notes
     -----
-    See `goats_tom.antares_stream_control._advance_generation` for the
+    See `goats_tom.antares_stream_control.advance_generation` for the
     full explanation of why this, not `abort()` timing, is what
     guarantees two consumers never clash: `abort()` is best-effort and
     can't interrupt a blocking C-level Kafka call, so a fixed delay after
@@ -393,18 +439,66 @@ def _is_current_generation(generation: int) -> bool:
     before every write, closes it completely -- an old consumer that
     somehow kept running past a restart/stop will see its generation is
     stale on its very next write attempt and stop there.
+
+    Scoped to a single subscription, so one user restarting their
+    consumer cannot stop another user's. Under the previous
+    most-recently-updated lookup, *any* user saving a subscription would
+    have superseded the generation every other consumer was checking
+    against, stopping all of them.
     """
     from goats_tom.models import AntaresStreamSubscription  # noqa: PLC0415
 
-    subscription = AntaresStreamSubscription.objects.order_by("-updated_at").first()
-    return subscription is not None and subscription.generation == generation
+    return AntaresStreamSubscription.objects.filter(
+        pk=subscription_id, generation=generation
+    ).exists()
 
 
-def _upsert_locus(locus, topic: str | None = None) -> None:
+def _owner_has_saved(locus_id: str, owner) -> bool:
+    """Whether `owner` already has a recorded save for this locus.
+
+    Parameters
+    ----------
+    locus_id : str
+        The locus in question.
+    owner : `django.contrib.auth.models.User` or None
+        The subscription owner auto-save is attributed to.
+
+    Returns
+    -------
+    bool
+        `True` if a save is already recorded for this owner, so there is
+        nothing to do. `False` when `owner` is `None`, since an
+        unattributable save can't be deduplicated -- but auto-save without an
+        owner has no credentials to have started the consumer in the first
+        place, so this is unreachable in practice.
+
+    Notes
+    -----
+    One indexed lookup, run per alert on an already-saved locus, which is the
+    common case for an active locus. Cheaper than the alternative of calling
+    `save_locus_as_target` every time and letting it decide, which would
+    re-issue permission grants on every alert.
+    """
+    from goats_tom.models import AntaresTargetSave  # noqa: PLC0415
+
+    if owner is None:
+        return False
+    return AntaresTargetSave.objects.filter(
+        locus_id=locus_id, saved_by=owner
+    ).exists()
+
+
+def _upsert_locus(subscription_id: int, locus, topic: str | None = None) -> None:
     """Create or update the `AntaresLocus` staging row for one locus update.
 
     Parameters
     ----------
+    subscription_id : int
+        Primary key of the subscription this row belongs to. Rows are
+        unique per ``(subscription, locus_id)``, not per `locus_id`
+        alone, so the same locus arriving for two different
+        subscriptions produces one row each rather than one row that
+        two consumers fight over.
     locus : `antares_client.models.Locus`
         The locus received from the stream.
     topic : str, optional
@@ -474,6 +568,7 @@ def _upsert_locus(locus, topic: str | None = None) -> None:
         # within a single consumer (unlikely, but not impossible under
         # concurrent processing).
         row, created = AntaresLocus.objects.get_or_create(
+            subscription_id=subscription_id,
             locus_id=locus.locus_id,
             defaults=field_updates,
         )
@@ -484,14 +579,12 @@ def _upsert_locus(locus, topic: str | None = None) -> None:
     # `last_updated` is refreshed automatically via auto_now on save/create.
 
 
-@dramatiq.actor(max_retries=0, time_limit=float("inf"))
+@dramatiq.actor(
+    queue_name=ANTARES_QUEUE_NAME, max_retries=0, time_limit=float("inf")
+)
 def ingest_antares_stream(
-    topics: list[str],
-    handler_code: str | None = None,
-    save_all_targets: bool = False,
-    group: str | None = None,
+    subscription_id: int,
     generation: int = 0,
-    configured_by_user_id: int | None = None,
 ) -> None:
     """Continuously consume the ANTARES Kafka alert stream.
 
@@ -511,65 +604,39 @@ def ingest_antares_stream(
 
     Parameters
     ----------
-    topics : list of str
-        Topics to subscribe to. Required -- there is no settings-based
-        fallback.
-    handler_code : str, optional
-        User-defined function body run against each locus before it's
-        upserted, as an additional filter. See
-        `goats_tom.antares_locus_handler.run_locus_handler`. Validated at
-        submission time (see
-        `goats_tom.antares_locus_handler.validate_handler_code`) with a
-        real dry run against a test locus, so most bugs never reach here
-        -- but if the code still raises or returns a non-bool value
-        against a real locus (e.g. a data shape the dry run's test locus
-        didn't cover), the whole consumer stops rather than silently
-        skipping that locus and continuing. The failure is recorded on
-        the subscription (see `_record_handler_warning`, shown on the
-        ingestion page) before the consumer stops, including the handler
-        source itself so the operator can see exactly what needs fixing
-        without checking server logs.
-    save_all_targets : bool, optional
-        If `True`, every locus that passes the handler filter (or every
-        locus, if no handler is set) is saved as a GOATS `Target` -- once
-        per locus, checked via `locus_is_saved_as_target` before saving,
-        since the same locus can receive many alerts and we don't want to
-        re-save (or error trying to) on every single one. A save failure
-        is logged and does not stop ingestion of that locus into
-        `AntaresLocus`, nor the consumer as a whole -- unlike a handler
-        failure, a save failure doesn't indicate the handler itself is
-        broken, so there's no reason to stop processing other loci over
-        it.
-    group : str, optional
-        Kafka consumer group name, set on the ingestion page. Falls back
-        to `DEFAULT_GROUP` if not given or blank. See
-        `goats_tom.models.AntaresStreamSubscription.group`.
+    subscription_id : int
+        Primary key of the `AntaresStreamSubscription` to consume for.
+        Every other input -- topics, handler code, consumer group,
+        auto-save setting, and the owning user whose credentials to
+        authenticate with -- is read from that row here rather than
+        passed as separate actor arguments. Reading them in one place
+        means the running consumer cannot drift from the stored
+        configuration it is supposed to represent, and it makes the
+        actor's arguments independent of how many settings the
+        subscription grows.
+
+        Safe against the row changing between `send()` and the actor
+        actually starting: any change that matters goes through
+        `goats_tom.antares_stream_control`, which advances
+        `generation` and starts a fresh consumer, so a stale run stops
+        at its first generation check (see `generation` below).
     generation : int, optional
         Fencing token: the subscription's generation number at the time
         this consumer was started (see
-        `goats_tom.antares_stream_control._advance_generation`). Checked
-        before every write; if the subscription's *current* generation
-        has moved past this value (because a newer restart/stop
-        happened), this consumer stops immediately without writing,
-        guaranteeing it can never clash with a newer consumer even if its
-        `abort()` signal was delayed or lost.
-    configured_by_user_id : int, optional
-        The primary key of the user who configured this subscription
-        (see `AntaresStreamSubscription.configured_by`), passed as a
-        plain ID rather than a `User` object since Dramatiq actor
-        arguments must be JSON-serializable. Looked up once here, not
-        per-message, and passed to `run_locus_handler` so `handler_code`
-        can use `RSP_tap_service` (RSP TAP queries) under this specific
-        user's own stored RSP access token -- not a superuser's, since
-        RSP tokens are personal, per-researcher credentials. `None` (no
-        `RSP_tap_service` available to handler code) if not given or if the
-        user no longer exists.
+        `goats_tom.antares_stream_control.advance_generation`). Checked
+        before every write against *this subscription's* current
+        generation; if it has moved past this value (because a newer
+        restart/stop happened for this same subscription), this
+        consumer stops immediately without writing, guaranteeing it
+        can never clash with a newer consumer even if its `abort()`
+        signal was delayed or lost.
 
     Raises
     ------
     ValueError
-        If `topics` is empty, or no ANTARES Kafka credentials are stored
-        (see `_get_streaming_config`).
+        If the subscription no longer exists, has no topics, or its
+        owner has no stored ANTARES Kafka credentials (see
+        `_get_streaming_config`).
     LocusHandlerError
         If `handler_code` raises or returns a non-bool value against a
         real locus from the stream. Stops the consumer (see above).
@@ -577,14 +644,40 @@ def ingest_antares_stream(
     from antares_client import StreamingClient  # noqa: PLC0415
     from dramatiq_abort import Abort  # noqa: PLC0415
 
+    from goats_tom.models import AntaresStreamSubscription  # noqa: PLC0415
+
     _apply_antares_api_timeout()
 
-    configured_by_user = None
-    if configured_by_user_id is not None:
-        from django.contrib.auth import get_user_model  # noqa: PLC0415
+    # Read the whole configuration from the row, in one place, rather than
+    # trusting actor arguments that may no longer match it. `select_related`
+    # so the owner (whose credentials authenticate this connection) comes
+    # back in the same query.
+    subscription = (
+        AntaresStreamSubscription.objects.select_related("owner")
+        .filter(pk=subscription_id)
+        .first()
+    )
+    if subscription is None:
+        # Nothing to record the failure against -- the row this consumer
+        # exists to serve is gone, so there is no page to surface an error
+        # on. Log and stop rather than raising into Dramatiq's
+        # unhandled-exception path, since a deleted subscription is a
+        # legitimate way for a queued consumer to become obsolete.
+        logger.warning(
+            "ANTARES stream subscription id=%s no longer exists; not "
+            "starting a consumer for it.",
+            subscription_id,
+        )
+        return
 
-        User = get_user_model()
-        configured_by_user = User.objects.filter(pk=configured_by_user_id).first()
+    topics = list(subscription.topics or [])
+    handler_code = subscription.handler_code
+    save_all_targets = subscription.save_all_targets
+    owner = subscription.owner
+    # Resolved once here, not per locus: auto-saved targets are shared with
+    # the owner's team so the whole group sees them, and this costs a query.
+    owner_pi_group = getattr(owner, "antares_pi_group", None)
+    owner_group = owner_pi_group.group if owner_pi_group is not None else None
 
     if handler_code and is_effectively_blank(handler_code):
         logger.info(
@@ -594,7 +687,7 @@ def ingest_antares_stream(
         handler_code = None
 
     try:
-        config = _get_streaming_config(topics, group=group)
+        config = _get_streaming_config(subscription)
     except ValueError as exc:
         # A startup failure (e.g. missing/invalid credentials, no topics)
         # happens before the consumer ever connects -- previously this
@@ -605,13 +698,21 @@ def ingest_antares_stream(
         # same way a handler failure would, so the ingestion page
         # reflects reality instead of silently showing "Running" forever.
         logger.error("ANTARES Kafka consumer failed to start: %s", exc)
-        _record_handler_warning(f"Consumer failed to start: {exc}")
-        _mark_not_running()
+        _record_handler_warning(
+            subscription_id, f"Consumer failed to start: {exc}"
+        )
+        _mark_not_running(subscription_id)
         raise
 
-    logger.info("ANTARES Kafka consumer started for topics: %s", config["topics"])
-    _mark_running()
-    _clear_stale_handler_warning()
+    logger.info(
+        "ANTARES Kafka consumer started for subscription id=%s "
+        "topics=%s group=%r.",
+        subscription_id,
+        config["topics"],
+        config["group"],
+    )
+    _mark_running(subscription_id)
+    _clear_stale_handler_warning(subscription_id)
 
     # Built once here, not per message. The client is identical for every
     # locus in this run (same configuring user, same token), but
@@ -626,7 +727,7 @@ def ingest_antares_stream(
     # life of the loop.
     rsp_tap_service = None
     if handler_code and references_rsp_tap_service(handler_code):
-        rsp_tap_service = build_rsp_tap_service(configured_by_user)
+        rsp_tap_service = build_rsp_tap_service(owner)
         logger.info(
             "Built RSP TAP client for this consumer run (available=%s).",
             rsp_tap_service is not None,
@@ -645,11 +746,12 @@ def ingest_antares_stream(
             received_first_message = False
             warned_about_silence = False
             while True:
-                if not _is_current_generation(generation):
+                if not _is_current_generation(subscription_id, generation):
                     logger.info(
-                        "Generation %d superseded; stopping consumer for "
-                        "topics=%s.",
+                        "Generation %d superseded for subscription "
+                        "id=%s; stopping consumer for topics=%s.",
                         generation,
+                        subscription_id,
                         topics,
                     )
                     break
@@ -694,6 +796,7 @@ def ingest_antares_stream(
                             STARTUP_SILENCE_WARNING_SECONDS,
                         )
                         _record_handler_warning(
+                            subscription_id,
                             f"No messages received on topics={topics} "
                             f"within {STARTUP_SILENCE_WARNING_SECONDS}s. "
                             f"Possibly invalid credentials (ANTARES's Kafka "
@@ -710,7 +813,7 @@ def ingest_antares_stream(
                     # Real data arrived after all -- clear the warning
                     # rather than leave a stale "might be broken" message
                     # once we have direct evidence it's actually working.
-                    _clear_stale_handler_warning()
+                    _clear_stale_handler_warning(subscription_id)
                     warned_about_silence = False
 
                 if handler_code:
@@ -725,22 +828,34 @@ def ingest_antares_stream(
                             getattr(locus, "locus_id", None),
                         )
                         _record_handler_warning(
-                            f"{exc}\n\nHandler code:\n{handler_code}"
+                            subscription_id,
+                            f"{exc}\n\nHandler code:\n{handler_code}",
                         )
-                        _mark_not_running()
+                        _mark_not_running(subscription_id)
                         raise
                     if not keep:
                         continue
 
                 try:
-                    _upsert_locus(locus, topic)
+                    _upsert_locus(subscription_id, locus, topic)
 
-                    if save_all_targets and not locus_is_saved_as_target(
-                        locus.locus_id
+                    # Guarded on whether *this owner* has already saved the
+                    # locus, not on whether any target exists for it. Under
+                    # shared targets a locus saved by another team still needs
+                    # sharing with this one, which the old "does a target
+                    # exist" guard would have skipped -- leaving auto-save
+                    # silently not saving anything for the second team.
+                    # Checking the save record keeps it idempotent across the
+                    # many alerts one locus produces, which is what that guard
+                    # was really for.
+                    if save_all_targets and not _owner_has_saved(
+                        locus.locus_id, owner
                     ):
                         try:
                             save_locus_as_target(
-                                locus.locus_id, saved_by=configured_by_user
+                                locus.locus_id,
+                                saved_by=owner,
+                                share_with_group=owner_group,
                             )
                         except SaveLocusError:
                             logger.exception(
@@ -785,8 +900,10 @@ def ingest_antares_stream(
         # this actor started) even though the consumer never actually
         # connected.
         logger.exception("ANTARES Kafka consumer failed unexpectedly.")
-        _record_handler_warning(f"Consumer failed unexpectedly: {exc}")
-        _mark_not_running()
+        _record_handler_warning(
+            subscription_id, f"Consumer failed unexpectedly: {exc}"
+        )
+        _mark_not_running(subscription_id)
         raise
 
     logger.info("ANTARES Kafka consumer stopped.")

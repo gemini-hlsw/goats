@@ -12,6 +12,7 @@ GOATS still boots and only the ``/jdaviz`` viewer is disabled.
 from __future__ import annotations
 
 import http.cookies
+import inspect
 import logging
 import os
 import threading
@@ -84,17 +85,61 @@ def _raise_daphne_ws_message_limit() -> None:
         return
     original_init = server_cls.__init__
 
+    # Only inject arguments this daphne actually accepts. Both were added in
+    # daphne 4.2.2; on 4.2.1 and earlier, passing them raises
+    # ``TypeError: Server.__init__() got an unexpected keyword argument
+    # 'websocket_max_message_size'`` at server start-up, which kills the
+    # django-main-thread and takes GOATS down with it. GOATS depends on daphne
+    # transitively via ``channels[daphne]``, so an older one can legitimately
+    # be resolved -- especially under conda, which does its own solving.
+    #
+    # This is what makes the patch genuinely best-effort, as documented above:
+    # previously only the *import* was guarded, so a daphne whose internals
+    # differed was not tolerated at all, it just failed later and less
+    # obviously.
+    try:
+        parameters = inspect.signature(original_init).parameters
+    except (TypeError, ValueError):
+        # Unable to introspect (C-implemented or wrapped in a way we can't
+        # read). Injecting blind risks the crash above, so do nothing.
+        logger.debug(
+            "Could not inspect daphne Server.__init__; leaving the websocket "
+            "message limit at its default."
+        )
+        return
+
+    wanted = ("websocket_max_message_size", "websocket_max_frame_size")
+    # A ``**kwargs`` catch-all accepts any name, so treat it as full support.
+    # Without this check, a signature that genuinely accepts these arguments
+    # would be skipped just because it doesn't name them individually.
+    if any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()
+    ):
+        supported = list(wanted)
+    else:
+        supported = [name for name in wanted if name in parameters]
+
+    if not supported:
+        logger.info(
+            "This daphne (%s) does not support configurable websocket message "
+            "sizes; the embedded viewer will use daphne's 1 MiB default and "
+            "may fail to load large datasets. daphne >= 4.2.2 adds support.",
+            getattr(daphne, "__version__", "unknown version"),
+        )
+        return
+
     def _init(self: Any, *args: Any, **kwargs: Any) -> None:
-        kwargs.setdefault("websocket_max_message_size", WEBSOCKET_MAX_MESSAGE_SIZE)
-        kwargs.setdefault("websocket_max_frame_size", WEBSOCKET_MAX_MESSAGE_SIZE)
+        for name in supported:
+            kwargs.setdefault(name, WEBSOCKET_MAX_MESSAGE_SIZE)
         original_init(self, *args, **kwargs)
 
     server_cls.__init__ = _init
     server_cls._goats_ws_limit_patched = True
     logger.debug(
-        "Raised daphne websocket message limit to %d bytes for %s.",
+        "Raised daphne websocket message limit to %d bytes for %s (set: %s).",
         WEBSOCKET_MAX_MESSAGE_SIZE,
         JDAVIZ_PREFIX,
+        ", ".join(supported),
     )
 
 

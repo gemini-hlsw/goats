@@ -15,6 +15,7 @@
           <th>Username</th>
           <th>Name</th>
           <th>Email</th>
+          <th>Status</th>
           <th>Admin</th>
           <th>
             Credential Manager
@@ -51,6 +52,23 @@
           <td>{{ user.username }}</td>
           <td>{{ user.first_name }} {{ user.last_name }}</td>
           <td>{{ user.email }}</td>
+          {% comment %}
+          Without this column an unapproved account is indistinguishable from
+          an approved one: self-registration creates the user immediately but
+          inactive, so it appears in this list straight away and looks
+          entirely normal. "Pending" specifically means an undecided
+          registration request, as opposed to an account an administrator
+          deactivated by hand.
+          {% endcomment %}
+          <td>
+            {% if user.is_active %}
+            <span class="badge bg-success">Active</span>
+            {% elif user.registration_request.status == "pending" %}
+            <span class="badge bg-warning text-dark">Pending approval</span>
+            {% else %}
+            <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+          </td>
           <td>{% if user.is_superuser %} yes {% endif %}</td>
           <td>
             <div class="dropdown">
@@ -103,7 +121,13 @@
                     >Rubin Science Platform TAP</a
                   >
                 </li>
-                {% if request.user.is_superuser %}
+                {% comment %}
+                Visible for your own account as well as to superusers: a PI
+                does not have to be an admin, and needs to store their own
+                ANTARES credentials to run a dashboard. BaseLoginView.dispatch
+                still refuses any attempt to reach another user's credentials.
+                {% endcomment %}
+                {% if request.user.is_superuser or user.pk == request.user.pk %}
                 <li>
                   <a
                     href="{% url 'user-antares-kafka-login' user.id %}"

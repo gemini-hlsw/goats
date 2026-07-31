@@ -1,4 +1,16 @@
 from goats_tom.views.antares import RefreshAntaresPhotometryView
+from goats_tom.views.registration import (
+    decide_registration_request,
+    register,
+    registration_requests,
+)
+from goats_tom.views.user import GOATSUserCreateView, GOATSUserUpdateView
+from goats_tom.views.antares_access_management import (
+    antares_decide_join_request,
+    antares_manage_access,
+    antares_request_access,
+    antares_revoke_membership,
+)
 from goats_tom.views.antares_locus_dashboard import (
     antares_dashboard_status,
     antares_locus_clear,
@@ -65,6 +77,15 @@ __all__ = [
     "TNSLoginView",
     "status_view",
     "RefreshAntaresPhotometryView",
+    "register",
+    "registration_requests",
+    "decide_registration_request",
+    "GOATSUserCreateView",
+    "GOATSUserUpdateView",
+    "antares_request_access",
+    "antares_manage_access",
+    "antares_decide_join_request",
+    "antares_revoke_membership",
     "antares_locus_dashboard",
     "antares_locus_table",
     "antares_locus_save_targets",

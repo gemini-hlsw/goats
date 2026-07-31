@@ -1,24 +1,36 @@
 {% load antares_locus_extras %}
 <div id="antares-stream-status"
-     hx-get="{% url 'antares-stream-status' %}"
+     {% comment %}
+     The subscription id is carried through so the poll resolves the same
+     dashboard the page is showing. Without it, a member of two PI groups
+     would poll whichever one happens to come first.
+     {% endcomment %}
+     hx-get="{% url 'antares-stream-status' %}{% if read_only and current.pk %}?subscription={{ current.pk }}{% endif %}"
      hx-trigger="every 3s"
      hx-swap="outerHTML">
 {% if current and current.topics %}
 <div class="alert alert-info d-flex justify-content-between align-items-center">
   <div>
     <strong>Currently subscribed to:</strong> {{ current.topics|join:", " }}
-    {% if current.group %}<span class="text-muted">(group: {{ current.group }})</span>{% endif %}
+    {% if current.pk %}<span class="text-muted">(group: {{ current.resolved_consumer_group }})</span>{% endif %}
     {% if current.is_running %}<span class="badge badge-success">Running</span>{% else %}<span class="badge badge-secondary">Stopped</span>{% endif %}
     <br>
     <strong>Custom locus handler:</strong>
     {% if current.handler_code|is_active_handler_code %}
       <span class="badge badge-primary">Set</span>
-      <span class="text-muted small">(shown below, in the editor)</span>
+      <span class="text-muted small">(shown below{% if not read_only %}, in the editor{% endif %})</span>
     {% else %}
       <span class="text-muted">None</span>
     {% endif %}
   </div>
-  {% if current.is_running %}
+  {% comment %}
+  Owner only. Stopping ingestion affects everybody who can see this
+  dashboard, so it stays with the PI -- see
+  goats_tom.antares_access.can_configure. The view refuses a member's POST
+  regardless, but showing a button that silently does nothing is worse than
+  not showing it.
+  {% endcomment %}
+  {% if current.is_running and not read_only %}
   <form method="post" class="mb-0">
     {% csrf_token %}
     <button type="submit" name="action" value="stop" class="btn btn-outline-danger btn-sm">Stop ingestion</button>

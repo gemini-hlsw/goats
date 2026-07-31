@@ -31,3 +31,27 @@ HINTS_ENABLED = {{ hints_enabled }}
 
 CREATE_DATE = "{{ create_date }}"
 """Date when the installation was created."""
+
+GOATS_DB_ENGINE = "{{ db_engine }}"
+"""Database backend chosen at install time: "sqlite" or "postgres".
+
+Written here rather than left to the environment so the choice survives: this
+file is created once by the installer and never overwritten, so a GOATS
+installed against PostgreSQL stays that way in any shell, with no variables to
+remember. The GOATS_DB_* environment variables still override these values when
+set -- see base.py."""
+
+GOATS_DB_NAME = "{{ db_name }}"
+"""Database name. Blank means the default SQLite file inside the project."""
+
+GOATS_DB_USER = "{{ db_user }}"
+"""Database user. Unused by SQLite."""
+
+GOATS_DB_PASSWORD = "{{ db_password }}"
+"""Database password. Unused by SQLite."""
+
+GOATS_DB_HOST = "{{ db_host }}"
+"""Database host. Unused by SQLite."""
+
+GOATS_DB_PORT = "{{ db_port }}"
+"""Database port. Unused by SQLite."""

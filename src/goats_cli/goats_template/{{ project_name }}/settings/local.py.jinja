@@ -4,7 +4,74 @@ Local overrides for GOATS.
 This file is never touched by GOATS upgrades.
 Use it for machine-specific or development-specific customization.
 
+This file is loaded last, after base.py and any environments/<env>.py, so
+anything set here wins.
+
+Two things that catch people out
+-------------------------------
+1. Overriding a value that base.py only used to *build* another setting has no
+   effect. For example base.py does::
+
+       DATABASE_TIMEOUT = 20
+       DATABASES = {"default": {..., "OPTIONS": {"timeout": DATABASE_TIMEOUT}}}
+
+   By the time this file loads, DATABASES has already been built and holds the
+   number 20, not a reference to DATABASE_TIMEOUT. Setting DATABASE_TIMEOUT = 60
+   here renames the variable but changes nothing that Django reads. The same
+   applies to GOATS_DB_ENGINE and the other GOATS_DB_* values -- they are inputs
+   to building DATABASES, not settings in their own right.
+
+   Override the *final* setting instead -- set DATABASES itself (see below), or
+   set the GOATS_DB_* environment variables so base.py reads them while it is
+   still building.
+
+2. An ImportError anywhere in this file silently discards the whole file. The
+   settings loader wraps `from .local import *` in `try/except ImportError` so
+   that a missing local.py is not an error -- but that also swallows an
+   ImportError raised *by* local.py. If you import something unavailable here,
+   every override in this file is skipped with no warning. Keep imports in this
+   file to the standard library, or verify with::
+
+       python manage.py shell -c "from django.conf import settings; print(settings.DATABASES)"
+
 Example:
     DEBUG = False
     GPP_ENV = "DEVELOPMENT"
+
+Database
+--------
+GOATS defaults to SQLite, which is right for a single-user install. Multi-user
+deployments -- in particular ones running several ANTARES stream consumers at
+once -- should use PostgreSQL, because SQLite permits only one writer at a time.
+
+The usual way to switch is the GOATS_DB_* environment variables (see
+GOATS_DB_ENGINE in base.py). Under conda those are most easily made permanent
+with an activation script::
+
+    # $CONDA_PREFIX/etc/conda/activate.d/goats_db.sh
+    export GOATS_DB_ENGINE=postgres
+    export GOATS_DB_NAME=goats
+    export GOATS_DB_USER=goats
+    export GOATS_DB_PASSWORD=...
+    export GOATS_DB_HOST=localhost
+
+If you would rather not depend on the environment, set DATABASES here instead.
+This file is never overwritten by GOATS upgrades, and because it loads last it
+overrides whatever base.py worked out::
+
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": "goats",
+            "USER": "goats",
+            "PASSWORD": "...",
+            "HOST": "localhost",
+            "PORT": "5432",
+            "CONN_MAX_AGE": 60,
+        }
+    }
+
+Either way, PostgreSQL needs a driver that is not installed by default::
+
+    pip install "goats[postgres]"
 """

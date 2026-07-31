@@ -1,0 +1,110 @@
+{% extends "tom_common/base.html" %}
+{% block content %}
+<div class="mb-3">
+  <p class="h2">
+    Account Requests
+    {% if pending_requests %}
+    <span class="badge bg-warning text-dark">{{ pending_requests|length }}</span>
+    {% endif %}
+  </p>
+  <p class="text-muted">
+    People who have signed up and are waiting for approval. Their accounts
+    exist but cannot sign in until approved.
+  </p>
+</div>
+
+{% if pending_requests %}
+<table class="table table-sm align-middle">
+  <thead>
+    <tr>
+      <th scope="col">Username</th>
+      <th scope="col">Name</th>
+      <th scope="col">Email</th>
+      <th scope="col">Affiliation</th>
+      <th scope="col">Requested</th>
+      <th scope="col">Reason</th>
+      <th scope="col">Groups &amp; decision</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for req in pending_requests %}
+    <tr>
+      <td>{{ req.user.username }}</td>
+      <td>{{ req.user.get_full_name|default:"&mdash;" }}</td>
+      <td>{{ req.user.email }}</td>
+      <td>{{ req.user.profile.affiliation|default:"&mdash;" }}</td>
+      <td>{{ req.created_at }}</td>
+      <td>{{ req.reason|default:"&mdash;" }}</td>
+      <td>
+        <form method="post"
+              action="{% url 'decide-registration-request' req.pk %}">
+          {% csrf_token %}
+          {% comment %}
+          The applicant's selections are pre-ticked but not binding: what gets
+          granted is whatever is submitted here. Anyone can register, so
+          treating their choice as an assignment would let them grant
+          themselves access to whatever a group shares.
+          {% endcomment %}
+          {% if req.requested_groups.all %}
+          <div class="mb-2">
+            {% for group in req.requested_groups.all %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox"
+                     name="grant_groups" value="{{ group.pk }}" checked
+                     id="grant_{{ req.pk }}_{{ group.pk }}">
+              <label class="form-check-label small"
+                     for="grant_{{ req.pk }}_{{ group.pk }}">{{ group.name }}</label>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="small text-muted mb-2">No groups requested.</p>
+          {% endif %}
+          <div class="d-flex gap-2">
+            <button type="submit" name="action" value="approve"
+                    class="btn btn-sm btn-success">Approve</button>
+            <button type="submit" name="action" value="reject"
+                    class="btn btn-sm btn-outline-secondary">Reject</button>
+          </div>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="text-muted">No pending account requests.</p>
+{% endif %}
+
+{% if decided_requests %}
+<div class="mt-4">
+  <p class="h4">Recently decided</p>
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th scope="col">Username</th>
+        <th scope="col">Decision</th>
+        <th scope="col">Decided</th>
+        <th scope="col">By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for req in decided_requests %}
+      <tr>
+        <td>{{ req.user.username }}</td>
+        <td>
+          {% if req.status == "approved" %}
+          <span class="badge bg-success">Approved</span>
+          {% else %}
+          <span class="badge bg-secondary">Rejected</span>
+          {% endif %}
+        </td>
+        <td>{{ req.decided_at }}</td>
+        <td>{{ req.decided_by.username|default:"&mdash;" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

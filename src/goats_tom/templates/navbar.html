@@ -1,4 +1,4 @@
-{% load static bootstrap4 custom_filters %}
+{% load registration_extras static bootstrap4 custom_filters %}
 <div class="navbar navbar-expand-md navbar-dark">
   <a class="navbar-brand" href="{% url 'home' %}">
     <img src="{% static 'img/goats-outline.png' %}" alt="Logo" height="48" class="d-inline-block align-text-top">
@@ -19,6 +19,10 @@
           <a class="dropdown-item" href="{% url 'alerts:list' %}">Saved Queries</a>
           <div class="dropdown-divider"></div>
           <a class="dropdown-item" href="{% url 'antares-locus-dashboard' %}">Live ANTARES Stream</a>
+          <a class="dropdown-item" href="{% url 'antares-request-access' %}">Request ANTARES Access</a>
+          {% if user.antares_pi_group %}
+          <a class="dropdown-item" href="{% url 'antares-manage-access' %}">Manage ANTARES Access</a>
+          {% endif %}
         </div>
       </li>
       <li class="nav-item dropdown">
@@ -75,6 +79,21 @@
         </a>
         <div class="dropdown-menu dropdown-menu-right">
           <a class="dropdown-item" href="{% url 'user-list' %}">Users</a>
+          {% if user.is_superuser %}
+          {% comment %}
+          The count is what actually surfaces a request. The notification sent
+          at registration only reaches sessions connected at that moment, so
+          an administrator who was signed out would otherwise never learn of
+          it.
+          {% endcomment %}
+          {% pending_registration_count as pending_count %}
+          <a class="dropdown-item" href="{% url 'registration-requests' %}">
+            Account Requests
+            {% if pending_count %}
+            <span class="badge bg-warning text-dark">{{ pending_count }}</span>
+            {% endif %}
+          </a>
+          {% endif %}
           <a class="dropdown-item" href="{% url 'user-update' user.id %}">Settings</a>
           <div class="dropdown-divider"></div>
           <form method="post" action="{% url 'logout' %}" class="d-inline">
@@ -84,8 +103,15 @@
         </div>
       </li>
       {% else %}
-      <li class="nav-item {% if request.resolver_match.url_name == 'login' %}active fw-bold{% endif %}">
-        <a class="nav-link" href="{% url 'login' %}" title="Login to GOATS">Login</a>
+      {% comment %}
+      Labelled for both actions so an anonymous visitor can see that signing
+      up is possible. It links to the login page, which carries the sign-up
+      link. Needed because GOATS runs AUTH_STRATEGY = "READ_ONLY": people can
+      browse without ever being redirected to login, so a sign-up link that
+      lived only there would be undiscoverable.
+      {% endcomment %}
+      <li class="nav-item {% if request.resolver_match.url_name == 'login' or request.resolver_match.url_name == 'register' %}active fw-bold{% endif %}">
+        <a class="nav-link" href="{% url 'login' %}" title="Sign in to GOATS or request an account">Login / Register</a>
       </li>
       {% endif %}
       <li class="nav-item">

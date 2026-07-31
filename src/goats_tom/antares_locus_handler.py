@@ -352,7 +352,7 @@ def _build_test_locus():
     )
 
 
-def validate_handler_code(source: str, configured_by_user=None) -> None:
+def validate_handler_code(source: str, user=None) -> None:
     """Fully validate handler code at submission time: structure AND an
     actual dry run against a realistic test locus.
 
@@ -360,7 +360,7 @@ def validate_handler_code(source: str, configured_by_user=None) -> None:
     ----------
     source : str
         User-submitted source defining ``def myfilter(locus): ...``.
-    configured_by_user : `django.contrib.auth.models.User`, optional
+    user : `django.contrib.auth.models.User`, optional
         The user submitting this form (`request.user`), passed through so
         a handler using `RSP_tap_service` is dry-run against that same user's
         real stored RSP token -- catching a bad/missing token, or an
@@ -383,7 +383,7 @@ def validate_handler_code(source: str, configured_by_user=None) -> None:
     # dry run, so the cost is paid once, and only when the handler
     # actually references the service.
     rsp_tap_service = (
-        build_rsp_tap_service(configured_by_user)
+        build_rsp_tap_service(user)
         if references_rsp_tap_service(source)
         else None
     )
@@ -448,18 +448,18 @@ def references_rsp_tap_service(source: str) -> bool:
     )
 
 
-def build_rsp_tap_service(configured_by_user):
+def build_rsp_tap_service(user):
     """Build a `pyvo.dal.TAPService` for the Rubin Science Platform (RSP)
-    TAP endpoint, authenticated with `configured_by_user`'s own stored
+    TAP endpoint, authenticated with `user`'s own stored
     RSP access token.
 
     Parameters
     ----------
-    configured_by_user : `django.contrib.auth.models.User` or None
+    user : `django.contrib.auth.models.User` or None
         The user whose stored `RSPTapLogin` token to use. `None` if no
         user is associated with the current subscription (e.g. never
         set, or the user account was since deleted -- see
-        `AntaresStreamSubscription.configured_by`).
+        `AntaresStreamSubscription.owner`).
 
     Returns
     -------
@@ -472,7 +472,7 @@ def build_rsp_tap_service(configured_by_user):
         `run_async`'s built-in default of deleting the job after fetching
         results (`delete=True` is `pyvo`'s own default, confirmed
         directly from its source -- not something reimplemented here).
-        `None` if `configured_by_user` is `None`, has no stored RSP
+        `None` if `user` is `None`, has no stored RSP
         token, or if constructing the service fails for any reason (e.g.
         network issue, invalid token) -- handler code should check for
         `None` before using `RSP_tap_service`, the same way it already has
@@ -493,11 +493,11 @@ def build_rsp_tap_service(configured_by_user):
     actual RSP Notebook environment (it relies on an auto-provisioned
     token that doesn't exist here, in a plain Django background worker).
     """
-    if configured_by_user is None:
+    if user is None:
         return None
 
     try:
-        rsp_login = configured_by_user.rsptaplogin
+        rsp_login = user.rsptaplogin
     except Exception:
         # No RSPTapLogin row for this user (OneToOneField reverse
         # accessor raises RelatedObjectDoesNotExist, a subclass of
@@ -518,7 +518,7 @@ def build_rsp_tap_service(configured_by_user):
         logger.exception(
             "Failed to build RSP TAP service for user_id=%s; "
             "RSP_tap_service will be unavailable to handler code this run.",
-            configured_by_user.pk,
+            user.pk,
         )
         return None
 
@@ -549,7 +549,7 @@ def run_locus_handler(source: str, locus, rsp_tap_service=None) -> bool:
         caller builds it once (see
         `goats_tom.tasks.ingest_antares_stream`, which builds it before
         its consume loop, and `validate_handler_code`, which builds one
-        for its single dry run) using the subscription's `configured_by`
+        for its single dry run) using the subscription's `owner`
         user's own stored RSP token. `None` when unavailable -- no token
         stored, no configuring user, or construction failed -- in which
         case handler code sees `RSP_tap_service is None` and can degrade.

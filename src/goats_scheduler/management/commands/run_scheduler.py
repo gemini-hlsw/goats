@@ -22,12 +22,12 @@ class Command(BaseCommand):
     This command:
       - Boots a BlockingScheduler
       - Registers all cron-decorated jobs from the registry
-      - Resumes the ANTARES Kafka stream consumer exactly once, if a
-        subscription was previously configured and left running (see
+      - Resumes every ANTARES Kafka stream consumer that was previously
+        configured and left running -- one per owning user (see
         `goats_tom.tasks.ingest_antares_stream` and
         `goats_tom.models.AntaresStreamSubscription`). Topics and
         credentials both come from stored configuration (the subscription
-        row and a superuser's Credential Manager entry, respectively) --
+        row and its owner's Credential Manager entry, respectively) --
         there is no settings-based fallback for either. This runs here,
         in the single scheduler process, rather than from
         `AppConfig.ready()`, which would fire in every process (web
@@ -66,7 +66,7 @@ class Command(BaseCommand):
                 replace_existing=job["replace_existing"],
             )
 
-        self._resume_antares_stream_if_previously_running()
+        self._resume_antares_streams_if_previously_running()
 
         def _stop(_sig, _frame):
             try:
@@ -80,19 +80,25 @@ class Command(BaseCommand):
         self.stdout.write("* Running Task Scheduler")
         scheduler.start()
 
-    def _resume_antares_stream_if_previously_running(self) -> None:
-        """Re-enqueue the ANTARES Kafka stream consumer on startup, if a
-        subscription exists and was left in a running state.
+    def _resume_antares_streams_if_previously_running(self) -> None:
+        """Re-enqueue every ANTARES Kafka stream consumer that was left in a
+        running state, one per owning user.
 
         Skips quietly if no subscription has ever been configured (most
-        GOATS installs won't use ANTARES streaming), or if the last
+        GOATS installs won't use ANTARES streaming), or if every
         subscription was explicitly stopped. Does not validate that
-        credentials are actually present -- if they're missing, the actor
-        itself raises and logs a clear error (see
-        `goats_tom.tasks.ingest_antares_stream._get_streaming_config`)
+        credentials are actually present -- if they're missing, each actor
+        itself records and logs a clear error against its own subscription
+        (see `goats_tom.tasks.ingest_antares_stream._get_streaming_config`)
         rather than this command silently failing to start it.
 
-        Advances the subscription's generation the same way
+        Iterates over all running subscriptions rather than resuming a
+        single "current" one: with one subscription per user, restoring
+        only the most recently updated row would silently leave every
+        other user's dashboard dead after a restart, with `is_running`
+        still showing `True`.
+
+        Advances each subscription's generation the same way
         `goats_tom.antares_stream_control.restart_antares_stream` does,
         rather than reusing the old generation number -- this guarantees
         correctness (via the fencing-token check in
@@ -106,31 +112,27 @@ class Command(BaseCommand):
         from goats_tom.models import AntaresStreamSubscription
         from goats_tom.tasks import ingest_antares_stream
 
-        subscription = (
-            AntaresStreamSubscription.objects.order_by("-updated_at").first()
+        subscriptions = list(
+            AntaresStreamSubscription.objects.filter(is_running=True).select_related(
+                "owner"
+            )
         )
-        if subscription is None or not subscription.is_running:
+        if not subscriptions:
             self.stdout.write(
-                "* No active ANTARES Kafka stream subscription to resume."
+                "* No active ANTARES Kafka stream subscriptions to resume."
             )
             return
 
-        self.stdout.write(
-            f"* Resuming ANTARES Kafka stream consumer for topics: "
-            f"{subscription.topics}"
-        )
-        new_generation = advance_generation(subscription)
-        message = ingest_antares_stream.send(
-            topics=subscription.topics,
-            handler_code=subscription.handler_code,
-            save_all_targets=subscription.save_all_targets,
-            group=subscription.group,
-            generation=new_generation,
-            configured_by_user_id=(
-                subscription.configured_by_id
-                if subscription.configured_by_id is not None
-                else None
-            ),
-        )
-        subscription.dramatiq_message_id = message.message_id
-        subscription.save(update_fields=["dramatiq_message_id"])
+        for subscription in subscriptions:
+            owner = getattr(subscription.owner, "username", "unowned")
+            self.stdout.write(
+                f"* Resuming ANTARES Kafka stream consumer for {owner}: "
+                f"{subscription.topics}"
+            )
+            new_generation = advance_generation(subscription)
+            message = ingest_antares_stream.send(
+                subscription_id=subscription.pk,
+                generation=new_generation,
+            )
+            subscription.dramatiq_message_id = message.message_id
+            subscription.save(update_fields=["dramatiq_message_id"])

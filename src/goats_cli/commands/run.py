@@ -28,6 +28,20 @@ from goats_cli.process import ProcessManager, ProcessName, StartResult
 
 cli = typer.Typer()
 
+# Must match `goats_tom.tasks.ingest_antares_stream.ANTARES_QUEUE_NAME`.
+# Deliberately duplicated rather than imported: `goats_cli` is what boots
+# the Django project, so it cannot depend on `goats_tom` being importable
+# at CLI start-up. Kept as a named constant with this note so the coupling
+# is at least visible from both ends.
+ANTARES_QUEUE_NAME = "antares"
+
+# Default consumer threads for the ANTARES queue -- the ceiling on how many
+# stream subscriptions can run at once, since each holds a thread for its
+# lifetime. Generous because the threads are almost always parked in a
+# blocking librdkafka call with the GIL released, so unused capacity costs
+# very little.
+DEFAULT_ANTARES_WORKERS = 32
+
 
 class Browser(str, Enum):
     google_chrome = "google-chrome"
@@ -137,6 +151,68 @@ def start_background_workers(manage_file: Path, workers: int) -> subprocess.Pope
         [
             str(manage_file),
             "rundramatiq",
+            # Explicitly the default queue only. Without this, this pool
+            # would also consume the ANTARES queue, and a stream consumer
+            # landing here would hold one of these few threads forever --
+            # exactly the starvation that `start_antares_workers` exists
+            # to prevent.
+            "--queues",
+            "default",
+            "--threads",
+            str(workers),
+            "--path",
+            str(manage_file.parent),
+            "--worker-shutdown-timeout",
+            "1000",
+        ],
+        start_new_session=True,
+    )
+
+
+def start_antares_workers(manage_file: Path, workers: int) -> subprocess.Popen:
+    """Starts the Dramatiq workers dedicated to the ANTARES stream queue.
+
+    A second `rundramatiq` process, bound only to the ANTARES queue (see
+    `goats_tom.tasks.ingest_antares_stream.ANTARES_QUEUE_NAME`), separate
+    from the default pool started by `start_background_workers`.
+
+    Each ANTARES stream consumer runs an unbounded polling loop with
+    `time_limit=float("inf")`, so it occupies one worker thread for as
+    long as its subscription is running -- there is one subscription per
+    user, and each needs its own Kafka connection because a connection
+    authenticates as exactly one credential. Left on the default queue
+    (started with only a few threads), enough concurrent consumers would
+    fill the pool and leave nothing to run DRAGONS reductions or GOA
+    downloads, which would queue indefinitely with no visible error.
+    Isolating them means the two cannot starve each other in either
+    direction.
+
+    `--processes 1` with a high `--threads`: consumers block inside
+    librdkafka's `poll()`, which releases the GIL, so many mostly-idle
+    consumer threads in a single process are cheap, and one process keeps
+    the accounting simple (thread count == consumer capacity).
+
+    Parameters
+    ----------
+    manage_file : Path
+        Path to the GOATS manage file.
+    workers : int
+        Number of consumer threads, i.e. the maximum number of
+        simultaneously-running stream subscriptions.
+
+    Returns
+    -------
+    subprocess.Popen
+        The subprocess.
+    """
+    return subprocess.Popen(
+        [
+            str(manage_file),
+            "rundramatiq",
+            "--queues",
+            ANTARES_QUEUE_NAME,
+            "--processes",
+            "1",
             "--threads",
             str(workers),
             "--path",
@@ -254,6 +330,17 @@ def run(
             help="Number of Dramatiq workers to start for background tasks.",
         ),
     ] = 3,
+    antares_workers: Annotated[
+        int,
+        typer.Option(
+            "--antares-workers",
+            help=(
+                "Number of workers for the ANTARES stream queue. Each "
+                "running stream subscription occupies one, so this is the "
+                "maximum number that can ingest at the same time."
+            ),
+        ),
+    ] = DEFAULT_ANTARES_WORKERS,
     addrport: Annotated[
         str,
         typer.Option(
@@ -306,7 +393,8 @@ def run(
 
     This command launches the complete GOATS environment, including:
     the Redis server, the Django web server, Dramatiq background workers,
-    and the APScheduler task scheduler. It also performs port checks and
+    a dedicated worker pool for ANTARES stream ingestion, and the
+    APScheduler task scheduler. It also performs port checks and
     verifies that required components (such as Redis) are installed.
 
     Once servers are online, your browser is opened automatically to the GOATS
@@ -324,6 +412,7 @@ def run(
         "  [bold white]•[/] Redis\n"
         "  [bold white]•[/] Django web server\n"
         "  [bold white]•[/] Dramatiq background workers\n"
+        "  [bold white]•[/] ANTARES stream workers\n"
         "  [bold white]•[/] APScheduler task scheduler\n\n"
         "Once all services are ready, GOATS will automatically open in your browser."
         "\n\nUse Ctrl+C to stop GOATS and shut down all services."
@@ -394,6 +483,17 @@ def run(
             process_manager,
         )
 
+        _start_process(
+            ProcessName.ANTARES_WORKERS,
+            startup_results,
+            partial(start_antares_workers, manage_file, antares_workers),
+            process_manager,
+        )
+
+        # Must come after ANTARES_WORKERS: on startup the scheduler resumes
+        # every subscription left running by enqueueing onto the ANTARES
+        # queue, so a worker has to be listening before those messages are
+        # sent (see ProcessName.shutdown_order).
         _start_process(
             ProcessName.TASK_SCHEDULER,
             startup_results,

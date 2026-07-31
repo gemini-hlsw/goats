@@ -43,11 +43,20 @@ class RunProcessorViewSet(GenericViewSet, mixins.CreateModelMixin):
         try:
             reduced_data = run_data_processor(data_product, data_product_type)
             if not settings.TARGET_PERMISSIONS_ONLY:
-                assign_perm(
-                    "tom_dataproducts.view_reduceddatum",
-                    data_product.group,
-                    reduced_data,
-                )
+                # Iterate the groups rather than passing `data_product.group`
+                # straight through: it is a many-to-many *manager*, and
+                # guardian's `assign_perm` accepts a user, a group, or a
+                # queryset of those -- a manager raises. This branch had never
+                # run before (GOATS shipped with TARGET_PERMISSIONS_ONLY on),
+                # so the error surfaced only as a 400 from the broad
+                # `except Exception` below. Matches how
+                # `goats_tom.views.dataproduct_upload` already does it.
+                for group in data_product.group.all():
+                    assign_perm(
+                        "tom_dataproducts.view_reduceddatum",
+                        group,
+                        reduced_data,
+                    )
             serialized_reduced_data = self.out_serializer_class(reduced_data, many=True)
             headers = self.get_success_headers(serialized_reduced_data.data)
             return Response(

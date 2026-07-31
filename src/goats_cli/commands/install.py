@@ -154,6 +154,45 @@ def install(
             ),
         ),
     ] = config.su_email,
+    db_engine: Annotated[
+        str,
+        typer.Option(
+            "--db-engine",
+            help=(
+                "Database backend: 'sqlite' (default) or 'postgres'. Recorded "
+                "in the project's settings, so it does not need to be set "
+                "again when running GOATS later. PostgreSQL is recommended "
+                "for multi-user deployments and requires the driver: "
+                "pip install 'psycopg[binary]'."
+            ),
+        ),
+    ] = "sqlite",
+    db_name: Annotated[
+        str,
+        typer.Option(
+            "--db-name",
+            help=(
+                "Database name. Ignored for SQLite, which uses a file inside "
+                "the project directory."
+            ),
+        ),
+    ] = "",
+    db_user: Annotated[
+        str,
+        typer.Option("--db-user", help="Database user. PostgreSQL only."),
+    ] = "",
+    db_password: Annotated[
+        str,
+        typer.Option("--db-password", help="Database password. PostgreSQL only."),
+    ] = "",
+    db_host: Annotated[
+        str,
+        typer.Option("--db-host", help="Database host. PostgreSQL only."),
+    ] = "",
+    db_port: Annotated[
+        str,
+        typer.Option("--db-port", help="Database port. PostgreSQL only."),
+    ] = "",
 ):
     """
     Install a new GOATS project in the chosen directory.
@@ -227,6 +266,16 @@ def install(
 
     output.success("Installation preparation complete.")
 
+    normalized_db_engine = db_engine.strip().lower()
+    if normalized_db_engine in {"postgresql", "postgres"}:
+        normalized_db_engine = "postgres"
+    elif normalized_db_engine != "sqlite":
+        output.fail(
+            f"Unknown --db-engine {db_engine!r}. Use 'sqlite' or 'postgres'."
+        )
+        raise typer.Exit(1)
+    db_engine = normalized_db_engine
+
     output.section("Creating GOATS Project")
 
     # Create project directory.
@@ -243,6 +292,15 @@ def install(
         "redis_host": redis_host,
         "redis_port": redis_port,
         "media_root": str(project_path / "data"),
+        # Recorded in generated.py, which is written once and never
+        # overwritten, so the database choice persists across shells and
+        # upgrades rather than having to be re-exported every time.
+        "db_engine": db_engine,
+        "db_name": db_name,
+        "db_user": db_user,
+        "db_password": db_password,
+        "db_host": db_host,
+        "db_port": db_port,
     }
 
     if media_dir:

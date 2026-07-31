@@ -10,10 +10,12 @@ Do not modify this file — your changes will be overwritten on update.
 Use generated.py for machine-specific values and local.py for local overrides.
 """
 
+import os
 import tempfile
 from pathlib import Path
 
 import redis
+from django.core.exceptions import ImproperlyConfigured
 
 from .dynamic import *
 from .generated import *
@@ -115,15 +117,125 @@ WSGI_APPLICATION = "{{ project_name }}.wsgi.application"
 """WSGI application module."""
 
 DATABASE_TIMEOUT = 20
-"""Database timeout in seconds."""
+"""How long (seconds) to wait for a locked SQLite database before giving up.
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-        "OPTIONS": {"timeout": DATABASE_TIMEOUT },
+SQLite-only: it maps to the sqlite3 driver's ``timeout`` option, which controls
+how long a writer waits for another writer's lock. PostgreSQL has no equivalent
+and does not need one, since it does not serialise writers this way."""
+
+
+def _db_setting(name, default):
+    """Resolve one database setting, in order of precedence.
+
+    Parameters
+    ----------
+    name : str
+        The setting name, e.g. ``"GOATS_DB_HOST"``. The same name is used for
+        both the environment variable and the value in generated.py.
+    default : object
+        Used when neither source supplies a value.
+
+    Returns
+    -------
+    object
+        The environment variable if set, otherwise the value written into
+        generated.py at install time, otherwise `default`.
+
+    Notes
+    -----
+    Environment first, so a container or CI job can point an existing
+    installation at a different database without editing files. generated.py
+    second, so the choice made during ``goats install`` persists: that file is
+    written once and never overwritten, which means a GOATS installed against
+    PostgreSQL keeps using it in any shell, with nothing to export. Relying on
+    the environment alone would silently fall back to SQLite in any shell that
+    had not set the variables -- GOATS would then look for a database file that
+    was never created, and appear to have lost its data.
+
+    Empty strings count as unset: the installer writes a blank for anything not
+    specified, and a blank host is a missing answer rather than a deliberate "".
+
+    generated.py has already been star-imported by the time this runs, so its
+    values are simply names in this module's globals.
+    """
+    value = os.getenv(name)
+    if value is None:
+        value = globals().get(name)
+    if value is None or value == "":
+        return default
+    return value
+
+
+GOATS_DB_ENGINE = str(_db_setting("GOATS_DB_ENGINE", "sqlite")).strip().lower()
+"""Which database backend to use: ``"sqlite"`` (default) or ``"postgres"``.
+
+Normally set once by ``goats install`` and recorded in generated.py; the
+``GOATS_DB_ENGINE`` environment variable overrides it per shell.
+
+SQLite remains the default because GOATS is distributed to be run locally by
+individual astronomers, where requiring a database server would be a
+significant install burden for no benefit.
+
+PostgreSQL exists for multi-user deployments, and specifically for running
+several ANTARES stream consumers at once. SQLite permits exactly one writer at
+a time -- WAL mode allows concurrent *readers*, not writers -- and each running
+subscription writes a row per matching alert (see
+``goats_tom.models.AntaresLocus``, whose rows are per-subscription, so one locus
+arriving on a topic N teams subscribe to costs N writes). Add the dashboards
+polling every few seconds and writers begin queueing behind
+``DATABASE_TIMEOUT``. A handful of concurrent subscriptions is fine on SQLite;
+dozens are not.
+
+PostgreSQL needs a driver, which is not installed by default. Install only the
+driver -- ``pip install "goats[postgres]"`` would try to reinstall GOATS itself
+and can conflict with a conda-installed copy::
+
+    pip install "psycopg[binary]"
+
+``local.py`` can replace ``DATABASES`` outright if something more involved is
+needed. Note that setting ``GOATS_DB_ENGINE`` there does *not* work: by the time
+that file loads, ``DATABASES`` has already been built from this value.
+"""
+
+if GOATS_DB_ENGINE in {"postgres", "postgresql"}:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _db_setting("GOATS_DB_NAME", "goats"),
+            "USER": _db_setting("GOATS_DB_USER", "goats"),
+            "PASSWORD": _db_setting("GOATS_DB_PASSWORD", ""),
+            "HOST": _db_setting("GOATS_DB_HOST", "localhost"),
+            "PORT": str(_db_setting("GOATS_DB_PORT", "5432")),
+            # Reuse connections rather than opening one per request. Matters
+            # more here than in a typical Django app: alongside the web
+            # workers, every running stream consumer holds a long-lived
+            # connection of its own.
+            "CONN_MAX_AGE": int(_db_setting("GOATS_DB_CONN_MAX_AGE", 60)),
+        }
     }
-}
+elif GOATS_DB_ENGINE == "sqlite":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": _db_setting("GOATS_DB_NAME", BASE_DIR / "db.sqlite3"),
+            "OPTIONS": {
+                "timeout": DATABASE_TIMEOUT,
+                # Write-Ahead Logging, so readers (e.g. the ANTARES locus
+                # dashboard) don't block writers (e.g. the ANTARES Kafka
+                # ingestion consumer) and vice versa, which otherwise surfaces
+                # as intermittent "database is locked" errors under concurrent
+                # read/write load. It does not permit concurrent *writers* --
+                # see GOATS_DB_ENGINE.
+                "init_command": "PRAGMA journal_mode=WAL;",
+            },
+        }
+    }
+else:
+    raise ImproperlyConfigured(
+        f"GOATS_DB_ENGINE must be 'sqlite' or 'postgres', not "
+        f"{GOATS_DB_ENGINE!r}. It is set during 'goats install' and stored in "
+        f"generated.py; the GOATS_DB_ENGINE environment variable overrides it."
+    )
 """Database configuration."""
 
 ASGI_APPLICATION = "{{ project_name }}.asgi.application"
@@ -439,14 +551,6 @@ GPP_ENV = "PRODUCTION"
 ANTARES_ENV = "PRODUCTION"
 
 ANTARES_TIMEOUT = 60 # Timeout for requests to ANTARES in seconds.
-
-# SQLite tuning: enable Write-Ahead Logging so readers (e.g. the ANTARES
-# locus dashboard) don't block writers (e.g. the ANTARES Kafka ingestion
-# consumer) and vice versa, which otherwise surfaces as intermittent
-# "database is locked" errors under concurrent read/write load. Mutates
-# the OPTIONS dict already set up in DATABASES above rather than
-# redefining DATABASES, so this stays a small, additive change.
-DATABASES["default"]["OPTIONS"]["init_command"] = "PRAGMA journal_mode=WAL;"
 
 # Suppress noisy per-request access-log INFO lines (e.g.
 # "HTTP GET /some/path/ 200 [0.00, 127.0.0.1:12345]"). These come from

@@ -8,15 +8,36 @@ from django.db import models
 class AntaresLocus(models.Model):
     """Staging row summarizing the live state of an ANTARES locus.
 
-    One row per ``locus_id``, updated in place as new alerts arrive on the
-    ANTARES Kafka alert stream (see ``goats_tom.tasks.ingest_antares_stream``).
-    Rows are purged after 1 day of inactivity by the periodic
-    ``cleanup_stale_antares_loci`` task.
+    One row per ``(subscription, locus_id)`` pair, updated in place as new
+    alerts arrive on the ANTARES Kafka alert stream (see
+    ``goats_tom.tasks.ingest_antares_stream``). Rows are purged after 1 day
+    of inactivity by the periodic ``cleanup_stale_antares_loci`` task.
 
     Attributes
     ----------
+    subscription : `models.ForeignKey`
+        The subscription whose consumer ingested this row -- i.e. which
+        dashboard it belongs to. Every query against this table is scoped
+        by it, so one user's dashboard never shows another's loci.
+
+        Rows are deliberately duplicated per subscription rather than
+        shared, even though the same locus arriving on a topic that N
+        users subscribe to then costs N rows. A shared row cannot
+        represent the result of a *per-subscription* filter: each
+        subscription has its own `handler_code`, so the same locus can
+        legitimately be kept by one subscription and rejected by another,
+        and there is no single truth to record on one shared row.
+        Duplicating also keeps `latest_alert_topic` meaningful (a shared
+        row would flap between whichever subscription wrote last) and
+        keeps the cleanup task a simple age-based delete instead of
+        per-subscription reference counting.
+
+        `CASCADE` on delete, so removing a subscription clears its
+        dashboard rather than orphaning rows that nothing can reach.
     locus_id : `models.CharField`
-        ANTARES ID for the locus. Unique per row.
+        ANTARES ID for the locus. Unique per subscription, not globally --
+        see `subscription` for why the same locus may appear once per
+        subscription.
     ra : `models.FloatField`
         Right ascension of the locus centroid, in degrees. Converted to
         sexagesimal for display at render time rather than stored
@@ -51,7 +72,12 @@ class AntaresLocus(models.Model):
 
     """
 
-    locus_id = models.CharField(max_length=64, unique=True, db_index=True)
+    subscription = models.ForeignKey(
+        "goats_tom.AntaresStreamSubscription",
+        on_delete=models.CASCADE,
+        related_name="loci",
+    )
+    locus_id = models.CharField(max_length=64, db_index=True)
     ra = models.FloatField()
     dec = models.FloatField()
     latest_alert_id = models.CharField(max_length=128)
@@ -67,6 +93,12 @@ class AntaresLocus(models.Model):
     class Meta:
         ordering = ["-last_updated"]
         verbose_name_plural = "ANTARES loci"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["subscription", "locus_id"],
+                name="unique_locus_per_subscription",
+            )
+        ]
 
     def __str__(self) -> str:
         return self.locus_id

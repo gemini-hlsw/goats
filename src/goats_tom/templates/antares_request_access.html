@@ -1,0 +1,104 @@
+{% extends "tom_common/base.html" %}
+{% load crispy_forms_tags %}
+{% block content %}
+<div class="mb-3">
+  <p class="h2">Request ANTARES Dashboard Access</p>
+  <p class="text-muted">
+    Ask a PI for access to their ANTARES locus dashboard. The PI decides
+    whether to grant view access, and separately whether you may save loci
+    as GOATS targets.
+  </p>
+</div>
+
+{% if form.fields.pi_group.queryset.exists %}
+  {% crispy form %}
+{% elif not any_pi_groups_exist %}
+  <div class="alert alert-info">
+    There are no dashboards to request yet &mdash; no PI has stored ANTARES
+    Kafka credentials.
+  </div>
+{% else %}
+  {% comment %}
+  Distinguishes "nothing exists" from "you have asked for it all". Showing
+  one message for both was confusing right after a successful request: the
+  banner said access was requested, and the box beneath implied there had
+  been nothing to request.
+  {% endcomment %}
+  <div class="alert alert-info mb-0">
+    You have requested or joined every dashboard available to you. Anything
+    still pending is listed below.
+  </div>
+{% endif %}
+
+{% if my_memberships %}
+<div class="mt-4">
+  <p class="h4">Your access</p>
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th scope="col">Group</th>
+        <th scope="col">PI</th>
+        <th scope="col">View dashboard</th>
+        <th scope="col">Save targets</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for membership in my_memberships %}
+      <tr>
+        <td>{{ membership.pi_group.group.name }}</td>
+        <td>{{ membership.pi_group.pi.username }}</td>
+        <td>
+          {% if membership.can_view_dashboard %}
+            <span class="badge bg-success">Yes</span>
+          {% else %}
+            <span class="badge bg-secondary">No</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if membership.can_save_targets %}
+            <span class="badge bg-success">Yes</span>
+          {% else %}
+            <span class="badge bg-secondary">No</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if my_requests %}
+<div class="mt-4">
+  <p class="h4">Your requests</p>
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th scope="col">Group</th>
+        <th scope="col">PI</th>
+        <th scope="col">Requested</th>
+        <th scope="col">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for join_request in my_requests %}
+      <tr>
+        <td>{{ join_request.pi_group.group.name }}</td>
+        <td>{{ join_request.pi_group.pi.username }}</td>
+        <td>{{ join_request.created_at }}</td>
+        <td>
+          {% if join_request.status == "pending" %}
+            <span class="badge bg-warning text-dark">Pending</span>
+          {% elif join_request.status == "approved" %}
+            <span class="badge bg-success">Approved</span>
+          {% else %}
+            <span class="badge bg-secondary">Declined</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

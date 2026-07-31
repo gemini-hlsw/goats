@@ -26,6 +26,17 @@ dependencies = [
     "astroquery>=0.4.11",
     "channels-redis>=4.3.0,<5",
     "channels[daphne]>=4.0,<5",
+    # daphne 4.2.2 added the configurable websocket message/frame sizes that
+    # goats_tom.jdaviz_asgi passes to Server(). Older daphne raises
+    # TypeError at start-up. It arrives transitively via channels[daphne],
+    # which does not constrain it, so pin it directly.
+    "daphne>=4.2.2,<5",
+    # cbor2 arrives transitively (daphne -> autobahn -> cbor2) and autobahn
+    # only asks for ">=5.2.0". From 6.0.0 cbor2 publishes no wheel for
+    # macOS x86_64 and no pure-Python fallback, so pip compiles a C
+    # extension and the install fails without developer tools. The 5.x line
+    # ships a py3-none-any wheel that installs everywhere.
+    "cbor2<6",
     "click>=8.3.1,<9",
     "copier>=9.14.1",
     "django>=5,<6",
@@ -46,6 +57,14 @@ dependencies = [
     "jdaviz==5.0.1",
 ]
 version = "26.8.0rc1"
+
+[project.optional-dependencies]
+postgres = [
+    # Driver for the optional PostgreSQL backend (GOATS_DB_ENGINE=postgres).
+    # An extra rather than a core dependency, so the default install is
+    # unchanged: single-user installs run on SQLite and never need this.
+    "psycopg[binary]>=3.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"

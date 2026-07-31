@@ -6,6 +6,7 @@ import typer
 from goats_cli import cli
 from goats_cli.commands.run import (
     _start_process,
+    start_antares_workers,
     start_background_workers,
     start_django_server,
     start_redis_server,
@@ -81,6 +82,9 @@ def base_mocks(mocker):
         "start_django": mocker.patch("goats_cli.commands.run.start_django_server"),
         "start_workers": mocker.patch(
             "goats_cli.commands.run.start_background_workers"
+        ),
+        "start_antares": mocker.patch(
+            "goats_cli.commands.run.start_antares_workers"
         ),
         "start_scheduler": mocker.patch("goats_cli.commands.run.start_task_scheduler"),
     }
@@ -177,6 +181,43 @@ def test_start_background_workers_invokes_popen(mocker):
     assert "--threads" in cmd and "4" in cmd
     assert "--path" in cmd and str(manage_file.parent) in cmd
     assert "--worker-shutdown-timeout" in cmd
+    assert kwargs.get("start_new_session") is True
+
+
+def test_start_background_workers_bound_to_default_queue(mocker):
+    """The default pool listens only to the default queue.
+
+    Without this it would also consume the ANTARES queue, and a stream
+    consumer landing there would hold one of its few threads for as long as
+    ingestion runs -- starving DRAGONS reductions and downloads, which is the
+    starvation the separate pool exists to prevent.
+    """
+    mock_popen = mocker.patch("goats_cli.commands.run.subprocess.Popen")
+
+    start_background_workers(Path("/fake/manage.py"), workers=3)
+
+    cmd = mock_popen.call_args[0][0]
+    assert "--queues" in cmd
+    assert cmd[cmd.index("--queues") + 1] == "default"
+
+
+def test_start_antares_workers_invokes_popen(mocker):
+    """start_antares_workers runs rundramatiq bound to the ANTARES queue."""
+    mock_popen = mocker.patch("goats_cli.commands.run.subprocess.Popen")
+    manage_file = Path("/fake/manage.py")
+
+    start_antares_workers(manage_file, workers=32)
+
+    mock_popen.assert_called_once()
+    args, kwargs = mock_popen.call_args
+    cmd = args[0]
+    assert cmd[0] == str(manage_file)
+    assert "rundramatiq" in cmd
+    assert cmd[cmd.index("--queues") + 1] == "antares"
+    # Pinned to one process so the thread count equals consumer capacity;
+    # dramatiq otherwise defaults to one process per CPU.
+    assert cmd[cmd.index("--processes") + 1] == "1"
+    assert cmd[cmd.index("--threads") + 1] == "32"
     assert kwargs.get("start_new_session") is True
 
 

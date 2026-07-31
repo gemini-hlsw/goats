@@ -15,15 +15,31 @@ class ProcessName(str, Enum):
     """Known subprocesses managed by GOATS CLI."""
 
     TASK_SCHEDULER = "Task Scheduler"
+    ANTARES_WORKERS = "ANTARES Stream Workers"
     BACKGROUND_WORKERS = "Dramatiq Workers"
     DJANGO = "Django"
     REDIS = "Redis"
 
     @classmethod
     def shutdown_order(cls) -> list["ProcessName"]:
-        """Defines shutdown order."""
+        """Defines shutdown order.
+
+        `ANTARES_WORKERS` sits between the scheduler and the default
+        workers: the scheduler stops first so nothing new is enqueued,
+        then the stream consumers, which hold their worker threads for as
+        long as they run and so are the slowest to come down.
+
+        Reversed for startup (see `startup_order`), which puts
+        `ANTARES_WORKERS` *before* `TASK_SCHEDULER` -- load-bearing, not
+        incidental. On startup the scheduler resumes every subscription
+        left running by enqueueing to the ANTARES queue (see
+        `goats_scheduler.management.commands.run_scheduler`), so a worker
+        has to be listening on that queue first, or those messages sit
+        unconsumed until something else starts one.
+        """
         return [
             cls.TASK_SCHEDULER,
+            cls.ANTARES_WORKERS,
             cls.BACKGROUND_WORKERS,
             cls.DJANGO,
             cls.REDIS,

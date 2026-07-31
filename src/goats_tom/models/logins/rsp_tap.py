@@ -20,7 +20,7 @@ class RSPTapLogin(BaseLogin):
     `goats_tom.antares_locus_handler`) to query Rubin catalog data via the
     TAP service's ADQL interface, through the pre-bound `RSP_tap_service`
     name -- e.g. ``RSP_tap_service.run_async("SELECT ...").to_table()``.
-    Handler code runs under `AntaresStreamSubscription.configured_by`'s
+    Handler code runs under `AntaresStreamSubscription.owner`'s
     own stored token, not a superuser's, for the same reason GPP
     triggering does: this is personal access, not shared infrastructure.
 

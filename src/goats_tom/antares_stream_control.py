@@ -137,7 +137,7 @@ def _find_active_topics(
     return active
 
 
-def fetch_available_topics() -> list[str]:
+def fetch_available_topics(user) -> list[str]:
     """List ANTARES Kafka topics available to the stored credentials,
     filtered to only "active" ones.
 
@@ -145,6 +145,15 @@ def fetch_available_topics() -> list[str]:
     real, currently-active topic names instead of requiring free-text
     entry, and instead of showing every topic ever created regardless of
     whether it's still receiving alerts.
+
+    Parameters
+    ----------
+    user : `django.contrib.auth.models.User`
+        The user whose stored ANTARES Kafka credentials to list topics
+        with -- the person viewing the ingestion form. Topic visibility is
+        a property of the credentials, so each user sees the topics their
+        own ANTARES account can actually subscribe to, rather than a
+        superuser's.
 
     Returns
     -------
@@ -163,8 +172,8 @@ def fetch_available_topics() -> list[str]:
     Raises
     ------
     TopicListError
-        If no superuser has stored ANTARES Kafka credentials, or the
-        broker request fails (network issue, invalid credentials, etc.).
+        If `user` has not stored ANTARES Kafka credentials, or the broker
+        request fails (network issue, invalid credentials, etc.).
 
     Notes
     -----
@@ -216,10 +225,10 @@ def fetch_available_topics() -> list[str]:
     """
     from antares_client.stream import StreamingClient  # noqa: PLC0415
 
-    login = get_antares_kafka_login()
+    login = get_antares_kafka_login(user)
     if login is None:
         raise TopicListError(
-            "No ANTARES Kafka credentials found. A superuser must store "
+            "No ANTARES Kafka credentials found for your account. Store "
             "them via the Credential Manager (Users -> Manage -> ANTARES "
             "Kafka Stream) first."
         )
@@ -289,17 +298,24 @@ def fetch_available_topics() -> list[str]:
     return topics
 
 
-def _get_or_create_subscription() -> AntaresStreamSubscription:
-    """Fetch the current subscription row, creating one if none exists yet.
+def _get_or_create_subscription(owner) -> AntaresStreamSubscription:
+    """Fetch this owner's subscription row, creating one if they have none.
+
+    Parameters
+    ----------
+    owner : `django.contrib.auth.models.User`
+        The user whose subscription to fetch or create. There is at most
+        one per user (`AntaresStreamSubscription.owner` is a
+        `OneToOneField`), so this is a lookup by owner rather than by
+        "whichever row was updated most recently" -- the latter cannot
+        distinguish one user's subscription from another's.
 
     Returns
     -------
     `AntaresStreamSubscription`
-        The current (most recently updated) subscription row.
+        This owner's subscription row.
     """
-    subscription = AntaresStreamSubscription.objects.order_by("-updated_at").first()
-    if subscription is None:
-        subscription = AntaresStreamSubscription.objects.create()
+    subscription, _ = AntaresStreamSubscription.objects.get_or_create(owner=owner)
     return subscription
 
 
@@ -378,24 +394,37 @@ def _abort_running_consumer(subscription: AntaresStreamSubscription) -> None:
 
 
 def restart_antares_stream(
+    owner,
     topics: list[str],
-    group: str = "",
+    consumer_group: str = "",
     save_all_targets: bool = False,
     trigger_gemini_observations: bool = False,
     handler_code: str = "",
-    configured_by_user=None,
 ) -> AntaresStreamSubscription:
-    """Abort the currently-running ANTARES consumer, if any, and start a
-    new one with the given topics -- guaranteed not to clash with the old
-    one via a generation fencing token, not just a best-effort abort.
+    """Abort this owner's currently-running ANTARES consumer, if any, and
+    start a new one with the given topics -- guaranteed not to clash with
+    the old one via a generation fencing token, not just a best-effort
+    abort.
+
+    Only ever touches `owner`'s own subscription. Other users' consumers
+    are unaffected, including their generation numbers.
 
     Parameters
     ----------
+    owner : `django.contrib.auth.models.User`
+        The user this subscription belongs to, and whose stored ANTARES
+        Kafka credentials the consumer will authenticate with. Their
+        personal RSP/GPP credentials are also what `handler_code` and
+        (later) observation triggering act as -- these are per-researcher
+        accounts, so the consumer has to know whose identity to use rather
+        than falling back to a superuser's.
     topics : list of str
         Kafka topics to subscribe to.
-    group : str, optional
-        Kafka consumer group name. Falls back to a built-in default if
-        blank (see `goats_tom.tasks.ingest_antares_stream.DEFAULT_GROUP`).
+    consumer_group : str, optional
+        Suffix for this subscription's Kafka consumer group name. The
+        effective name is always derived per-subscription -- see
+        `goats_tom.models.AntaresStreamSubscription.resolved_consumer_group`,
+        which explains why user input can only ever be a suffix.
     save_all_targets : bool, optional
         If `True`, every locus ingested while this subscription is active
         is saved as a GOATS `Target` (see
@@ -405,26 +434,14 @@ def restart_antares_stream(
         Stored on the subscription row for future use. Currently a no-op
         (default `False`).
     handler_code : str, optional
-        User-defined locus filter/handler function body, passed through to
-        the consumer. See `goats_tom.antares_locus_handler`.
-    configured_by_user : `django.contrib.auth.models.User`, optional
-        The user submitting this form (`request.user` from the calling
-        view) -- saved as `AntaresStreamSubscription.configured_by`.
-        Unlike ANTARES Kafka credentials (deliberately shared across
-        users, since ANTARES issues a small number of credentials per
-        team/institution, not per individual -- see
-        `goats_tom.tasks.ingest_antares_stream.get_antares_kafka_login`),
-        GPP credentials are personal, per-researcher accounts, so
-        triggering a GPP observation for a newly-saved target needs to
-        know specifically *which* user's GPP credentials/identity to use
-        -- this is how that's recorded, at the moment ingestion is
-        configured, rather than guessed later.
+        User-defined locus filter/handler function body, stored on the row
+        and read by the consumer. See `goats_tom.antares_locus_handler`.
 
     Returns
     -------
     `AntaresStreamSubscription`
-        The updated subscription row, reflecting the new topics, group,
-        generation, and the new consumer's Dramatiq message ID.
+        The updated subscription row, reflecting the new topics, consumer
+        group, generation, and the new consumer's Dramatiq message ID.
 
     Notes
     -----
@@ -433,7 +450,7 @@ def restart_antares_stream(
     effect: this function advances `subscription.generation` *before*
     starting the new consumer, and passes that new generation to it. The
     old consumer (started with the previous generation) checks, before
-    every write, whether the subscription's *current* generation in the
+    every write, whether *this subscription's* current generation in the
     database still matches the generation it was started with -- if not,
     it stops immediately rather than writing. This holds even if the old
     consumer's `abort()` signal is delayed, lost, or can't interrupt a
@@ -442,6 +459,14 @@ def restart_antares_stream(
     an optimization to stop the old consumer's wasted work sooner, but is
     no longer what correctness depends on.
 
+    The actor is sent only the subscription's primary key and the new
+    generation; it reads topics, handler code, consumer group, and owner
+    from the row itself (see `goats_tom.tasks.ingest_antares_stream`).
+    The row is therefore saved *before* the actor is enqueued, so the
+    consumer cannot start against stale configuration -- the previous
+    version passed every setting as an actor argument and could save the
+    row afterwards, since the two were independent.
+
     `is_running` is set by the actor itself (see
     `goats_tom.tasks.ingest_antares_stream._mark_running`/
     `_mark_not_running`), not here -- `.send()` only enqueues the actor,
@@ -449,30 +474,17 @@ def restart_antares_stream(
     request that called it) returns, so setting it here would be
     optimistic rather than confirmed.
     """
-    subscription = _get_or_create_subscription()
+    subscription = _get_or_create_subscription(owner)
 
     _abort_running_consumer(subscription)
 
     new_generation = advance_generation(subscription)
 
-    message = ingest_antares_stream.send(
-        topics=topics,
-        handler_code=handler_code,
-        save_all_targets=save_all_targets,
-        group=group,
-        generation=new_generation,
-        configured_by_user_id=(
-            configured_by_user.pk if configured_by_user is not None else None
-        ),
-    )
-
     subscription.topics = topics
-    subscription.group = group
+    subscription.consumer_group = consumer_group
     subscription.save_all_targets = save_all_targets
     subscription.trigger_gemini_observations = trigger_gemini_observations
     subscription.handler_code = handler_code
-    subscription.dramatiq_message_id = message.message_id
-    subscription.configured_by = configured_by_user
     # Clear any warning/error left over from the previous run. An earlier
     # version deliberately left this for the actor to clear on successful
     # startup, reasoning that clearing here would briefly blank a
@@ -496,27 +508,46 @@ def restart_antares_stream(
     # genuinely confirmed startup, so this field only ever reflects
     # confirmed state -- briefly showing "Stopped" right after submission
     # is more honest than showing a "Running" that might not be true yet.
+    #
+    # Saved before enqueueing: the actor reads its configuration from this
+    # row, so it must be current before the actor can possibly start.
     subscription.save()
 
+    message = ingest_antares_stream.send(
+        subscription_id=subscription.pk,
+        generation=new_generation,
+    )
+
+    subscription.dramatiq_message_id = message.message_id
+    subscription.save(update_fields=["dramatiq_message_id"])
+
     logger.info(
-        "Started ANTARES stream consumer for topics=%s group=%r "
-        "generation=%d (message_id=%s).",
+        "Started ANTARES stream consumer for owner=%s subscription id=%s "
+        "topics=%s group=%r generation=%d (message_id=%s).",
+        getattr(owner, "username", None),
+        subscription.pk,
         topics,
-        group,
+        subscription.resolved_consumer_group,
         new_generation,
         message.message_id,
     )
     return subscription
 
 
-def stop_antares_stream() -> AntaresStreamSubscription | None:
-    """Abort the currently-running ANTARES consumer without starting a new one.
+def stop_antares_stream(owner) -> AntaresStreamSubscription | None:
+    """Abort this owner's running ANTARES consumer without starting a new one.
+
+    Parameters
+    ----------
+    owner : `django.contrib.auth.models.User`
+        The user whose consumer to stop. Only their own subscription is
+        touched; other users' consumers keep running.
 
     Returns
     -------
     `AntaresStreamSubscription` or None
         The updated subscription row (marked not running), or `None` if
-        there was no subscription row to update.
+        this owner has no subscription row to update.
 
     Notes
     -----
@@ -526,7 +557,7 @@ def stop_antares_stream() -> AntaresStreamSubscription | None:
     write attempt even if the abort signal is delayed, lost, or can't
     interrupt a blocking Kafka call.
     """
-    subscription = AntaresStreamSubscription.objects.order_by("-updated_at").first()
+    subscription = AntaresStreamSubscription.objects.filter(owner=owner).first()
     if subscription is None:
         return None
 
@@ -537,5 +568,9 @@ def stop_antares_stream() -> AntaresStreamSubscription | None:
     subscription.dramatiq_message_id = None
     subscription.save()
 
-    logger.info("Stopped ANTARES stream consumer.")
+    logger.info(
+        "Stopped ANTARES stream consumer for owner=%s subscription id=%s.",
+        getattr(owner, "username", None),
+        subscription.pk,
+    )
     return subscription

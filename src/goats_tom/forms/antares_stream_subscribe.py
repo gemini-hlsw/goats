@@ -25,10 +25,14 @@ class AntaresStreamSubscribeForm(forms.Form):
     topics : `forms.CharField`
         Comma-separated Kafka topic names, e.g.
         ``"extragalactic_staging, nuclear_transient_staging"``.
-    group : `forms.CharField`
-        Optional Kafka consumer group name. Set here (not in the
-        Credential Manager) since it changes far more often than the API
-        credentials -- e.g. to force a full replay via a brand-new group.
+    consumer_group : `forms.CharField`
+        Optional *suffix* for this subscription's Kafka consumer group
+        name. Set here (not in the Credential Manager) since it changes
+        far more often than the API credentials -- e.g. to force a full
+        replay via a brand-new group. Only ever a suffix: the effective
+        name is generated per-subscription, so two users cannot end up
+        sharing a consumer group. See
+        `goats_tom.models.AntaresStreamSubscription.resolved_consumer_group`.
     save_all_targets : `forms.BooleanField`
         Checkbox, unchecked by default. When checked, every newly-ingested
         locus (not already saved) is saved as a GOATS `Target`, including
@@ -67,14 +71,15 @@ class AntaresStreamSubscribeForm(forms.Form):
             "on ANTARES."
         ),
     )
-    group = forms.CharField(
-        label="Kafka group (optional)",
+    consumer_group = forms.CharField(
+        label="Kafka group suffix (optional)",
         required=False,
-        widget=forms.TextInput(attrs={"placeholder": "goats-antares-locus-dashboard"}),
+        widget=forms.TextInput(attrs={"placeholder": "e.g. replay-2"}),
         help_text=(
-            "Optional; defaults to a built-in group name if blank. Keeps "
-            "offset tracking stable across restarts. Use a new group "
-            "name to replay from the earliest available message."
+            "Optional. Appended to an automatically-generated group name "
+            "unique to your subscription; leave blank to use that name on "
+            "its own. Keeps offset tracking stable across restarts. Enter "
+            "a new value to replay from the earliest available message."
         ),
     )
     save_all_targets = forms.BooleanField(
@@ -150,12 +155,12 @@ class AntaresStreamSubscribeForm(forms.Form):
         self,
         *args,
         available_topics: list[str] | None = None,
-        configured_by_user=None,
+        user=None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.available_topics = available_topics or []
-        self.configured_by_user = configured_by_user
+        self.user = user
         self.helper = FormHelper()
         self.helper.add_input(Submit("submit", "Start ingesting"))
         # Errors are shown via a unified banner in the template (the same
@@ -167,16 +172,16 @@ class AntaresStreamSubscribeForm(forms.Form):
         # help_text is defined once, at class-body level, with no access
         # to a specific request/user -- but the RSP token storage link
         # needs a specific user's pk (`user-rsp-tap-login` takes one),
-        # which we only have per-instance, from `configured_by_user`
+        # which we only have per-instance, from `user`
         # (== request.user, passed in by the view). Filled in here,
         # rather than in the static help_text string above, for that
         # reason.
-        if self.configured_by_user is not None and self.configured_by_user.pk:
+        if self.user is not None and self.user.pk:
             rsp_token_link = mark_safe(
                 '<a href="{}" target="_blank" '
                 'rel="noopener noreferrer">RSP access token</a>'.format(
                     reverse(
-                        "user-rsp-tap-login", args=[self.configured_by_user.pk]
+                        "user-rsp-tap-login", args=[self.user.pk]
                     )
                 )
             )
@@ -241,7 +246,7 @@ class AntaresStreamSubscribeForm(forms.Form):
 
         try:
             validate_handler_code(
-                source, configured_by_user=self.configured_by_user
+                source, user=self.user
             )
         except LocusHandlerError as exc:
             raise forms.ValidationError(str(exc)) from exc

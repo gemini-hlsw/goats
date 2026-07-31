@@ -1,4 +1,11 @@
+from goats_tom.models.antares_dashboard_membership import (
+    AntaresDashboardMembership,
+)
+from goats_tom.models.antares_group_join_request import AntaresGroupJoinRequest
 from goats_tom.models.antares_locus import AntaresLocus
+from goats_tom.models.antares_pi_group import AntaresPIGroup
+from goats_tom.models.personal_group import PersonalGroup
+from goats_tom.models.registration_request import RegistrationRequest
 from goats_tom.models.antares_stream_subscription import AntaresStreamSubscription
 from goats_tom.models.antares_target_save import AntaresTargetSave
 from goats_tom.models.base_recipe import BaseRecipe
@@ -20,7 +27,12 @@ from goats_tom.models.logins import (
 from goats_tom.models.recipes_module import RecipesModule
 
 __all__ = [
+    "AntaresDashboardMembership",
+    "AntaresGroupJoinRequest",
     "AntaresLocus",
+    "AntaresPIGroup",
+    "PersonalGroup",
+    "RegistrationRequest",
     "AntaresStreamSubscription",
     "AntaresTargetSave",
     "AntaresKafkaLogin",

@@ -1,5 +1,7 @@
+from django.conf import settings
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.test import TestCase
+from guardian.shortcuts import assign_perm
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, force_authenticate
 from tom_dataproducts.models import ReducedDatum
@@ -19,6 +21,30 @@ class DataProductTypeViewSetTest(TestCase):
         cls.factory = APIRequestFactory()
         cls.user = UserFactory()
         cls.data_product = DataProductFactory(data_product_type="fits_file")
+
+        # GOATS runs with TARGET_PERMISSIONS_ONLY = False, under which
+        # `DataProductTypeViewSet.get_queryset` restricts to data products the
+        # user holds an explicit `view_dataproduct` permission on, rather than
+        # inheriting visibility from the target. Granting it here is what the
+        # real upload path does (see
+        # `goats_tom.views.dataproduct_upload`); without it the viewset
+        # correctly returns 404, which is the behaviour being relied on
+        # elsewhere to keep one team's data products out of another's view.
+        if not settings.TARGET_PERMISSIONS_ONLY:
+            assign_perm(
+                "tom_dataproducts.view_dataproduct", cls.user, cls.data_product
+            )
+
+    def _grant_view(self, data_product):
+        """Grant the test user permission to view `data_product`.
+
+        Needed for any data product created inside a test method, for the
+        same reason as the one in `setUpTestData` -- see the comment there.
+        """
+        if not settings.TARGET_PERMISSIONS_ONLY:
+            assign_perm(
+                "tom_dataproducts.view_dataproduct", self.user, data_product
+            )
 
     def test_partial_update_sets_data_product_type(self):
         """Test that a PATCH updates the `data_product_type`."""
@@ -55,6 +81,7 @@ class DataProductTypeViewSetTest(TestCase):
     def test_partial_update_from_photometry_deletes_reduced_datum(self):
         """Retagging away from photometry deletes its ReducedDatum points."""
         data_product = DataProductFactory(data_product_type="photometry")
+        self._grant_view(data_product)
         reduced_datum = ReducedDatumFactory(
             data_product=data_product, data_type="photometry"
         )
@@ -76,6 +103,7 @@ class DataProductTypeViewSetTest(TestCase):
     def test_partial_update_keeps_reduced_datum_when_new_type_is_photometry(self):
         """Retagging into photometry doesn't delete existing ReducedDatum."""
         data_product = DataProductFactory(data_product_type="fits_file")
+        self._grant_view(data_product)
         reduced_datum = ReducedDatumFactory(
             data_product=data_product, data_type="photometry"
         )
@@ -95,7 +123,9 @@ class DataProductTypeViewSetTest(TestCase):
     def test_partial_update_keeps_other_data_products_reduced_datum(self):
         """Retagging one data product doesn't touch another's ReducedDatum."""
         data_product = DataProductFactory(data_product_type="photometry")
+        self._grant_view(data_product)
         other_data_product = DataProductFactory(data_product_type="photometry")
+        self._grant_view(other_data_product)
         other_reduced_datum = ReducedDatumFactory(
             data_product=other_data_product, data_type="photometry"
         )

@@ -42,3 +42,29 @@ goats_version:
   type: str
   default: ""
   help: "Version of GOATS. Will be updated automatically."
+
+db_engine:
+  type: str
+  default: "sqlite"
+  help: "Database backend: sqlite or postgres."
+
+db_name:
+  type: str
+  default: ""
+  help: "Database name. Blank means the default SQLite file in the project."
+
+db_user:
+  type: str
+  default: ""
+
+db_password:
+  type: str
+  default: ""
+
+db_host:
+  type: str
+  default: ""
+
+db_port:
+  type: str
+  default: ""

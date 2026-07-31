@@ -1,0 +1,167 @@
+{% extends "tom_common/base.html" %}
+{% block content %}
+<div class="mb-3">
+  <p class="h2">Manage ANTARES Dashboard Access</p>
+  <p class="text-muted">
+    Requests to join <strong>{{ pi_group.group.name }}</strong>, and the
+    members who currently have access to your dashboard.
+  </p>
+</div>
+
+<div class="mb-4">
+  <p class="h4">
+    Pending requests
+    {% if pending_requests %}
+      <span class="badge bg-warning text-dark">{{ pending_requests|length }}</span>
+    {% endif %}
+  </p>
+  {% if pending_requests %}
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th scope="col">User</th>
+        <th scope="col">Requested</th>
+        <th scope="col">Asked for</th>
+        <th scope="col">Message</th>
+        <th scope="col">Decision</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for join_request in pending_requests %}
+      <tr>
+        <td>{{ join_request.requester.username }}</td>
+        <td>{{ join_request.created_at }}</td>
+        <td>
+          View
+          {% if join_request.requested_save_targets %}
+            + save targets
+          {% endif %}
+        </td>
+        <td>{{ join_request.message|default:"&mdash;" }}</td>
+        <td>
+          <form method="post"
+                action="{% url 'antares-decide-join-request' join_request.pk %}"
+                class="d-flex gap-2 align-items-center flex-wrap">
+            {% csrf_token %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox"
+                     name="grant_view" value="1" checked
+                     id="grant_view_{{ join_request.pk }}">
+              <label class="form-check-label"
+                     for="grant_view_{{ join_request.pk }}">View</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox"
+                     name="grant_save" value="1"
+                     {% if join_request.requested_save_targets %}checked{% endif %}
+                     id="grant_save_{{ join_request.pk }}">
+              <label class="form-check-label"
+                     for="grant_save_{{ join_request.pk }}">Save</label>
+            </div>
+            <button type="submit" name="action" value="approve"
+                    class="btn btn-sm btn-success">Approve</button>
+            <button type="submit" name="action" value="deny"
+                    class="btn btn-sm btn-outline-secondary">Decline</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">No pending requests.</p>
+  {% endif %}
+</div>
+
+<div class="mb-4">
+  <p class="h4">Members</p>
+  {% if members %}
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th scope="col">User</th>
+        <th scope="col">View dashboard</th>
+        <th scope="col">Save targets</th>
+        <th scope="col">Granted</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for membership in members %}
+      <tr>
+        <td>{{ membership.user.username }}</td>
+        <td>
+          {% if membership.can_view_dashboard %}
+            <span class="badge bg-success">Yes</span>
+          {% else %}
+            <span class="badge bg-secondary">No</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if membership.can_save_targets %}
+            <span class="badge bg-success">Yes</span>
+          {% else %}
+            <span class="badge bg-secondary">No</span>
+          {% endif %}
+        </td>
+        <td>{{ membership.granted_at }}</td>
+        <td>
+          <form method="post"
+                action="{% url 'antares-revoke-membership' membership.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+              Remove
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-muted small">
+    Removing a member revokes dashboard access and removes them from the
+    group, so they stop receiving newly-shared targets. Targets they were
+    already given access to are left alone &mdash; withdraw those
+    separately if you need to.
+  </p>
+  {% else %}
+  <p class="text-muted">No members yet.</p>
+  {% endif %}
+</div>
+
+{% if decided_requests %}
+<div class="mb-4">
+  <p class="h4">Recently decided</p>
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th scope="col">User</th>
+        <th scope="col">Decision</th>
+        <th scope="col">Decided</th>
+        <th scope="col">By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for join_request in decided_requests %}
+      <tr>
+        <td>{{ join_request.requester.username }}</td>
+        <td>
+          {% if join_request.status == "approved" %}
+            <span class="badge bg-success">Approved</span>
+          {% else %}
+            <span class="badge bg-secondary">Declined</span>
+          {% endif %}
+        </td>
+        <td>{{ join_request.decided_at }}</td>
+        <td>{{ join_request.decided_by.username|default:"&mdash;" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<a href="{% url 'antares-locus-dashboard' %}" class="btn btn-secondary">
+  View dashboard
+</a>
+{% endblock %}

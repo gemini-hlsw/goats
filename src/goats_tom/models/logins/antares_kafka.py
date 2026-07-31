@@ -10,11 +10,11 @@ class AntaresKafkaLogin(BaseLogin):
 
     These are separate from any ANTARES Portal/REST API credentials --
     request them from the ANTARES team specifically for Kafka stream
-    access. Only superusers are permitted to store these (enforced by
-    `goats_tom.views.logins.antares_kafka.AntaresKafkaLoginView`, not at
-    the model level); the Kafka consumer uses the first superuser's stored
-    credentials, since it runs as a single shared background process, not
-    tied to any particular request/user.
+    access. Any user may store their own: each ANTARES stream
+    subscription runs its own Kafka consumer authenticating as the
+    subscription's owner (see
+    `goats_tom.models.AntaresStreamSubscription.owner`), because one Kafka
+    connection authenticates as exactly one credential.
 
     Attributes
     ----------
@@ -25,12 +25,13 @@ class AntaresKafkaLogin(BaseLogin):
 
     Notes
     -----
-    The Kafka consumer group name is set on the ingestion page (see
-    `goats_tom.models.AntaresStreamSubscription.group`), not here -- it's
-    changed far more often than the credentials themselves (e.g. to
-    force a full replay from a fresh group with no committed offset), so
-    keeping it separate means switching groups doesn't require
-    re-entering API credentials each time.
+    The Kafka consumer group name is derived per subscription and
+    optionally suffixed on the ingestion page (see
+    `goats_tom.models.AntaresStreamSubscription.resolved_consumer_group`),
+    not here -- it's changed far more often than the credentials
+    themselves (e.g. to force a full replay from a fresh group with no
+    committed offset), so keeping it separate means switching groups
+    doesn't require re-entering API credentials each time.
     """
 
     api_key = models.CharField(max_length=128, blank=False, null=False)

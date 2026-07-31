@@ -18,6 +18,12 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from tom_targets.models import Target
 
+from goats_tom.antares_access import (
+    accessible_subscriptions,
+    can_configure,
+    can_save_targets,
+    get_subscription_for_view,
+)
 from goats_tom.antares_target_save import (
     SaveLocusError,
     locus_is_saved_as_target,
@@ -45,6 +51,89 @@ SORTABLE_FIELDS = {
     "topic": "latest_alert_topic",
     "magnitude": "latest_alert_magnitude",
 }
+
+
+def _visible_subscription(request: HttpRequest):
+    """Return the subscription whose dashboard this request may view.
+
+    Every dashboard query is scoped through this, so loci isolation is
+    enforced at the query level rather than by filtering after the fact
+    (loci are stored per subscription -- see
+    `goats_tom.models.AntaresLocus.subscription`).
+
+    Resolves to the requesting user's own subscription by default, or to
+    an explicitly requested one (``?subscription=<pk>``) when they have
+    been granted view access to another PI's dashboard. Access is decided
+    by `goats_tom.antares_access`, not here, so there is one definition of
+    it shared with the save and clear views.
+
+    Parameters
+    ----------
+    request : `HttpRequest`
+        The HTTP request. Reads the optional `subscription` query param.
+
+    Returns
+    -------
+    `goats_tom.models.AntaresStreamSubscription` or None
+        The subscription to render, or `None` if the user has no dashboard
+        of their own and no access to anyone else's -- in which case the
+        dashboard renders empty rather than erroring, since that is a
+        normal state for a new account.
+
+    Notes
+    -----
+    A `subscription` param naming a dashboard the user may *not* view
+    resolves to `None`, never to a fallback they can see. Silently
+    substituting a different dashboard would show data under the wrong
+    heading, which is worse than showing nothing.
+    """
+    raw_id = request.GET.get("subscription") or request.POST.get("subscription")
+    subscription_id = None
+    if raw_id:
+        try:
+            subscription_id = int(raw_id)
+        except (TypeError, ValueError):
+            # A non-numeric value is a malformed request, not a request for
+            # the default dashboard -- resolve to nothing rather than
+            # quietly showing the user their own.
+            return None
+    return get_subscription_for_view(request.user, subscription_id)
+
+
+def _dashboard_context(request: HttpRequest, subscription) -> dict:
+    """Build the context every dashboard template needs about access.
+
+    Parameters
+    ----------
+    request : `HttpRequest`
+        The HTTP request object.
+    subscription : `goats_tom.models.AntaresStreamSubscription` or None
+        The dashboard being shown.
+
+    Returns
+    -------
+    dict
+        `available_dashboards` (every dashboard this user may view, for the
+        switcher), `is_owner`, and `may_save`.
+
+    Notes
+    -----
+    A user can belong to several PI groups, so "the dashboard" is a choice
+    rather than a given. The switcher is only worth rendering when there is
+    more than one, but the list is always supplied so the template can also
+    name the one being shown -- important because two PIs' dashboards look
+    identical otherwise.
+
+    `is_owner` drives whether configuration and clearing are offered; members
+    get a read-only view (see `goats_tom.antares_access.can_configure`).
+    """
+    return {
+        "available_dashboards": list(
+            accessible_subscriptions(request.user).select_related("owner")
+        ),
+        "is_owner": can_configure(request.user, subscription),
+        "may_save": can_save_targets(request.user, subscription),
+    }
 
 
 def _resolve_sort(sort_param: str | None) -> tuple[str, str]:
@@ -126,11 +215,21 @@ def _get_page(request: HttpRequest):
         ``(page, sort_param)`` where `page` is a Django `Page` object
         (each locus on it additionally has a `.is_saved_target` attribute
         set) and `sort_param` is the normalized sort value in effect (for
-        building column-header links in the template).
+        building column-header links in the template). The page contains
+        only loci ingested by the requesting user's own subscription, and
+        is empty if they have none.
 
     """
     order_by, sort_param = _resolve_sort(request.GET.get("sort"))
-    queryset = AntaresLocus.objects.order_by(order_by)
+    subscription = _visible_subscription(request)
+    # `none()` rather than an unfiltered queryset when the user has no
+    # subscription: showing every user's loci to anyone without one of
+    # their own would be exactly the leak this scoping exists to prevent.
+    queryset = (
+        AntaresLocus.objects.filter(subscription=subscription).order_by(order_by)
+        if subscription is not None
+        else AntaresLocus.objects.none()
+    )
     paginator = Paginator(queryset, PAGE_SIZE)
     page = paginator.get_page(request.GET.get("page", 1))
 
@@ -181,13 +280,16 @@ def antares_locus_dashboard(request: HttpRequest) -> HttpResponse:
 
     """
     page, sort_param = _get_page(request)
-    current_subscription = (
-        AntaresStreamSubscription.objects.order_by("-updated_at").first()
-    )
+    current_subscription = _visible_subscription(request)
     return render(
         request,
         "antares_locus_dashboard.html",
-        {"page": page, "sort": sort_param, "current_subscription": current_subscription},
+        {
+            "page": page,
+            "sort": sort_param,
+            "current_subscription": current_subscription,
+            **_dashboard_context(request, current_subscription),
+        },
     )
 
 
@@ -216,13 +318,14 @@ def antares_dashboard_status(request: HttpRequest) -> HttpResponse:
         The rendered status partial.
 
     """
-    current_subscription = (
-        AntaresStreamSubscription.objects.order_by("-updated_at").first()
-    )
+    current_subscription = _visible_subscription(request)
     return render(
         request,
         "partials/antares_dashboard_status.html",
-        {"current_subscription": current_subscription},
+        {
+            "current_subscription": current_subscription,
+            **_dashboard_context(request, current_subscription),
+        },
     )
 
 
@@ -280,28 +383,87 @@ def antares_locus_save_targets(request: HttpRequest) -> HttpResponse:
         Redirect back to the dashboard, preserving `page`/`sort` if given.
 
     """
-    locus_ids = request.POST.getlist("locus_id")
+    subscription = _visible_subscription(request)
+    if subscription is None:
+        messages.error(request, "You have no ANTARES dashboard to save from.")
+        return redirect("antares-locus-dashboard")
+
+    if not can_save_targets(request.user, subscription):
+        messages.error(
+            request,
+            "You do not have permission to save targets from this dashboard.",
+        )
+        return redirect("antares-locus-dashboard")
+
+    requested_ids = request.POST.getlist("locus_id")
+
+    # Only loci actually present on the dashboard being saved from. The
+    # posted IDs are attacker-controlled, and without this check any user
+    # who could reach this endpoint could save an arbitrary locus by ID --
+    # including ones from another PI's dashboard that they were never shown.
+    # Restricting to the subscription's own rows makes the permission check
+    # above meaningful rather than advisory.
+    locus_ids = list(
+        AntaresLocus.objects.filter(
+            subscription=subscription, locus_id__in=requested_ids
+        ).values_list("locus_id", flat=True)
+    )
+
+    rejected = len(set(requested_ids)) - len(set(locus_ids))
+    if rejected:
+        logger.warning(
+            "Ignored %d locus id(s) posted by user %s that are not on "
+            "subscription id=%s's dashboard.",
+            rejected,
+            request.user.username,
+            subscription.pk,
+        )
+
+    # Share saved targets with the dashboard owner's team, not the saving
+    # user's own group -- a student saving from their PI's dashboard is
+    # contributing to that PI's programme, so the target belongs to that
+    # team. Resolved from the subscription rather than from `request.user`
+    # for exactly that reason.
+    share_group = None
+    owner_pi_group = getattr(subscription.owner, "antares_pi_group", None)
+    if owner_pi_group is not None:
+        share_group = owner_pi_group.group
 
     if not locus_ids:
         messages.warning(request, "No loci selected to save.")
     else:
-        saved, skipped, failed = 0, 0, 0
+        saved, shared, failed = 0, 0, 0
         for locus_id in locus_ids:
-            if locus_is_saved_as_target(locus_id):
-                skipped += 1
-                continue
+            # An already-saved locus is shared, not skipped. There is one
+            # `Target` per locus and it is shared between teams (see
+            # `goats_tom.antares_target_save`), so saving one somebody else
+            # already saved is how this team gains access to it. The previous
+            # behaviour -- reporting "already saved" and doing nothing --
+            # would have left them unable to see a target that exists.
+            already_saved = locus_is_saved_as_target(locus_id)
             try:
-                save_locus_as_target(locus_id, saved_by=request.user)
-                saved += 1
+                save_locus_as_target(
+                    locus_id,
+                    saved_by=request.user,
+                    share_with_group=share_group,
+                )
             except SaveLocusError:
                 logger.exception("Failed to save locus_id=%s as a target.", locus_id)
                 failed += 1
+                continue
+
+            if already_saved:
+                shared += 1
+            else:
+                saved += 1
 
         if saved:
             messages.success(request, f"Saved {saved} locus/loci as targets.")
-        if skipped:
+        if shared:
             messages.info(
-                request, f"{skipped} selected locus/loci were already saved."
+                request,
+                f"{shared} selected locus/loci already existed as targets; "
+                f"you now have access to them.",
             )
         if failed:
             messages.error(
@@ -355,7 +517,20 @@ def antares_locus_saved_status(request: HttpRequest) -> JsonResponse:
         "Saved" badge instead of lagging behind it.
 
     """
-    locus_ids = request.GET.getlist("locus_id")
+    subscription = _visible_subscription(request)
+    requested_ids = request.GET.getlist("locus_id")
+    # Same scoping as the save endpoint: only report on loci that are
+    # actually on the dashboard this user may view, so this can't be used to
+    # probe whether an arbitrary locus ID has been saved by someone else.
+    locus_ids = (
+        list(
+            AntaresLocus.objects.filter(
+                subscription=subscription, locus_id__in=requested_ids
+            ).values_list("locus_id", flat=True)
+        )
+        if subscription is not None and requested_ids
+        else []
+    )
     saved = _saved_locus_ids(locus_ids) if locus_ids else set()
 
     saved_by = {}
@@ -373,6 +548,9 @@ def antares_locus_saved_status(request: HttpRequest) -> JsonResponse:
 @require_POST
 def antares_locus_clear(request: HttpRequest) -> HttpResponse:
     """Delete all `AntaresLocus` rows, clearing the dashboard manually.
+
+    Clears only the requesting user's own dashboard, never anyone
+    else's.
 
     This is independent of the 1-day auto-cleanup
     (`goats_tom.tasks.cleanup_stale_antares_loci`) and of the Kafka
@@ -393,7 +571,30 @@ def antares_locus_clear(request: HttpRequest) -> HttpResponse:
         Redirect back to the dashboard.
 
     """
-    deleted_count, _ = AntaresLocus.objects.all().delete()
-    logger.info("Manually cleared %d ANTARES locus rows from the dashboard.", deleted_count)
+    subscription = _visible_subscription(request)
+    if subscription is None:
+        messages.info(request, "You have no ANTARES dashboard to clear.")
+        return redirect("antares-locus-dashboard")
+
+    # Owner-only, deliberately not delegable to members or superusers --
+    # clearing destroys the whole team's view of the stream. See
+    # `goats_tom.antares_access.can_configure`.
+    if not can_configure(request.user, subscription):
+        messages.error(
+            request, "Only the dashboard's owner can clear it."
+        )
+        return redirect("antares-locus-dashboard")
+
+    # Scoped to this user's own subscription. Previously this deleted every
+    # row in the table, which with per-user dashboards would let any
+    # logged-in user wipe everyone else's.
+    deleted_count, _ = AntaresLocus.objects.filter(
+        subscription=subscription
+    ).delete()
+    logger.info(
+        "Manually cleared %d ANTARES locus rows from %s's dashboard.",
+        deleted_count,
+        request.user.username,
+    )
     messages.success(request, f"Cleared {deleted_count} loci from the dashboard.")
     return redirect("antares-locus-dashboard")

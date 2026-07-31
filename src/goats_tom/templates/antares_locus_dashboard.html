@@ -1,7 +1,12 @@
 {% extends "tom_common/base.html" %}
 {% block content %}
 <div class="mb-3">
-  <p class="h2">Live ANTARES Stream Dashboard</p>
+  <p class="h2">
+    Live ANTARES Stream Dashboard
+    {% if current_subscription and not is_owner %}
+    <span class="badge bg-secondary align-middle">{{ current_subscription.owner.username }}</span>
+    {% endif %}
+  </p>
   <p class="text-muted">
     Loci seen on the ANTARES Kafka alert stream. New loci appear at the top
     by default; click a column header to sort. The table refreshes itself
@@ -9,12 +14,42 @@
     locus ID opens it on the ANTARES portal in a new tab and marks it as
     seen in this browser.
   </p>
+  {% comment %}
+  A user can be a member of several PI groups, each with its own dashboard,
+  so the switcher only appears when there is genuinely a choice. The heading
+  below always names whose dashboard is shown -- two PIs' dashboards are
+  otherwise indistinguishable.
+  {% endcomment %}
+  {% if available_dashboards|length > 1 %}
+  <form method="get" class="d-inline-block me-2 mb-2">
+    <label for="dashboard-select" class="form-label small mb-0">Dashboard</label>
+    <select id="dashboard-select" name="subscription" class="form-select form-select-sm d-inline-block w-auto"
+            onchange="this.form.submit()">
+      {% for dashboard in available_dashboards %}
+      <option value="{{ dashboard.pk }}"
+              {% if dashboard.pk == current_subscription.pk %}selected{% endif %}>
+        {{ dashboard.owner.username|default:"unowned" }}{% if dashboard.pk == request.user.antares_subscription.pk %} (yours){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+
+  {% if is_owner %}
   <a href="{% url 'antares-stream-subscribe' %}" class="btn btn-secondary btn-sm">Manage Kafka stream ingestion</a>
   <form method="post" action="{% url 'antares-locus-clear' %}" class="d-inline"
         onsubmit="return confirm('Clear all loci from the dashboard? This cannot be undone. Ingestion and any saved targets are not affected.');">
     {% csrf_token %}
     <button type="submit" class="btn btn-outline-danger btn-sm">Clear dashboard</button>
   </form>
+  {% elif current_subscription %}
+  {% comment %}
+  Members get a read-only view of the configuration, and no Clear: clearing
+  destroys the whole team's view of the stream and stays with the PI.
+  {% endcomment %}
+  <a href="{% url 'antares-stream-subscribe' %}?subscription={{ current_subscription.pk }}"
+     class="btn btn-outline-secondary btn-sm">View ingestion configuration</a>
+  {% endif %}
 </div>
 
 {% include "partials/antares_dashboard_status.html" %}

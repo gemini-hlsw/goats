@@ -11,6 +11,9 @@ class GOATSTomConfig(AppConfig):
     name = "goats_tom"
 
     def ready(self):
+        # Imported for its side effect of connecting the receivers. Inside
+        # `ready()` rather than at module level, since it imports models.
+        from goats_tom import signals  # noqa: F401, PLC0415
         from django.conf import settings  # noqa: PLC0415
         from dramatiq import get_broker  # noqa: PLC0415
         from dramatiq_abort import Abortable, backends  # noqa: PLC0415

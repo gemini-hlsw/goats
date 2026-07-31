@@ -2,29 +2,80 @@
 {% load crispy_forms_tags static antares_locus_extras %}
 {% block content %}
 <div class="mb-3">
-  <p class="h2">Ingest from ANTARES Kafka Stream</p>
-  <p class="text-muted">
-    Subscribe to one or more ANTARES Kafka topics. Submitting this form
-    stops any currently-running consumer and starts a new one with the
-    topics below.
-  </p>
-  <p class="text-muted">
-    Before ingesting, make sure your ANTARES Kafka API key and secret are
-    stored. The consumer uses the first superuser's stored credentials,
-    so these must be entered by an admin (superuser) account.
-    {% if request.user.is_superuser %}
-    If not already done, store them
-    <a href="{% url 'user-antares-kafka-login' request.user.pk %}">here</a>.
-    {% else %}
-    If not already done, ask an admin to store them via their Credential
-    Manager (Users &rarr; Manage &rarr; ANTARES Kafka Stream).
+  <p class="h2">
+    {% if read_only %}ANTARES Ingestion Configuration{% else %}Ingest from ANTARES Kafka Stream{% endif %}
+    {% if read_only %}
+    <span class="badge bg-secondary align-middle">{{ current.owner.username }}</span>
     {% endif %}
   </p>
+
+  {% if read_only %}
+  <p class="text-muted mb-2">
+    Read-only view of {{ current.owner.username }}&rsquo;s ingestion settings,
+    which feed the dashboard you have access to. Only the owner can change
+    them.
+  </p>
+  {% else %}
+  <p class="text-muted mb-2">
+    Subscribe to ANTARES Kafka topics. Submitting restarts the consumer with
+    the topics below, using
+    <a href="{% url 'user-antares-kafka-login' request.user.pk %}">your own API key and secret</a>
+    (request one from the ANTARES team if you don&rsquo;t have one). Storing
+    credentials also creates a group your team can ask to join &mdash;
+    <a href="{% url 'antares-manage-access' %}">manage access</a>.
+  </p>
+  {% endif %}
+
+  {% comment %}
+  Switcher, shown only when the user can reach more than one dashboard's
+  configuration. Mirrors the one on the dashboard itself.
+  {% endcomment %}
+  {% if available_dashboards|length > 1 %}
+  <form method="get" class="d-inline-block mb-2">
+    <label for="config-select" class="form-label small mb-0">Configuration</label>
+    <select id="config-select" name="subscription" class="form-select form-select-sm d-inline-block w-auto"
+            onchange="this.form.submit()">
+      {% for dashboard in available_dashboards %}
+      <option value="{{ dashboard.pk }}"
+              {% if dashboard.pk == current.pk %}selected{% endif %}>
+        {{ dashboard.owner.username|default:"unowned" }}{% if dashboard.pk == request.user.antares_subscription.pk %} (yours){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
 </div>
 
 {% include "partials/antares_stream_status.html" %}
 
+{% if read_only %}
+{% comment %}
+No form at all for members, not a disabled one: a disabled form still posts
+if the attribute is stripped client-side, so the safest control is to render
+nothing that can be submitted.
+{% endcomment %}
+<dl class="row">
+  <dt class="col-sm-3">Topics</dt>
+  <dd class="col-sm-9">{{ current.topics|join:", "|default:"(none)" }}</dd>
+
+  <dt class="col-sm-3">Kafka consumer group</dt>
+  <dd class="col-sm-9"><code>{{ current.resolved_consumer_group }}</code></dd>
+
+  <dt class="col-sm-3">Save all as targets</dt>
+  <dd class="col-sm-9">{% if current.save_all_targets %}Yes{% else %}No{% endif %}</dd>
+
+  <dt class="col-sm-3">Custom locus handler</dt>
+  <dd class="col-sm-9">
+    {% if current.handler_code|is_active_handler_code %}
+    <pre class="border rounded p-2 bg-light small mb-0"><code>{{ current.handler_code }}</code></pre>
+    {% else %}
+    <span class="text-muted">None</span>
+    {% endif %}
+  </dd>
+</dl>
+{% else %}
 {% crispy form %}
+{% endif %}
 <a href="{% url 'antares-locus-dashboard' %}" class="btn btn-secondary">View dashboard</a>
 
 <style>
