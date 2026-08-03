@@ -157,27 +157,16 @@
   };
 
   /**
-   * Open the jdaviz Specviz analyzer for a data product in the shared GOATS
-   * modal. The viewer is served by Solara under /jdaviz/?dataproduct=<id>
+   * Open the jdaviz Specviz analyzer for a data product in a new browser tab.
+   * The viewer is served by Solara under /jdaviz/?dataproduct=<id>
    * (see goats_tom.jdaviz_app).
    * @param {string} dataproductId - The data product primary key.
-   * @param {string} file - The file name, shown in the modal title.
    */
-  const openAnalyzer = (dataproductId, file) => {
-    // Escape the file name before interpolating into modal HTML (avoid XSS via
-    // crafted file names).
-    const safeFile = file.replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
+  const openAnalyzer = (dataproductId) => {
     // Cache-buster (_) forces a fresh Solara session each open, avoiding a
     // stale cached kernel running older code.
     const src = `/jdaviz/?dataproduct=${encodeURIComponent(dataproductId)}&_=${Date.now()}`;
-    window.modal.show({
-      title: `Analyze: ${safeFile}`,
-      body: `<iframe src="${src}" title="Specviz analyzer for ${safeFile}"
-        style="width:100%;height:calc(100vh - 120px);border:0;"></iframe>`,
-      dialogClasses: ["modal-fullscreen"],
-    });
+    window.open(src, "_blank", "noopener,noreferrer");
   };
 
   // Global color map for filters.
@@ -510,9 +499,9 @@
         const dataType = row.dataset.dataType;
         const file = row.dataset.file;
 
-        // Open the Specviz analyzer for this data product in a modal overlay.
+        // Open the Specviz analyzer for this data product in a new tab.
         if (action === "analyze") {
-          openAnalyzer(dataproductId, file);
+          openAnalyzer(dataproductId);
           return;
         }
 
