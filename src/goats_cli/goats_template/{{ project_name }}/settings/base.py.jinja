@@ -115,13 +115,37 @@ WSGI_APPLICATION = "{{ project_name }}.wsgi.application"
 """WSGI application module."""
 
 DATABASE_TIMEOUT = 20
-"""Database timeout in seconds."""
+"""Seconds a connection waits for a database lock before raising."""
+
+DATABASE_INIT_COMMAND = "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;"
+"""PRAGMAs applied to every SQLite connection.
+
+``journal_mode=WAL`` lets readers keep working while a writer is active. In the
+default rollback-journal mode a writer takes a database-wide EXCLUSIVE lock to
+commit (and again whenever its page cache spills mid-transaction), and readers
+are blocked for the duration. Background work that writes in bulk -- a GOA
+download creating many DataProducts, a DRAGONS reduction -- hits that window
+repeatedly, so page loads and the jdaviz viewer stall and can fail outright once
+``DATABASE_TIMEOUT`` elapses. ``synchronous=NORMAL`` is the usual companion to
+WAL, trading an fsync per commit for throughput.
+
+Note: WAL is persisted in the database file, so it survives this setting being
+changed back. It also requires shared-memory support, which network filesystems
+(NFS, SMB) may not provide -- keep the database on local storage.
+"""
 
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
-        "OPTIONS": {"timeout": DATABASE_TIMEOUT },
+        "OPTIONS": {
+            "timeout": DATABASE_TIMEOUT,
+            "init_command": DATABASE_INIT_COMMAND,
+            # Take the write lock when a write transaction opens rather than
+            # upgrading mid-transaction, which is what produces "database is
+            # locked" under concurrent writers.
+            "transaction_mode": "IMMEDIATE",
+        },
     }
 }
 """Database configuration."""

@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as _FuturesTimeoutError
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs
@@ -55,11 +56,68 @@ UNSUPPORTED_MESSAGE = (
     "data (e.g. a calibration or 2D/multi-extension frame)."
 )
 
+#: Environment variable overriding the worker pool size (see :func:`_pool_size`).
+MAX_WORKERS_ENV = "GOATS_JDAVIZ_MAX_WORKERS"
+
+#: Maximum seconds a single FITS file open/read may take before it is abandoned.
+#: Generous enough for a large MEF on a slow disk, short enough that the fallback
+#: still gets a turn within :data:`_WORKER_TIMEOUT`.
+_FITS_TIMEOUT = 45.0
+
+#: Maximum seconds the overall data-resolution worker may run before giving up.
+#: Budgeted to nest the stages: ``_FITS_TIMEOUT`` for the DRAGONS reader plus a
+#: comparable slice for the ``SpectroscopyProcessor`` fallback. Kept well under
+#: two minutes because the caller blocks a Solara render thread while waiting.
+_WORKER_TIMEOUT = 90.0
+
+
+def _pool_size() -> int:
+    """Return the worker-pool size, honouring :data:`MAX_WORKERS_ENV`.
+
+    Defaults to ``2x`` the CPU count, capped at 16.
+
+    The cap is about the *work*, not the database: GOATS runs on SQLite, which
+    serialises access to one file, so extra threads never multiply query
+    throughput. What they do parallelise is the expensive part -- reading FITS and
+    running the ``SpectroscopyProcessor`` -- which is CPU- and disk-bound, hence a
+    modest multiple of the CPU count rather than a large I/O-style pool.
+
+    Deployments that need a different trade-off can override it via the
+    environment.
+    """
+    override = os.environ.get(MAX_WORKERS_ENV)
+    if override:
+        try:
+            return max(1, int(override))
+        except ValueError:
+            logger.warning(
+                "Ignoring invalid %s=%r; falling back to the default pool size.",
+                MAX_WORKERS_ENV,
+                override,
+            )
+    return min(16, (os.cpu_count() or 4) * 2)
+
+
 #: Shared worker pool for off-event-loop DB/file reads (reused across requests).
-_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="goats-jdaviz")
+_executor = ThreadPoolExecutor(
+    max_workers=_pool_size(),
+    thread_name_prefix="goats-jdaviz",
+)
+
+#: Dedicated pool for blocking FITS reads, kept separate from :data:`_executor`
+#: so a stalled file read cannot consume the slots shared with DB queries. Sized
+#: to match :data:`_executor` because every ``_executor`` worker can be waiting on
+#: one of these -- a smaller pool here would just move the bottleneck. These
+#: threads touch no ORM, so they cost no database connections.
+_io_executor = ThreadPoolExecutor(
+    max_workers=_pool_size(),
+    thread_name_prefix="goats-jdaviz-io",
+)
 
 
-def _call_off_event_loop(func: Callable[[], Any]) -> Any:
+def _call_off_event_loop(
+    func: Callable[[], Any], timeout: float = _WORKER_TIMEOUT
+) -> Any:
     """Run a synchronous, DB-touching callable in a loop-free worker thread.
 
     Solara renders inside an asyncio event loop, where Django refuses synchronous
@@ -70,6 +128,9 @@ def _call_off_event_loop(func: Callable[[], Any]) -> Any:
     ----------
     func : callable
         Zero-argument callable to run off the event loop.
+    timeout : float
+        Maximum seconds to wait for ``func`` to complete. Raises
+        ``concurrent.futures.TimeoutError`` if the deadline is exceeded.
 
     Returns
     -------
@@ -87,7 +148,7 @@ def _call_off_event_loop(func: Callable[[], Any]) -> Any:
             # Close this thread's database connections so they are not leaked.
             connections.close_all()
 
-    return _executor.submit(worker).result()
+    return _executor.submit(worker).result(timeout=timeout)
 
 
 def _query_param(search: str | None, name: str) -> str | None:
@@ -237,6 +298,10 @@ def _read_dragons_spectra(path: Path) -> list | None:
     jdaviz's auto-loader does not recognise that layout, so the ``SCI`` extensions
     are read explicitly.
 
+    The actual ``fits.open`` call runs in :data:`_io_executor` under a
+    :data:`_FITS_TIMEOUT` deadline so a stalled network mount or corrupt file
+    cannot hold a :data:`_executor` slot indefinitely.
+
     Parameters
     ----------
     path : Path
@@ -251,28 +316,40 @@ def _read_dragons_spectra(path: Path) -> list | None:
         DRAGONS ``SCI`` spectrum (a non-FITS file such as CSV, or a FITS without a
         usable ``SCI`` extension), so the caller can fall back to the processor.
     """
+
+    def _fits_read() -> list | None:
+        try:
+            with fits.open(path) as hdul:
+                sci_hdus = [
+                    hdu
+                    for hdu in hdul
+                    if hdu.name == SCIENCE_EXTENSION
+                    and hdu.data is not None
+                    and hdu.data.ndim in (1, 2)
+                ]
+                if not sci_hdus:
+                    return None
+                multiple = len(sci_hdus) > 1
+                spectra = []
+                for hdu in sci_hdus:
+                    spectrum = _dragons_hdu_to_spectrum(hdu)
+                    if spectrum is None:
+                        continue
+                    label = f"{path.stem} [SCI,{hdu.ver}]" if multiple else path.stem
+                    spectra.append((label, spectrum))
+            return spectra or None
+        except OSError:
+            # Not a FITS file (e.g. CSV) -- fall back to the processor.
+            return None
+
     try:
-        with fits.open(path) as hdul:
-            sci_hdus = [
-                hdu
-                for hdu in hdul
-                if hdu.name == SCIENCE_EXTENSION
-                and hdu.data is not None
-                and hdu.data.ndim in (1, 2)
-            ]
-            if not sci_hdus:
-                return None
-            multiple = len(sci_hdus) > 1
-            spectra = []
-            for hdu in sci_hdus:
-                spectrum = _dragons_hdu_to_spectrum(hdu)
-                if spectrum is None:
-                    continue
-                label = f"{path.stem} [SCI,{hdu.ver}]" if multiple else path.stem
-                spectra.append((label, spectrum))
-        return spectra or None
-    except OSError:
-        # Not a FITS file (e.g. CSV) -- fall back to the processor.
+        return _io_executor.submit(_fits_read).result(timeout=_FITS_TIMEOUT)
+    except _FuturesTimeoutError:
+        logger.warning(
+            "FITS read timed out after %.0fs for %s; skipping DRAGONS reader.",
+            _FITS_TIMEOUT,
+            path.name,
+        )
         return None
 
 
@@ -406,6 +483,43 @@ def _inject_jdaviz_styles() -> None:
     solara.Style(".v-btn:has(.mdi-application-export){display:none!important;}")
 
 
+def _resolve_spectra_timed(
+    pk: str | None,
+) -> tuple[Path | None, list | None, str | None]:
+    """Run :func:`_resolve_spectra` under a timeout, degrading to a message.
+
+    Two failure modes are turned into a user-facing message instead of a broken
+    render: the worker deadline expiring, and SQLite refusing the read because the
+    database is locked. The latter is not hypothetical -- GOATS stores its data on
+    SQLite, whose writers take a database-wide lock, so a background download or
+    reduction writing DataProducts can stall this read until the configured busy
+    timeout elapses and the driver raises.
+
+    Returns
+    -------
+    tuple
+        The ``(path, spectra, error)`` triple from :func:`_resolve_spectra`, or a
+        triple carrying a user-facing message if the read could not be completed.
+    """
+    # Imported lazily so this module stays importable without Django configured.
+    from django.db import OperationalError  # noqa: PLC0415
+
+    try:
+        return _call_off_event_loop(lambda: _resolve_spectra(pk))
+    except _FuturesTimeoutError:
+        logger.warning("Data resolution timed out for data product %r.", pk)
+        return None, None, "Timed out loading the data product — please try again."
+    except OperationalError as exc:
+        logger.warning(
+            "Database unavailable while loading data product %r: %s", pk, exc
+        )
+        return (
+            None,
+            None,
+            "The database is busy right now — please try again in a moment.",
+        )
+
+
 @solara.component
 def Page() -> None:
     """Render Specviz for the data product identified in the URL query string."""
@@ -422,10 +536,8 @@ def Page() -> None:
     pk = _query_param(router.search, DATAPRODUCT_PARAM)
 
     # Resolve the spectra (data only, no widgets) during render. This touches the
-    # Django ORM and the file system, so it runs off the event loop.
-    path, spectra, error = solara.use_memo(
-        lambda: _call_off_event_loop(lambda: _resolve_spectra(pk)), [pk]
-    )
+    # Django ORM and the file system, so it runs off the event loop under a timeout.
+    path, spectra, error = solara.use_memo(lambda: _resolve_spectra_timed(pk), [pk])
 
     # Build the Specviz app *after* the initial render, in a use_effect. jdaviz
     # instantiates internal Solara components (file_drop, file_browser) when its
