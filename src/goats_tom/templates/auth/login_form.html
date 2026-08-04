@@ -16,6 +16,17 @@
       {{ service_name }}
     {% endif %}
     Credentials
+    {% comment %}
+    Whether anything is stored is the first thing somebody returning after a
+    long absence needs to know, and the page had no way of saying it. Only
+    the fact and the date are shown -- never any part of the secret, not even
+    masked, since these are stored in plain text.
+    {% endcomment %}
+    {% if existing_credentials %}
+    <span class="badge bg-success align-middle">Stored</span>
+    {% else %}
+    <span class="badge bg-secondary align-middle">Not stored</span>
+    {% endif %}
   </p>
   {% if service_description %}
   <p class="mb-3">
@@ -25,6 +36,14 @@
   <p class="mb-0">
     User: <code>{{ user.username }}</code>
   </p>
+  {% if existing_credentials %}
+  <p class="mb-0 text-muted small">
+    {% if existing_credentials.updated_at %}
+    Last updated {{ existing_credentials.updated_at }}.
+    {% endif %}
+    Submitting replaces the stored credentials.
+  </p>
+  {% endif %}
 </div>
 <div class="alert alert-danger" role="alert">
   <strong>Important:</strong> This information will be securely stored. Do not share your {{ service_name }} credentials.
@@ -45,7 +64,9 @@
       {% endfor %}
     </div>
   {% endfor %}
-  <input type="submit" value="Save {{ service_name }} Credentials" class="btn btn-primary">
+  <input type="submit"
+         value="{% if existing_credentials %}Update{% else %}Save{% endif %} {{ service_name }} Credentials"
+         class="btn btn-primary">
 </form>
 
 {% endblock %}

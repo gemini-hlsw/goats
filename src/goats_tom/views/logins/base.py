@@ -62,11 +62,38 @@ class BaseLoginView(LoginRequiredMixin, FormView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
+        """Build the template context, including whether anything is stored.
+
+        Returns
+        -------
+        dict
+            The context, with `existing_credentials` set to the stored record
+            for this user and service, or `None`.
+
+        Notes
+        -----
+        The page previously looked identical whether credentials had been
+        stored or not, so the only way to find out was to save something and
+        see whether the message said "saved" -- which overwrote whatever was
+        already there. Passing the record lets the template say plainly
+        whether anything is stored and when it was last updated.
+
+        Only the record's existence and timestamps are exposed, never any
+        part of the secret, not even masked: these values are stored in plain
+        text (see `goats_tom.models.logins.base.BaseLogin`), and a partial
+        reveal would narrow the search space for an attacker while telling
+        the legitimate user nothing they cannot get from the badge.
+        """
         context = super().get_context_data(**kwargs)
         user = get_object_or_404(User, pk=self.kwargs["pk"])
         context["user"] = user
         context["service_name"] = self.service_name
         context["service_description"] = self.service_description
+        context["existing_credentials"] = (
+            self.model_class.objects.filter(user=user).first()
+            if self.model_class is not None
+            else None
+        )
 
         return context
 

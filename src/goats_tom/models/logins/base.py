@@ -11,11 +11,26 @@ class BaseLogin(models.Model):
     ----------
     user : OneToOneField
         Reference to the Django User who owns these credentials.
+    created_at : DateTimeField
+        When these credentials were first stored.
+    updated_at : DateTimeField
+        When they were last replaced. Surfaced on the credential page so a
+        user returning after a long absence can tell whether anything is
+        stored, and how stale it is, without the page having to reveal any
+        part of the secret itself -- which it must not, since these values
+        are held in plain text.
+
+    Notes
+    -----
+    Both fields live on the abstract base, so every credential type gets them
+    from one definition rather than eight separate ones that could drift.
     """
 
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name="%(class)s"
     )
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
         abstract = True

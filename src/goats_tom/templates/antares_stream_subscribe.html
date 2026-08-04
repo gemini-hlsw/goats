@@ -17,11 +17,13 @@
   </p>
   {% else %}
   <p class="text-muted mb-2">
-    Subscribe to ANTARES Kafka topics. Submitting restarts the consumer with
+    Subscribe to ANTARES Kafka topics. Submitting starts the consumer with
     the topics below, using
-    <a href="{% url 'user-antares-kafka-login' request.user.pk %}">your own API key and secret</a>
-    (request one from the ANTARES team if you don&rsquo;t have one). Storing
-    credentials also creates a group your team can ask to join &mdash;
+    <a href="{% url 'user-antares-kafka-login' request.user.pk %}">your API credentials</a>
+    (request one from the
+    <a href="mailto:antares@noirlab.edu">ANTARES team</a>
+    if you don&rsquo;t have one). Storing credentials also creates a group
+    your team can ask to join &mdash;
     <a href="{% url 'antares-manage-access' %}">manage access</a>.
   </p>
   {% endif %}
