@@ -5,7 +5,13 @@
      dashboard the page is showing. Without it, a member of two PI groups
      would poll whichever one happens to come first.
      {% endcomment %}
-     hx-get="{% url 'antares-stream-status' %}{% if read_only and current.pk %}?subscription={{ current.pk }}{% endif %}"
+     {% comment %}
+     `mine=1` is carried through so the poll keeps reporting the user's own
+     subscription on their own setup page. Without it the poll fell back to a
+     dashboard they can view, and filled a blank setup page with the PI's
+     state a few seconds after load.
+     {% endcomment %}
+     hx-get="{% url 'antares-stream-status' %}{% if read_only and current.pk %}?subscription={{ current.pk }}{% elif request.GET.mine == '1' %}?mine=1{% endif %}"
      hx-trigger="every 3s"
      hx-swap="outerHTML">
 {% if current and current.topics %}

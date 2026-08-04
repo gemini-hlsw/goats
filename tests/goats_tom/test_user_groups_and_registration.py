@@ -159,6 +159,8 @@ class TestRegistration:
                 "password1": "sufficiently-long-pw-1",
                 "password2": "sufficiently-long-pw-1",
                 "affiliation": "Gemini Observatory",
+                "first_name": "Test",
+                "last_name": "User",
                 "reason": "Programme GS-2026A-Q-1",
             },
         )
@@ -209,6 +211,8 @@ class TestRegistration:
                 "password1": "sufficiently-long-pw-1",
                 "password2": "sufficiently-long-pw-1",
                 "affiliation": "Gemini Observatory",
+                "first_name": "Test",
+                "last_name": "User",
             },
         )
         user = User.objects.get(username="affiliated")
@@ -393,6 +397,8 @@ class TestPendingAccountVisibility:
                 "password1": "sufficiently-long-pw-1",
                 "password2": "sufficiently-long-pw-1",
                 "affiliation": "Somewhere",
+                "first_name": "Test",
+                "last_name": "User",
             },
         )
         return User.objects.get(username=username)
@@ -529,6 +535,10 @@ class TestRequestedGroups:
             "password1": "sufficiently-long-pw-1",
             "password2": "sufficiently-long-pw-1",
             "affiliation": "Somewhere",
+            # Required since first/last name became mandatory on the public
+            # form -- an administrator judging a stranger needs a real name.
+            "first_name": "Test",
+            "last_name": "User",
         }
         if groups:
             data["requested_groups"] = [g.pk for g in groups]

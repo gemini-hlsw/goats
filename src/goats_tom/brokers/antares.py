@@ -64,7 +64,11 @@ class ANTARESBrokerForm(GenericQueryForm):
             "https://addons.mozilla.org/en-US/firefox/addon/antares2goats/"
         )
         chrome_extension_url = "https://chromewebstore.google.com/detail/antares2goats/nmnbkpfjnpachfajklpjimbdpkoebcba"
-        kafka_stream_url = reverse("antares-stream-subscribe")
+        # `?mine=1` so this always lands on the reader's own setup page. Without
+        # it, a user with view access to another PI's dashboard would be shown
+        # that PI's read-only configuration instead of the page explaining how
+        # to store their own credentials -- which is the point of the link.
+        kafka_stream_url = reverse("antares-stream-subscribe") + "?mine=1"
 
         # ruff: noqa: E501
         self.helper.layout = Layout(

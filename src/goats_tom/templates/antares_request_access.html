@@ -17,17 +17,12 @@
     There are no dashboards to request yet &mdash; no PI has stored ANTARES
     Kafka credentials.
   </div>
-{% else %}
-  {% comment %}
-  Distinguishes "nothing exists" from "you have asked for it all". Showing
-  one message for both was confusing right after a successful request: the
-  banner said access was requested, and the box beneath implied there had
-  been nothing to request.
-  {% endcomment %}
-  <div class="alert alert-info mb-0">
-    You have requested or joined every dashboard available to you. Anything
-    still pending is listed below.
-  </div>
+{% comment %}
+No banner for the "you have asked for everything" case: the "Your requests"
+and "Your access" tables below already say exactly that, with more detail.
+The "nothing exists yet" case above keeps its message, since with no form and
+no tables the page would otherwise be blank.
+{% endcomment %}
 {% endif %}
 
 {% if my_memberships %}

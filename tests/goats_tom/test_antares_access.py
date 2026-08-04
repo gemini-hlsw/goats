@@ -626,5 +626,8 @@ class TestRequestAccessEmptyStates:
         create_join_request(stranger, pi_group)
         client.force_login(stranger)
         response = client.get(reverse("antares-request-access"))
-        assert b"requested or joined every dashboard" in response.content
+        # No banner for this case any more -- the "Your requests" table below
+        # already says it, with more detail. The "nothing exists" message must
+        # still not appear, since something does exist.
         assert b"no PI has stored ANTARES" not in response.content
+        assert b"Your requests" in response.content

@@ -1,0 +1,431 @@
+"""Tests for the registration, popup, editor and routing fixes."""
+
+import pytest
+from django.contrib.auth.models import Group, User
+from django.urls import reverse
+
+from goats_tom.forms import RegistrationForm
+from goats_tom.forms.antares_stream_subscribe import AntaresStreamSubscribeForm
+from goats_tom.models import (
+    AntaresDashboardMembership,
+    AntaresPIGroup,
+    AntaresStreamSubscription,
+)
+
+
+@pytest.mark.django_db()
+class TestRegistrationNameRequired:
+    """First and last name are mandatory on the public form."""
+
+    def _post(self, client, **overrides):
+        data = {
+            "username": "namer",
+            "email": "namer@example.com",
+            "password1": "sufficiently-long-pw-1",
+            "password2": "sufficiently-long-pw-1",
+            "affiliation": "Somewhere",
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+        }
+        data.update(overrides)
+        return client.post(reverse("register"), data)
+
+    def test_both_names_required(self):
+        """The form itself marks them required."""
+        form = RegistrationForm()
+        assert form.fields["first_name"].required
+        assert form.fields["last_name"].required
+
+    def test_missing_first_name_rejected(self, client):
+        """No account is created without a first name."""
+        self._post(client, first_name="")
+        assert not User.objects.filter(username="namer").exists()
+
+    def test_missing_last_name_rejected(self, client):
+        """Nor without a last name."""
+        self._post(client, last_name="")
+        assert not User.objects.filter(username="namer").exists()
+
+    def test_complete_registration_accepted(self, client):
+        """A full submission still works."""
+        self._post(client)
+        user = User.objects.get(username="namer")
+        assert user.first_name == "Ada"
+        assert user.last_name == "Lovelace"
+
+
+@pytest.mark.django_db()
+class TestCredentialsPopup:
+    """The landing-page credential list names real services."""
+
+    def test_lists_antares_and_rubin(self, client):
+        """Both were missing despite having credential models."""
+        response = client.get(reverse("home"))
+        assert b"<li>ANTARES</li>" in response.content
+        assert b"Rubin Science Platform" in response.content
+
+    def test_browser_extension_not_listed(self, client):
+        """The list names services, not the tools that use them."""
+        response = client.get(reverse("home"))
+        assert b"antares2goats" not in response.content
+
+
+@pytest.mark.django_db()
+class TestHandlerSkeleton:
+    """The editor starts with real, editable boilerplate."""
+
+    def test_empty_form_is_prefilled(self):
+        """A fresh form seeds the skeleton as an actual value.
+
+        Previously this was a CSS overlay drawn over Ace -- visible but not
+        editable or copyable.
+        """
+        form = AntaresStreamSubscribeForm(user=None)
+        assert form.initial["handler_code"] == form.HANDLER_CODE_SKELETON
+
+    def test_skeleton_keeps_every_locus(self):
+        """Left untouched it must not filter anything."""
+        namespace = {}
+        exec(AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON, namespace)
+        assert namespace["myfilter"](object()) is True
+
+    def test_toggle_defaults_off_for_a_new_subscription(self):
+        """Nobody acquires a handler without asking for one."""
+        form = AntaresStreamSubscribeForm(user=None)
+        assert form.initial["use_handler_code"] is False
+
+    def test_toggle_defaults_on_for_an_existing_handler(self):
+        """An existing handler must not appear switched off."""
+        form = AntaresStreamSubscribeForm(
+            initial={"handler_code": "def myfilter(locus):\n    return False\n"},
+            user=None,
+        )
+        assert form.initial["use_handler_code"] is True
+
+    def test_commented_out_handler_reads_as_off(self):
+        """A fully commented-out handler is a disabled one."""
+        form = AntaresStreamSubscribeForm(
+            initial={"handler_code": "# def myfilter(locus):\n#     return False\n"},
+            user=None,
+        )
+        assert form.initial["use_handler_code"] is False
+
+    def test_unticked_stores_nothing(self):
+        """Without the tick, the editor's contents are ignored entirely."""
+        form = AntaresStreamSubscribeForm(
+            {
+                "topics": "sometopic",
+                "handler_code": AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON,
+            },
+            user=None,
+        )
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["handler_code"] == ""
+
+    def test_stray_whitespace_does_not_enable_a_handler(self):
+        """An accidental keystroke must not create a filter.
+
+        Regression test: an earlier version compared the text against the
+        pre-filled skeleton and treated any difference as authorship, so a
+        single stray space silently gave the user a handler they never wrote.
+        """
+        form = AntaresStreamSubscribeForm(
+            {
+                "topics": "sometopic",
+                "handler_code": (
+                    AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON + " "
+                ),
+            },
+            user=None,
+        )
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["handler_code"] == ""
+
+    def test_ticked_stores_the_code(self):
+        """With the tick, the handler is kept and validated."""
+        code = "def myfilter(locus):\n    return True"
+        form = AntaresStreamSubscribeForm(
+            {
+                "topics": "sometopic",
+                "use_handler_code": "on",
+                "handler_code": code,
+            },
+            user=None,
+        )
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["handler_code"] == code
+
+    def test_ticked_still_validates(self):
+        """Broken code is rejected when the handler is actually in use."""
+        form = AntaresStreamSubscribeForm(
+            {
+                "topics": "sometopic",
+                "use_handler_code": "on",
+                "handler_code": "def notmyfilter(locus):\n    return True",
+            },
+            user=None,
+        )
+        assert not form.is_valid()
+        assert "handler_code" in form.errors
+
+    def test_unticked_skips_validation(self):
+        """Broken code is not an error if it is not going to run.
+
+        Someone experimenting can untick and save without first having to
+        make their half-written filter compile.
+        """
+        form = AntaresStreamSubscribeForm(
+            {
+                "topics": "sometopic",
+                "handler_code": "def notmyfilter(locus):\n    return True",
+            },
+            user=None,
+        )
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["handler_code"] == ""
+
+    def test_existing_handler_not_overwritten(self):
+        """Seeding must never clobber real code."""
+        mine = "def myfilter(locus):\n    return False\n"
+        form = AntaresStreamSubscribeForm(
+            initial={"handler_code": mine}, user=None
+        )
+        assert form.initial["handler_code"] == mine
+
+    def test_toggle_precedes_editor_in_field_order(self):
+        """Cleaning order matters: the gate must be cleaned first.
+
+        Django cleans fields in `self.fields` order, and `clean_handler_code`
+        reads the checkbox from `cleaned_data`.
+        """
+        names = list(AntaresStreamSubscribeForm(user=None).fields)
+        assert names.index("use_handler_code") < names.index("handler_code")
+
+
+@pytest.mark.django_db()
+class TestRequestAccessBanner:
+    """The redundant banner is gone."""
+
+    def test_no_banner_when_everything_requested(self, client):
+        """The tables below already say this, with more detail."""
+        from goats_tom.antares_membership import create_join_request
+
+        pi = User.objects.create_user("bannerpi")
+        pi_group = AntaresPIGroup.objects.create(
+            group=Group.objects.create(name="antares-bannerpi"), pi=pi
+        )
+        user = User.objects.create_user("banneruser", password="pw-long-enough-1")
+        create_join_request(user, pi_group)
+
+        client.force_login(user)
+        response = client.get(reverse("antares-request-access"))
+        assert b"requested or joined every dashboard" not in response.content
+
+    def test_message_kept_when_nothing_exists(self, client):
+        """With no form and no tables the page would otherwise be blank."""
+        user = User.objects.create_user("emptyuser", password="pw-long-enough-1")
+        client.force_login(user)
+        response = client.get(reverse("antares-request-access"))
+        assert b"no PI has stored ANTARES" in response.content
+
+
+@pytest.mark.django_db()
+class TestOwnSetupPageRoute:
+    """A member can still reach their own ingestion setup."""
+
+    @pytest.fixture()
+    def member_with_access(self, db):
+        """A user who can view a PI's dashboard but owns nothing."""
+        pi = User.objects.create_user("routepi")
+        pi_group = AntaresPIGroup.objects.create(
+            group=Group.objects.create(name="antares-routepi"), pi=pi
+        )
+        subscription = AntaresStreamSubscription.objects.create(
+            owner=pi, topics=["pi_topic_zzz"]
+        )
+        member = User.objects.create_user("routemember", password="pw-long-enough-1")
+        AntaresDashboardMembership.objects.create(
+            pi_group=pi_group, user=member, can_view_dashboard=True
+        )
+        return member, subscription
+
+    def test_default_still_shows_read_only(self, client, member_with_access):
+        """Unchanged: the dashboard route keeps showing the PI's config."""
+        member, _ = member_with_access
+        client.force_login(member)
+        response = client.get(reverse("antares-stream-subscribe"))
+        assert b"pi_topic_zzz" in response.content
+
+    def test_mine_shows_their_own_setup(self, client, member_with_access):
+        """`?mine=1` reaches their own page, where the instructions are."""
+        member, _ = member_with_access
+        client.force_login(member)
+        response = client.get(reverse("antares-stream-subscribe"), {"mine": "1"})
+        assert response.status_code == 200
+        assert b"pi_topic_zzz" not in response.content
+        assert b'name="topics"' in response.content
+
+    def test_broker_links_to_own_setup(self, db):
+        """The ANTARES broker page must not send people to someone else's.
+
+        Checks the source rather than rendering the broker's query form,
+        which needs a full valid Elasticsearch query to render without
+        errors and would be testing something unrelated.
+        """
+        import inspect
+
+        from goats_tom.brokers import antares
+
+        assert '"?mine=1"' in inspect.getsource(antares)
+
+
+@pytest.mark.django_db()
+class TestOwnPageBannerIsolation:
+    """The user's own setup page must not report someone else's stream."""
+
+    @pytest.fixture()
+    def member_and_pi(self, db):
+        """A member with view access to a PI's running subscription."""
+        pi = User.objects.create_user("bannerleakpi")
+        pi_group = AntaresPIGroup.objects.create(
+            group=Group.objects.create(name="antares-bannerleakpi"), pi=pi
+        )
+        subscription = AntaresStreamSubscription.objects.create(
+            owner=pi, topics=["pi_secret_topic"], is_running=True
+        )
+        member = User.objects.create_user(
+            "bannerleakmember", password="pw-long-enough-1"
+        )
+        AntaresDashboardMembership.objects.create(
+            pi_group=pi_group, user=member, can_view_dashboard=True
+        )
+        return member, subscription
+
+    def test_own_page_shows_no_subscription(self, client, member_and_pi):
+        """A member with no subscription of their own sees a blank banner."""
+        member, _ = member_and_pi
+        client.force_login(member)
+        response = client.get(reverse("antares-stream-subscribe"), {"mine": "1"})
+        assert b"pi_secret_topic" not in response.content
+
+    def test_status_poll_respects_mine(self, client, member_and_pi):
+        """The htmx poll must not fill the own page with the PI's state.
+
+        Regression test: the page rendered correctly and the poll overwrote it
+        three seconds later, because the status endpoint fell back to any
+        dashboard the user could view.
+        """
+        member, _ = member_and_pi
+        client.force_login(member)
+        response = client.get(reverse("antares-stream-status"), {"mine": "1"})
+        assert b"pi_secret_topic" not in response.content
+        assert b"Currently subscribed to" not in response.content
+
+    def test_status_poll_still_works_for_read_only(self, client, member_and_pi):
+        """Without `mine`, the read-only view still reports the PI's state."""
+        member, subscription = member_and_pi
+        client.force_login(member)
+        response = client.get(
+            reverse("antares-stream-status"), {"subscription": subscription.pk}
+        )
+        assert b"pi_secret_topic" in response.content
+
+    def test_own_page_poll_url_carries_mine(self, client, member_and_pi):
+        """The rendered poll URL must preserve the flag.
+
+        Otherwise the first poll drops it and the leak returns.
+        """
+        member, _ = member_and_pi
+        client.force_login(member)
+        response = client.get(reverse("antares-stream-subscribe"), {"mine": "1"})
+        assert b"mine=1" in response.content
+
+
+@pytest.mark.django_db()
+class TestDashboardLocusCountScoping:
+    """`dashboard_locus_count()` counts only the caller's own dashboard."""
+
+    def _two_dashboards(self):
+        from goats_tom.models import AntaresLocus
+
+        pi_a = User.objects.create_user("counta")
+        pi_b = User.objects.create_user("countb")
+        sub_a = AntaresStreamSubscription.objects.create(owner=pi_a, topics=["a"])
+        sub_b = AntaresStreamSubscription.objects.create(owner=pi_b, topics=["b"])
+        for i in range(2):
+            AntaresLocus.objects.create(
+                subscription=sub_a, locus_id=f"A{i}", ra=1.0, dec=2.0,
+                latest_alert_id="x",
+            )
+        for i in range(5):
+            AntaresLocus.objects.create(
+                subscription=sub_b, locus_id=f"B{i}", ra=1.0, dec=2.0,
+                latest_alert_id="x",
+            )
+        return sub_a, sub_b
+
+    def test_counts_only_own_rows(self):
+        """Regression test: this used to count every subscription's loci.
+
+        Loci became per-subscription, but the counter stayed an unscoped
+        `objects.count()` -- so a handler written as "stop once my dashboard
+        has N" fired on other people's traffic, and the number leaked how busy
+        other users were.
+        """
+        from goats_tom.antares_locus_handler import _make_dashboard_locus_count
+
+        sub_a, sub_b = self._two_dashboards()
+        assert _make_dashboard_locus_count(sub_a.pk)() == 2
+        assert _make_dashboard_locus_count(sub_b.pk)() == 5
+
+    def test_unscoped_returns_zero(self):
+        """The form's dry run has no subscription, so any number is a lie."""
+        from goats_tom.antares_locus_handler import _make_dashboard_locus_count
+
+        self._two_dashboards()
+        assert _make_dashboard_locus_count()() == 0
+
+    def test_handler_sees_the_scoped_count(self):
+        """The name reaches user code bound to the right subscription."""
+        from goats_tom.antares_locus_handler import run_locus_handler
+
+        sub_a, _ = self._two_dashboards()
+        source = (
+            "def myfilter(locus):\n"
+            "    return dashboard_locus_count() == 2\n"
+        )
+        assert run_locus_handler(source, object(), subscription_id=sub_a.pk)
+
+
+@pytest.mark.django_db()
+class TestHelpTextAndSkeletonContent:
+    """The skeleton documents the helpers; the help text stays short."""
+
+    def test_skeleton_shows_dashboard_count_example(self):
+        """A helper nobody knows how to call may as well not exist."""
+        assert (
+            "dashboard_locus_count() >= 10"
+            in AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON
+        )
+
+    def test_skeleton_shows_rsp_example(self):
+        """Likewise the TAP query, which is the harder one to guess."""
+        skeleton = AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON
+        assert "RSP_tap_service.run_async(query).to_table()" in skeleton
+        assert "dp1.Object" in skeleton
+
+    def test_skeleton_lines_fit_the_editor(self):
+        """Long lines would wrap and make the examples hard to read."""
+        widest = max(
+            len(line)
+            for line in AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON.splitlines()
+        )
+        assert widest <= 79, f"widest line is {widest} characters"
+
+    def test_group_suffix_help_is_concise(self):
+        """It had grown to four sentences."""
+        help_text = AntaresStreamSubscribeForm(user=None).fields[
+            "consumer_group"
+        ].help_text
+        assert len(help_text) < 160
+        assert "replay" in help_text

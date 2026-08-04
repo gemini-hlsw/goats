@@ -76,10 +76,8 @@ class AntaresStreamSubscribeForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={"placeholder": "e.g. replay-2"}),
         help_text=(
-            "Optional. Appended to an automatically-generated group name "
-            "unique to your subscription; leave blank to use that name on "
-            "its own. Keeps offset tracking stable across restarts. Enter "
-            "a new value to replay from the earliest available message."
+            "Optional. Appended to a group name unique to your subscription. "
+            "Enter a new value to replay from the earliest available message."
         ),
     )
     save_all_targets = forms.BooleanField(
@@ -94,6 +92,55 @@ class AntaresStreamSubscribeForm(forms.Form):
         required=False,
         help_text="Not yet active; checking this currently has no effect.",
     )
+    # Real starting content for an empty editor, not a visual placeholder.
+    # Previously the example was a CSS overlay drawn over Ace, which looked
+    # like text but could not be edited, selected or copied -- a user wanting
+    # to start from it had to retype it. As actual content it is immediately
+    # editable.
+    #
+    # Deliberately a skeleton that keeps everything (`return True`) rather
+    # than the full worked example: this text is submitted like any other
+    # field value, so a user who ignores it saves it as their handler. A
+    # skeleton that keeps every locus is a harmless no-op if left alone,
+    # whereas the worked example would silently filter their stream on
+    # magnitude without them having asked for it. The full example lives in
+    # the help text instead.
+    use_handler_code = forms.BooleanField(
+        label="Use a custom locus handler",
+        required=False,
+        help_text=(
+            "Leave unchecked to ingest every locus on the subscribed topics. "
+            "Tick this to apply the filter below."
+        ),
+    )
+
+    HANDLER_CODE_SKELETON = (
+        "def myfilter(locus):\n"
+        "    # Return True to keep this locus, False to skip it.\n"
+        "    # Available by name (no 'import'): numpy, pandas, astropy,\n"
+        "    # astroquery, dashboard_locus_count(), RSP_tap_service.\n"
+        "    #\n"
+        "    # Example -- keep only alerts brighter than magnitude 19:\n"
+        "    #     mag = locus.properties.get(\"newest_alert_magnitude\") or 99\n"
+        "    #     if mag > 19:\n"
+        "    #         return False\n"
+        "    #\n"
+        "    # Stop once the dashboard holds 10 loci:\n"
+        "    #     if dashboard_locus_count() >= 10:\n"
+        "    #         return False\n"
+        "    #\n"
+        "    # Query Rubin catalogs (needs a stored RSP access token):\n"
+        "    #     query = (\n"
+        "    #         \"SELECT objectId FROM dp1.Object WHERE CONTAINS(\"\n"
+        "    #         \"POINT('ICRS', coord_ra, coord_dec), \"\n"
+        "    #         f\"CIRCLE('ICRS', {locus.ra}, {locus.dec}, 0.002)) = 1\"\n"
+        "    #     )\n"
+        "    #     if len(RSP_tap_service.run_async(query).to_table()) > 0:\n"
+        "    #         return False\n"
+        "\n"
+        "    return True"
+    )
+
     handler_code = forms.CharField(
         label="Custom locus handler (optional)",
         required=False,
@@ -103,29 +150,6 @@ class AntaresStreamSubscribeForm(forms.Form):
                 "rows": 14,
                 "class": "font-monospace antares-handler-code-raw",
                 "spellcheck": "false",
-                "placeholder": (
-                    "def myfilter(locus):\n"
-                    "    # Return True to keep this locus, False to skip it.\n"
-                    "    # Available by name (no 'import'): numpy, pandas,\n"
-                    "    # astropy, astroquery, dashboard_locus_count(),\n"
-                    "    # RSP_tap_service.\n"
-                    "    mag = locus.properties.get(\"newest_alert_magnitude\") or 99\n"
-                    "    if mag > 19:\n"
-                    "        return False\n"
-                    "\n"
-                    "    if RSP_tap_service is not None:\n"
-                    "        radius = 1.0 / 3600.0\n"
-                    "        query = (\n"
-                    "            \"SELECT objectId, refExtendedness FROM dp1.Object \"\n"
-                    "            \"WHERE CONTAINS(POINT('ICRS', coord_ra, coord_dec), \"\n"
-                    "            f\"CIRCLE('ICRS', {locus.ra}, {locus.dec}, {radius})) = 1\"\n"
-                    "        )\n"
-                    "        table = RSP_tap_service.run_async(query).to_table()\n"
-                    "        if len(table) > 0 and table[\"refExtendedness\"][0] >= 0.5:\n"
-                    "            return False\n"
-                    "\n"
-                    "    return True"
-                ),
             }
         ),
         help_text=mark_safe(
@@ -134,17 +158,12 @@ class AntaresStreamSubscribeForm(forms.Form):
             '<a href="https://nsf-noirlab.gitlab.io/csdc/antares/client/'
             'api.html#antares_client.models.Locus" target="_blank" '
             'rel="noopener noreferrer">the Locus API</a> for available '
-            "attributes. Leave blank to keep every locus. "
-            "numpy, pandas, astropy, and astroquery are available by "
-            "name. 'import' is not allowed (blocked, along with file "
-            "access, eval/exec). "
-            "<code>dashboard_locus_count()</code> returns how many loci "
-            "are currently on the dashboard, e.g. to stop after N loci: "
-            "<code>if dashboard_locus_count() >= 10: return False</code>. "
+            "attributes. numpy, pandas, astropy, and astroquery are "
+            "available by name. 'import' is blocked, along with file "
+            "access, eval/exec. <code>dashboard_locus_count()</code> "
+            "returns how many loci are currently on the dashboard. "
             "<code>RSP_tap_service</code> (if you've stored an "
-            "{rsp_token_link}) queries Rubin catalog data, e.g. "
-            "<code>RSP_tap_service.run_async(\"SELECT ...\").to_table()"
-            "</code>. See "
+            "{rsp_token_link}) queries Rubin catalog data. See "
             '<a href="https://sdm-schemas.lsst.io/" target="_blank" '
             'rel="noopener noreferrer">here</a> for tables and schemas '
             "for Rubin data products."
@@ -192,6 +211,23 @@ class AntaresStreamSubscribeForm(forms.Form):
                 rsp_token_link=rsp_token_link
             )
         )
+
+        # Seed an empty editor with the skeleton, so it arrives as real,
+        # editable text rather than a CSS overlay that only looked like text.
+        # Only when nothing else supplies a value: an existing subscription's
+        # handler, or a draft being recovered after a failed submission, must
+        # never be overwritten with boilerplate. Skipped for a bound form,
+        # where the value comes from the submission itself.
+        if not self.is_bound:
+            existing = self.initial.get("handler_code")
+            if not existing:
+                self.initial["handler_code"] = self.HANDLER_CODE_SKELETON
+            # Ticked only when there is a real handler to run. Derived from
+            # the code rather than stored separately, so the checkbox cannot
+            # disagree with what the consumer will actually do.
+            self.initial["use_handler_code"] = bool(
+                existing and not is_effectively_blank(existing)
+            )
 
     def clean_topics(self) -> list[str]:
         """Split and clean the comma-separated topics field.
@@ -241,6 +277,24 @@ class AntaresStreamSubscribeForm(forms.Form):
             it without deleting the code.
         """
         source = self.cleaned_data.get("handler_code", "")
+
+        # The checkbox is the only thing that decides whether a handler is in
+        # use. Nothing about the text itself is inspected for intent.
+        #
+        # An earlier version compared the text against the pre-filled skeleton
+        # and discarded an exact match. That was too fragile to rely on: the
+        # editor is pre-filled, so typing a single stray space -- or the
+        # editor normalising a line ending -- made it "edited", and the user
+        # silently acquired a handler they never wrote. An explicit tick
+        # cannot be given by accident.
+        #
+        # Returning "" rather than the source when unticked means an unused
+        # handler is not stored, so `is_active_handler_code` on the status
+        # banner and the consumer's own checks all agree without needing a
+        # separate "enabled" flag on the subscription.
+        if not self.cleaned_data.get("use_handler_code"):
+            return ""
+
         if is_effectively_blank(source):
             return source
 

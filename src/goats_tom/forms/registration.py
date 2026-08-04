@@ -51,8 +51,12 @@ class RegistrationForm(UserCreationForm):
         required=True,
         help_text="Used to identify you. Required.",
     )
-    first_name = forms.CharField(max_length=150, required=False)
-    last_name = forms.CharField(max_length=150, required=False)
+    # Required here although TOM's admin-side user form leaves them
+    # optional: an administrator judging a registration from a stranger
+    # needs a real name to go on, whereas an admin creating an account
+    # already knows who it is for.
+    first_name = forms.CharField(max_length=150, required=True)
+    last_name = forms.CharField(max_length=150, required=True)
     affiliation = forms.CharField(
         max_length=100,
         required=True,

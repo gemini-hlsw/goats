@@ -819,7 +819,12 @@ def ingest_antares_stream(
                 if handler_code:
                     try:
                         keep = run_locus_handler(
-                            handler_code, locus, rsp_tap_service=rsp_tap_service
+                            handler_code,
+                            locus,
+                            rsp_tap_service=rsp_tap_service,
+                            # So `dashboard_locus_count()` reports this
+                            # dashboard's rows, not every subscription's.
+                            subscription_id=subscription_id,
                         )
                     except LocusHandlerError as exc:
                         logger.error(

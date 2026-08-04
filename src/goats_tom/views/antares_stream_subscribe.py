@@ -185,7 +185,16 @@ def antares_stream_subscribe(request):
     # form, which was both unhelpful and dangerous: submitting it created a
     # subscription owned by the member, silently turning them into a PI whose
     # consumer could not start for lack of their own credentials.
-    if current is None:
+    # `?mine=1` forces the user's own setup page even when they have no
+    # subscription yet. Without it, a member of somebody else's PI group can
+    # never reach their own: the read-only branch below always intercepts.
+    # That page is where the instructions for storing ANTARES credentials
+    # live, so a member who later obtains their own API key would otherwise
+    # have nowhere to learn what to do with it. Linked from the ANTARES
+    # broker query page (see `goats_tom.brokers.antares`).
+    wants_own_page = request.GET.get("mine") == "1"
+
+    if current is None and not wants_own_page:
         viewing = get_subscription_for_view(
             request.user, _requested_subscription_id(request)
         )
@@ -344,7 +353,13 @@ def antares_stream_status(request):
     # appeared on load and then silently vanished.
     current = AntaresStreamSubscription.objects.filter(owner=request.user).first()
     read_only = False
-    if current is None:
+
+    # `mine=1` means the page is the user's OWN setup page, so the banner must
+    # report only their own subscription -- nothing, if they have none.
+    # Without this the fallback below filled a member's own (blank) setup page
+    # with the PI's topics, running state and warnings three seconds after
+    # load: the page rendered correctly, then this poll overwrote it.
+    if current is None and request.GET.get("mine") != "1":
         current = get_subscription_for_view(
             request.user, _requested_subscription_id(request)
         )

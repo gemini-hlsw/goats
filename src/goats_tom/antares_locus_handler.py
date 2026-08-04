@@ -125,31 +125,49 @@ _SAFE_BUILTINS = {
 }
 
 
-def _dashboard_locus_count() -> int:
-    """Return how many rows are currently in the `AntaresLocus` staging
-    table (i.e. how many loci are currently shown on the dashboard).
+def _make_dashboard_locus_count(subscription_id=None):
+    """Build the `dashboard_locus_count` function for one subscription.
 
-    Exposed to handler code as the pre-bound name `dashboard_locus_count`
-    (a function, not the count itself -- call it as
-    `dashboard_locus_count()` to get a fresh, current value each time).
+    Parameters
+    ----------
+    subscription_id : int, optional
+        The subscription whose dashboard to count. `None` counts nothing and
+        returns 0 -- used by the form's dry run, where there is no running
+        subscription yet and any number would be meaningless.
 
     Returns
     -------
-    int
-        Current row count.
+    callable
+        A zero-argument function returning the current row count, exposed to
+        handler code as the pre-bound name `dashboard_locus_count` (a
+        function, not the count itself -- call it as
+        `dashboard_locus_count()` to get a fresh value each time).
 
     Notes
     -----
-    Deliberately a single, narrow, read-only function -- not the ORM, not
-    the `AntaresLocus` model itself -- so handler code can implement
-    things like "stop once the dashboard has N loci" without gaining any
-    broader database access (no `.delete()`, no `.update()`, no querying
-    other models). This is the specific, safe carve-out for that one use
-    case, not a general database access mechanism.
-    """
-    from goats_tom.models import AntaresLocus  # noqa: PLC0415
+    A factory rather than a plain function because the count must be scoped
+    to the caller's own dashboard. `AntaresLocus` rows are per-subscription
+    (see `goats_tom.models.AntaresLocus.subscription`), so an unscoped
+    ``objects.count()`` would return every user's loci added together: a
+    handler written as "stop once my dashboard has 500" would fire on other
+    people's traffic, and the number itself leaks how busy other users are.
 
-    return AntaresLocus.objects.count()
+    Deliberately a single, narrow, read-only function -- not the ORM, not the
+    `AntaresLocus` model itself -- so handler code can implement things like
+    "stop once the dashboard has N loci" without gaining any broader database
+    access.
+    """
+
+    def dashboard_locus_count() -> int:
+        from goats_tom.models import AntaresLocus  # noqa: PLC0415
+
+        if subscription_id is None:
+            return 0
+        return AntaresLocus.objects.filter(
+            subscription_id=subscription_id
+        ).count()
+
+    return dashboard_locus_count
 
 
 def _build_preimported_modules() -> dict:
@@ -159,7 +177,9 @@ def _build_preimported_modules() -> dict:
     -------
     dict
         Maps the name user code will see (e.g. ``"numpy"``) to the actual
-        imported module object. Done here, at import time of *this*
+        imported module object. `dashboard_locus_count` is deliberately not
+        here: it has to be built per run, bound to the calling subscription
+        (see `_make_dashboard_locus_count`). Done here, at import time of *this*
         trusted module, not inside user code -- user code never executes
         an `import` statement itself; these modules are simply already
         present as bound names in the restricted namespace.
@@ -174,7 +194,6 @@ def _build_preimported_modules() -> dict:
         "pandas": pandas,
         "astropy": astropy,
         "astroquery": astroquery,
-        "dashboard_locus_count": _dashboard_locus_count,
     }
 
 
@@ -523,7 +542,9 @@ def build_rsp_tap_service(user):
         return None
 
 
-def run_locus_handler(source: str, locus, rsp_tap_service=None) -> bool:
+def run_locus_handler(
+    source: str, locus, rsp_tap_service=None, subscription_id=None
+) -> bool:
     """Run a user-submitted ``myfilter(locus)`` function against one locus.
 
     Parameters
@@ -571,7 +592,13 @@ def run_locus_handler(source: str, locus, rsp_tap_service=None) -> bool:
     """
     check_handler_source(source)
 
-    restricted_globals = {"__builtins__": _SAFE_BUILTINS, **_PREIMPORTED_MODULES}
+    restricted_globals = {
+        "__builtins__": _SAFE_BUILTINS,
+        **_PREIMPORTED_MODULES,
+        # Built per run, bound to this subscription: the count must reflect
+        # the caller's own dashboard, not every user's rows added together.
+        "dashboard_locus_count": _make_dashboard_locus_count(subscription_id),
+    }
     # Only pay for constructing RSP_tap_service (a real network call --
     # TAPService.__init__ probes the RSP TAP endpoint's /capabilities) if
     # the handler code genuinely *uses* it. A plain substring search
