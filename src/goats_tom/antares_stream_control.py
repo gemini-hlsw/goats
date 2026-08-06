@@ -404,6 +404,7 @@ def restart_antares_stream(
     gpp_observation_id: str = "",
     max_triggers=None,
     gpp_observation_overrides=None,
+    gpp_workflow_state: str = "",
 ) -> AntaresStreamSubscription:
     """Abort this owner's currently-running ANTARES consumer, if any, and
     start a new one with the given topics -- guaranteed not to clash with
@@ -447,6 +448,8 @@ def restart_antares_stream(
     gpp_observation_overrides : dict, optional
         Observation properties applied to each clone, leaving the template in
         GPP untouched.
+    gpp_workflow_state : str, optional
+        Workflow state for each created observation. Blank means ``READY``.
     handler_code : str, optional
         User-defined locus filter/handler function body, stored on the row
         and read by the consumer. See `goats_tom.antares_locus_handler`.
@@ -502,6 +505,7 @@ def restart_antares_stream(
     subscription.gpp_observation_id = gpp_observation_id
     subscription.max_triggers = max_triggers
     subscription.gpp_observation_overrides = gpp_observation_overrides or {}
+    subscription.gpp_workflow_state = gpp_workflow_state or ""
     subscription.handler_code = handler_code
     # Clear any warning/error left over from the previous run. An earlier
     # version deliberately left this for the actor to clear on successful

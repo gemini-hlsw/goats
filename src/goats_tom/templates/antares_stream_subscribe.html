@@ -289,6 +289,18 @@ bare "X is not defined" in the console.
     var anchor = toggle.closest(".form-check") || toggle.parentElement;
     anchor.parentElement.insertBefore(mount, anchor.nextSibling);
 
+    // Auto-save is implied by triggering (the form enforces it server-side
+    // too). Ticked here as well so the dependency is visible at the moment
+    // it is created, rather than appearing on its own after a submit.
+    var autoSave = document.getElementById("id_save_all_targets");
+    if (autoSave) {
+      toggle.addEventListener("change", function () {
+        if (toggle.checked && !autoSave.checked) {
+          autoSave.checked = true;
+        }
+      });
+    }
+
     var picker = null;
     var sync = function () {
       if (toggle.checked) {

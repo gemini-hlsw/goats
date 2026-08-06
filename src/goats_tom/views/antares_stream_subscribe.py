@@ -253,6 +253,8 @@ def antares_stream_subscribe(request):
                     "gpp_observation_overrides"
                 )
                 or {},
+                gpp_workflow_state=form.cleaned_data.get("gpp_workflow_state")
+                or "",
             )
             _clear_draft(subscription)
             messages.success(
@@ -309,6 +311,7 @@ def antares_stream_subscribe(request):
                 initial["gpp_program_id"] = current.gpp_program_id
                 initial["gpp_observation_id"] = current.gpp_observation_id
                 initial["max_triggers"] = current.max_triggers
+                initial["gpp_workflow_state"] = current.gpp_workflow_state
                 if current.gpp_observation_overrides:
                     import json
 

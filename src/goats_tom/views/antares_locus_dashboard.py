@@ -242,6 +242,22 @@ def _get_page(request: HttpRequest):
     # user. Only loci confirmed saved above get attribution shown, so a
     # stale row here (target deleted outside this module) is never
     # displayed -- see `AntaresTargetSave`'s docstring.
+    # Trigger outcomes, so the dashboard can say what happened rather than
+    # leaving automatic triggering entirely invisible -- previously there was
+    # no way at all to tell whether an observation had been created, skipped,
+    # or had failed.
+    trigger_by_locus_id = {}
+    if subscription is not None:
+        from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
+
+        trigger_by_locus_id = {
+            record.locus_id: record
+            for record in GeminiTriggerRecord.objects.filter(
+                subscription=subscription,
+                locus_id__in=[locus.locus_id for locus in page],
+            )
+        }
+
     saved_by_locus_id = {
         record.locus_id: record.saved_by
         for record in AntaresTargetSave.objects.filter(
@@ -251,6 +267,7 @@ def _get_page(request: HttpRequest):
 
     for locus in page:
         locus.is_saved_target = locus.locus_id in saved_locus_ids
+        locus.gemini_trigger = trigger_by_locus_id.get(locus.locus_id)
         locus.saved_by_user = (
             saved_by_locus_id.get(locus.locus_id)
             if locus.is_saved_target

@@ -18,6 +18,11 @@
               Save target
             </th>
             <th>Saved By</th>
+            {% comment %}
+            Automatic triggering was previously invisible: an observation
+            could be created, skipped or fail with nothing shown anywhere.
+            {% endcomment %}
+            <th>Gemini Trigger</th>
             <th>Locus ID</th>
             <th>RA</th>
             <th>Dec</th>
@@ -80,6 +85,34 @@
               {% else %}
               <span class="text-muted">&mdash;</span>
               {% endif %}
+            </td>
+            <td>
+              {% with trigger=locus.gemini_trigger %}
+              {% if not trigger %}
+              <span class="text-muted" title="No Gemini trigger has been attempted for this locus">&mdash;</span>
+              {% elif trigger.status == "success" %}
+              <span class="badge badge-success"
+                    title="Observation {{ trigger.gpp_observation_id }} created and set to READY">&#10003; Triggered</span>
+              {% elif trigger.status == "pending" %}
+              <span class="badge badge-secondary" title="Trigger in progress">Pending</span>
+              {% elif trigger.status == "skipped" %}
+              <span class="badge badge-warning">Skipped</span>
+              {% comment %}
+              The reason is shown, not tucked into a title attribute: a skip
+              or failure is only actionable once you know why, and a tooltip
+              is invisible on touch devices and to anyone not hovering the
+              right few pixels.
+              {% endcomment %}
+              {% if trigger.detail %}
+              <div class="small text-muted">{{ trigger.detail }}</div>
+              {% endif %}
+              {% else %}
+              <span class="badge badge-danger">Failed</span>
+              {% if trigger.detail %}
+              <div class="small text-muted">{{ trigger.detail }}</div>
+              {% endif %}
+              {% endif %}
+              {% endwith %}
             </td>
             <td>
               <a href="{% antares_url locus.locus_id '' '' %}"

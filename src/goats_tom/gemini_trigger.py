@@ -205,8 +205,8 @@ def _check_cap(subscription, record) -> None:
         )
 
 
-def _fetch_program_snapshot(client, program_id: str, observation_id: str):
-    """Fetch allocation, time already charged, and the template's cost.
+def _fetch_band_time(client, program_id: str, observation_id: str):
+    """Fetch granted and used time for the template's science band.
 
     Parameters
     ----------
@@ -215,29 +215,36 @@ def _fetch_program_snapshot(client, program_id: str, observation_id: str):
     program_id : str
         The programme owning the template.
     observation_id : str
-        The template observation.
+        The template observation, used to pick which band to check.
 
     Returns
     -------
     tuple
-        ``(allocated_hours, charged_hours, execution_hours)``.
+        ``(band, allocated_hours, used_hours)``.
 
     Raises
     ------
     TriggerFailed
         If GPP cannot be reached after `ALLOCATION_FETCH_ATTEMPTS`, or the
-        response lacks the fields the check depends on.
+        template is not in the programme.
 
     Notes
     -----
-    Retried, unlike everything after it, because nothing has been created yet
-    -- a repeated read cannot duplicate anything. Failing to reach GPP here
-    refuses the trigger rather than proceeding blind: triggering without
-    knowing the remaining allocation would defeat the check entirely.
+    This is the accounting Explore shows: granted time per science band
+    (``allocations``) against time already used (``timeCharge``). Matched to
+    the template's own band, since a programme may hold separate grants per
+    band and spending Band 3 time on a Band 1 observation would be wrong.
 
-    The allocation is matched to the template's own science band. A programme
-    may hold separate grants per band, so summing them would allow a Band 1
-    observation to spend Band 3 time.
+    Deliberately says nothing about what the *next* observation will cost. An
+    earlier version required an execution time for the template and refused
+    without one -- which could never work: GPP does not compute a cost for an
+    unexecuted observation, and the field is not even returned by this query.
+    The check is therefore "is there time left in this band", not "does this
+    observation fit"; no client can do better, and the trigger cap remains the
+    second line of defence.
+
+    Retried, unlike everything after it, because nothing has been created yet
+    -- a repeated read cannot duplicate anything.
     """
     from asgiref.sync import async_to_sync  # noqa: PLC0415
 
@@ -251,7 +258,8 @@ def _fetch_program_snapshot(client, program_id: str, observation_id: str):
         except Exception as exc:  # noqa: BLE001
             last_error = exc
             logger.warning(
-                "Allocation lookup for program %s failed (attempt %d/%d): %s",
+                "Time accounting lookup for program %s failed "
+                "(attempt %d/%d): %s",
                 program_id,
                 attempt,
                 ALLOCATION_FETCH_ATTEMPTS,
@@ -261,16 +269,14 @@ def _fetch_program_snapshot(client, program_id: str, observation_id: str):
                 time.sleep(ALLOCATION_FETCH_BACKOFF_SECONDS * attempt)
     else:
         raise TriggerFailed(
-            f"Could not read the programme's allocation from GPP after "
+            f"Could not read the programme's time accounting from GPP after "
             f"{ALLOCATION_FETCH_ATTEMPTS} attempts: {last_error}"
         )
 
     data = payload.model_dump(by_alias=True).get("observations", {})
     matches = data.get("matches", []) or []
 
-    template = next(
-        (m for m in matches if m.get("id") == observation_id), None
-    )
+    template = next((m for m in matches if m.get("id") == observation_id), None)
     if template is None:
         raise TriggerFailed(
             f"Template observation {observation_id} was not found in program "
@@ -280,67 +286,23 @@ def _fetch_program_snapshot(client, program_id: str, observation_id: str):
     band = template.get("scienceBand")
     program = template.get("program") or {}
 
-    allocations = program.get("allocations") or []
     allocated = sum(
-        float(a.get("duration", {}).get("hours") or 0.0)
-        for a in allocations
-        if band is None or a.get("scienceBand") == band
+        float(entry.get("duration", {}).get("hours") or 0.0)
+        for entry in (program.get("allocations") or [])
+        if band is None or entry.get("scienceBand") == band
     )
-    charged = sum(
-        float(c.get("program", {}).get("hours") or 0.0)
-        if isinstance(c.get("program"), dict)
-        else float(c.get("hours") or 0.0)
-        for c in (program.get("timeCharge") or [])
-    )
-    execution = _execution_hours(template)
-
-    if execution is None:
-        raise TriggerFailed(
-            f"GPP did not report an execution time for template "
-            f"{observation_id}, so the allocation check cannot be made."
+    used = sum(
+        float(
+            (entry.get("time") or {}).get("program", {}).get("hours") or 0.0
         )
-
-    return allocated, charged, execution
-
-
-def _execution_hours(observation: dict) -> float | None:
-    """Pull the expected execution time, in hours, out of an observation.
-
-    Parameters
-    ----------
-    observation : dict
-        A GPP observation, dumped by alias.
-
-    Returns
-    -------
-    float or None
-        Hours, or `None` if GPP did not report it.
-
-    Notes
-    -----
-    Tolerant of shape because the value is nested differently depending on
-    which query returned it, and a missing value must be reported as "unknown"
-    rather than silently becoming zero -- a zero would make every observation
-    look free and pass the allocation check unconditionally.
-    """
-    digest = observation.get("execution") or observation.get("digest") or {}
-    if isinstance(digest, dict):
-        for key in ("executionTime", "programTime", "full"):
-            node = digest.get(key)
-            if isinstance(node, dict):
-                if node.get("hours") is not None:
-                    return float(node["hours"])
-                program_node = node.get("program")
-                if isinstance(program_node, dict) and program_node.get("hours"):
-                    return float(program_node["hours"])
-    node = observation.get("executionTime")
-    if isinstance(node, dict) and node.get("hours") is not None:
-        return float(node["hours"])
-    return None
+        for entry in (program.get("timeCharge") or [])
+        if band is None or entry.get("band") == band
+    )
+    return band, allocated, used
 
 
-def _check_allocation(client, subscription, record) -> float:
-    """Refuse unless this observation fits in the remaining allocation.
+def _check_allocation(client, subscription, record) -> None:
+    """Refuse if the template's science band has no time left.
 
     Parameters
     ----------
@@ -349,41 +311,47 @@ def _check_allocation(client, subscription, record) -> float:
     subscription : `goats_tom.models.AntaresStreamSubscription`
         The subscription triggering.
     record : `goats_tom.models.GeminiTriggerRecord`
-        This attempt's record; its expected cost is stored on it.
-
-    Returns
-    -------
-    float
-        The template's execution time in hours.
+        This attempt's record. Unused for storage now that no per-observation
+        cost is known; kept in the signature so callers need not change if a
+        cost ever becomes available.
 
     Raises
     ------
     TriggerSkipped
-        If the observation would not fit.
+        If the band's granted time is fully used.
     TriggerFailed
-        If the allocation could not be read.
+        If the accounting could not be read.
 
     Notes
     -----
-    No partial overrun: an observation needing more than the remaining time is
-    refused outright rather than submitted in the hope GPP rejects it. A
-    rejected submission would still leave a cloned target and observation
-    behind in the programme for somebody to find and delete.
+    Checks remaining time in the band, not whether this particular
+    observation fits: GPP does not compute a cost for an unexecuted
+    observation, so that question has no answer here. The trigger cap
+    (`AntaresStreamSubscription.max_triggers`) is what bounds how far past a
+    nearly-exhausted band automatic triggering can go.
+
+    Zero allocated means no time was granted in that band, so triggering is
+    refused outright -- there is nothing to spend. An earlier version let this
+    through on the grounds that zero might merely mean "not recorded", and
+    leaned on the trigger cap instead. That was the wrong default for
+    something that consumes real telescope time: reading an ambiguous value
+    permissively is only safe when being wrong is cheap, and here it is not.
     """
-    allocated, charged, execution = _fetch_program_snapshot(
+    band, allocated, used = _fetch_band_time(
         client, subscription.gpp_program_id, subscription.gpp_observation_id
     )
-    record.execution_time_hours = execution
-    record.save(update_fields=["execution_time_hours", "updated_at"])
 
-    remaining = allocated - charged
-    if execution > remaining:
+    if allocated <= 0:
         raise TriggerSkipped(
-            f"Not enough time left in the programme: this observation needs "
-            f"{execution:.2f} h but only {remaining:.2f} h of "
-            f"{allocated:.2f} h remains."
+            f"The programme has no time granted in band {band}, so there is "
+            f"nothing to observe with."
         )
-    return execution
+
+    if used >= allocated:
+        raise TriggerSkipped(
+            f"No time left in band {band}: {used:.2f} h of {allocated:.2f} h "
+            f"already used."
+        )
 
 
 def trigger_gemini_observation(subscription, locus_id: str, target) -> object:
@@ -491,6 +459,7 @@ def trigger_gemini_observation(subscription, locus_id: str, target) -> object:
             )
             or None,
             source_profile=source_profile,
+            workflow_state=subscription.gpp_workflow_state or None,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception(

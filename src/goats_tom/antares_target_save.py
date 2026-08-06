@@ -321,6 +321,14 @@ def save_locus_as_target(locus_id: str, saved_by=None, share_with_group=None) ->
     try:
         target, extras, aliases = broker.to_target(alert)
         target.save(extras=extras, names=aliases)
+        # Attribution is recorded here, immediately, rather than after the
+        # light curve work below. The dashboard decides "is this saved?" from
+        # the Target and "who saved it?" from AntaresTargetSave, so any gap
+        # between the two shows the locus as saved by "Unknown" -- which is
+        # what a poll landing during light curve ingestion used to see. That
+        # ingestion is a network fetch plus several writes, so the window was
+        # easily wide enough to hit on the very first poll after saving.
+        _record_save(locus_id, target, saved_by)
     except Exception as exc:
         raise SaveLocusError(
             f"Failed to save locus {locus_id!r} as a target: {exc}"
@@ -391,14 +399,6 @@ def save_locus_as_target(locus_id: str, saved_by=None, share_with_group=None) ->
                 locus_id,
                 getattr(share_with_group, "name", None),
             )
-
-    # Record who saved it. TOM Toolkit's Target has no "created by" field
-    # of its own, so without this there is no way to attribute a saved
-    # target to a user (see `goats_tom.models.AntaresTargetSave`). Kept in
-    # its own try/except for the same reason as the light curve block
-    # above: losing attribution shouldn't discard an already-created
-    # target, just be logged.
-    _record_save(locus_id, target, saved_by)
 
     logger.info("Saved ANTARES locus %s as target id=%s.", locus_id, target.pk)
     return target

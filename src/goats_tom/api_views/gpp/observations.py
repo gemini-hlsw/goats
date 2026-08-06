@@ -749,6 +749,46 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             },
         )
 
+    @staticmethod
+    def _observation_id_from_clone_error(error: Exception) -> str | None:
+        """Recover the new observation's id from a failed clone response.
+
+        Parameters
+        ----------
+        error : Exception
+            The exception raised by ``client.observation.clone``.
+
+        Returns
+        -------
+        str or None
+            The observation id if GPP mentioned one, otherwise `None`.
+
+        Notes
+        -----
+        GPP computes an observation's workflow state in the background, and
+        the clone mutation selects that field. Asked too soon it answers "the
+        background calculation has not (yet) produced a value for observation
+        <id>" -- an error, even though the observation was created. The result
+        is an observation visible in Explore with no record in GOATS.
+
+        The id is recovered from the message so the caller can carry on with
+        the observation that does exist, rather than abandoning it. Parsing an
+        error string is brittle, so a miss returns `None` and the caller
+        reports the failure as before -- this only ever improves on that.
+
+        GOATS already tolerates this calculation elsewhere:
+        `workflow_state.update_by_id_with_retry` is called with 55 attempts
+        for the same reason. The clone step simply had no equivalent.
+        """
+        import re  # noqa: PLC0415
+
+        text = str(error)
+        if "background calculation" not in text:
+            return None
+        # GPP observation ids look like "o-1a2b".
+        match = re.search(r"\bo-[0-9a-fA-F]+\b", text)
+        return match.group(0) if match else None
+
     @action(detail=False, methods=["post"], url_path="serialize-overrides")
     def serialize_template_overrides(
         self, request: Request, *args, **kwargs
@@ -788,6 +828,13 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         """
         try:
             normalized_data = self._normalize_form_data(request)
+            # Same preparation the other two endpoints do before handing data
+            # to ObservationSerializer. `finderCharts` arrives from a
+            # multipart form as a JSON *string*, and FinderChartsSerializer
+            # passes it straight through to DRF -- which rejects it with
+            # "Expected a dictionary, but got str". Omitting this step made
+            # every save from the template panel fail.
+            normalized_data = self._normalize_finder_charts(normalized_data)
             observation_serializer = ObservationSerializer(data=normalized_data)
             observation_serializer.is_valid(raise_exception=True)
             properties = observation_serializer.to_pydantic()
@@ -797,11 +844,18 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 {"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST
             )
 
+        # The workflow state is returned separately, not folded into the
+        # overrides: it is not an observation *property*, it is set by its own
+        # mutation after the clone. ObservationSerializer does not carry it,
+        # so it is read straight from the submitted form data.
+        workflow_state = normalized_data.get("workflowStateSelect") or ""
+
         return Response(
             {
                 "overrides": properties.model_dump(
                     by_alias=True, exclude_none=True
-                )
+                ),
+                "workflowState": workflow_state,
             }
         )
 
@@ -963,14 +1017,41 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 observation_id=gpp_observation_id,
                 set_=observation_properties,
             )
-            clone_observation_result = async_to_sync(client.observation.clone)(
-                input=clone_input,
-            )
-            clone_observation_dump = clone_observation_result.model_dump(by_alias=True)
-            new_observation = clone_observation_dump.get("cloneObservation", {}).get(
-                "newObservation", {}
-            )
-            new_observation_id = new_observation.get("id")
+            try:
+                clone_observation_result = async_to_sync(client.observation.clone)(
+                    input=clone_input,
+                )
+            except Exception as clone_error:
+                # The observation may exist despite the error -- see
+                # `_observation_id_from_clone_error`. Recovering the id lets
+                # the rest of this flow proceed instead of leaving an
+                # observation in GPP that GOATS knows nothing about.
+                recovered_id = self._observation_id_from_clone_error(clone_error)
+                if recovered_id is None:
+                    raise
+                logger.warning(
+                    "Clone reported a pending background calculation; "
+                    "continuing with observation %s, which was created.",
+                    recovered_id,
+                )
+                clone_observation_result = None
+                new_observation_id = recovered_id
+                # Set explicitly: the clone reply never arrived, so there are
+                # no observation details to carry forward. Fetched further
+                # down, once the workflow-state step has waited for the
+                # calculation that made the clone reply fail in the first
+                # place. Leaving this unbound raised "cannot access local
+                # variable 'new_observation'" at the save step.
+                new_observation = None
+
+            if clone_observation_result is not None:
+                clone_observation_dump = clone_observation_result.model_dump(
+                    by_alias=True
+                )
+                new_observation = clone_observation_dump.get(
+                    "cloneObservation", {}
+                ).get("newObservation", {})
+                new_observation_id = new_observation.get("id")
 
             if new_observation_id is None:
                 raise ValueError(
@@ -1027,6 +1108,30 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
 
         # Save the created observation to GOATS database.
         logger.debug("Creating GOATS observation record")
+
+        if new_observation is None:
+            # Only reachable when the clone reply failed on a pending
+            # background calculation. Fetched here rather than at that point
+            # because the workflow-state step above already waits for the same
+            # calculation, so by now GPP can answer. The record needs the
+            # observation's reference label, not just its id, so a stub will
+            # not do.
+            try:
+                fetched = async_to_sync(client.observation.get_by_id)(
+                    observation_id=new_observation_id
+                )
+                new_observation = fetched.model_dump(by_alias=True).get(
+                    "observation", {}
+                )
+            except Exception:
+                logger.exception(
+                    "Could not re-fetch observation %s after a pending "
+                    "calculation; it exists in GPP but will not be recorded "
+                    "in GOATS.",
+                    new_observation_id,
+                )
+                new_observation = None
+
         try:
             tom_response = self._create_goats_observation(
                 request=request,

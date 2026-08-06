@@ -119,6 +119,10 @@ class AntaresStreamSubscribeForm(forms.Form):
         required=False,
         widget=forms.HiddenInput(attrs={"id": "id_gpp_observation_overrides"}),
     )
+    gpp_workflow_state = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_gpp_workflow_state"}),
+    )
     max_triggers = forms.IntegerField(
         label="Maximum Gemini observations to create",
         required=False,
@@ -331,31 +335,27 @@ class AntaresStreamSubscribeForm(forms.Form):
 
         Notes
         -----
-        Both checks live here rather than on individual fields, because each
-        requirement depends on another field: they only apply when
+        Both rules live here rather than on individual fields, because each
+        depends on another field: they only apply when
         `trigger_gemini_observations` is ticked.
 
-        Reported as errors rather than silently corrected, because both
-        failure modes look identical to the user -- the checkbox appears on
-        and nothing ever happens. A missing template at least leaves skipped
-        trigger records to read; a missing auto-save leaves nothing at all,
-        since the consumer never reaches the trigger.
+        The two are handled differently on purpose. Auto-save is *implied* --
+        triggering needs a target, and nobody wants one without the other, so
+        refusing the submission would be pedantry. A missing template is a
+        real error: GOATS cannot invent one, and without it every alert would
+        be skipped for a reason only visible in the trigger records.
         """
         cleaned = super().clean()
 
         if cleaned.get("trigger_gemini_observations"):
-            # Triggering clones a template onto a *saved* target, so the
-            # consumer only reaches it inside the auto-save branch (see
-            # `goats_tom.tasks.ingest_antares_stream`). Without auto-save the
-            # checkbox would appear on and do nothing at all, with no error
-            # and no trigger records to explain the silence.
-            if not cleaned.get("save_all_targets"):
-                self.add_error(
-                    "trigger_gemini_observations",
-                    "Enable \u201cAutomatically save all ingested loci as "
-                    "targets\u201d as well. Triggering needs a saved target "
-                    "to point the new observation at.",
-                )
+            # Auto-save is implied, not required. Triggering needs a target to
+            # point the new observation at, and turning it on without saving
+            # was previously rejected as an error -- but the two are not really
+            # a choice: nobody wants triggering *without* the target it
+            # depends on. Enabling it silently is friendlier than refusing the
+            # submission, and the checkbox is ticked in the browser too so the
+            # change is visible rather than surprising.
+            cleaned["save_all_targets"] = True
 
             if not cleaned.get("gpp_observation_id"):
                 self.add_error(

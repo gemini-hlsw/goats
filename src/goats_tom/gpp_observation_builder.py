@@ -129,10 +129,12 @@ def clone_observation_for_target(
         `build_source_profile`). `None` leaves the template's own brightness in
         place.
     workflow_state : optional
-        The state to set on the new observation. Defaults to ``READY``, which
-        is the point of automatic triggering -- an observation left inactive
-        would still need somebody to notice and activate it, which is the
-        manual step being removed.
+        The state to set on the new observation, as an enum member or its
+        name. `None` means ``READY``, which is the useful default for
+        automatic triggering -- an observation left inactive would still need
+        somebody to notice and activate it, which is the manual step being
+        removed. A PI who wants review before observing can choose another
+        state in the template editor.
 
     Returns
     -------
@@ -168,6 +170,18 @@ def clone_observation_for_target(
 
     if workflow_state is None:
         workflow_state = ObservationWorkflowState.READY
+    elif isinstance(workflow_state, str):
+        # Accepted as a string so callers can pass a stored value straight
+        # through. An unrecognised one falls back to READY rather than
+        # raising: the observation already exists by this point, and refusing
+        # to set any state would leave it stranded.
+        try:
+            workflow_state = ObservationWorkflowState(workflow_state.upper())
+        except ValueError:
+            logger.warning(
+                "Unknown workflow state %r; using READY.", workflow_state
+            )
+            workflow_state = ObservationWorkflowState.READY
 
     # 1. Create the target in the programme, as a sidereal object at the
     #    locus's coordinates. Degrees, since that is how GOATS stores them.

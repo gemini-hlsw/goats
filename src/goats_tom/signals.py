@@ -4,6 +4,7 @@ Registered from `goats_tom.apps.GOATSTomConfig.ready`.
 """
 
 __all__ = [
+    "clear_target_save_records",
     "create_pi_group_for_kafka_credentials",
     "ensure_user_has_a_group",
 ]
@@ -14,7 +15,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db import transaction
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from goats_tom.models import AntaresKafkaLogin, AntaresPIGroup
@@ -247,3 +248,73 @@ def ensure_user_has_a_group(sender, instance, **kwargs) -> None:
             )
 
     transaction.on_commit(_ensure)
+
+
+@receiver(post_delete, dispatch_uid="clear_antares_target_saves")
+def clear_target_save_records(sender, instance, **kwargs) -> None:
+    """Drop `AntaresTargetSave` rows for a target that has been deleted.
+
+    Parameters
+    ----------
+    sender : type
+        The sending model class. Ignored unless it is the configured target
+        model.
+    instance : `tom_targets.models.Target`
+        The target being deleted.
+    **kwargs
+        Remaining signal arguments.
+
+    Notes
+    -----
+    A save record answers "who saved this target". Once the target is gone it
+    describes nothing, and leaving it behind makes the system act as though
+    the target still exists -- auto-save skipped such loci permanently,
+    because the record was taken as proof a target was there.
+
+    Connected without a `sender` and filtered here instead, because the target
+    model is swappable and importing it at module import time would run before
+    the app registry is ready.
+
+    Matched on `locus_id` against the target's name and aliases, mirroring how
+    `goats_tom.antares_target_save.locus_is_saved_as_target` decides a locus is
+    saved -- a target may be recorded under either.
+
+    Failures are logged, never raised: a leftover record is untidy, but making
+    a deletion fail because of it would be worse.
+    """
+    # Imported rather than looked up by label: the concrete class is
+    # `BaseTarget` on the pinned TOM Toolkit, and the model is swappable, so
+    # `apps.get_model("tom_targets", "Target")` raises LookupError -- which
+    # made an earlier version of this handler return silently and do nothing.
+    # `tom_targets.models.Target` always resolves to whatever is configured.
+    from tom_targets.models import Target  # noqa: PLC0415
+
+    if not isinstance(instance, Target):
+        return
+
+    try:
+        from goats_tom.models import AntaresTargetSave  # noqa: PLC0415
+
+        names = {instance.name}
+        # `aliases` may already be gone if the delete cascaded first, so this
+        # is best-effort rather than assumed available.
+        try:
+            names.update(instance.aliases.values_list("name", flat=True))
+        except Exception:  # noqa: BLE001
+            pass
+
+        deleted, _ = AntaresTargetSave.objects.filter(
+            locus_id__in=[n for n in names if n]
+        ).delete()
+        if deleted:
+            logger.info(
+                "Removed %d ANTARES save record(s) for deleted target %r.",
+                deleted,
+                instance.name,
+            )
+    except Exception:
+        logger.exception(
+            "Failed to clear ANTARES save records for deleted target %r; "
+            "auto-save may skip that locus until they are removed.",
+            getattr(instance, "name", None),
+        )

@@ -20,10 +20,13 @@ class AntaresTargetSave(models.Model):
     be looked up with the same locus IDs the dashboard already works in
     (see `goats_tom.views.antares_locus_dashboard._saved_locus_ids`). A
     consequence is that deleting a target outside this module leaves a
-    row here pointing at a locus that is no longer saved -- harmless,
-    since the dashboard only ever shows attribution for loci it has
-    independently confirmed are currently saved, so a stale row is never
-    displayed.
+    row here pointing at a locus that is no longer saved. Harmless for
+    display, since the dashboard only shows attribution for loci it has
+    independently confirmed are currently saved -- but anything treating a
+    row here as proof that a target exists is wrong. Auto-save did exactly
+    that once, and skipped such loci forever
+    (`goats_tom.tasks.ingest_antares_stream._auto_save_already_done` now
+    checks both).
 
     There may be several rows per locus, one per user who saved it. A
     locus is one real object in the sky and GOATS keeps exactly one

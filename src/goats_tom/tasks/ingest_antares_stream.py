@@ -456,41 +456,6 @@ def _is_current_generation(subscription_id: int, generation: int) -> bool:
     ).exists()
 
 
-def _owner_has_saved(locus_id: str, owner) -> bool:
-    """Whether `owner` already has a recorded save for this locus.
-
-    Parameters
-    ----------
-    locus_id : str
-        The locus in question.
-    owner : `django.contrib.auth.models.User` or None
-        The subscription owner auto-save is attributed to.
-
-    Returns
-    -------
-    bool
-        `True` if a save is already recorded for this owner, so there is
-        nothing to do. `False` when `owner` is `None`, since an
-        unattributable save can't be deduplicated -- but auto-save without an
-        owner has no credentials to have started the consumer in the first
-        place, so this is unreachable in practice.
-
-    Notes
-    -----
-    One indexed lookup, run per alert on an already-saved locus, which is the
-    common case for an active locus. Cheaper than the alternative of calling
-    `save_locus_as_target` every time and letting it decide, which would
-    re-issue permission grants on every alert.
-    """
-    from goats_tom.models import AntaresTargetSave  # noqa: PLC0415
-
-    if owner is None:
-        return False
-    return AntaresTargetSave.objects.filter(
-        locus_id=locus_id, saved_by=owner
-    ).exists()
-
-
 def _newest_alert_brightness(locus) -> tuple[float | None, str]:
     """Extract magnitude and passband from the most recent alert.
 
@@ -534,6 +499,83 @@ def _newest_alert_brightness(locus) -> tuple[float | None, str]:
 
     passband = properties.get("ant_passband") or ""
     return magnitude, str(passband).strip()
+
+
+def _already_triggered(subscription_id: int, locus_id: str) -> bool:
+    """Whether this subscription has already attempted a trigger for this locus.
+
+    Parameters
+    ----------
+    subscription_id : int
+        The subscription in question.
+    locus_id : str
+        The locus.
+
+    Returns
+    -------
+    bool
+        `True` if a `GeminiTriggerRecord` already exists.
+
+    Notes
+    -----
+    A cheap pre-check, not the safeguard. The real guarantee is the unique
+    constraint on ``(subscription, locus_id)``, enforced when the task reserves
+    its record (see `goats_tom.gemini_trigger`). This exists so an active locus
+    -- which re-alerts every few minutes -- does not enqueue a task per alert
+    only for it to stop immediately.
+    """
+    from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
+
+    return GeminiTriggerRecord.objects.filter(
+        subscription_id=subscription_id, locus_id=locus_id
+    ).exists()
+
+
+def _auto_save_already_done(locus_id: str, owner) -> bool:
+    """Whether this owner's auto-save for this locus is already complete.
+
+    Parameters
+    ----------
+    locus_id : str
+        The locus in question.
+    owner : `django.contrib.auth.models.User` or None
+        The subscription owner auto-save is attributed to.
+
+    Returns
+    -------
+    bool
+        `True` only if this owner has a recorded save *and* a target still
+        exists for the locus.
+
+    Notes
+    -----
+    Both conditions are required, and checking only the save record was a bug.
+    `AntaresTargetSave` rows are never deleted -- not by clearing the
+    dashboard, which removes only `AntaresLocus`, and not by deleting the
+    target itself. So a record alone means "this owner saved it at some
+    point", which is not the same as "there is a target now". Relying on it
+    made auto-save skip a locus permanently once it had been saved and the
+    target later removed, with nothing in the interface to explain why.
+
+    Checking only the target would be wrong too: a target created by another
+    team still needs sharing with this one, which
+    `goats_tom.antares_target_save.save_locus_as_target` does. Requiring both
+    means a repeat alert is a cheap no-op, a deleted target is recreated, and
+    another team's target is shared.
+    """
+    from goats_tom.antares_target_save import (  # noqa: PLC0415
+        locus_is_saved_as_target,
+    )
+    from goats_tom.models import AntaresTargetSave  # noqa: PLC0415
+
+    if owner is None:
+        return False
+    recorded = AntaresTargetSave.objects.filter(
+        locus_id=locus_id, saved_by=owner
+    ).exists()
+    if not recorded:
+        return False
+    return locus_is_saved_as_target(locus_id)
 
 
 def _upsert_locus(subscription_id: int, locus, topic: str | None = None) -> None:
@@ -905,16 +947,12 @@ def ingest_antares_stream(
                 try:
                     _upsert_locus(subscription_id, locus, topic)
 
-                    # Guarded on whether *this owner* has already saved the
-                    # locus, not on whether any target exists for it. Under
-                    # shared targets a locus saved by another team still needs
-                    # sharing with this one, which the old "does a target
-                    # exist" guard would have skipped -- leaving auto-save
-                    # silently not saving anything for the second team.
-                    # Checking the save record keeps it idempotent across the
-                    # many alerts one locus produces, which is what that guard
-                    # was really for.
-                    if save_all_targets and not _owner_has_saved(
+                    # Skipped only when this owner has a recorded save AND
+                    # a target still exists -- see `_auto_save_already_done`.
+                    # Checking either alone is wrong: the record outlives the
+                    # target, and the target may belong to another team who
+                    # saved it first.
+                    if save_all_targets and not _auto_save_already_done(
                         locus.locus_id, owner
                     ):
                         try:
@@ -929,21 +967,32 @@ def ingest_antares_stream(
                                 "continues.",
                                 locus.locus_id,
                             )
-                        else:
-                            # Only after a successful save: the trigger needs
-                            # a target to point the new observation at.
-                            #
-                            # Enqueued, never called inline. Creating an
-                            # observation takes several GPP round trips
-                            # (allocation, target, clone, then polling for the
-                            # workflow state), which would stall ingestion for
-                            # every alert -- and a GPP outage would stop the
-                            # stream rather than just the triggering.
-                            if trigger_gemini_observations:
-                                trigger_gemini_observation_task.send(
-                                    subscription_id=subscription_id,
-                                    locus_id=locus.locus_id,
-                                )
+
+                    # Considered independently of whether *this* alert did the
+                    # saving. Nesting it under the save was wrong: a locus
+                    # already saved -- by an earlier run, by hand, or by
+                    # another team whose target we merely gained access to --
+                    # skips the save, and so could never trigger. Enabling
+                    # triggering on an already-populated dashboard did nothing
+                    # at all for the same reason.
+                    #
+                    # Triggering has its own idempotency: GeminiTriggerRecord
+                    # is unique per (subscription, locus), so a locus can only
+                    # ever trigger once for this subscription regardless of
+                    # how many alerts arrive.
+                    #
+                    # Enqueued, never called inline. Creating an observation
+                    # takes several GPP round trips (allocation, target, clone,
+                    # then polling for the workflow state), which would stall
+                    # ingestion for every alert -- and a GPP outage would stop
+                    # the stream rather than just the triggering.
+                    if trigger_gemini_observations and not _already_triggered(
+                        subscription_id, locus.locus_id
+                    ):
+                        trigger_gemini_observation_task.send(
+                            subscription_id=subscription_id,
+                            locus_id=locus.locus_id,
+                        )
                 except Exception:
                     logger.exception(
                         "Failed to process ANTARES locus update: topic=%s "

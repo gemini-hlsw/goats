@@ -610,11 +610,28 @@ class ObservationForm {
     }
 
     // timing windows
-    const timingWindows = this.#schedulingWindowsEditor.getValues();
+    //
+    // Guarded for the same reason as the finder charts below: this editor is
+    // absent whenever the Scheduling Windows section is hidden. Nothing hides
+    // it today, but leaving one of the two unguarded means the next caller to
+    // use `hideSections` hits an obscure crash in getData() rather than
+    // simply omitting a section.
+    const timingWindows = this.#schedulingWindowsEditor
+      ? this.#schedulingWindowsEditor.getValues()
+      : [];
     formData.append("timingWindows", JSON.stringify(timingWindows));
 
     // finder charts
-    const { toAdd, toDelete } = this.#finderChartEditor.getPendingChanges();
+    //
+    // The editor is absent when the Finder Charts section has been hidden
+    // (see the `hideSections` option) -- the ANTARES template picker does
+    // that, since charts are prepared per target and a template has none.
+    // Treated as "no pending changes" rather than assumed present: this used
+    // to throw "can't access property getPendingChanges", which surfaced as a
+    // failed save with no obvious connection to the hidden section.
+    const { toAdd, toDelete } = this.#finderChartEditor
+      ? this.#finderChartEditor.getPendingChanges()
+      : { toAdd: [], toDelete: [] };
 
     const finderCharts = {
       toAdd: toAdd.map((item, index) => ({

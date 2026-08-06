@@ -91,6 +91,14 @@ class AntaresStreamSubscription(models.Model):
         Stored as GPP's own property shape, already validated by
         `goats_tom.serializers.gpp.ObservationSerializer`, so a malformed
         override cannot reach trigger time and fail once per alert.
+    gpp_workflow_state : `models.CharField`
+        Workflow state to set on each created observation. Blank means
+        ``READY``.
+
+        Taken from the template editor's own State field, so an observation
+        can be created for review rather than made immediately observable.
+        Forcing ``READY`` regardless -- as an earlier version did -- silently
+        discarded a choice the interface presented as editable.
     max_triggers : `models.PositiveIntegerField`
         Lifetime cap on how many observations this subscription may create.
         `None` means no limit. Defaults to
@@ -209,6 +217,7 @@ class AntaresStreamSubscription(models.Model):
     gpp_program_id = models.CharField(max_length=128, blank=True, default="")
     gpp_observation_id = models.CharField(max_length=128, blank=True, default="")
     gpp_observation_overrides = models.JSONField(default=dict, blank=True)
+    gpp_workflow_state = models.CharField(max_length=32, blank=True, default="")
     max_triggers = models.PositiveIntegerField(
         null=True,
         blank=True,

@@ -23,6 +23,7 @@ class GPPTemplatePicker {
   #editor;
   #observationForm;
   #overridesInput;
+  #workflowStateInput;
   #observations = new Map();
 
   /**
@@ -36,6 +37,9 @@ class GPPTemplatePicker {
     this.#observationInput = document.getElementById("id_gpp_observation_id");
     this.#overridesInput = document.getElementById(
       "id_gpp_observation_overrides"
+    );
+    this.#workflowStateInput = document.getElementById(
+      "id_gpp_workflow_state"
     );
     this.#render();
     this.#wire();
@@ -128,6 +132,9 @@ class GPPTemplatePicker {
       // it -- or silently reintroduce values the user thought they had left
       // behind.
       this.#overridesInput.value = "";
+      if (this.#workflowStateInput) {
+        this.#workflowStateInput.value = "";
+      }
       this.#renderSummary();
       this.#loadEditor(this.#observationSelect.value);
     });
@@ -377,11 +384,20 @@ class GPPTemplatePicker {
       );
       return;
     }
-    section
-      .querySelectorAll("input, select, textarea, button")
-      .forEach((el) => {
-        el.disabled = true;
-      });
+    // `inert` rather than `disabled`: a disabled input is omitted from
+    // FormData, so disabling this section silently dropped its fields from
+    // the payload and the serializer rejected the request. `inert` makes the
+    // section non-interactive and unfocusable while leaving its values
+    // submittable -- which matters because they are still valid values, just
+    // ones the trigger will replace.
+    section.inert = true;
+    if (!("inert" in section)) {
+      section.style.pointerEvents = "none";
+      section
+        .querySelectorAll("input, select, textarea, button")
+        .forEach((el) => el.setAttribute("tabindex", "-1"));
+    }
+    section.style.opacity = "0.6";
 
     const note = document.createElement("div");
     note.className = "form-text";
@@ -403,9 +419,6 @@ class GPPTemplatePicker {
         Apply these settings
       </button>
       <span id="gppTemplateSaveStatus" class="small"></span>
-      <p class="small text-muted mb-0 w-100">
-        Applied to the observations GOATS creates.
-      </p>
     `;
     this.#editor.appendChild(bar);
 
@@ -437,12 +450,32 @@ class GPPTemplatePicker {
           false
         );
         this.#overridesInput.value = JSON.stringify(result?.overrides ?? {});
+        // Stored separately: the workflow state is not an observation
+        // property, it is applied by its own mutation after the clone.
+        if (this.#workflowStateInput) {
+          this.#workflowStateInput.value = result?.workflowState ?? "";
+        }
         statusEl.className = "small text-success";
-        statusEl.textContent =
-          "Applied. Submit the form below to save the subscription.";
+        statusEl.textContent = "Applied to the observations GOATS creates.";
       } catch (error) {
+        // api.js throws the Response itself on a non-2xx, so the server's
+        // explanation is available and worth showing. The previous message
+        // said only "Could not apply these settings", which hid a specific,
+        // actionable validation error behind a generic one.
+        let detail = "";
+        try {
+          if (error instanceof Response) {
+            const body = await error.json();
+            detail = body?.detail ?? JSON.stringify(body);
+          } else {
+            detail = error?.message ?? String(error);
+          }
+        } catch (parseError) {
+          detail = `HTTP ${error?.status ?? "error"}`;
+        }
+        console.error("Could not apply template settings:", detail, error);
         statusEl.className = "small text-danger";
-        statusEl.textContent = "Could not apply these settings.";
+        statusEl.textContent = `Could not apply these settings: ${detail}`;
       } finally {
         button.disabled = false;
       }
