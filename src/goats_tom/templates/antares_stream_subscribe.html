@@ -246,6 +246,69 @@ nothing that can be submitted.
 </script>
 
 
+{% comment %}
+The template picker embeds ObservationForm, which needs the same field
+editors the observation page loads. Listed explicitly rather than bundled so
+the dependency is visible: dropping one of these breaks the editor with a
+bare "X is not defined" in the console.
+{% endcomment %}
+<script src="{% static 'js/utils.js' %}"></script>
+<script src="{% static 'js/api.js' %}"></script>
+<script src="{% static 'js/gpp/lookups.js' %}"></script>
+<script src="{% static 'js/gpp/formatters.js' %}"></script>
+<script src="{% static 'js/gpp/fields.js' %}"></script>
+<script src="{% static 'js/gpp/pos_angle_editor.js' %}"></script>
+<script src="{% static 'js/gpp/brightnesses_editor.js' %}"></script>
+<script src="{% static 'js/gpp/source_profile_editor.js' %}"></script>
+<script src="{% static 'js/gpp/science_band_editor.js' %}"></script>
+<script src="{% static 'js/gpp/elevation_range_editor.js' %}"></script>
+<script src="{% static 'js/gpp/exposure_mode_editor.js' %}"></script>
+<script src="{% static 'js/gpp/scheduling_windows_editor.js' %}"></script>
+<script src="{% static 'js/gpp/offset_variant_editor.js' %}"></script>
+<script src="{% static 'js/gpp/finder_chart_editor.js' %}"></script>
+<script src="{% static 'js/gpp/observation_form.js' %}"></script>
+<script src="{% static 'js/gpp/template_picker.js' %}"></script>
+<script>
+  // The template picker is only built when automatic triggering is ticked.
+  // Loading programmes on every page view would make an unnecessary GPP call
+  // for the majority of users, who never enable triggering -- and would show
+  // a "could not reach GPP" error to anyone without GPP credentials, who has
+  // no reason to care.
+  document.addEventListener("DOMContentLoaded", function () {
+    var toggle = document.getElementById("id_trigger_gemini_observations");
+    var programInput = document.getElementById("id_gpp_program_id");
+    if (!toggle || !programInput) {
+      return;
+    }
+
+    // Mounted next to the checkbox rather than at the end of the form, so the
+    // template sits with the setting that requires it.
+    var mount = document.createElement("div");
+    mount.id = "gppTemplatePickerMount";
+    mount.classList.add("mt-2", "mb-3");
+    var anchor = toggle.closest(".form-check") || toggle.parentElement;
+    anchor.parentElement.insertBefore(mount, anchor.nextSibling);
+
+    var picker = null;
+    var sync = function () {
+      if (toggle.checked) {
+        mount.hidden = false;
+        if (!picker) {
+          var csrf = document.querySelector("[name=csrfmiddlewaretoken]");
+          var api = window.api || new API("/api/", csrf ? csrf.value : "");
+          picker = new GPPTemplatePicker(mount, api);
+        }
+      } else {
+        // Hidden, not destroyed: unticking and re-ticking should not discard
+        // a chosen template or re-fetch the programme list.
+        mount.hidden = true;
+      }
+    };
+
+    sync();
+    toggle.addEventListener("change", sync);
+  });
+</script>
 <script src="{% static 'ace-builds/src-noconflict/ace.js' %}"></script>
 <script src="{% static 'ace-builds/src-noconflict/ext-language_tools.js' %}"></script>
 <script src="{% static 'ace-builds/src-noconflict/mode-python.js' %}"></script>

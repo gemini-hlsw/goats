@@ -749,6 +749,62 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             },
         )
 
+    @action(detail=False, methods=["post"], url_path="serialize-overrides")
+    def serialize_template_overrides(
+        self, request: Request, *args, **kwargs
+    ) -> Response:
+        """Validate observation form data and return it as clone overrides.
+
+        Used by the ANTARES ingestion page. The observation being set up as a
+        template is *not* modified: the values are validated, converted to
+        GPP's own property shape, and handed back for GOATS to store on the
+        subscription.
+
+        Parameters
+        ----------
+        request : Request
+            The observation form fields.
+
+        Returns
+        -------
+        Response
+            ``{"overrides": {...}}`` -- a GPP `ObservationPropertiesInput`
+            rendered as a dict.
+
+        Notes
+        -----
+        Deliberately makes no GPP call at all. The template belongs to a real
+        programme and may be used by other observations or by hand, so
+        adjusting it for the sake of ANTARES triggering would change something
+        outside the subscription's scope. Instead these values are applied to
+        each *clone* at trigger time, through
+        `CloneObservationInput.set_` -- which is GPP's own mechanism for
+        exactly this -- leaving the template as it was.
+
+        Validating here rather than in the browser reuses `ObservationSerializer`,
+        so the stored overrides are guaranteed to be a shape GPP will accept.
+        Discovering otherwise at trigger time would mean a failure per alert,
+        long after whoever configured it had moved on.
+        """
+        try:
+            normalized_data = self._normalize_form_data(request)
+            observation_serializer = ObservationSerializer(data=normalized_data)
+            observation_serializer.is_valid(raise_exception=True)
+            properties = observation_serializer.to_pydantic()
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Validation failed while serializing overrides.")
+            return Response(
+                {"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response(
+            {
+                "overrides": properties.model_dump(
+                    by_alias=True, exclude_none=True
+                )
+            }
+        )
+
     @action(detail=False, methods=["post"], url_path="create-and-save")
     def create_and_save_observation(
         self, request: Request, *args, **kwargs

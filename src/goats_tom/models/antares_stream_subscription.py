@@ -5,6 +5,11 @@ __all__ = ["AntaresStreamSubscription"]
 from django.conf import settings
 from django.db import models
 
+# Default lifetime cap on automatic Gemini triggers. Low on purpose: each
+# trigger spends real telescope time, and the cap is the backstop if the
+# allocation check is somehow unavailable.
+DEFAULT_MAX_TRIGGERS = 10
+
 
 class AntaresStreamSubscription(models.Model):
     """One user's ANTARES Kafka stream subscription and its dashboard.
@@ -60,8 +65,43 @@ class AntaresStreamSubscription(models.Model):
         Whether all ingested loci should be saved as GOATS targets.
     trigger_gemini_observations : `models.BooleanField`
         Whether ingested loci should automatically trigger Gemini
-        observations. Currently a no-op placeholder; not yet wired to any
-        behavior.
+        observations, by cloning `gpp_observation_id` onto each newly-saved
+        locus (see `goats_tom.gemini_trigger`).
+    gpp_program_id : `models.CharField`
+        The GPP program the template observation belongs to. Stored alongside
+        the observation id because the allocation check is per-program, and
+        looking it up from the observation on every trigger would be an extra
+        round trip per alert.
+    gpp_observation_id : `models.CharField`
+        The GPP observation used as a template. Triggering clones it and
+        points the clone at the new target, which is how a ToO is normally
+        set up by hand -- so the PI configures instrument, exposure and
+        conditions in Explore, where those tools already exist, rather than
+        GOATS reimplementing them.
+    gpp_observation_overrides : `models.JSONField`
+        Observation properties to apply to each clone, overriding what the
+        template carries. Empty means the template is used as it stands.
+
+        Applied to the *clone* rather than saved back to the template, through
+        GPP's own `CloneObservationInput.set_`. The template belongs to a real
+        programme and may be used by other observations or by hand, so
+        adjusting it for the sake of ANTARES triggering would change something
+        outside this subscription's scope.
+
+        Stored as GPP's own property shape, already validated by
+        `goats_tom.serializers.gpp.ObservationSerializer`, so a malformed
+        override cannot reach trigger time and fail once per alert.
+    max_triggers : `models.PositiveIntegerField`
+        Lifetime cap on how many observations this subscription may create.
+        `None` means no limit. Defaults to
+        `DEFAULT_MAX_TRIGGERS`, deliberately low: automatic triggering spends
+        real telescope time from a live alert stream, and a broad topic could
+        otherwise consume a programme's allocation overnight.
+
+        A total rather than a nightly quota, so reaching it stops triggering
+        until the number is raised. That is a deliberate stop, not a failure,
+        and is reported as such on the dashboard -- ingestion continues either
+        way.
     handler_code : `models.TextField`
         Optional user-defined ``def myfilter(locus): ...`` function run
         against each locus before it's saved, acting as an additional
@@ -166,6 +206,18 @@ class AntaresStreamSubscription(models.Model):
     )
     save_all_targets = models.BooleanField(default=False)
     trigger_gemini_observations = models.BooleanField(default=False)
+    gpp_program_id = models.CharField(max_length=128, blank=True, default="")
+    gpp_observation_id = models.CharField(max_length=128, blank=True, default="")
+    gpp_observation_overrides = models.JSONField(default=dict, blank=True)
+    max_triggers = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        default=DEFAULT_MAX_TRIGGERS,
+        help_text=(
+            "Maximum number of Gemini observations this subscription may "
+            "create in total. Leave blank for no limit."
+        ),
+    )
     handler_code = models.TextField(
         blank=True,
         default="",

@@ -4,6 +4,7 @@ from goats_tom.models.antares_dashboard_membership import (
 from goats_tom.models.antares_group_join_request import AntaresGroupJoinRequest
 from goats_tom.models.antares_locus import AntaresLocus
 from goats_tom.models.antares_pi_group import AntaresPIGroup
+from goats_tom.models.gemini_trigger_record import GeminiTriggerRecord
 from goats_tom.models.personal_group import PersonalGroup
 from goats_tom.models.registration_request import RegistrationRequest
 from goats_tom.models.antares_stream_subscription import AntaresStreamSubscription
@@ -31,6 +32,7 @@ __all__ = [
     "AntaresGroupJoinRequest",
     "AntaresLocus",
     "AntaresPIGroup",
+    "GeminiTriggerRecord",
     "PersonalGroup",
     "RegistrationRequest",
     "AntaresStreamSubscription",

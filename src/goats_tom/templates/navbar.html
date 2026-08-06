@@ -48,7 +48,7 @@
         <a class="nav-link {% if request.resolver_match.url_name == 'astro-data-lab' %}active fw-bold{% endif %}" title="Open Astro Data Lab science platform" href="{% url 'astro-data-lab' %}">Astro Data Lab</a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" target="_blank" title="Open Gemini Explore" href="https://explore.gemini.edu/">Gemini Explore</a>
+        <a class="nav-link" target="_blank" title="Open Gemini Explore" href="{{ gpp_explore_url }}/">Gemini Explore</a>
       </li>
     </ul>
     <ul class="navbar-nav">

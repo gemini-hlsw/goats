@@ -53,6 +53,12 @@ class AntaresLocus(models.Model):
     latest_alert_magnitude : `models.FloatField`
         Magnitude of the most recently seen alert, from ANTARES
         ``properties["newest_alert_magnitude"]``, if known.
+    latest_alert_passband : `models.CharField`
+        Passband of the most recent alert, as ANTARES reports it (e.g. ``g``,
+        ``R``). Captured at ingest time because the Gemini trigger runs later,
+        in a separate task with only ids to work from -- by then the locus
+        object and its alert list are gone, and re-fetching from ANTARES per
+        trigger would be a round trip for something already in hand.
     latest_alert_topic : `models.CharField`
         The ANTARES Kafka topic the most recent alert for this locus
         arrived on, with ANTARES's internal "client." prefix stripped so
@@ -83,6 +89,7 @@ class AntaresLocus(models.Model):
     latest_alert_id = models.CharField(max_length=128)
     latest_alert_mjd = models.FloatField(null=True, blank=True)
     latest_alert_magnitude = models.FloatField(null=True, blank=True)
+    latest_alert_passband = models.CharField(max_length=16, blank=True, default="")
     latest_alert_topic = models.CharField(
         max_length=256, blank=True, default="", db_index=True
     )

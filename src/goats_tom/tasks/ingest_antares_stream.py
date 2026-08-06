@@ -60,6 +60,9 @@ from goats_tom.antares_locus_handler import (
     is_effectively_blank,
     run_locus_handler,
 )
+from goats_tom.tasks.trigger_gemini_observation import (
+    trigger_gemini_observation_task,
+)
 from goats_tom.antares_target_save import (
     SaveLocusError,
     save_locus_as_target,
@@ -488,6 +491,51 @@ def _owner_has_saved(locus_id: str, owner) -> bool:
     ).exists()
 
 
+def _newest_alert_brightness(locus) -> tuple[float | None, str]:
+    """Extract magnitude and passband from the most recent alert.
+
+    Parameters
+    ----------
+    locus : `antares_client.models.Locus`
+        The locus received from the stream.
+
+    Returns
+    -------
+    tuple
+        ``(magnitude, passband)``. Either may be missing -- `None` and ``""``
+        respectively -- if the alert does not carry it.
+
+    Notes
+    -----
+    Read from ``locus.alerts[-1]``, the newest alert, since both describe an
+    individual detection rather than the locus as a whole.
+
+    `ant_mag` and `ant_passband` are ANTARES's own normalised properties,
+    present regardless of which survey produced the alert -- as opposed to the
+    survey-specific keys (ZTF's integer ``fid``, for instance) that would each
+    need their own translation.
+
+    Missing values are reported as missing rather than defaulted. They end up
+    as the brightness on a real Gemini observation, so a guessed band or
+    magnitude is worse than none: without them the template's own brightness
+    stands, whereas a wrong one silently misdescribes the target.
+    """
+    alerts = getattr(locus, "alerts", None) or []
+    if not alerts:
+        return None, ""
+
+    properties = getattr(alerts[-1], "properties", None) or {}
+
+    magnitude = properties.get("ant_mag")
+    try:
+        magnitude = float(magnitude) if magnitude is not None else None
+    except (TypeError, ValueError):
+        magnitude = None
+
+    passband = properties.get("ant_passband") or ""
+    return magnitude, str(passband).strip()
+
+
 def _upsert_locus(subscription_id: int, locus, topic: str | None = None) -> None:
     """Create or update the `AntaresLocus` staging row for one locus update.
 
@@ -549,6 +597,18 @@ def _upsert_locus(subscription_id: int, locus, topic: str | None = None) -> None
     newest_alert_magnitude = locus.properties.get("newest_alert_magnitude")
     if newest_alert_magnitude is not None:
         field_updates["latest_alert_magnitude"] = newest_alert_magnitude
+
+    # From the newest alert rather than the locus properties: the Gemini
+    # trigger runs later with only ids, so this is the one chance to capture
+    # them.
+    alert_magnitude, alert_passband = _newest_alert_brightness(locus)
+    if alert_passband:
+        field_updates["latest_alert_passband"] = alert_passband
+    # Preferred over the locus-level `newest_alert_magnitude` when present,
+    # since it comes from the same alert as the passband -- pairing a magnitude
+    # with a band from a different detection would misreport the brightness.
+    if alert_magnitude is not None:
+        field_updates["latest_alert_magnitude"] = alert_magnitude
 
     newest_alert_id = locus.properties.get("newest_alert_id")
     if newest_alert_id is not None:
@@ -673,6 +733,7 @@ def ingest_antares_stream(
     topics = list(subscription.topics or [])
     handler_code = subscription.handler_code
     save_all_targets = subscription.save_all_targets
+    trigger_gemini_observations = subscription.trigger_gemini_observations
     owner = subscription.owner
     # Resolved once here, not per locus: auto-saved targets are shared with
     # the owner's team so the whole group sees them, and this costs a query.
@@ -868,6 +929,21 @@ def ingest_antares_stream(
                                 "continues.",
                                 locus.locus_id,
                             )
+                        else:
+                            # Only after a successful save: the trigger needs
+                            # a target to point the new observation at.
+                            #
+                            # Enqueued, never called inline. Creating an
+                            # observation takes several GPP round trips
+                            # (allocation, target, clone, then polling for the
+                            # workflow state), which would stall ingestion for
+                            # every alert -- and a GPP outage would stop the
+                            # stream rather than just the triggering.
+                            if trigger_gemini_observations:
+                                trigger_gemini_observation_task.send(
+                                    subscription_id=subscription_id,
+                                    locus_id=locus.locus_id,
+                                )
                 except Exception:
                     logger.exception(
                         "Failed to process ANTARES locus update: topic=%s "

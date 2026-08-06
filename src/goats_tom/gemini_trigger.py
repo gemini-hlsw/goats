@@ -1,0 +1,518 @@
+"""Automatic Gemini observation triggering for ANTARES loci.
+
+Triggering clones a *template* observation the PI has already set up in GPP
+and points the clone at the newly-saved target. That is how a ToO is normally
+prepared by hand, so the PI configures instrument, exposure, conditions and
+constraints in Explore -- where those tools already exist -- and GOATS only
+repeats the clone-and-retarget step per alert.
+
+Two guards run before anything is created, and either one refusing means no
+observation is made:
+
+- a lifetime cap on how many observations a subscription may create
+  (`AntaresStreamSubscription.max_triggers`), and
+- an allocation check: the template's expected execution time must fit in
+  what is left of the programme's grant for that science band.
+
+The allocation check is the one that actually protects the programme; the cap
+is a blunter backstop for when the check cannot be made. Neither is a
+substitute for the other, which is why both are enforced.
+"""
+
+__all__ = [
+    "LOCUS_URL_TOKEN",
+    "TriggerSkipped",
+    "TriggerFailed",
+    "trigger_gemini_observation",
+]
+
+import logging
+import time
+
+from django.db import IntegrityError, transaction
+
+logger = logging.getLogger(__name__)
+
+# Attempts to fetch the programme's allocation before giving up. Retried
+# because this happens *before* anything is created, so a repeat is free -- no
+# clone has been made, nothing can be duplicated. Everything after this point
+# is deliberately not retried.
+ALLOCATION_FETCH_ATTEMPTS = 3
+ALLOCATION_FETCH_BACKOFF_SECONDS = 2.0
+
+# Placeholder the template picker seeds into Observer Notes, replaced with the
+# real ANTARES page for each triggered locus. A token rather than a literal URL
+# because the template is configured before any locus exists, and every clone
+# points at a different one.
+LOCUS_URL_TOKEN = "{locus_url}"
+
+
+def _locus_url(locus_id: str) -> str:
+    """Build the ANTARES web page URL for a locus.
+
+    Parameters
+    ----------
+    locus_id : str
+        The ANTARES locus id.
+
+    Returns
+    -------
+    str
+        The locus page URL.
+
+    Notes
+    -----
+    Built the same way `goats_tom.brokers.antares` builds it, so it follows the
+    configured ANTARES environment rather than hardcoding production -- a
+    development deployment should link to development.
+    """
+    from goats_tom.antares_client.config import ANTARESConfig  # noqa: PLC0415
+
+    return f"{ANTARESConfig.get_url()}/loci/{locus_id}"
+
+
+def _apply_locus_url(overrides: dict, locus_id: str) -> dict:
+    """Substitute the locus URL token in Observer Notes.
+
+    Parameters
+    ----------
+    overrides : dict
+        The stored observation overrides.
+    locus_id : str
+        The locus being triggered.
+
+    Returns
+    -------
+    dict
+        A copy with the token replaced. The input is not modified, so the
+        stored overrides keep the token for the next trigger.
+
+    Notes
+    -----
+    Substitution only -- the link is never appended. If a PI removed the token
+    from their notes, that is a deliberate choice and silently adding a URL
+    back into text they edited would be surprising. The consequence is that
+    notes without the token carry no link, which is what was asked for.
+    """
+    notes = (overrides or {}).get("observerNotes")
+    if not notes or LOCUS_URL_TOKEN not in notes:
+        return overrides
+
+    updated = dict(overrides)
+    updated["observerNotes"] = notes.replace(
+        LOCUS_URL_TOKEN, _locus_url(locus_id)
+    )
+    return updated
+
+
+class TriggerSkipped(Exception):
+    """A guard declined to trigger. Not an error: a deliberate decision."""
+
+
+class TriggerFailed(Exception):
+    """Triggering was attempted and something went wrong."""
+
+
+def _reserve_record(subscription, locus_id: str):
+    """Claim this locus before contacting GPP.
+
+    Parameters
+    ----------
+    subscription : `goats_tom.models.AntaresStreamSubscription`
+        The subscription triggering.
+    locus_id : str
+        The locus prompting the trigger.
+
+    Returns
+    -------
+    `goats_tom.models.GeminiTriggerRecord`
+        The newly-created pending record.
+
+    Raises
+    ------
+    TriggerSkipped
+        If this locus has already been attempted.
+
+    Notes
+    -----
+    Reserved *first*, before any GPP call, so the unique constraint on
+    ``(subscription, locus_id)`` acts as an idempotency key. If a clone
+    succeeds in GPP but the response is lost, the row already exists and a
+    second attempt stops here rather than creating a duplicate observation and
+    charging the allocation twice.
+
+    An existing record in any state stops the attempt, including a failed one:
+    a failure after the clone began may have created an observation anyway, so
+    retrying could double-charge. ANTARES re-alerts an active locus every few
+    minutes, so an automatic retry would fire again almost immediately.
+    """
+    from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
+
+    try:
+        with transaction.atomic():
+            return GeminiTriggerRecord.objects.create(
+                subscription=subscription,
+                locus_id=locus_id,
+                status=GeminiTriggerRecord.STATUS_PENDING,
+            )
+    except IntegrityError as exc:
+        raise TriggerSkipped(
+            f"Locus {locus_id} has already been triggered for this "
+            f"subscription."
+        ) from exc
+
+
+def _check_cap(subscription, record) -> None:
+    """Refuse if the subscription has used its allowance.
+
+    Parameters
+    ----------
+    subscription : `goats_tom.models.AntaresStreamSubscription`
+        The subscription triggering.
+    record : `goats_tom.models.GeminiTriggerRecord`
+        This attempt's record, excluded from its own count.
+
+    Raises
+    ------
+    TriggerSkipped
+        If the cap has been reached.
+
+    Notes
+    -----
+    Skipped attempts do not count (see
+    `GeminiTriggerRecord.counts_towards_cap`): counting them would let a
+    refusal consume the budget it was protecting, and once the cap was reached
+    every further skip would hold it there.
+
+    A blank cap means no limit. That is a deliberate choice a user has to make,
+    not the default.
+    """
+    from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
+
+    if subscription.max_triggers is None:
+        return
+
+    used = (
+        GeminiTriggerRecord.objects.filter(subscription=subscription)
+        .exclude(status=GeminiTriggerRecord.STATUS_SKIPPED)
+        .exclude(pk=record.pk)
+        .count()
+    )
+    if used >= subscription.max_triggers:
+        raise TriggerSkipped(
+            f"Trigger limit reached ({used} of {subscription.max_triggers} "
+            f"used). Raise the limit on the ingestion page to continue."
+        )
+
+
+def _fetch_program_snapshot(client, program_id: str, observation_id: str):
+    """Fetch allocation, time already charged, and the template's cost.
+
+    Parameters
+    ----------
+    client : `gpp_client.GPPClient`
+        An authenticated client.
+    program_id : str
+        The programme owning the template.
+    observation_id : str
+        The template observation.
+
+    Returns
+    -------
+    tuple
+        ``(allocated_hours, charged_hours, execution_hours)``.
+
+    Raises
+    ------
+    TriggerFailed
+        If GPP cannot be reached after `ALLOCATION_FETCH_ATTEMPTS`, or the
+        response lacks the fields the check depends on.
+
+    Notes
+    -----
+    Retried, unlike everything after it, because nothing has been created yet
+    -- a repeated read cannot duplicate anything. Failing to reach GPP here
+    refuses the trigger rather than proceeding blind: triggering without
+    knowing the remaining allocation would defeat the check entirely.
+
+    The allocation is matched to the template's own science band. A programme
+    may hold separate grants per band, so summing them would allow a Band 1
+    observation to spend Band 3 time.
+    """
+    from asgiref.sync import async_to_sync  # noqa: PLC0415
+
+    last_error: Exception | None = None
+    for attempt in range(1, ALLOCATION_FETCH_ATTEMPTS + 1):
+        try:
+            payload = async_to_sync(client.goats.get_observations_by_program_id)(
+                program_id=program_id
+            )
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            logger.warning(
+                "Allocation lookup for program %s failed (attempt %d/%d): %s",
+                program_id,
+                attempt,
+                ALLOCATION_FETCH_ATTEMPTS,
+                exc,
+            )
+            if attempt < ALLOCATION_FETCH_ATTEMPTS:
+                time.sleep(ALLOCATION_FETCH_BACKOFF_SECONDS * attempt)
+    else:
+        raise TriggerFailed(
+            f"Could not read the programme's allocation from GPP after "
+            f"{ALLOCATION_FETCH_ATTEMPTS} attempts: {last_error}"
+        )
+
+    data = payload.model_dump(by_alias=True).get("observations", {})
+    matches = data.get("matches", []) or []
+
+    template = next(
+        (m for m in matches if m.get("id") == observation_id), None
+    )
+    if template is None:
+        raise TriggerFailed(
+            f"Template observation {observation_id} was not found in program "
+            f"{program_id}. It may have been deleted."
+        )
+
+    band = template.get("scienceBand")
+    program = template.get("program") or {}
+
+    allocations = program.get("allocations") or []
+    allocated = sum(
+        float(a.get("duration", {}).get("hours") or 0.0)
+        for a in allocations
+        if band is None or a.get("scienceBand") == band
+    )
+    charged = sum(
+        float(c.get("program", {}).get("hours") or 0.0)
+        if isinstance(c.get("program"), dict)
+        else float(c.get("hours") or 0.0)
+        for c in (program.get("timeCharge") or [])
+    )
+    execution = _execution_hours(template)
+
+    if execution is None:
+        raise TriggerFailed(
+            f"GPP did not report an execution time for template "
+            f"{observation_id}, so the allocation check cannot be made."
+        )
+
+    return allocated, charged, execution
+
+
+def _execution_hours(observation: dict) -> float | None:
+    """Pull the expected execution time, in hours, out of an observation.
+
+    Parameters
+    ----------
+    observation : dict
+        A GPP observation, dumped by alias.
+
+    Returns
+    -------
+    float or None
+        Hours, or `None` if GPP did not report it.
+
+    Notes
+    -----
+    Tolerant of shape because the value is nested differently depending on
+    which query returned it, and a missing value must be reported as "unknown"
+    rather than silently becoming zero -- a zero would make every observation
+    look free and pass the allocation check unconditionally.
+    """
+    digest = observation.get("execution") or observation.get("digest") or {}
+    if isinstance(digest, dict):
+        for key in ("executionTime", "programTime", "full"):
+            node = digest.get(key)
+            if isinstance(node, dict):
+                if node.get("hours") is not None:
+                    return float(node["hours"])
+                program_node = node.get("program")
+                if isinstance(program_node, dict) and program_node.get("hours"):
+                    return float(program_node["hours"])
+    node = observation.get("executionTime")
+    if isinstance(node, dict) and node.get("hours") is not None:
+        return float(node["hours"])
+    return None
+
+
+def _check_allocation(client, subscription, record) -> float:
+    """Refuse unless this observation fits in the remaining allocation.
+
+    Parameters
+    ----------
+    client : `gpp_client.GPPClient`
+        An authenticated client.
+    subscription : `goats_tom.models.AntaresStreamSubscription`
+        The subscription triggering.
+    record : `goats_tom.models.GeminiTriggerRecord`
+        This attempt's record; its expected cost is stored on it.
+
+    Returns
+    -------
+    float
+        The template's execution time in hours.
+
+    Raises
+    ------
+    TriggerSkipped
+        If the observation would not fit.
+    TriggerFailed
+        If the allocation could not be read.
+
+    Notes
+    -----
+    No partial overrun: an observation needing more than the remaining time is
+    refused outright rather than submitted in the hope GPP rejects it. A
+    rejected submission would still leave a cloned target and observation
+    behind in the programme for somebody to find and delete.
+    """
+    allocated, charged, execution = _fetch_program_snapshot(
+        client, subscription.gpp_program_id, subscription.gpp_observation_id
+    )
+    record.execution_time_hours = execution
+    record.save(update_fields=["execution_time_hours", "updated_at"])
+
+    remaining = allocated - charged
+    if execution > remaining:
+        raise TriggerSkipped(
+            f"Not enough time left in the programme: this observation needs "
+            f"{execution:.2f} h but only {remaining:.2f} h of "
+            f"{allocated:.2f} h remains."
+        )
+    return execution
+
+
+def trigger_gemini_observation(subscription, locus_id: str, target) -> object:
+    """Create a Gemini observation for one locus, if the guards allow it.
+
+    Parameters
+    ----------
+    subscription : `goats_tom.models.AntaresStreamSubscription`
+        The subscription whose template and limits apply.
+    locus_id : str
+        The ANTARES locus prompting the trigger.
+    target : `tom_targets.models.Target`
+        The saved GOATS target to point the new observation at.
+
+    Returns
+    -------
+    `goats_tom.models.GeminiTriggerRecord`
+        The record, in its final state.
+
+    Notes
+    -----
+    Never raises. Every outcome is recorded on the returned row instead,
+    because this runs per alert in a background task where an exception would
+    only be logged and lost -- and because "why did nothing happen?" needs a
+    durable answer the PI can read on the dashboard.
+
+    The order is deliberate: reserve the row, check the cap, check the
+    allocation, then create. Everything cheap and reversible happens before
+    anything is created in GPP.
+    """
+    from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
+
+    try:
+        record = _reserve_record(subscription, locus_id)
+    except TriggerSkipped as exc:
+        logger.info("Not triggering for %s: %s", locus_id, exc)
+        return None
+
+    def _finish(status: str, detail: str = "", **fields) -> object:
+        record.status = status
+        record.detail = detail
+        for key, value in fields.items():
+            setattr(record, key, value)
+        record.save()
+        return record
+
+    owner = subscription.owner
+    if owner is None or not hasattr(owner, "gpplogin"):
+        return _finish(
+            GeminiTriggerRecord.STATUS_SKIPPED,
+            "The subscription owner has no GPP credentials stored.",
+        )
+
+    if not (subscription.gpp_program_id and subscription.gpp_observation_id):
+        return _finish(
+            GeminiTriggerRecord.STATUS_SKIPPED,
+            "No GPP template observation is configured for this subscription.",
+        )
+
+    try:
+        _check_cap(subscription, record)
+    except TriggerSkipped as exc:
+        return _finish(GeminiTriggerRecord.STATUS_SKIPPED, str(exc))
+
+    from gpp_client import GPPClient  # noqa: PLC0415
+
+    client = GPPClient(token=owner.gpplogin.token)
+
+    try:
+        _check_allocation(client, subscription, record)
+    except TriggerSkipped as exc:
+        return _finish(GeminiTriggerRecord.STATUS_SKIPPED, str(exc))
+    except TriggerFailed as exc:
+        return _finish(GeminiTriggerRecord.STATUS_FAILED, str(exc))
+
+    # Past this point something may exist in GPP, so nothing is retried.
+    try:
+        from goats_tom.gpp_observation_builder import (  # noqa: PLC0415
+            clone_observation_for_target,
+        )
+
+        # Brightness comes from the alert that prompted this trigger, not
+        # from the template: the template describes whichever object it was
+        # built around, which is not the one being observed.
+        from goats_tom.gpp_observation_builder import (  # noqa: PLC0415
+            build_source_profile,
+        )
+        from goats_tom.models import AntaresLocus  # noqa: PLC0415
+
+        locus_row = AntaresLocus.objects.filter(
+            subscription=subscription, locus_id=locus_id
+        ).first()
+        source_profile = build_source_profile(
+            getattr(locus_row, "latest_alert_magnitude", None),
+            getattr(locus_row, "latest_alert_passband", None),
+        )
+
+        result = clone_observation_for_target(
+            client=client,
+            program_id=subscription.gpp_program_id,
+            template_observation_id=subscription.gpp_observation_id,
+            target=target,
+            overrides=_apply_locus_url(
+                subscription.gpp_observation_overrides or {}, locus_id
+            )
+            or None,
+            source_profile=source_profile,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            "Gemini trigger failed for locus %s on subscription %s.",
+            locus_id,
+            subscription.pk,
+        )
+        return _finish(
+            GeminiTriggerRecord.STATUS_FAILED,
+            f"{exc}. Check the programme in Explore before retrying -- the "
+            f"observation may have been created despite this error.",
+        )
+
+    logger.info(
+        "Triggered Gemini observation %s for locus %s (subscription %s).",
+        result.get("observation_id"),
+        locus_id,
+        subscription.pk,
+    )
+    return _finish(
+        GeminiTriggerRecord.STATUS_SUCCESS,
+        "Observation created and set to READY.",
+        gpp_observation_id=result.get("observation_id") or "",
+        gpp_target_id=result.get("target_id") or "",
+    )

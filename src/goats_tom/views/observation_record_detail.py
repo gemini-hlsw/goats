@@ -1,5 +1,7 @@
 __all__ = ["ObservationRecordDetailView"]
 import logging
+
+from django.conf import settings
 from typing import Any
 
 from django.urls import reverse
@@ -63,7 +65,11 @@ class ObservationRecordDetailView(BaseObservationRecordDetailView):
             program_id = observation_record.parameters.get("gpp_program_id")
             obs_id = observation_record.parameters.get("gpp_id")
             if program_id and obs_id:
-                return f"https://explore.gemini.edu/{program_id}/observation/{obs_id}"
+                # Follows GPP_ENV, matching the navbar link: an
+                # observation submitted to the development ODB has no page in
+                # production Explore.
+                base = settings.GPP_EXPLORE_URL.rstrip("/")
+                return f"{base}/{program_id}/observation/{obs_id}"
             else:
                 raise KeyError("Missing gpp_program_id or gpp_id in parameters")
         except Exception as exc:

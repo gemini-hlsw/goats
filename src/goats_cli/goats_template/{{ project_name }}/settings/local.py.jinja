@@ -34,9 +34,18 @@ Two things that catch people out
 
        python manage.py shell -c "from django.conf import settings; print(settings.DATABASES)"
 
+Anything set here must go BELOW the closing triple-quote of this docstring.
+Lines inside it are documentation, not code.
+
 Example:
     DEBUG = False
-    GPP_ENV = "DEVELOPMENT"
+    DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760
+
+Note on GPP_ENV: it is no longer a setting you can change. `gpp-client` fixes
+its environment when the package is built, so which GPP you talk to is decided
+by which build is installed -- there are parallel `.devN` releases on PyPI for
+development. GOATS derives GPP_ENV from the installed package; setting it here
+has no effect.
 
 Database
 --------

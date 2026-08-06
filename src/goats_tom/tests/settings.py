@@ -103,10 +103,17 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "goats_tom.context_processors.goats_version_info_processor",
+                "goats_tom.context_processors.gpp_explore_processor",
             ],
         },
     },
 ]
+
+# Mirrors what the settings package derives from GPP_ENV in a real install
+# (see the project template's settings/__init__.py). Tests use the
+# production values, matching the default.
+GPP_ENV = "PRODUCTION"
+GPP_EXPLORE_URL = "https://explore.gemini.edu"
 
 CRISPY_TEMPLATE_PACK = "bootstrap4"
 

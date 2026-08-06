@@ -9,6 +9,8 @@ class ObservationForm {
   #allowStateEdit;
   #mode;
   #callbacks;
+  #hideSections;
+  #skippingSection;
   #target;
   #schedulingWindowsEditor;
   #finderChartEditor;
@@ -34,6 +36,7 @@ class ObservationForm {
       allowStateEdit = false,
       target = null,
       callbacks = {},
+      hideSections = [],
     } = {},
   ) {
     this.#container = parentElement;
@@ -44,6 +47,11 @@ class ObservationForm {
     this.#mode = mode;
     this.#target = target ?? {};
     this.#callbacks = callbacks ?? {};
+    // Sections to omit entirely, by heading. Empty by default, so existing
+    // callers are unaffected. Used by the ANTARES template picker, where some
+    // sections have no meaning: finder charts, for instance, are prepared per
+    // target and there is no target when a template is configured.
+    this.#hideSections = new Set(hideSections ?? []);
 
     // Register special handlers like brightness, sourceProfile etc.
     this.#handlers = {
@@ -197,6 +205,7 @@ class ObservationForm {
     // Once we hit a `meta.section`, we switch to that section's body.
     form.id = "profile-accordion";
     let currentSectionBody = form;
+    this.#skippingSection = false;
 
     fields.forEach((meta) => {
       // Skip field if showIfMode is incompatible with current mode.
@@ -210,6 +219,16 @@ class ObservationForm {
 
       // Handle section headers: create header + collapsible body.
       if (meta.section) {
+        // A hidden section drops its heading *and* everything that follows it
+        // until the next heading. Hiding only the heading would leave its
+        // fields dangling under the previous section, which looks like a
+        // rendering fault rather than an omission.
+        if (this.#hideSections.has(meta.section)) {
+          this.#skippingSection = true;
+          return;
+        }
+        this.#skippingSection = false;
+
         const { header, body } = this.#createSectionWithBody(
           meta.section,
           form,
@@ -219,6 +238,10 @@ class ObservationForm {
 
         // From now on, append all fields into this section body
         currentSectionBody = body;
+        return;
+      }
+
+      if (this.#skippingSection) {
         return;
       }
 

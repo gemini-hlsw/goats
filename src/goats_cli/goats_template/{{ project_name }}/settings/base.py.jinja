@@ -104,6 +104,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "goats_tom.context_processors.goats_version_info_processor",
+                "goats_tom.context_processors.gpp_explore_processor",
             ],
         },
     },
@@ -544,8 +545,8 @@ SHOW_PAGINATION_INFO = True
 Set to ``False`` if you have a particularly large database and paginated views are
 slow."""
 
-# Set the GPP environment (DEVELOPMENT, STAGING, or PRODUCTION)
-GPP_ENV = "PRODUCTION"
+# GPP_ENV is no longer set here. It is derived from the installed
+# gpp-client package in settings/__init__.py -- see the comment there.
 
 # Set the ANTARES environment (DEVELOPMENT or PRODUCTION).
 ANTARES_ENV = "PRODUCTION"

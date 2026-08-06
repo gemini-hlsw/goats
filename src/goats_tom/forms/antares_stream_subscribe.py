@@ -90,7 +90,9 @@ class AntaresStreamSubscribeForm(forms.Form):
     trigger_gemini_observations = forms.BooleanField(
         label="Automatically trigger Gemini observations",
         required=False,
-        help_text="Not yet active; checking this currently has no effect.",
+        help_text=mark_safe(
+            "Requires stored {gpp_credentials_link} and auto-saving targets above."
+        ),
     )
     # Real starting content for an empty editor, not a visual placeholder.
     # Previously the example was a CSS overlay drawn over Ace, which looked
@@ -105,6 +107,31 @@ class AntaresStreamSubscribeForm(forms.Form):
     # whereas the worked example would silently filter their stream on
     # magnitude without them having asked for it. The full example lives in
     # the help text instead.
+    gpp_program_id = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_gpp_program_id"}),
+    )
+    gpp_observation_id = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_gpp_observation_id"}),
+    )
+    gpp_observation_overrides = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_gpp_observation_overrides"}),
+    )
+    max_triggers = forms.IntegerField(
+        label="Maximum Gemini observations to create",
+        required=False,
+        min_value=0,
+        # A small number needs a small box. Full-width looked like a mistake
+        # next to the checkboxes, and implied a longer value was expected.
+        widget=forms.NumberInput(attrs={"style": "max-width: 10rem;"}),
+        help_text=(
+            "Total for this subscription. Leave blank for no limit. "
+            "Triggering stops when the limit is reached; ingestion continues."
+        ),
+    )
+
     use_handler_code = forms.BooleanField(
         label="Use a custom locus handler",
         required=False,
@@ -206,6 +233,20 @@ class AntaresStreamSubscribeForm(forms.Form):
             )
         else:
             rsp_token_link = "RSP access token"
+        if self.user is not None and self.user.pk:
+            gpp_credentials_link = (
+                '<a href="{}">GPP credentials</a>'.format(
+                    reverse("user-gpp-login", args=[self.user.pk])
+                )
+            )
+        else:
+            gpp_credentials_link = "GPP credentials"
+        self.fields["trigger_gemini_observations"].help_text = mark_safe(
+            self.fields["trigger_gemini_observations"].help_text.format(
+                gpp_credentials_link=gpp_credentials_link
+            )
+        )
+
         self.fields["handler_code"].help_text = mark_safe(
             self.fields["handler_code"].help_text.format(
                 rsp_token_link=rsp_token_link
@@ -247,6 +288,83 @@ class AntaresStreamSubscribeForm(forms.Form):
         if not topics:
             raise forms.ValidationError("Enter at least one topic name.")
         return topics
+
+    def clean_gpp_observation_overrides(self):
+        """Parse the overrides posted by the template panel.
+
+        Returns
+        -------
+        dict
+            The override properties, or ``{}`` if none were set.
+
+        Raises
+        ------
+        `forms.ValidationError`
+            If the value is not a JSON object.
+
+        Notes
+        -----
+        Carried as a hidden JSON string because it is produced by the panel's
+        observation editor rather than typed. Already validated server-side by
+        `serialize_template_overrides` before reaching here, so this only
+        guards against a malformed or hand-edited post.
+        """
+        import json  # noqa: PLC0415
+
+        raw = (self.cleaned_data.get("gpp_observation_overrides") or "").strip()
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except ValueError as exc:
+            raise forms.ValidationError(
+                "Could not read the template overrides."
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise forms.ValidationError(
+                "Template overrides must be a JSON object."
+            )
+        return parsed
+
+    def clean(self):
+        """Require a template when automatic triggering is enabled.
+
+        Notes
+        -----
+        Both checks live here rather than on individual fields, because each
+        requirement depends on another field: they only apply when
+        `trigger_gemini_observations` is ticked.
+
+        Reported as errors rather than silently corrected, because both
+        failure modes look identical to the user -- the checkbox appears on
+        and nothing ever happens. A missing template at least leaves skipped
+        trigger records to read; a missing auto-save leaves nothing at all,
+        since the consumer never reaches the trigger.
+        """
+        cleaned = super().clean()
+
+        if cleaned.get("trigger_gemini_observations"):
+            # Triggering clones a template onto a *saved* target, so the
+            # consumer only reaches it inside the auto-save branch (see
+            # `goats_tom.tasks.ingest_antares_stream`). Without auto-save the
+            # checkbox would appear on and do nothing at all, with no error
+            # and no trigger records to explain the silence.
+            if not cleaned.get("save_all_targets"):
+                self.add_error(
+                    "trigger_gemini_observations",
+                    "Enable \u201cAutomatically save all ingested loci as "
+                    "targets\u201d as well. Triggering needs a saved target "
+                    "to point the new observation at.",
+                )
+
+            if not cleaned.get("gpp_observation_id"):
+                self.add_error(
+                    "trigger_gemini_observations",
+                    "Select a GPP template observation to clone before "
+                    "enabling automatic triggering.",
+                )
+
+        return cleaned
 
     def clean_handler_code(self) -> str:
         """Validate handler code at submit time: structure AND an actual

@@ -1,3 +1,4 @@
+from .trigger_gemini_observation import trigger_gemini_observation_task
 from .check_version import check_version
 from .download_goa_files import download_goa_files
 from .run_dragons_reduce import run_dragons_reduce
@@ -6,6 +7,7 @@ from .ingest_antares_stream import ingest_antares_stream
 
 
 __all__ = [
+    "trigger_gemini_observation_task",
     "download_goa_files",
     "run_dragons_reduce",
     "check_version",

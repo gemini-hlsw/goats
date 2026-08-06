@@ -400,6 +400,10 @@ def restart_antares_stream(
     save_all_targets: bool = False,
     trigger_gemini_observations: bool = False,
     handler_code: str = "",
+    gpp_program_id: str = "",
+    gpp_observation_id: str = "",
+    max_triggers=None,
+    gpp_observation_overrides=None,
 ) -> AntaresStreamSubscription:
     """Abort this owner's currently-running ANTARES consumer, if any, and
     start a new one with the given topics -- guaranteed not to clash with
@@ -431,8 +435,18 @@ def restart_antares_stream(
         `goats_tom.tasks.ingest_antares_stream` and
         `goats_tom.antares_target_save`).
     trigger_gemini_observations : bool, optional
-        Stored on the subscription row for future use. Currently a no-op
-        (default `False`).
+        If `True`, each newly-saved locus enqueues a Gemini observation built
+        by cloning `gpp_observation_id` (see `goats_tom.gemini_trigger`).
+    gpp_program_id : str, optional
+        The GPP programme owning the template observation.
+    gpp_observation_id : str, optional
+        The GPP observation to clone for each triggered locus.
+    max_triggers : int, optional
+        Lifetime cap on observations this subscription may create. `None`
+        means no limit.
+    gpp_observation_overrides : dict, optional
+        Observation properties applied to each clone, leaving the template in
+        GPP untouched.
     handler_code : str, optional
         User-defined locus filter/handler function body, stored on the row
         and read by the consumer. See `goats_tom.antares_locus_handler`.
@@ -484,6 +498,10 @@ def restart_antares_stream(
     subscription.consumer_group = consumer_group
     subscription.save_all_targets = save_all_targets
     subscription.trigger_gemini_observations = trigger_gemini_observations
+    subscription.gpp_program_id = gpp_program_id
+    subscription.gpp_observation_id = gpp_observation_id
+    subscription.max_triggers = max_triggers
+    subscription.gpp_observation_overrides = gpp_observation_overrides or {}
     subscription.handler_code = handler_code
     # Clear any warning/error left over from the previous run. An earlier
     # version deliberately left this for the actor to clear on successful

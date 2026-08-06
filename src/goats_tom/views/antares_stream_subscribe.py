@@ -246,6 +246,13 @@ def antares_stream_subscribe(request):
                 save_all_targets=save_all_targets,
                 trigger_gemini_observations=trigger_gemini_observations,
                 handler_code=handler_code,
+                gpp_program_id=form.cleaned_data.get("gpp_program_id", ""),
+                gpp_observation_id=form.cleaned_data.get("gpp_observation_id", ""),
+                max_triggers=form.cleaned_data.get("max_triggers"),
+                gpp_observation_overrides=form.cleaned_data.get(
+                    "gpp_observation_overrides"
+                )
+                or {},
             )
             _clear_draft(subscription)
             messages.success(
@@ -299,6 +306,15 @@ def antares_stream_subscribe(request):
                 initial["trigger_gemini_observations"] = (
                     current.trigger_gemini_observations
                 )
+                initial["gpp_program_id"] = current.gpp_program_id
+                initial["gpp_observation_id"] = current.gpp_observation_id
+                initial["max_triggers"] = current.max_triggers
+                if current.gpp_observation_overrides:
+                    import json
+
+                    initial["gpp_observation_overrides"] = json.dumps(
+                        current.gpp_observation_overrides
+                    )
                 initial["handler_code"] = current.handler_code
         form = AntaresStreamSubscribeForm(initial=initial, user=request.user)
 

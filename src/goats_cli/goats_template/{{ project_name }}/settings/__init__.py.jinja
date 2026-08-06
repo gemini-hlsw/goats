@@ -66,3 +66,32 @@ try:
     from .local import *
 except ImportError:
     pass
+
+# ---------------------------------------------------------------------------
+# GPP environment, derived from the installed gpp-client package.
+#
+# Not a setting anybody configures. `gpp-client` fixes its environment at build
+# time -- `GPPClient.__init__` takes only a token, and resolves the ODB URL and
+# which token field to read from a constant baked into the package -- so the
+# environment is a property of *which build is installed*.
+#
+# ---------------------------------------------------------------------------
+try:
+    from gpp_client.settings import _get_packaged_environment as _gpp_packaged
+
+    GPP_ENV = _gpp_packaged().value
+except Exception:  # pragma: no cover - gpp-client missing or restructured
+    # Reported as unknown rather than guessed: this drives a status display and
+    # an outward link, and naming the wrong environment is worse than admitting
+    # we cannot tell.
+    GPP_ENV = "UNKNOWN"
+"""Which GPP the installed gpp-client package talks to. Derived, not set."""
+
+GPP_EXPLORE_URL = (
+    "https://explore-dev.lucuma.xyz"
+    if GPP_ENV == "DEVELOPMENT"
+    else "https://explore.gemini.edu"
+)
+"""Base URL of the Gemini Explore web interface for the active GPP
+environment. Follows the installed gpp-client build, so a link always points
+at the GPP an observation was actually created in."""
