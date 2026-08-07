@@ -501,7 +501,7 @@ def _newest_alert_brightness(locus) -> tuple[float | None, str]:
     return magnitude, str(passband).strip()
 
 
-def _already_triggered(subscription_id: int, locus_id: str) -> bool:
+def _already_triggered(subscription_id: int, locus_id: str, generation: int) -> bool:
     """Whether this subscription has already attempted a trigger for this locus.
 
     Parameters
@@ -510,11 +510,14 @@ def _already_triggered(subscription_id: int, locus_id: str) -> bool:
         The subscription in question.
     locus_id : str
         The locus.
+    generation : int
+        This consumer run's fencing token. Scopes the check to this run, so a
+        restart reconsiders every locus.
 
     Returns
     -------
     bool
-        `True` if a `GeminiTriggerRecord` already exists.
+        `True` if a `GeminiTriggerRecord` already exists for this run.
 
     Notes
     -----
@@ -527,7 +530,9 @@ def _already_triggered(subscription_id: int, locus_id: str) -> bool:
     from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
 
     return GeminiTriggerRecord.objects.filter(
-        subscription_id=subscription_id, locus_id=locus_id
+        subscription_id=subscription_id,
+        generation=generation,
+        locus_id=locus_id,
     ).exists()
 
 
@@ -977,9 +982,9 @@ def ingest_antares_stream(
                     # at all for the same reason.
                     #
                     # Triggering has its own idempotency: GeminiTriggerRecord
-                    # is unique per (subscription, locus), so a locus can only
-                    # ever trigger once for this subscription regardless of
-                    # how many alerts arrive.
+                    # is unique per (subscription, generation, locus), so a
+                    # locus triggers at most once per run however many alerts
+                    # arrive -- and is reconsidered on the next run.
                     #
                     # Enqueued, never called inline. Creating an observation
                     # takes several GPP round trips (allocation, target, clone,
@@ -987,11 +992,12 @@ def ingest_antares_stream(
                     # ingestion for every alert -- and a GPP outage would stop
                     # the stream rather than just the triggering.
                     if trigger_gemini_observations and not _already_triggered(
-                        subscription_id, locus.locus_id
+                        subscription_id, locus.locus_id, generation
                     ):
                         trigger_gemini_observation_task.send(
                             subscription_id=subscription_id,
                             locus_id=locus.locus_id,
+                            generation=generation,
                         )
                 except Exception:
                     logger.exception(

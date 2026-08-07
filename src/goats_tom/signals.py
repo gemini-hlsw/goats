@@ -4,6 +4,7 @@ Registered from `goats_tom.apps.GOATSTomConfig.ready`.
 """
 
 __all__ = [
+    "block_shared_target_deletion",
     "clear_target_save_records",
     "create_pi_group_for_kafka_credentials",
     "ensure_user_has_a_group",
@@ -15,7 +16,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db import transaction
-from django.db.models.signals import post_delete, post_save
+from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
 
 from goats_tom.models import AntaresKafkaLogin, AntaresPIGroup
@@ -303,8 +304,10 @@ def clear_target_save_records(sender, instance, **kwargs) -> None:
         except Exception:  # noqa: BLE001
             pass
 
+        locus_names = [n for n in names if n]
+
         deleted, _ = AntaresTargetSave.objects.filter(
-            locus_id__in=[n for n in names if n]
+            locus_id__in=locus_names
         ).delete()
         if deleted:
             logger.info(
@@ -312,9 +315,87 @@ def clear_target_save_records(sender, instance, **kwargs) -> None:
                 deleted,
                 instance.name,
             )
+
+        # Trigger records go too. They key on `locus_id` with no link to the
+        # target, so they used to outlive it -- and because a record blocks
+        # any further trigger for that locus in the same run, a deleted target
+        # left the locus permanently untriggerable with nothing on screen to
+        # explain why. Deleting a target now really is a clean slate.
+        from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
+
+        triggers_deleted, _ = GeminiTriggerRecord.objects.filter(
+            locus_id__in=locus_names
+        ).delete()
+        if triggers_deleted:
+            logger.info(
+                "Removed %d Gemini trigger record(s) for deleted target %r.",
+                triggers_deleted,
+                instance.name,
+            )
     except Exception:
         logger.exception(
             "Failed to clear ANTARES save records for deleted target %r; "
             "auto-save may skip that locus until they are removed.",
             getattr(instance, "name", None),
+        )
+
+
+@receiver(pre_delete, dispatch_uid="block_shared_antares_target_deletion")
+def block_shared_target_deletion(sender, instance, **kwargs) -> None:
+    """Refuse to delete a target that more than one team holds.
+
+    Parameters
+    ----------
+    sender : type
+        The sending model class. Ignored unless it is the target model.
+    instance : `tom_targets.models.Target`
+        The target about to be deleted.
+    **kwargs
+        Remaining signal arguments.
+
+    Raises
+    ------
+    `goats_tom.antares_target_save.SharedTargetDeletionError`
+        If two or more PIs have save records for this target.
+
+    Notes
+    -----
+    There is one `Target` per locus and teams share it rather than each
+    getting a copy (see `goats_tom.antares_target_save.save_locus_as_target`).
+    So deleting one removes it from every team at once -- silently, since a PI
+    looking at their own dashboard cannot see who else holds it. Refusing is
+    the only option that cannot surprise somebody.
+
+    Enforced here rather than only in the delete view so it also covers the
+    Django admin, the shell and any bulk delete. `pre_delete` runs inside the
+    deletion's transaction, so raising rolls the whole thing back.
+
+    `goats_tom.views.target_delete.TargetDeleteView` checks the same condition
+    up front and reports it properly. That check is not redundant: the view
+    tears down observation records before deleting the target, so relying on
+    this signal alone would destroy them and only then refuse.
+
+    Django sends `pre_delete` inside the collector's own transaction, opened
+    with ``savepoint=False``, so raising marks the enclosing transaction for
+    rollback. A caller already inside `transaction.atomic` that wants to carry
+    on afterwards must wrap the delete in its own atomic block; otherwise the
+    first query after the refusal fails with `TransactionManagementError`.
+    Callers that simply let the refusal propagate need do nothing.
+    """
+    from tom_targets.models import Target  # noqa: PLC0415
+
+    if not isinstance(instance, Target):
+        return
+
+    from goats_tom.antares_target_save import (  # noqa: PLC0415
+        SharedTargetDeletionError,
+        target_saver_usernames,
+    )
+
+    savers = target_saver_usernames(instance)
+    if len(savers) > 1:
+        raise SharedTargetDeletionError(
+            f"Target {instance.name!r} is shared by {len(savers)} teams "
+            f"({', '.join(savers)}) and cannot be deleted. Deleting it would "
+            f"remove it from all of them."
         )

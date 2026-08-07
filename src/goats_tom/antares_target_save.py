@@ -29,10 +29,14 @@ existing target (see `share_target_with_group`).
 """
 
 __all__ = [
+    "is_shared_target",
     "locus_is_saved_as_target",
     "save_locus_as_target",
     "share_target_with_group",
+    "target_locus_names",
+    "target_saver_usernames",
     "SaveLocusError",
+    "SharedTargetDeletionError",
 ]
 
 import logging
@@ -48,6 +52,93 @@ logger = logging.getLogger(__name__)
 
 class SaveLocusError(Exception):
     """Raised when a locus cannot be fetched or saved as a target."""
+
+
+class SharedTargetDeletionError(Exception):
+    """Raised when a target held by more than one team is deleted."""
+
+
+def target_locus_names(target) -> set[str]:
+    """Every name a locus could be recorded under for this target.
+
+    Parameters
+    ----------
+    target : `tom_targets.models.Target`
+        The target to name.
+
+    Returns
+    -------
+    set of str
+        The target's own name plus any aliases.
+
+    Notes
+    -----
+    Save records key on `locus_id`, a plain string, and a locus may be
+    recorded under either the target's name or an alias -- mirroring how
+    `locus_is_saved_as_target` decides a locus is saved.
+
+    Aliases are best-effort: during a cascading delete they may already be
+    gone, and a missing alias must not stop the caller.
+    """
+    names = {getattr(target, "name", None)}
+    try:
+        names.update(target.aliases.values_list("name", flat=True))
+    except Exception:  # noqa: BLE001
+        pass
+    return {name for name in names if name}
+
+
+def target_saver_usernames(target) -> list[str]:
+    """Who has saved this target, one entry per team.
+
+    Parameters
+    ----------
+    target : `tom_targets.models.Target`
+        The target to inspect.
+
+    Returns
+    -------
+    list of str
+        Usernames of every PI with a save record for it, sorted.
+
+    Notes
+    -----
+    `AntaresTargetSave` is unique per (locus, user), so a second row means a
+    second team asked to save the same locus and was given access to the one
+    shared target. Counting rows is therefore counting teams.
+    """
+    from goats_tom.models import AntaresTargetSave  # noqa: PLC0415
+
+    return sorted(
+        AntaresTargetSave.objects.filter(
+            locus_id__in=target_locus_names(target)
+        )
+        .values_list("saved_by__username", flat=True)
+        .distinct()
+    )
+
+
+def is_shared_target(target) -> bool:
+    """Whether more than one team holds this target.
+
+    Parameters
+    ----------
+    target : `tom_targets.models.Target`
+        The target to inspect.
+
+    Returns
+    -------
+    bool
+        `True` if two or more PIs have save records for it.
+
+    Notes
+    -----
+    There is one `Target` per locus, shared between teams rather than
+    duplicated (see `save_locus_as_target`). Deleting one therefore removes it
+    from every team at once, including teams that neither asked for it to go
+    nor can see who did -- so a shared target is refused deletion outright.
+    """
+    return len(target_saver_usernames(target)) > 1
 
 
 def locus_is_saved_as_target(locus_id: str) -> bool:

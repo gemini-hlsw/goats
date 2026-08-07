@@ -27,7 +27,6 @@ __all__ = [
 ]
 
 import logging
-import time
 
 from django.db import IntegrityError, transaction
 
@@ -113,7 +112,7 @@ class TriggerFailed(Exception):
     """Triggering was attempted and something went wrong."""
 
 
-def _reserve_record(subscription, locus_id: str):
+def _reserve_record(subscription, locus_id: str, generation: int):
     """Claim this locus before contacting GPP.
 
     Parameters
@@ -122,6 +121,8 @@ def _reserve_record(subscription, locus_id: str):
         The subscription triggering.
     locus_id : str
         The locus prompting the trigger.
+    generation : int
+        The subscription's run counter when the alert arrived.
 
     Returns
     -------
@@ -131,20 +132,22 @@ def _reserve_record(subscription, locus_id: str):
     Raises
     ------
     TriggerSkipped
-        If this locus has already been attempted.
+        If this locus has already been attempted in this run.
 
     Notes
     -----
     Reserved *first*, before any GPP call, so the unique constraint on
-    ``(subscription, locus_id)`` acts as an idempotency key. If a clone
+    ``(subscription, generation, locus_id)`` acts as an idempotency key. If a clone
     succeeds in GPP but the response is lost, the row already exists and a
     second attempt stops here rather than creating a duplicate observation and
     charging the allocation twice.
 
-    An existing record in any state stops the attempt, including a failed one:
-    a failure after the clone began may have created an observation anyway, so
-    retrying could double-charge. ANTARES re-alerts an active locus every few
-    minutes, so an automatic retry would fire again almost immediately.
+    An existing record for *this run* in any state stops the attempt,
+    including a failed one: a failure after the clone began may have created
+    an observation anyway, so retrying could double-charge. ANTARES re-alerts
+    an active locus every few minutes, so an automatic retry would fire again
+    almost immediately. The next run starts clean -- see the constraint on
+    `goats_tom.models.GeminiTriggerRecord`.
     """
     from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
 
@@ -152,13 +155,14 @@ def _reserve_record(subscription, locus_id: str):
         with transaction.atomic():
             return GeminiTriggerRecord.objects.create(
                 subscription=subscription,
+                generation=generation,
                 locus_id=locus_id,
                 status=GeminiTriggerRecord.STATUS_PENDING,
             )
     except IntegrityError as exc:
         raise TriggerSkipped(
-            f"Locus {locus_id} has already been triggered for this "
-            f"subscription."
+            f"Locus {locus_id} has already been triggered in this "
+            f"ingestion run."
         ) from exc
 
 
@@ -182,7 +186,16 @@ def _check_cap(subscription, record) -> None:
     Skipped attempts do not count (see
     `GeminiTriggerRecord.counts_towards_cap`): counting them would let a
     refusal consume the budget it was protecting, and once the cap was reached
-    every further skip would hold it there.
+    every further skip would hold it there. Nor do failures that never created
+    an observation, for the same reason -- a cap on telescope time should be
+    spent by observations, not by errors.
+
+    Counted within one ingestion run. The cap belongs to the configuration it
+    was set alongside -- a PI who stops, adjusts the setup and starts again is
+    beginning a new campaign, not continuing the old one, and would otherwise
+    find their allowance already spent by a configuration they have replaced.
+    The band-time check (`_check_allocation`) is what bounds total spend across
+    runs, since that reads the programme's real accounting from GPP.
 
     A blank cap means no limit. That is a deliberate choice a user has to make,
     not the default.
@@ -192,9 +205,24 @@ def _check_cap(subscription, record) -> None:
     if subscription.max_triggers is None:
         return
 
+    # The SQL twin of `GeminiTriggerRecord.counts_towards_cap`; the two must
+    # agree. Counted here rather than by iterating the property because a
+    # subscription accumulates a row per locus and this runs on every trigger.
+    #
+    # Scoped to this run, matching the record uniqueness key. Failures with no
+    # `gpp_observation_id` never created anything, so they release their slot
+    # -- see the property for why. Pending rows still count:
+    # one is in flight and about to create an observation, and not holding its
+    # slot would let concurrent triggers overshoot the cap.
     used = (
-        GeminiTriggerRecord.objects.filter(subscription=subscription)
+        GeminiTriggerRecord.objects.filter(
+            subscription=subscription, generation=record.generation
+        )
         .exclude(status=GeminiTriggerRecord.STATUS_SKIPPED)
+        .exclude(
+            status=GeminiTriggerRecord.STATUS_FAILED,
+            gpp_observation_id="",
+        )
         .exclude(pk=record.pk)
         .count()
     )
@@ -205,7 +233,7 @@ def _check_cap(subscription, record) -> None:
         )
 
 
-def _fetch_band_time(client, program_id: str, observation_id: str):
+async def _fetch_band_time(client, program_id: str, observation_id: str):
     """Fetch granted and used time for the template's science band.
 
     Parameters
@@ -244,14 +272,16 @@ def _fetch_band_time(client, program_id: str, observation_id: str):
     second line of defence.
 
     Retried, unlike everything after it, because nothing has been created yet
-    -- a repeated read cannot duplicate anything.
+    -- a repeated read cannot duplicate anything. The retry sleeps with
+    `asyncio.sleep`, not `time.sleep`: this runs inside the caller's event
+    loop, and blocking it would stall the client's own transport.
     """
-    from asgiref.sync import async_to_sync  # noqa: PLC0415
+    import asyncio  # noqa: PLC0415
 
     last_error: Exception | None = None
     for attempt in range(1, ALLOCATION_FETCH_ATTEMPTS + 1):
         try:
-            payload = async_to_sync(client.goats.get_observations_by_program_id)(
+            payload = await client.goats.get_observations_by_program_id(
                 program_id=program_id
             )
             break
@@ -266,7 +296,7 @@ def _fetch_band_time(client, program_id: str, observation_id: str):
                 exc,
             )
             if attempt < ALLOCATION_FETCH_ATTEMPTS:
-                time.sleep(ALLOCATION_FETCH_BACKOFF_SECONDS * attempt)
+                await asyncio.sleep(ALLOCATION_FETCH_BACKOFF_SECONDS * attempt)
     else:
         raise TriggerFailed(
             f"Could not read the programme's time accounting from GPP after "
@@ -301,7 +331,7 @@ def _fetch_band_time(client, program_id: str, observation_id: str):
     return band, allocated, used
 
 
-def _check_allocation(client, subscription, record) -> None:
+async def _check_allocation(client, subscription, record) -> None:
     """Refuse if the template's science band has no time left.
 
     Parameters
@@ -337,7 +367,7 @@ def _check_allocation(client, subscription, record) -> None:
     something that consumes real telescope time: reading an ambiguous value
     permissively is only safe when being wrong is cheap, and here it is not.
     """
-    band, allocated, used = _fetch_band_time(
+    band, allocated, used = await _fetch_band_time(
         client, subscription.gpp_program_id, subscription.gpp_observation_id
     )
 
@@ -354,7 +384,9 @@ def _check_allocation(client, subscription, record) -> None:
         )
 
 
-def trigger_gemini_observation(subscription, locus_id: str, target) -> object:
+def trigger_gemini_observation(
+    subscription, locus_id: str, target, generation: int = 0
+) -> object:
     """Create a Gemini observation for one locus, if the guards allow it.
 
     Parameters
@@ -385,7 +417,7 @@ def trigger_gemini_observation(subscription, locus_id: str, target) -> object:
     from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
 
     try:
-        record = _reserve_record(subscription, locus_id)
+        record = _reserve_record(subscription, locus_id, generation)
     except TriggerSkipped as exc:
         logger.info("Not triggering for %s: %s", locus_id, exc)
         return None
@@ -416,61 +448,117 @@ def trigger_gemini_observation(subscription, locus_id: str, target) -> object:
     except TriggerSkipped as exc:
         return _finish(GeminiTriggerRecord.STATUS_SKIPPED, str(exc))
 
+    from asgiref.sync import async_to_sync  # noqa: PLC0415
     from gpp_client import GPPClient  # noqa: PLC0415
 
-    client = GPPClient(token=owner.gpplogin.token)
+    from goats_tom.gpp_observation_builder import (  # noqa: PLC0415
+        build_source_profile,
+        clone_observation_for_target,
+    )
+    from goats_tom.models import AntaresLocus  # noqa: PLC0415
+
+    # Every query this attempt needs runs here, before the event loop opens.
+    # Django's ORM raises `SynchronousOnlyOperation` in async context, so only
+    # plain values cross into the coroutine below.
+    #
+    # Brightness comes from the alert that prompted this trigger, not from the
+    # template: the template describes whichever object it was built around,
+    # which is not the one being observed.
+    locus_row = AntaresLocus.objects.filter(
+        subscription=subscription, locus_id=locus_id
+    ).first()
+    source_profile = build_source_profile(
+        getattr(locus_row, "latest_alert_magnitude", None),
+        getattr(locus_row, "latest_alert_passband", None),
+    )
+    overrides = (
+        _apply_locus_url(subscription.gpp_observation_overrides or {}, locus_id)
+        or None
+    )
+    token = owner.gpplogin.token
+    program_id = subscription.gpp_program_id
+    template_observation_id = subscription.gpp_observation_id
+    workflow_state = subscription.gpp_workflow_state or None
+
+    # Filled the moment anything exists in GPP, so a failure afterwards can
+    # still be recorded against what was created -- which is what decides
+    # whether the attempt counts against the cap. A plain dict, not a database
+    # write: the hook runs inside the event loop, where the ORM is unavailable.
+    created: dict[str, str] = {}
+
+    def _note_created(target_id=None, observation_id=None) -> None:
+        if target_id:
+            created["target_id"] = target_id
+        if observation_id:
+            created["observation_id"] = observation_id
+
+    async def _run() -> dict:
+        """Every GPP call for this attempt, in one event loop.
+
+        One client, one loop, one `async_to_sync` -- around all of it, not
+        around each call. Wrapping the calls individually is what broke
+        triggering outright: `async_to_sync` opens a loop and closes it on
+        return, so the second call found the client's connection pool bound to
+        a dead loop and raised ``Event loop is closed`` every time.
+        """
+        client = GPPClient(token=token)
+        try:
+            await _check_allocation(client, subscription, record)
+
+            # Past this point something may exist in GPP, so nothing is
+            # retried.
+            return await clone_observation_for_target(
+                client=client,
+                program_id=program_id,
+                template_observation_id=template_observation_id,
+                target=target,
+                overrides=overrides,
+                source_profile=source_profile,
+                workflow_state=workflow_state,
+                on_created=_note_created,
+            )
+        finally:
+            await client.close()
 
     try:
-        _check_allocation(client, subscription, record)
+        result = async_to_sync(_run)()
     except TriggerSkipped as exc:
         return _finish(GeminiTriggerRecord.STATUS_SKIPPED, str(exc))
     except TriggerFailed as exc:
+        # Raised only by the allocation read, before anything is created.
         return _finish(GeminiTriggerRecord.STATUS_FAILED, str(exc))
-
-    # Past this point something may exist in GPP, so nothing is retried.
-    try:
-        from goats_tom.gpp_observation_builder import (  # noqa: PLC0415
-            clone_observation_for_target,
-        )
-
-        # Brightness comes from the alert that prompted this trigger, not
-        # from the template: the template describes whichever object it was
-        # built around, which is not the one being observed.
-        from goats_tom.gpp_observation_builder import (  # noqa: PLC0415
-            build_source_profile,
-        )
-        from goats_tom.models import AntaresLocus  # noqa: PLC0415
-
-        locus_row = AntaresLocus.objects.filter(
-            subscription=subscription, locus_id=locus_id
-        ).first()
-        source_profile = build_source_profile(
-            getattr(locus_row, "latest_alert_magnitude", None),
-            getattr(locus_row, "latest_alert_passband", None),
-        )
-
-        result = clone_observation_for_target(
-            client=client,
-            program_id=subscription.gpp_program_id,
-            template_observation_id=subscription.gpp_observation_id,
-            target=target,
-            overrides=_apply_locus_url(
-                subscription.gpp_observation_overrides or {}, locus_id
-            )
-            or None,
-            source_profile=source_profile,
-            workflow_state=subscription.gpp_workflow_state or None,
-        )
     except Exception as exc:  # noqa: BLE001
         logger.exception(
             "Gemini trigger failed for locus %s on subscription %s.",
             locus_id,
             subscription.pk,
         )
+        # Says what actually happened rather than warning about every
+        # possibility. The old text told the PI to go and check Explore after
+        # any failure, including ones that never reached GPP at all.
+        observation_id = created.get("observation_id", "")
+        target_id = created.get("target_id", "")
+        # GPP's messages usually end in a full stop of their own, and blindly
+        # appending produced "...on target creation.. Nothing was created".
+        exc = str(exc).strip().rstrip(".")
+        if observation_id:
+            detail = (
+                f"{exc}. Observation {observation_id} was created before this "
+                f"error and counts against the trigger limit; check its state "
+                f"in Explore."
+            )
+        elif target_id:
+            detail = (
+                f"{exc}. A target was created in the programme but no "
+                f"observation, so no telescope time was committed."
+            )
+        else:
+            detail = f"{exc}. Nothing was created in GPP."
         return _finish(
             GeminiTriggerRecord.STATUS_FAILED,
-            f"{exc}. Check the programme in Explore before retrying -- the "
-            f"observation may have been created despite this error.",
+            detail,
+            gpp_observation_id=observation_id,
+            gpp_target_id=target_id,
         )
 
     logger.info(

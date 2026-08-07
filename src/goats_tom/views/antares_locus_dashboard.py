@@ -250,10 +250,15 @@ def _get_page(request: HttpRequest):
     if subscription is not None:
         from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
 
+        # This run only. Records are kept per run, so an older run's outcome
+        # for the same locus is history, not the current state -- showing it
+        # would tell the PI a locus had failed when this run has not yet
+        # tried it.
         trigger_by_locus_id = {
             record.locus_id: record
             for record in GeminiTriggerRecord.objects.filter(
                 subscription=subscription,
+                generation=subscription.generation,
                 locus_id__in=[locus.locus_id for locus in page],
             )
         }

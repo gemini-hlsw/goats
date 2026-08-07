@@ -7,7 +7,7 @@ themselves still need validating against a real test programme before this is
 trusted with a live allocation.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from django.contrib.auth.models import User
@@ -51,17 +51,41 @@ def target(db):
 
 
 def _snapshot(allocated=10.0, charged=0.0, band="BAND1"):
-    """Patch the band time accounting with given hours."""
+    """Patch the band time accounting with given hours.
+
+    `AsyncMock`, because `_fetch_band_time` is awaited: every GPP call for one
+    attempt shares a single event loop, opened once by the caller. A plain
+    `MagicMock` returns a non-awaitable and the trigger records a failure
+    rather than reaching the guard under test.
+    """
     return patch(
         "goats_tom.gemini_trigger._fetch_band_time",
+        new_callable=AsyncMock,
         return_value=(band, allocated, charged),
     )
 
 
+def _gpp_client():
+    """Patch the GPP client used by the trigger.
+
+    `close` must be an `AsyncMock`: the trigger awaits it in a `finally`, so
+    the client is opened and closed within the single event loop the attempt
+    runs in. A bare `MagicMock` makes every test fail on the way out rather
+    than on the assertion it is making.
+    """
+    client = MagicMock()
+    client.close = AsyncMock()
+    return patch("gpp_client.GPPClient", return_value=client)
+
+
 def _clone_ok():
-    """Patch the clone step to succeed."""
+    """Patch the clone step to succeed.
+
+    `AsyncMock`, for the same reason as `_snapshot`.
+    """
     return patch(
         "goats_tom.gpp_observation_builder.clone_observation_for_target",
+        new_callable=AsyncMock,
         return_value={"target_id": "t-new", "observation_id": "o-new"},
     )
 
@@ -71,7 +95,7 @@ class TestHappyPath:
     """A permitted trigger creates an observation and records it."""
 
     def test_success_records_ids(self, subscription, target):
-        with _snapshot(), _clone_ok(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _clone_ok(), _gpp_client():
             record = trigger_gemini_observation(
                 subscription, target.name, target
             )
@@ -86,7 +110,7 @@ class TestHappyPath:
         cost becomes available later, but nothing populates it now -- storing
         a made-up number would be worse than storing none.
         """
-        with _snapshot(), _clone_ok(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _clone_ok(), _gpp_client():
             record = trigger_gemini_observation(
                 subscription, target.name, target
             )
@@ -103,7 +127,7 @@ class TestIdempotency:
         A duplicate would create a second observation on the same target and
         charge the allocation twice -- the worst outcome available here.
         """
-        with _snapshot(), _clone_ok(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _clone_ok(), _gpp_client():
             trigger_gemini_observation(subscription, target.name, target)
             second = trigger_gemini_observation(subscription, target.name, target)
         assert second is None
@@ -111,7 +135,7 @@ class TestIdempotency:
 
     def test_no_clone_on_second_attempt(self, subscription, target):
         """It stops before GPP is contacted, not after."""
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with _clone_ok() as clone:
                 trigger_gemini_observation(subscription, target.name, target)
                 assert clone.call_count == 1
@@ -128,7 +152,7 @@ class TestIdempotency:
             locus_id=target.name,
             status=GeminiTriggerRecord.STATUS_FAILED,
         )
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with _clone_ok() as clone:
                 result = trigger_gemini_observation(
                     subscription, target.name, target
@@ -150,7 +174,7 @@ class TestTriggerCap:
                 locus_id=f"OLD{i}",
                 status=GeminiTriggerRecord.STATUS_SUCCESS,
             )
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with _clone_ok() as clone:
                 record = trigger_gemini_observation(
                     subscription, target.name, target
@@ -168,7 +192,7 @@ class TestTriggerCap:
                 locus_id=f"OLD{i}",
                 status=GeminiTriggerRecord.STATUS_SUCCESS,
             )
-        with _snapshot(), _clone_ok(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _clone_ok(), _gpp_client():
             record = trigger_gemini_observation(
                 subscription, target.name, target
             )
@@ -184,14 +208,16 @@ class TestTriggerCap:
                 locus_id=f"SKIP{i}",
                 status=GeminiTriggerRecord.STATUS_SKIPPED,
             )
-        with _snapshot(), _clone_ok(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _clone_ok(), _gpp_client():
             record = trigger_gemini_observation(
                 subscription, target.name, target
             )
         assert record.status == GeminiTriggerRecord.STATUS_SUCCESS
 
-    def test_failed_attempts_do_consume_the_cap(self, subscription, target):
-        """A failure may have created an observation, so it is not free."""
+    def test_failures_that_created_an_observation_consume_the_cap(
+        self, subscription, target
+    ):
+        """An observation exists and is spending time, so it is not free."""
         subscription.max_triggers = 2
         subscription.save()
         for i in range(2):
@@ -199,8 +225,100 @@ class TestTriggerCap:
                 subscription=subscription,
                 locus_id=f"FAIL{i}",
                 status=GeminiTriggerRecord.STATUS_FAILED,
+                gpp_observation_id=f"o-{i}",
             )
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _clone_ok(), _gpp_client():
+            record = trigger_gemini_observation(
+                subscription, target.name, target
+            )
+        assert record.status == GeminiTriggerRecord.STATUS_SKIPPED
+
+    def test_failures_that_created_nothing_do_not_consume_the_cap(
+        self, subscription, target
+    ):
+        """A cap on telescope time should be spent by observations, not errors.
+
+        The regression this guards against cost a real subscription its whole
+        budget: two attempts died in the client before reaching GPP, both were
+        charged, and triggering stopped for good with nothing observed.
+        """
+        subscription.max_triggers = 2
+        subscription.save()
+        for i in range(2):
+            GeminiTriggerRecord.objects.create(
+                subscription=subscription,
+                locus_id=f"FAIL{i}",
+                status=GeminiTriggerRecord.STATUS_FAILED,
+                gpp_observation_id="",
+            )
+        with _snapshot(), _clone_ok(), _gpp_client():
+            record = trigger_gemini_observation(
+                subscription, target.name, target
+            )
+        assert record.status == GeminiTriggerRecord.STATUS_SUCCESS
+
+    def test_the_cap_resets_on_a_new_run(self, subscription, target):
+        """The cap belongs to the configuration it was set alongside.
+
+        A PI who stops, adjusts the setup and starts again is beginning a new
+        campaign. Counting the previous run's observations against the new one
+        meant the allowance was already spent by a configuration that no
+        longer exists.
+        """
+        subscription.max_triggers = 2
+        subscription.generation = 5
+        subscription.save()
+        # Two real observations, but from the previous run.
+        for i in range(2):
+            GeminiTriggerRecord.objects.create(
+                subscription=subscription,
+                locus_id=f"OLD{i}",
+                generation=4,
+                status=GeminiTriggerRecord.STATUS_SUCCESS,
+                gpp_observation_id=f"o-{i}",
+            )
+
+        with _snapshot(), _clone_ok(), _gpp_client():
+            record = trigger_gemini_observation(
+                subscription, target.name, target, generation=5
+            )
+
+        assert record.status == GeminiTriggerRecord.STATUS_SUCCESS
+
+    def test_the_cap_still_binds_within_a_run(self, subscription, target):
+        """Resetting per run must not mean no cap at all."""
+        subscription.max_triggers = 2
+        subscription.generation = 5
+        subscription.save()
+        for i in range(2):
+            GeminiTriggerRecord.objects.create(
+                subscription=subscription,
+                locus_id=f"NOW{i}",
+                generation=5,
+                status=GeminiTriggerRecord.STATUS_SUCCESS,
+                gpp_observation_id=f"o-{i}",
+            )
+
+        with _snapshot(), _clone_ok(), _gpp_client():
+            record = trigger_gemini_observation(
+                subscription, target.name, target, generation=5
+            )
+
+        assert record.status == GeminiTriggerRecord.STATUS_SKIPPED
+
+    def test_pending_attempts_consume_the_cap(self, subscription, target):
+        """One is in flight and about to create an observation.
+
+        Not holding its slot would let concurrent triggers overshoot.
+        """
+        subscription.max_triggers = 1
+        subscription.save()
+        GeminiTriggerRecord.objects.create(
+            subscription=subscription,
+            locus_id="INFLIGHT",
+            status=GeminiTriggerRecord.STATUS_PENDING,
+        )
+        with _snapshot(), _clone_ok(), _gpp_client():
             record = trigger_gemini_observation(
                 subscription, target.name, target
             )
@@ -213,7 +331,7 @@ class TestBandTimeGuard:
 
     def test_refuses_when_the_band_is_used_up(self, subscription, target):
         with _snapshot(allocated=10.0, charged=10.0):
-            with patch("gpp_client.GPPClient"), _clone_ok() as clone:
+            with _gpp_client(), _clone_ok() as clone:
                 record = trigger_gemini_observation(
                     subscription, target.name, target
                 )
@@ -230,7 +348,7 @@ class TestBandTimeGuard:
         this can go.
         """
         with _snapshot(allocated=10.0, charged=9.99):
-            with patch("gpp_client.GPPClient"), _clone_ok():
+            with _gpp_client(), _clone_ok():
                 record = trigger_gemini_observation(
                     subscription, target.name, target
                 )
@@ -245,7 +363,7 @@ class TestBandTimeGuard:
         time.
         """
         with _snapshot(allocated=0.0, charged=0.0):
-            with patch("gpp_client.GPPClient"), _clone_ok() as clone:
+            with _gpp_client(), _clone_ok() as clone:
                 record = trigger_gemini_observation(
                     subscription, target.name, target
                 )
@@ -263,7 +381,7 @@ class TestBandTimeGuard:
             "goats_tom.gemini_trigger._fetch_band_time",
             side_effect=TriggerFailed("GPP unreachable"),
         ):
-            with patch("gpp_client.GPPClient"), _clone_ok() as clone:
+            with _gpp_client(), _clone_ok() as clone:
                 record = trigger_gemini_observation(
                     subscription, target.name, target
                 )
@@ -317,18 +435,56 @@ class TestConfigurationGuards:
 class TestCloneFailure:
     """A failure after the clone began is recorded, never retried."""
 
-    def test_records_failure_with_a_warning(self, subscription, target):
-        with _snapshot(), patch("gpp_client.GPPClient"):
+    def test_records_failure_before_anything_was_created(
+        self, subscription, target
+    ):
+        """Nothing reached GPP, and the message says so.
+
+        The detail used to warn that an observation might exist after *any*
+        failure, which sent the PI to Explore to check on something that was
+        never created.
+        """
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
+                new_callable=AsyncMock,
                 side_effect=RuntimeError("boom"),
             ):
                 record = trigger_gemini_observation(
                     subscription, target.name, target
                 )
         assert record.status == GeminiTriggerRecord.STATUS_FAILED
-        # The PI must know the observation might exist regardless.
+        assert "boom" in record.detail
+        assert "nothing was created" in record.detail.lower()
+        assert record.gpp_observation_id == ""
+        assert not record.counts_towards_cap
+
+    def test_records_failure_after_the_observation_was_created(
+        self, subscription, target
+    ):
+        """The clone succeeded and the workflow step then failed.
+
+        The observation is real and spending the allocation, so the PI is sent
+        to Explore and the attempt is charged.
+        """
+
+        async def _clone_then_fail(**kwargs):
+            kwargs["on_created"](target_id="t-1", observation_id="o-1")
+            raise RuntimeError("workflow state never settled")
+
+        with _snapshot(), _gpp_client():
+            with patch(
+                "goats_tom.gpp_observation_builder.clone_observation_for_target",
+                new=_clone_then_fail,
+            ):
+                record = trigger_gemini_observation(
+                    subscription, target.name, target
+                )
+        assert record.status == GeminiTriggerRecord.STATUS_FAILED
+        assert record.gpp_observation_id == "o-1"
+        assert record.gpp_target_id == "t-1"
         assert "explore" in record.detail.lower()
+        assert record.counts_towards_cap
 
 
 @pytest.mark.django_db()
@@ -442,15 +598,37 @@ class TestTriggerHelpText:
         ].widget
         assert "max-width" in widget.attrs.get("style", "")
 
-    def test_cap_help_drops_nightly_wording(self):
-        """The cap is a lifetime total; "not per night" invited confusion."""
+    def test_cap_help_states_the_scope(self):
+        """The cap belongs to one ingestion run, and the help must say so.
+
+        It was described as a total for the subscription, which read as a
+        lifetime allowance -- a PI who restarted with a new configuration had
+        no reason to expect their count to reset.
+        """
         from goats_tom.forms import AntaresStreamSubscribeForm
 
         help_text = AntaresStreamSubscribeForm(user=None).fields[
             "max_triggers"
         ].help_text
         assert "per night" not in help_text
-        assert "Total for this subscription" in help_text
+        assert "Total for this ingestion run" in help_text
+        assert "restart" in help_text.lower()
+
+    def test_the_cap_is_prefilled(self):
+        """Blank means unlimited, so an empty box is the dangerous default.
+
+        A pristine ingestion page seeded nothing here, quietly granting an
+        unlimited allowance to anyone who did not notice the field.
+        """
+        from goats_tom.forms import AntaresStreamSubscribeForm
+        from goats_tom.models.antares_stream_subscription import (
+            DEFAULT_MAX_TRIGGERS,
+        )
+
+        field = AntaresStreamSubscribeForm(user=None).fields["max_triggers"]
+
+        assert field.initial == DEFAULT_MAX_TRIGGERS
+        assert DEFAULT_MAX_TRIGGERS == 10
 
 
 @pytest.mark.django_db()
@@ -643,7 +821,7 @@ class TestTemplateOverrides:
     def test_overrides_reach_the_clone(self, subscription, target):
         subscription.gpp_observation_overrides = {"posAngleConstraint": {"mode": "FIXED"}}
         subscription.save()
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
                 return_value={"target_id": "t", "observation_id": "o"},
@@ -655,7 +833,7 @@ class TestTemplateOverrides:
 
     def test_empty_overrides_pass_none(self, subscription, target):
         """An empty dict must not be sent as an override set."""
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
                 return_value={"target_id": "t", "observation_id": "o"},
@@ -756,7 +934,7 @@ class TestObserverNotesLink:
             "observerNotes": "ANTARES locus: {locus_url}"
         }
         subscription.save()
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
                 return_value={"target_id": "t", "observation_id": "o"},
@@ -946,7 +1124,7 @@ class TestBrightnessSubstitution:
             latest_alert_magnitude=18.9,
             latest_alert_passband="g",
         )
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
                 return_value={"target_id": "t", "observation_id": "o"},
@@ -980,7 +1158,7 @@ class TestBrightnessSubstitution:
 
     def test_missing_locus_row_passes_none(self, subscription, target):
         """No stored alert data means no brightness override."""
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
                 return_value={"target_id": "t", "observation_id": "o"},
@@ -1330,10 +1508,16 @@ class TestTriggerDecoupledFromSave:
             GeminiTriggerRecord,
         )
 
-        sub = AntaresStreamSubscription.objects.create(topics=["t"])
-        assert _already_triggered(sub.pk, "ANT1") is False
-        GeminiTriggerRecord.objects.create(subscription=sub, locus_id="ANT1")
-        assert _already_triggered(sub.pk, "ANT1") is True
+        sub = AntaresStreamSubscription.objects.create(topics=["t"], generation=3)
+        assert _already_triggered(sub.pk, "ANT1", 3) is False
+        GeminiTriggerRecord.objects.create(
+            subscription=sub, locus_id="ANT1", generation=3
+        )
+        assert _already_triggered(sub.pk, "ANT1", 3) is True
+        # The next run reconsiders it. Keyed on subscription and locus alone,
+        # a single failure was permanent for the life of the account: there is
+        # one subscription row per user and it is never replaced.
+        assert _already_triggered(sub.pk, "ANT1", 4) is False
 
     def test_idempotency_is_per_subscription(self):
         """Another team's trigger must not block ours."""
@@ -1345,8 +1529,10 @@ class TestTriggerDecoupledFromSave:
 
         mine = AntaresStreamSubscription.objects.create(topics=["a"])
         theirs = AntaresStreamSubscription.objects.create(topics=["b"])
-        GeminiTriggerRecord.objects.create(subscription=theirs, locus_id="ANT1")
-        assert _already_triggered(mine.pk, "ANT1") is False
+        GeminiTriggerRecord.objects.create(
+            subscription=theirs, locus_id="ANT1", generation=0
+        )
+        assert _already_triggered(mine.pk, "ANT1", 0) is False
 
 
 @pytest.mark.django_db()
@@ -1510,7 +1696,7 @@ class TestBrightnessSubstitution:
             latest_alert_magnitude=18.9,
             latest_alert_passband="g",
         )
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
                 return_value={"target_id": "t", "observation_id": "o"},
@@ -1544,7 +1730,7 @@ class TestBrightnessSubstitution:
 
     def test_missing_locus_row_passes_none(self, subscription, target):
         """No stored alert data means no brightness override."""
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
                 return_value={"target_id": "t", "observation_id": "o"},
@@ -1894,10 +2080,16 @@ class TestTriggerDecoupledFromSave:
             GeminiTriggerRecord,
         )
 
-        sub = AntaresStreamSubscription.objects.create(topics=["t"])
-        assert _already_triggered(sub.pk, "ANT1") is False
-        GeminiTriggerRecord.objects.create(subscription=sub, locus_id="ANT1")
-        assert _already_triggered(sub.pk, "ANT1") is True
+        sub = AntaresStreamSubscription.objects.create(topics=["t"], generation=3)
+        assert _already_triggered(sub.pk, "ANT1", 3) is False
+        GeminiTriggerRecord.objects.create(
+            subscription=sub, locus_id="ANT1", generation=3
+        )
+        assert _already_triggered(sub.pk, "ANT1", 3) is True
+        # The next run reconsiders it. Keyed on subscription and locus alone,
+        # a single failure was permanent for the life of the account: there is
+        # one subscription row per user and it is never replaced.
+        assert _already_triggered(sub.pk, "ANT1", 4) is False
 
     def test_idempotency_is_per_subscription(self):
         """Another team's trigger must not block ours."""
@@ -1909,8 +2101,10 @@ class TestTriggerDecoupledFromSave:
 
         mine = AntaresStreamSubscription.objects.create(topics=["a"])
         theirs = AntaresStreamSubscription.objects.create(topics=["b"])
-        GeminiTriggerRecord.objects.create(subscription=theirs, locus_id="ANT1")
-        assert _already_triggered(mine.pk, "ANT1") is False
+        GeminiTriggerRecord.objects.create(
+            subscription=theirs, locus_id="ANT1", generation=0
+        )
+        assert _already_triggered(mine.pk, "ANT1", 0) is False
 
 
 @pytest.mark.django_db()
@@ -2142,7 +2336,7 @@ class TestWorkflowStateFromTemplate:
         """
         subscription.gpp_workflow_state = "DEFINED"
         subscription.save()
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
                 return_value={"target_id": "t", "observation_id": "o"},
@@ -2152,7 +2346,7 @@ class TestWorkflowStateFromTemplate:
 
     def test_blank_means_ready(self, subscription, target):
         """READY stays the default for automatic triggering."""
-        with _snapshot(), patch("gpp_client.GPPClient"):
+        with _snapshot(), _gpp_client():
             with patch(
                 "goats_tom.gpp_observation_builder.clone_observation_for_target",
                 return_value={"target_id": "t", "observation_id": "o"},

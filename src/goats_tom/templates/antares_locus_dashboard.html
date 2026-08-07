@@ -73,7 +73,37 @@
   .antares-locus-flash-active {
     animation: antares-locus-flash-anim 0.6s ease-out;
   }
+
+  /* The status is plain coloured text with a chevron, clicked to unfold the
+     message. Deliberately no width rules on the panel: a min-width made the
+     whole column jump wider on open, shifting every other column with it. */
+  .antares-trigger-toggle {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  .antares-trigger-toggle:focus-visible {
+    outline: 2px solid #0d6efd;
+    outline-offset: 1px;
+  }
+  .antares-trigger-chevron::before {
+    content: "\25B8";  /* > */
+    display: inline-block;
+    margin-right: 0.3em;
+    transition: transform 0.12s ease-out;
+  }
+
+  /* Closed is the default, so a freshly swapped table renders closed unless
+     an open rule below says otherwise. */
+  .antares-trigger-detail {
+    display: none;
+    overflow-wrap: anywhere;
+  }
 </style>
+<style id="antares-trigger-open-rules"></style>
 
 <script>
 (function () {
@@ -186,7 +216,73 @@
       });
   }
 
+  // Which trigger messages are expanded, and the stylesheet that makes them
+  // so. The rules live in a <style> element outside #antares-locus-table-
+  // container, which is the whole point: the table is replaced wholesale by
+  // the 15s htmx swap and partly rewritten by the 3s saved-status poll, so
+  // any state written onto the rows themselves is destroyed on a timer. A
+  // rule matching `data-locus-id` applies to whatever markup is present,
+  // including markup that arrives later -- the replacement renders already
+  // open, with nothing to restore and no ordering to get wrong.
+  //
+  // Editing this element is also safe: it sits outside the observed subtree,
+  // so it cannot retrigger the MutationObserver below.
+  var openTriggerDetails = {};
+
+  // Locus ids come from the server, but they are being interpolated into a
+  // stylesheet, so anything that could terminate a selector is refused
+  // outright rather than escaped.
+  var SAFE_LOCUS_ID = /^[A-Za-z0-9_.:-]+$/;
+
+  function writeTriggerOpenRules() {
+    var sheet = document.getElementById("antares-trigger-open-rules");
+    if (!sheet) return;
+    var rules = [];
+    Object.keys(openTriggerDetails).forEach(function (locusId) {
+      if (!SAFE_LOCUS_ID.test(locusId)) return;
+      rules.push(
+        '.antares-trigger-detail[data-locus-id="' + locusId + '"]' +
+          "{display:block}"
+      );
+      // Chevron turns down via a transform, not by swapping the glyph: the
+      // glyph is pseudo-element content, so changing it here would mean
+      // touching the row, which is what this design exists to avoid.
+      rules.push(
+        '.antares-trigger-toggle[data-locus-id="' +
+          locusId +
+          '"] .antares-trigger-chevron::before{transform:rotate(90deg)}'
+      );
+    });
+    sheet.textContent = rules.join("\n");
+  }
+
+  function setTriggerDetail(locusId, open) {
+    if (open) {
+      openTriggerDetails[locusId] = true;
+    } else {
+      delete openTriggerDetails[locusId];
+    }
+    writeTriggerOpenRules();
+    applyTriggerAria();
+  }
+
+  // Visual state is CSS; this only keeps assistive tech in step. Attribute
+  // writes are not childList changes, so they cannot feed the observer.
+  function applyTriggerAria() {
+    document.querySelectorAll(".antares-trigger-toggle").forEach(function (button) {
+      var open = !!openTriggerDetails[button.getAttribute("data-locus-id")];
+      button.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+
   document.body.addEventListener("click", function (evt) {
+    var toggle = evt.target.closest(".antares-trigger-toggle");
+    if (toggle) {
+      var locusId = toggle.getAttribute("data-locus-id");
+      setTriggerDetail(locusId, !openTriggerDetails[locusId]);
+      return;
+    }
+
     var link = evt.target.closest(".antares-locus-link");
     if (!link) return;
     var row = link.closest(".antares-locus-row");
@@ -210,12 +306,14 @@
       applySeenHighlighting();
       flashTable();
       setUpSaveTargetCheckboxes();
+      applyTriggerAria();
     });
     observer.observe(container, { childList: true, subtree: true });
   }
 
   applySeenHighlighting();
   setUpSaveTargetCheckboxes();
+  applyTriggerAria();
   setInterval(pollSavedStatus, 3000);
 })();
 </script>

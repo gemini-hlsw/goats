@@ -1,0 +1,45 @@
+{% comment %}
+One Gemini trigger status, with its message folded behind a chevron.
+
+Context
+-------
+trigger : `goats_tom.models.GeminiTriggerRecord`
+    The record being rendered.
+label_class : str
+    Bootstrap text colour, e.g. ``text-danger``.
+label_text : str
+    Status word shown next to the chevron.
+
+Rendered as plain coloured text rather than a badge pill: the row is dense
+already, and a pill next to a chevron read as two separate controls.
+
+Nothing here is hidden with a `d-none` class. The panel is display:none by
+default and is opened by a rule injected into a stylesheet that lives outside
+the table -- see `antares_locus_dashboard.html`. That is what makes an open
+message survive the 15s htmx swap and the 3s saved-status poll, both of which
+replace this markup wholesale: the replacement is already open when it renders,
+so there is no state to restore and no race to lose.
+{% endcomment %}
+{% if trigger.detail or trigger.gpp_observation_id %}
+<button type="button"
+        class="antares-trigger-toggle {{ label_class }}"
+        data-locus-id="{{ trigger.locus_id }}"
+        aria-expanded="false"
+        aria-controls="antares-trigger-detail-{{ trigger.locus_id }}">
+  <span class="antares-trigger-chevron" aria-hidden="true"></span>{{ label_text }}
+</button>
+<div class="antares-trigger-detail small text-muted"
+     id="antares-trigger-detail-{{ trigger.locus_id }}"
+     data-locus-id="{{ trigger.locus_id }}">
+  {% if trigger.detail %}<div>{{ trigger.detail }}</div>{% endif %}
+  {% if trigger.gpp_observation_id %}
+  <div>Observation <code>{{ trigger.gpp_observation_id }}</code></div>
+  {% endif %}
+</div>
+{% else %}
+{% comment %}
+Nothing to reveal, so no chevron -- a control that opens an empty panel is
+worse than no control.
+{% endcomment %}
+<span class="{{ label_class }}">{{ label_text }}</span>
+{% endif %}

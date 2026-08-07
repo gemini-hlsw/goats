@@ -87,29 +87,42 @@
               {% endif %}
             </td>
             <td>
+              {% comment %}
+              The message is behind a click, not a `title` tooltip. A tooltip
+              is invisible on touch devices and to anyone not hovering the
+              right few pixels, and a skip or failure is only actionable once
+              you know why -- so the badge is a real button and the reason is
+              real markup, collapsed rather than absent. It stays reachable by
+              keyboard and to a screen reader, which `title` never was.
+
+              Previously the reason sat open under the badge. At one line per
+              row that was fine; the failure text is now several lines long
+              and a page of them buried the table.
+
+              `type="button"` is load-bearing: this sits inside the
+              save-targets form, and a default-type button would submit it.
+              {% endcomment %}
               {% with trigger=locus.gemini_trigger %}
               {% if not trigger %}
-              <span class="text-muted" title="No Gemini trigger has been attempted for this locus">&mdash;</span>
-              {% elif trigger.status == "success" %}
-              <span class="badge badge-success"
-                    title="Observation {{ trigger.gpp_observation_id }} created and set to READY">&#10003; Triggered</span>
-              {% elif trigger.status == "pending" %}
-              <span class="badge badge-secondary" title="Trigger in progress">Pending</span>
-              {% elif trigger.status == "skipped" %}
-              <span class="badge badge-warning">Skipped</span>
-              {% comment %}
-              The reason is shown, not tucked into a title attribute: a skip
-              or failure is only actionable once you know why, and a tooltip
-              is invisible on touch devices and to anyone not hovering the
-              right few pixels.
-              {% endcomment %}
-              {% if trigger.detail %}
-              <div class="small text-muted">{{ trigger.detail }}</div>
-              {% endif %}
+              <span class="text-muted">&mdash;</span>
+              <span class="visually-hidden">No Gemini trigger has been attempted for this locus</span>
               {% else %}
-              <span class="badge badge-danger">Failed</span>
-              {% if trigger.detail %}
-              <div class="small text-muted">{{ trigger.detail }}</div>
+              {% if trigger.status == "success" %}
+              {% with label_class="text-success" label_text="Triggered" %}
+              {% include "partials/antares_trigger_badge.html" %}
+              {% endwith %}
+              {% elif trigger.status == "pending" %}
+              {% with label_class="text-secondary" label_text="Pending" %}
+              {% include "partials/antares_trigger_badge.html" %}
+              {% endwith %}
+              {% elif trigger.status == "skipped" %}
+              {% with label_class="text-warning" label_text="Skipped" %}
+              {% include "partials/antares_trigger_badge.html" %}
+              {% endwith %}
+              {% else %}
+              {% with label_class="text-danger" label_text="Failed" %}
+              {% include "partials/antares_trigger_badge.html" %}
+              {% endwith %}
               {% endif %}
               {% endif %}
               {% endwith %}

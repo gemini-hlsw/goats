@@ -28,6 +28,12 @@ class GeminiTriggerRecord(models.Model):
 
     Attributes
     ----------
+    generation : `models.PositiveIntegerField`
+        The subscription's run counter at the moment the alert arrived. Part
+        of the uniqueness key, so records are scoped to one ingestion run.
+        Passed in from the consumer rather than read at trigger time: the task
+        runs asynchronously, and a restart in between would otherwise stamp
+        the record with the wrong run.
     subscription : `models.ForeignKey`
         The subscription that triggered. `CASCADE`: these records describe its
         activity and have no meaning without it.
@@ -68,6 +74,7 @@ class GeminiTriggerRecord(models.Model):
         (STATUS_SKIPPED, "Skipped"),
     ]
 
+    generation = models.PositiveIntegerField(default=0, db_index=True)
     subscription = models.ForeignKey(
         "goats_tom.AntaresStreamSubscription",
         on_delete=models.CASCADE,
@@ -94,9 +101,19 @@ class GeminiTriggerRecord(models.Model):
         constraints = [
             # The idempotency key. See the class docstring: this is what makes
             # a duplicated trigger impossible rather than merely unlikely.
+            #
+            # Scoped to one ingestion run, not to all time. `generation` is
+            # the subscription's run counter (see
+            # `goats_tom.antares_stream_control.advance_generation`), bumped
+            # on every start, stop and config save, so a new run reconsiders
+            # every locus while a run still never retries one. Keying on
+            # subscription and locus alone meant a locus that failed once --
+            # for any reason, including a bug -- could never be triggered
+            # again for the lifetime of that PI's account, since there is
+            # exactly one subscription row per user and it is never replaced.
             models.UniqueConstraint(
-                fields=["subscription", "locus_id"],
-                name="unique_gemini_trigger_per_locus",
+                fields=["subscription", "generation", "locus_id"],
+                name="unique_gemini_trigger_per_locus_per_run",
             )
         ]
 
@@ -118,8 +135,26 @@ class GeminiTriggerRecord(models.Model):
         refusal consume the very budget it was protecting -- and once the cap
         was reached, every further skip would keep it there.
 
-        Failures *do* count. A failure after the clone began may have created
-        an observation despite the error, so treating it as free risks
-        spending the allocation twice over.
+        A failure counts only if it got far enough to create an observation,
+        which is exactly what a non-empty `gpp_observation_id` records (set by
+        `goats_tom.gpp_observation_builder.clone_observation_for_target` the
+        moment the clone returns, not merely on success). Failures used to
+        count unconditionally, on the grounds that one might have created an
+        observation despite the error -- but most never reach GPP at all, and
+        charging them permanently retired part of a cap that exists to bound
+        real telescope time. A dead client, a lost connection or an unreadable
+        template now cost nothing.
+
+        The locus itself is still not retried: `STATUS_FAILED` is terminal and
+        the unique constraint on ``(subscription, locus_id)`` keeps it that
+        way. Releasing the cap frees the budget for *other* loci, not for
+        another go at this one.
+
+        Kept in step with `goats_tom.gemini_trigger._check_cap`, which does the
+        counting in SQL. The two must agree; see the note there.
         """
-        return self.status != self.STATUS_SKIPPED
+        if self.status == self.STATUS_SKIPPED:
+            return False
+        if self.status == self.STATUS_FAILED:
+            return bool(self.gpp_observation_id)
+        return True

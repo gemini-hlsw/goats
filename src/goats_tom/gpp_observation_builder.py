@@ -23,6 +23,14 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# GPP rejects a target created without one: RA, Dec and epoch must all be
+# given together. The schema marks it optional, so this only surfaces as a
+# server-side error at creation time -- "Argument 'input.SET.sidereal' is
+# invalid". Matches the value GOATS already sends from
+# `goats_tom.serializers.gpp.sidereal`, and ANTARES publishes J2000
+# coordinates, so it is right rather than merely a placeholder.
+DEFAULT_EPOCH = "J2000.000"
+
 # ANTARES reports its passband as a bare letter; GPP names the same filters
 # after the Sloan system. Matched case-insensitively because surveys are not
 # consistent about it (``g`` and ``R`` both occur).
@@ -96,7 +104,7 @@ def build_source_profile(magnitude, passband):
     )
 
 
-def clone_observation_for_target(
+async def clone_observation_for_target(
     client,
     program_id: str,
     template_observation_id: str,
@@ -104,6 +112,7 @@ def clone_observation_for_target(
     workflow_state=None,
     overrides=None,
     source_profile=None,
+    on_created=None,
 ) -> dict[str, Any]:
     """Clone a template observation and point it at `target`.
 
@@ -154,8 +163,22 @@ def clone_observation_for_target(
     caller is expected to record that (see
     `goats_tom.gemini_trigger.trigger_gemini_observation`) rather than retry,
     since a retry would create a second observation on the same target.
+
+    `on_created` exists because that recording is otherwise impossible. The
+    ids are only returned on the happy path, so a failure in step 3 used to
+    lose them entirely -- the caller could not tell an observation had been
+    created and would treat the attempt as having cost nothing. The hook is
+    called synchronously, in this event loop, and must not touch the database:
+    Django's ORM raises `SynchronousOnlyOperation` when called from async
+    context. Pass a plain in-memory collector and persist after the await.
+
+    A coroutine, not a sync function. Every GPP call here must share one event
+    loop with the caller's other calls on the same `client`: `async_to_sync`
+    opens a fresh loop per call and closes it on return, which leaves the
+    client's connection pool bound to a dead loop and fails the next call with
+    ``Event loop is closed``. The one `async_to_sync` belongs at the top of
+    `goats_tom.gemini_trigger.trigger_gemini_observation`, around everything.
     """
-    from asgiref.sync import async_to_sync
     from gpp_client.generated.enums import ObservationWorkflowState
     from gpp_client.generated.input_types import (
         CloneObservationInput,
@@ -192,10 +215,11 @@ def clone_observation_for_target(
         sidereal=SiderealInput(
             ra=RightAscensionInput(degrees=target.ra),
             dec=DeclinationInput(degrees=target.dec),
+            epoch=DEFAULT_EPOCH,
         ),
         source_profile=source_profile,
     )
-    create_target_result = async_to_sync(client.target.create_by_program_id)(
+    create_target_result = await client.target.create_by_program_id(
         program_id=program_id, properties=target_properties
     )
     target_dump = create_target_result.model_dump(by_alias=True)
@@ -207,6 +231,9 @@ def clone_observation_for_target(
             "GPP did not return an id for the new target, so the observation "
             "cannot be linked to it."
         )
+
+    if on_created is not None:
+        on_created(target_id=new_target_id, observation_id=None)
 
     # 2. Clone the template, overriding only the target it points at.
     #    Everything else -- instrument, exposure, conditions -- is inherited,
@@ -231,7 +258,7 @@ def clone_observation_for_target(
         observation_id=template_observation_id,
         set_=ObservationPropertiesInput(**properties_kwargs),
     )
-    clone_result = async_to_sync(client.observation.clone)(input=clone_input)
+    clone_result = await client.observation.clone(input=clone_input)
     clone_dump = clone_result.model_dump(by_alias=True)
     new_observation_id = (
         clone_dump.get("cloneObservation", {})
@@ -244,10 +271,16 @@ def clone_observation_for_target(
             f"({new_target_id}) may have been left behind in the programme."
         )
 
+    # Announced before step 3, not after. Step 3 is the one that realistically
+    # fails -- it polls for up to a minute -- and by then the observation is
+    # already real and already spending the allocation.
+    if on_created is not None:
+        on_created(target_id=new_target_id, observation_id=new_observation_id)
+
     # 3. Set the workflow state. Retried by the client itself, because GPP
     #    needs a moment after a clone before the new observation will accept a
     #    state change.
-    new_state = async_to_sync(client.workflow_state.update_by_id_with_retry)(
+    new_state = await client.workflow_state.update_by_id_with_retry(
         observation_id=new_observation_id,
         workflow_state=workflow_state,
         max_attempts=55,

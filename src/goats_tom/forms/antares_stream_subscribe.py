@@ -13,6 +13,7 @@ from goats_tom.antares_locus_handler import (
     is_effectively_blank,
     validate_handler_code,
 )
+from goats_tom.models.antares_stream_subscription import DEFAULT_MAX_TRIGGERS
 
 
 class AntaresStreamSubscribeForm(forms.Form):
@@ -127,12 +128,18 @@ class AntaresStreamSubscribeForm(forms.Form):
         label="Maximum Gemini observations to create",
         required=False,
         min_value=0,
+        # Pre-filled, because blank means *no limit* and an empty box on a
+        # fresh page therefore handed out an unlimited allowance to anyone who
+        # never noticed the field. A PI who genuinely wants no cap has to clear
+        # it deliberately.
+        initial=DEFAULT_MAX_TRIGGERS,
         # A small number needs a small box. Full-width looked like a mistake
         # next to the checkboxes, and implied a longer value was expected.
         widget=forms.NumberInput(attrs={"style": "max-width: 10rem;"}),
         help_text=(
-            "Total for this subscription. Leave blank for no limit. "
-            "Triggering stops when the limit is reached; ingestion continues."
+            "Total for this ingestion run. Resets when you restart ingestion. "
+            "Leave blank for no limit. Triggering stops when the limit is "
+            "reached; ingestion continues."
         ),
     )
 
