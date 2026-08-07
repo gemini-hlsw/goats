@@ -2128,7 +2128,7 @@ wheels = [
 
 [[package]]
 name = "goats"
-version = "26.8.0rc1"
+version = "26.8.0rc3"
 source = { editable = "." }
 dependencies = [
     { name = "antares-client", extra = ["subscriptions"] },
