@@ -24,6 +24,9 @@ class GPPTemplatePicker {
   #observationForm;
   #overridesInput;
   #workflowStateInput;
+  #targetOverridesInput;
+  #targetIdInput;
+  #instrumentInput;
   #observations = new Map();
 
   /**
@@ -38,6 +41,14 @@ class GPPTemplatePicker {
     this.#overridesInput = document.getElementById(
       "id_gpp_observation_overrides"
     );
+    // The target half of the same Apply. Without these the picker's target
+    // configuration -- its SED above all -- was collected and thrown away,
+    // and automatic triggering could not reproduce what was on screen.
+    this.#targetOverridesInput = document.getElementById(
+      "id_gpp_target_overrides"
+    );
+    this.#targetIdInput = document.getElementById("id_gpp_target_id");
+    this.#instrumentInput = document.getElementById("id_gpp_instrument");
     this.#workflowStateInput = document.getElementById(
       "id_gpp_workflow_state"
     );
@@ -63,7 +74,8 @@ class GPPTemplatePicker {
         <button type="button" class="btn btn-outline-secondary btn-sm"
                 id="gppTemplateOpen"
                 data-bs-toggle="offcanvas" data-bs-target="#gppTemplateOffcanvas">
-          Choose observing template
+          Choose observing template<span class="text-danger ms-1"
+            title="Required when automatic Gemini triggering is on">*</span>
         </button>
         <span id="gppTemplateSummary" class="small text-muted"></span>
       </div>
@@ -107,6 +119,18 @@ class GPPTemplatePicker {
     this.#editor = this.#root.querySelector("#gppTemplateEditor");
   }
 
+  /**
+   * Tell the page the applied-template state changed.
+   *
+   * Setting `.value` from script fires no event, so nothing outside this
+   * class can observe an Apply. The ingestion page listens for this to keep
+   * its submit button in step -- without it the button would stay disabled
+   * after a successful Apply, or enabled after the template was cleared.
+   */
+  #announceTemplateState() {
+    document.dispatchEvent(new CustomEvent("gpp-template-applied-changed"));
+  }
+
   /** Attach change handlers and load the programme list. */
   #wire() {
     this.#programSelect.addEventListener("change", () => {
@@ -135,6 +159,13 @@ class GPPTemplatePicker {
       if (this.#workflowStateInput) {
         this.#workflowStateInput.value = "";
       }
+      // Cleared together with the rest: a stale target id from a previously
+      // chosen template would clone the wrong object.
+      if (this.#targetOverridesInput) this.#targetOverridesInput.value = "";
+      if (this.#targetIdInput) this.#targetIdInput.value = "";
+      if (this.#instrumentInput) this.#instrumentInput.value = "";
+      this.#renderSummary();
+      this.#announceTemplateState();
       this.#renderSummary();
       this.#loadEditor(this.#observationSelect.value);
     });
@@ -425,10 +456,28 @@ class GPPTemplatePicker {
     const button = bar.querySelector("#gppTemplateSave");
     const statusEl = bar.querySelector("#gppTemplateSaveStatus");
 
+    // The button reports its own state, so no sentence beside it repeats
+    // what it already says. Three states: ready to apply, applying, applied.
+    const setApplied = (applied) => {
+      button.disabled = applied;
+      button.classList.toggle("btn-primary", !applied);
+      button.classList.toggle("btn-outline-success", applied);
+      button.textContent = applied
+        ? "\u2713 Applied"
+        : "Apply these settings";
+    };
+
+    // Edit anything in the panel and it is no longer applied. Without this
+    // the button would still read "Applied" after a scheduling window was
+    // changed -- a confident label for a stale state, which is worse than
+    // the sentence it replaced.
+    this.#editor.addEventListener("input", () => setApplied(false));
+    this.#editor.addEventListener("change", () => setApplied(false));
+
     button.addEventListener("click", async () => {
       button.disabled = true;
       statusEl.className = "small text-muted";
-      statusEl.textContent = "Saving\u2026";
+      statusEl.textContent = "Applying\u2026";
       try {
         // getData() returns a FormData, matching what the observation page
         // posts, so the backend's existing _normalize_form_data handles it
@@ -438,6 +487,20 @@ class GPPTemplatePicker {
           throw new Error("The observation form is not ready.");
         }
         payload.append("gppObservationId", observationId);
+
+        // The template's own target and observing mode, taken from the
+        // cached observation. They cannot be derived from this form: it
+        // describes an observation, and the page has no GOATS target at all
+        // -- the picker is configuring a template, not observing something.
+        // Read via ContextSerializer instead, they came back empty on every
+        // Apply, since that serializer requires a GOATS target primary key.
+        const cached = this.#observations.get(observationId) || {};
+        const asterism = cached.targetEnvironment?.asterism ?? [];
+        payload.append("templateTargetId", asterism[0]?.id ?? "");
+        payload.append(
+          "templateInstrument",
+          cached.observingMode?.mode ?? cached.instrument ?? ""
+        );
 
         // Validated and converted server-side, never written to GPP. Doing
         // the conversion there reuses ObservationSerializer, so what is
@@ -455,8 +518,21 @@ class GPPTemplatePicker {
         if (this.#workflowStateInput) {
           this.#workflowStateInput.value = result?.workflowState ?? "";
         }
-        statusEl.className = "small text-success";
-        statusEl.textContent = "Applied to the observations GOATS creates.";
+        if (this.#targetOverridesInput) {
+          this.#targetOverridesInput.value = JSON.stringify(
+            result?.targetOverrides ?? {}
+          );
+        }
+        if (this.#targetIdInput) {
+          this.#targetIdInput.value = result?.gppTargetId ?? "";
+        }
+        if (this.#instrumentInput) {
+          this.#instrumentInput.value = result?.instrument ?? "";
+        }
+        this.#renderSummary();
+      this.#announceTemplateState();
+        setApplied(true);
+        statusEl.textContent = "";
       } catch (error) {
         // api.js throws the Response itself on a non-2xx, so the server's
         // explanation is available and worth showing. The previous message
@@ -476,8 +552,11 @@ class GPPTemplatePicker {
         console.error("Could not apply template settings:", detail, error);
         statusEl.className = "small text-danger";
         statusEl.textContent = `Could not apply these settings: ${detail}`;
-      } finally {
-        button.disabled = false;
+        // Back to "Apply these settings", not left disabled: nothing was
+        // applied, and the PI needs to be able to try again. Deliberately not
+        // in a `finally` -- that would re-enable the button on success too,
+        // undoing the applied state it had just set.
+        setApplied(false);
       }
     });
   }
@@ -486,15 +565,32 @@ class GPPTemplatePicker {
   #renderSummary() {
     const hasProgram = Boolean(this.#programInput.value);
     const hasObservation = Boolean(this.#observationInput.value);
-    if (hasProgram && hasObservation) {
-      const label =
-        this.#observationSelect.selectedOptions[0]?.textContent ?? "";
-      this.#summary.className = "small mt-2 mb-0 text-success";
-      this.#summary.textContent = `Each locus will be observed by cloning \u201c${label.trim()}\u201d.`;
-    } else {
-      this.#summary.className = "small mt-2 mb-0 text-muted";
+
+    if (!hasProgram || !hasObservation) {
+      this.#summary.className = "small text-muted";
       this.#summary.textContent =
         "Pick a program and ToO configuration to use as the template.";
+      return;
+    }
+
+    // Selected is not applied, and the difference decides whether ingestion
+    // can start -- so the one line next to the button says which, rather
+    // than describing what cloning will do. Applied state is read from the
+    // hidden fields because they are what actually gets submitted; anything
+    // else would be reporting an intention rather than a fact.
+    const label = (
+      this.#observationSelect.selectedOptions[0]?.textContent ?? ""
+    ).trim();
+    const applied = Boolean(
+      this.#targetIdInput?.value && this.#instrumentInput?.value
+    );
+
+    if (applied) {
+      this.#summary.className = "small text-success";
+      this.#summary.textContent = `\u2713 Applied \u00b7 cloning \u201c${label}\u201d`;
+    } else {
+      this.#summary.className = "small text-warning";
+      this.#summary.textContent = `Not applied \u00b7 open the panel and click Apply to use \u201c${label}\u201d`;
     }
   }
 }

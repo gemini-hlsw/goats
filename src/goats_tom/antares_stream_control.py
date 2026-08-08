@@ -319,6 +319,37 @@ def _get_or_create_subscription(owner) -> AntaresStreamSubscription:
     return subscription
 
 
+def advance_run_number(subscription: AntaresStreamSubscription) -> int:
+    """Atomically increment `run_number` and return the new value.
+
+    Parameters
+    ----------
+    subscription : `goats_tom.models.AntaresStreamSubscription`
+        The row whose run number to advance.
+
+    Returns
+    -------
+    int
+        The new run number.
+
+    Notes
+    -----
+    Separate from `advance_generation` because the two answer different
+    questions. `generation` is a fencing token and must advance on *stop* as
+    well as start, so a stopped consumer's late writes are ignored. A run is
+    the thing a PI starts, and stopping does not begin a new one.
+
+    Gemini trigger records and the trigger cap are scoped to the run. Keyed on
+    `generation` instead, merely stopping ingestion emptied the dashboard's
+    Gemini Trigger column and silently restored the whole trigger allowance.
+    """
+    AntaresStreamSubscription.objects.filter(pk=subscription.pk).update(
+        run_number=F("run_number") + 1
+    )
+    subscription.refresh_from_db(fields=["run_number"])
+    return subscription.run_number
+
+
 def advance_generation(subscription: AntaresStreamSubscription) -> int:
     """Atomically increment `generation` and return the new value.
 
@@ -405,6 +436,9 @@ def restart_antares_stream(
     max_triggers=None,
     gpp_observation_overrides=None,
     gpp_workflow_state: str = "",
+    gpp_target_overrides=None,
+    gpp_target_id: str = "",
+    gpp_instrument: str = "",
 ) -> AntaresStreamSubscription:
     """Abort this owner's currently-running ANTARES consumer, if any, and
     start a new one with the given topics -- guaranteed not to clash with
@@ -448,6 +482,15 @@ def restart_antares_stream(
     gpp_observation_overrides : dict, optional
         Observation properties applied to each clone, leaving the template in
         GPP untouched.
+    gpp_target_overrides : dict, optional
+        Target properties from the template picker, including its source
+        profile. Stored so triggering can clone the template's target rather
+        than build a bare one from coordinates.
+    gpp_target_id : str, optional
+        The template observation's target, cloned per locus.
+    gpp_instrument : str, optional
+        The template's instrument, needed to record created observations in
+        GOATS.
     gpp_workflow_state : str, optional
         Workflow state for each created observation. Blank means ``READY``.
     handler_code : str, optional
@@ -496,6 +539,8 @@ def restart_antares_stream(
     _abort_running_consumer(subscription)
 
     new_generation = advance_generation(subscription)
+    # Only here, never on stop: this is what "a new run" means.
+    advance_run_number(subscription)
 
     subscription.topics = topics
     subscription.consumer_group = consumer_group
@@ -506,6 +551,9 @@ def restart_antares_stream(
     subscription.max_triggers = max_triggers
     subscription.gpp_observation_overrides = gpp_observation_overrides or {}
     subscription.gpp_workflow_state = gpp_workflow_state or ""
+    subscription.gpp_target_overrides = gpp_target_overrides or {}
+    subscription.gpp_target_id = gpp_target_id or ""
+    subscription.gpp_instrument = gpp_instrument or ""
     subscription.handler_code = handler_code
     # Clear any warning/error left over from the previous run. An earlier
     # version deliberately left this for the actor to clear on successful

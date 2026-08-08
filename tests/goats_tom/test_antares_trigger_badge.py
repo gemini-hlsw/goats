@@ -96,19 +96,36 @@ class TestTriggerBadge:
         assert 'aria-controls="antares-trigger-detail-ANT3"' in html
         assert 'id="antares-trigger-detail-ANT3"' in html
 
-    def test_a_success_shows_the_observation_id(self, subscription):
-        """Was a `title` tooltip, invisible on touch and to screen readers."""
+    def test_a_success_links_to_the_observation(self, subscription, db):
+        """Nothing to explain on success, so it links instead of unfolding.
+
+        The message used to interpolate the workflow-state object GPP
+        returned, filling the column with a Python repr.
+        """
+        from tom_observations.models import ObservationRecord
+        from tom_targets.models import Target
+
+        target = Target.objects.create(
+            name="ANT4TGT", type=Target.SIDEREAL, ra=1.0, dec=2.0
+        )
+        observation = ObservationRecord.objects.create(
+            target=target,
+            facility="GEM",
+            observation_id="G-2026A-0166-Q-0892",
+            parameters={},
+        )
         record = GeminiTriggerRecord.objects.create(
             subscription=subscription,
             locus_id="ANT4",
             status=GeminiTriggerRecord.STATUS_SUCCESS,
-            detail="Observation created and set to READY.",
             gpp_observation_id="o-new",
+            observation_record=observation,
         )
         html = _render(record, label_class="text-success", label_text="Triggered")
 
-        assert "o-new" in html
-        assert "antares-trigger-toggle" in html
+        assert f"/observations/{observation.pk}/" in html
+        assert "G-2026A-0166-Q-0892" in html
+        assert "antares-trigger-toggle" not in html
 
     def test_no_button_when_there_is_nothing_to_reveal(self, subscription):
         """A control that opens an empty panel is worse than no control."""
@@ -253,3 +270,83 @@ class TestToggleDoesNotFeedTheObserver:
     def test_locus_ids_are_validated_before_reaching_the_stylesheet(self):
         """They are interpolated into a selector, so they are refused, not escaped."""
         assert "SAFE_LOCUS_ID" in self._script()
+
+
+@pytest.mark.django_db()
+class TestSavedBadgeLinksToTheTarget:
+    """The badge names something the PI will want to open."""
+
+    def test_it_links_when_the_target_is_resolvable(self, subscription, client):
+        from tom_targets.models import Target
+
+        from goats_tom.models import AntaresLocus, AntaresTargetSave
+
+        target = Target.objects.create(
+            name="ANTLINK", type=Target.SIDEREAL, ra=1.0, dec=2.0
+        )
+        AntaresLocus.objects.create(
+            subscription=subscription,
+            locus_id="ANTLINK",
+            ra=1.0,
+            dec=2.0,
+            latest_alert_id="a1",
+        )
+        AntaresTargetSave.objects.create(
+            locus_id="ANTLINK", saved_by=subscription.owner
+        )
+        client.force_login(subscription.owner)
+
+        body = client.get("/antares/loci/table/").content.decode()
+
+        assert target.get_absolute_url() in body
+
+    def test_an_unsaved_locus_has_no_link(self, subscription, client):
+        from goats_tom.models import AntaresLocus
+
+        AntaresLocus.objects.create(
+            subscription=subscription,
+            locus_id="ANTPLAIN",
+            ra=1.0,
+            dec=2.0,
+            latest_alert_id="a1",
+        )
+        client.force_login(subscription.owner)
+
+        body = client.get("/antares/loci/table/").content.decode()
+
+        assert "&#10003; Saved" not in body
+
+
+class TestTemplateCommentsDoNotLeak:
+    """Django's `{# #}` comment does not span lines.
+
+    A multi-line one is not recognised as a comment at all: its text renders
+    verbatim onto the page, and if it happens to contain a template tag, that
+    tag is parsed and can raise. Both happened while building this column.
+    """
+
+    def _antares_templates(self):
+        from pathlib import Path
+
+        import goats_tom
+
+        root = Path(goats_tom.__file__).parent / "templates"
+        return [
+            path
+            for path in root.rglob("*antares*.html")
+        ]
+
+    def test_no_multi_line_hash_comments(self):
+        import re
+
+        offenders = []
+        for path in self._antares_templates():
+            for match in re.finditer(r"\{#", path.read_text()):
+                line = path.read_text()[match.start() :].split("\n", 1)[0]
+                if "#}" not in line:
+                    offenders.append(f"{path.name}: {line.strip()[:60]}")
+
+        assert not offenders, (
+            "multi-line {# #} renders as visible text; use "
+            f"{{% comment %}} instead: {offenders}"
+        )

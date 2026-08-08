@@ -266,21 +266,21 @@ class TestTriggerCap:
         longer exists.
         """
         subscription.max_triggers = 2
-        subscription.generation = 5
+        subscription.run_number = 5
         subscription.save()
         # Two real observations, but from the previous run.
         for i in range(2):
             GeminiTriggerRecord.objects.create(
                 subscription=subscription,
                 locus_id=f"OLD{i}",
-                generation=4,
+                run_number=4,
                 status=GeminiTriggerRecord.STATUS_SUCCESS,
                 gpp_observation_id=f"o-{i}",
             )
 
         with _snapshot(), _clone_ok(), _gpp_client():
             record = trigger_gemini_observation(
-                subscription, target.name, target, generation=5
+                subscription, target.name, target, run_number=5
             )
 
         assert record.status == GeminiTriggerRecord.STATUS_SUCCESS
@@ -288,20 +288,20 @@ class TestTriggerCap:
     def test_the_cap_still_binds_within_a_run(self, subscription, target):
         """Resetting per run must not mean no cap at all."""
         subscription.max_triggers = 2
-        subscription.generation = 5
+        subscription.run_number = 5
         subscription.save()
         for i in range(2):
             GeminiTriggerRecord.objects.create(
                 subscription=subscription,
                 locus_id=f"NOW{i}",
-                generation=5,
+                run_number=5,
                 status=GeminiTriggerRecord.STATUS_SUCCESS,
                 gpp_observation_id=f"o-{i}",
             )
 
         with _snapshot(), _clone_ok(), _gpp_client():
             record = trigger_gemini_observation(
-                subscription, target.name, target, generation=5
+                subscription, target.name, target, run_number=5
             )
 
         assert record.status == GeminiTriggerRecord.STATUS_SKIPPED
@@ -520,6 +520,10 @@ class TestFormRequiresTemplate:
                 "trigger_gemini_observations": "on",
                 "gpp_program_id": "p-1",
                 "gpp_observation_id": "o-1",
+                # An *applied* template. Selecting an observation is not
+                # enough: Apply is what captures the target and instrument.
+                "gpp_target_id": "t-1",
+                "gpp_instrument": "GMOS_NORTH",
             },
             user=None,
         )
@@ -536,6 +540,10 @@ class TestFormRequiresTemplate:
                 "save_all_targets": "on",
                 "gpp_program_id": "p-1",
                 "gpp_observation_id": "o-1",
+                # An *applied* template. Selecting an observation is not
+                # enough: Apply is what captures the target and instrument.
+                "gpp_target_id": "t-1",
+                "gpp_instrument": "GMOS_NORTH",
             },
             user=None,
         )
@@ -1009,10 +1017,45 @@ class TestTemplateEditorSections:
             == "observerNotes"
         )
 
-    def test_help_text_is_the_short_form(self):
+    def test_the_button_reports_applied_state_itself(self):
+        """No sentence beside the button repeating what the button says.
+
+        The state used to be announced in three places at once -- a red
+        paragraph under the checkbox, a green sentence by the Apply button,
+        and a third by the template button. The button now carries its own
+        state and the page carries one status chip.
+        """
         source = self._picker_source()
-        assert "Applied to the observations GOATS creates." in source
+
+        assert "Applied to the observations GOATS creates." not in source
         assert "The template in GPP is not" not in source
+        assert "\\u2713 Applied" in source or "\u2713 Applied" in source
+        assert "setApplied" in source
+
+    def test_editing_the_panel_unapplies_it(self):
+        """Otherwise the button would claim "Applied" over a stale config.
+
+        A confident label on a stale state is worse than the sentence it
+        replaced, so any edit in the panel returns the button to "Apply".
+        """
+        source = self._picker_source()
+
+        assert 'addEventListener("input", () => setApplied(false))' in source
+        assert 'addEventListener("change", () => setApplied(false))' in source
+
+    def test_the_template_target_and_instrument_are_sent(self):
+        """They cannot come from this form.
+
+        `ContextSerializer` requires a GOATS target primary key and the
+        ingestion page has no target, so reading them there returned empty
+        strings on every Apply -- leaving the ingestion button disabled with
+        an applied template on screen.
+        """
+        source = self._picker_source()
+
+        assert "templateTargetId" in source
+        assert "templateInstrument" in source
+        assert "targetEnvironment?.asterism" in source
 
     def test_hidden_sections_do_not_break_get_data(self):
         """Every section-owned editor must be optional in getData().
@@ -1508,10 +1551,10 @@ class TestTriggerDecoupledFromSave:
             GeminiTriggerRecord,
         )
 
-        sub = AntaresStreamSubscription.objects.create(topics=["t"], generation=3)
+        sub = AntaresStreamSubscription.objects.create(topics=["t"], run_number=3)
         assert _already_triggered(sub.pk, "ANT1", 3) is False
         GeminiTriggerRecord.objects.create(
-            subscription=sub, locus_id="ANT1", generation=3
+            subscription=sub, locus_id="ANT1", run_number=3
         )
         assert _already_triggered(sub.pk, "ANT1", 3) is True
         # The next run reconsiders it. Keyed on subscription and locus alone,
@@ -1530,7 +1573,7 @@ class TestTriggerDecoupledFromSave:
         mine = AntaresStreamSubscription.objects.create(topics=["a"])
         theirs = AntaresStreamSubscription.objects.create(topics=["b"])
         GeminiTriggerRecord.objects.create(
-            subscription=theirs, locus_id="ANT1", generation=0
+            subscription=theirs, locus_id="ANT1", run_number=0
         )
         assert _already_triggered(mine.pk, "ANT1", 0) is False
 
@@ -2080,10 +2123,10 @@ class TestTriggerDecoupledFromSave:
             GeminiTriggerRecord,
         )
 
-        sub = AntaresStreamSubscription.objects.create(topics=["t"], generation=3)
+        sub = AntaresStreamSubscription.objects.create(topics=["t"], run_number=3)
         assert _already_triggered(sub.pk, "ANT1", 3) is False
         GeminiTriggerRecord.objects.create(
-            subscription=sub, locus_id="ANT1", generation=3
+            subscription=sub, locus_id="ANT1", run_number=3
         )
         assert _already_triggered(sub.pk, "ANT1", 3) is True
         # The next run reconsiders it. Keyed on subscription and locus alone,
@@ -2102,7 +2145,7 @@ class TestTriggerDecoupledFromSave:
         mine = AntaresStreamSubscription.objects.create(topics=["a"])
         theirs = AntaresStreamSubscription.objects.create(topics=["b"])
         GeminiTriggerRecord.objects.create(
-            subscription=theirs, locus_id="ANT1", generation=0
+            subscription=theirs, locus_id="ANT1", run_number=0
         )
         assert _already_triggered(mine.pk, "ANT1", 0) is False
 

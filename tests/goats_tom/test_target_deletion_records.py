@@ -104,13 +104,13 @@ class TestDeletingATargetClearsItsRecords:
         left the locus untriggerable with nothing on screen to explain it.
         """
         subscription = AntaresStreamSubscription.objects.create(
-            owner=pi_one, topics=["t"], generation=2
+            owner=pi_one, topics=["t"], run_number=2
         )
         _save_record(pi_one)
         GeminiTriggerRecord.objects.create(
             subscription=subscription,
             locus_id=LOCUS,
-            generation=2,
+            run_number=2,
             status=GeminiTriggerRecord.STATUS_FAILED,
         )
 
@@ -125,7 +125,7 @@ class TestDeletingATargetClearsItsRecords:
         )
         _save_record(pi_one)
         GeminiTriggerRecord.objects.create(
-            subscription=subscription, locus_id="ANT_OTHER", generation=0
+            subscription=subscription, locus_id="ANT_OTHER", run_number=0
         )
 
         target.delete()
@@ -147,7 +147,7 @@ class TestDeletingATargetClearsItsRecords:
         _save_record(pi_one)
         _save_record(pi_two)
         GeminiTriggerRecord.objects.create(
-            subscription=subscription, locus_id=LOCUS, generation=0
+            subscription=subscription, locus_id=LOCUS, run_number=0
         )
 
         with pytest.raises(SharedTargetDeletionError), transaction.atomic():

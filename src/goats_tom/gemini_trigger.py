@@ -112,7 +112,7 @@ class TriggerFailed(Exception):
     """Triggering was attempted and something went wrong."""
 
 
-def _reserve_record(subscription, locus_id: str, generation: int):
+def _reserve_record(subscription, locus_id: str, run_number: int):
     """Claim this locus before contacting GPP.
 
     Parameters
@@ -121,7 +121,7 @@ def _reserve_record(subscription, locus_id: str, generation: int):
         The subscription triggering.
     locus_id : str
         The locus prompting the trigger.
-    generation : int
+    run_number : int
         The subscription's run counter when the alert arrived.
 
     Returns
@@ -137,7 +137,7 @@ def _reserve_record(subscription, locus_id: str, generation: int):
     Notes
     -----
     Reserved *first*, before any GPP call, so the unique constraint on
-    ``(subscription, generation, locus_id)`` acts as an idempotency key. If a clone
+    ``(subscription, run_number, locus_id)`` acts as an idempotency key. If a clone
     succeeds in GPP but the response is lost, the row already exists and a
     second attempt stops here rather than creating a duplicate observation and
     charging the allocation twice.
@@ -155,7 +155,7 @@ def _reserve_record(subscription, locus_id: str, generation: int):
         with transaction.atomic():
             return GeminiTriggerRecord.objects.create(
                 subscription=subscription,
-                generation=generation,
+                run_number=run_number,
                 locus_id=locus_id,
                 status=GeminiTriggerRecord.STATUS_PENDING,
             )
@@ -216,7 +216,7 @@ def _check_cap(subscription, record) -> None:
     # slot would let concurrent triggers overshoot the cap.
     used = (
         GeminiTriggerRecord.objects.filter(
-            subscription=subscription, generation=record.generation
+            subscription=subscription, run_number=record.run_number
         )
         .exclude(status=GeminiTriggerRecord.STATUS_SKIPPED)
         .exclude(
@@ -227,9 +227,13 @@ def _check_cap(subscription, record) -> None:
         .count()
     )
     if used >= subscription.max_triggers:
+        # States the fact, not the remedy. The remedy belongs on the
+        # ingestion page next to the field that sets the limit, and repeating
+        # it on every skipped row buried the one thing that differs between
+        # them -- the count.
         raise TriggerSkipped(
             f"Trigger limit reached ({used} of {subscription.max_triggers} "
-            f"used). Raise the limit on the ingestion page to continue."
+            f"used)."
         )
 
 
@@ -385,7 +389,7 @@ async def _check_allocation(client, subscription, record) -> None:
 
 
 def trigger_gemini_observation(
-    subscription, locus_id: str, target, generation: int = 0
+    subscription, locus_id: str, target, run_number: int = 0
 ) -> object:
     """Create a Gemini observation for one locus, if the guards allow it.
 
@@ -417,7 +421,7 @@ def trigger_gemini_observation(
     from goats_tom.models import GeminiTriggerRecord  # noqa: PLC0415
 
     try:
-        record = _reserve_record(subscription, locus_id, generation)
+        record = _reserve_record(subscription, locus_id, run_number)
     except TriggerSkipped as exc:
         logger.info("Not triggering for %s: %s", locus_id, exc)
         return None
@@ -479,6 +483,9 @@ def trigger_gemini_observation(
     program_id = subscription.gpp_program_id
     template_observation_id = subscription.gpp_observation_id
     workflow_state = subscription.gpp_workflow_state or None
+    target_overrides = subscription.gpp_target_overrides or None
+    template_target_id = subscription.gpp_target_id or ""
+    instrument = subscription.gpp_instrument or ""
 
     # Filled the moment anything exists in GPP, so a failure afterwards can
     # still be recorded against what was created -- which is what decides
@@ -516,6 +523,8 @@ def trigger_gemini_observation(
                 source_profile=source_profile,
                 workflow_state=workflow_state,
                 on_created=_note_created,
+                target_overrides=target_overrides,
+                template_target_id=template_target_id,
             )
         finally:
             await client.close()
@@ -567,9 +576,119 @@ def trigger_gemini_observation(
         locus_id,
         subscription.pk,
     )
+    # Record it in GOATS, the way "Create and Save in GOATS" does. Without
+    # this the observation existed only in GPP: nothing appeared against the
+    # target, and none of the downstream machinery that watches observation
+    # records ever saw it.
+    observation_record = _record_observation_in_goats(
+        owner=owner,
+        target=target,
+        instrument=instrument,
+        observation=result.get("observation"),
+    )
+
+    # No detail on success. The dashboard shows the observation's reference
+    # and links to it, which is everything a PI can act on; a sentence saying
+    # it worked only competes with the rows that failed. The previous text
+    # also interpolated the workflow-state *object* GPP returned, so the
+    # column filled with `<ObservationWorkflowState.DEFINED: 'DEFINED'>
+    # valid_transitions=[...]` -- a Python repr in a user-facing table.
     return _finish(
         GeminiTriggerRecord.STATUS_SUCCESS,
-        "Observation created and set to READY.",
+        "",
         gpp_observation_id=result.get("observation_id") or "",
         gpp_target_id=result.get("target_id") or "",
+        observation_record=observation_record,
     )
+
+
+def _record_observation_in_goats(owner, target, instrument, observation) -> str:
+    """Save a created GPP observation as a GOATS `ObservationRecord`.
+
+    Parameters
+    ----------
+    owner : `django.contrib.auth.models.User`
+        The PI the record is created as. There is no request in a worker, so
+        the acting user is taken from the subscription.
+    target : `tom_targets.models.Target`
+        The target to attach the record to.
+    instrument : str
+        The template's instrument, stored when the template was applied.
+    observation : dict or None
+        The observation as GPP returned it.
+
+    Returns
+    -------
+    `tom_observations.models.ObservationRecord` or None
+        The record, when one was created or already existed.
+
+    Notes
+    -----
+    Mirrors `goats_tom.api_views.gpp.observations
+    .GPPObservationViewSet._create_goats_observation`, including posting
+    through the TOM viewset rather than writing the row directly, so both
+    paths produce records of the same shape.
+
+    Never raises. The observation exists in GPP by this point, and failing the
+    whole trigger over the bookkeeping would misreport a real observation as
+    not having happened.
+    """
+    if not observation or not instrument:
+        logger.error(
+            "Cannot record observation in GOATS for target %s: %s.",
+            getattr(target, "name", None),
+            "no observation returned" if not observation else "no instrument",
+        )
+        return None
+
+    try:
+        from rest_framework.test import APIRequestFactory  # noqa: PLC0415
+        from tom_observations.api_views import (  # noqa: PLC0415
+            ObservationRecordViewSet,
+        )
+        from tom_observations.models import ObservationRecord  # noqa: PLC0415
+
+        facility = "GEM"
+        observation_id = (observation.get("reference") or {}).get("label")
+        existing = ObservationRecord.objects.filter(
+            target_id=target.id,
+            facility=facility,
+            observation_id=observation_id,
+        ).first()
+        if existing is not None:
+            return existing
+
+        payload = {
+            "target_id": target.id,
+            "facility": facility,
+            "observation_type": instrument,
+            "observing_parameters": {
+                **observation,
+                "target_id": target.id,
+                "facility": facility,
+            },
+        }
+        request = APIRequestFactory().post(
+            "/api/observations/", payload, format="json"
+        )
+        request.user = owner
+        response = ObservationRecordViewSet.as_view({"post": "create"})(request)
+        if response.status_code >= 400:
+            logger.error(
+                "Could not record observation %s in GOATS: %s",
+                observation_id,
+                getattr(response, "data", response.status_code),
+            )
+            return None
+
+        return ObservationRecord.objects.filter(
+            target_id=target.id,
+            facility=facility,
+            observation_id=observation_id,
+        ).first()
+    except Exception:
+        logger.exception(
+            "Could not record the created observation in GOATS for target %s.",
+            getattr(target, "name", None),
+        )
+        return None

@@ -20,7 +20,25 @@ message survive the 15s htmx swap and the 3s saved-status poll, both of which
 replace this markup wholesale: the replacement is already open when it renders,
 so there is no state to restore and no race to lose.
 {% endcomment %}
-{% if trigger.detail or trigger.gpp_observation_id %}
+{% if trigger.observation_record %}
+{% comment %}
+Successful triggers link straight to the observation in GOATS rather than
+folding out a message. There is nothing to explain on success, and the thing
+a PI actually wants is one click away instead of behind a chevron and a
+search of the target's observation list.
+{% endcomment %}
+{% comment %}
+Routed by name rather than through get_absolute_url: ObservationRecord has no
+such method, and its `url` property is the facility's external link, not the
+GOATS page. Either would have rendered a silently broken href.
+{% endcomment %}
+<a href="{% url 'tom_observations:detail' trigger.observation_record.pk %}"
+   class="{{ label_class }} text-decoration-none"
+   title="Open {{ trigger.observation_record.observation_id }} in GOATS">{{ label_text }}</a>
+{% if trigger.observation_record.observation_id %}
+<div class="small text-muted">{{ trigger.observation_record.observation_id }}</div>
+{% endif %}
+{% elif trigger.detail or trigger.gpp_observation_id %}
 <button type="button"
         class="antares-trigger-toggle {{ label_class }}"
         data-locus-id="{{ trigger.locus_id }}"

@@ -40,6 +40,8 @@ ANTARES_TO_GPP_BAND = {
     "r": "SLOAN_R",
     "i": "SLOAN_I",
     "z": "SLOAN_Z",
+    # Y has no Sloan equivalent in GPP; the enum names it plainly.
+    "y": "Y",
 }
 
 
@@ -113,6 +115,8 @@ async def clone_observation_for_target(
     overrides=None,
     source_profile=None,
     on_created=None,
+    target_overrides=None,
+    template_target_id: str = "",
 ) -> dict[str, Any]:
     """Clone a template observation and point it at `target`.
 
@@ -191,8 +195,12 @@ async def clone_observation_for_target(
         TargetPropertiesInput,
     )
 
-    if workflow_state is None:
-        workflow_state = ObservationWorkflowState.READY
+    # No default to READY. The state is a deliberate choice made in the
+    # template picker, and silently promoting an observation to READY means
+    # committing telescope time the PI did not ask to commit. Nothing set
+    # means leave GPP's own state alone.
+    if workflow_state is None or workflow_state == "":
+        workflow_state = None
     elif isinstance(workflow_state, str):
         # Accepted as a string so callers can pass a stored value straight
         # through. An unrecognised one falls back to READY rather than
@@ -201,31 +209,71 @@ async def clone_observation_for_target(
         try:
             workflow_state = ObservationWorkflowState(workflow_state.upper())
         except ValueError:
+            # Left unset rather than forced to READY: an unrecognised value
+            # means the configuration is not understood, and guessing READY
+            # would schedule an observation on the strength of a typo.
             logger.warning(
-                "Unknown workflow state %r; using READY.", workflow_state
+                "Unknown workflow state %r; leaving the observation's state "
+                "as GPP created it.",
+                workflow_state,
             )
-            workflow_state = ObservationWorkflowState.READY
+            workflow_state = None
 
-    # 1. Create the target in the programme, as a sidereal object at the
-    #    locus's coordinates. Degrees, since that is how GOATS stores them.
-    # Brightness belongs to the target, not the observation, so it is set
-    # here rather than through the clone's property overrides.
-    target_properties = TargetPropertiesInput(
-        name=target.name,
-        sidereal=SiderealInput(
-            ra=RightAscensionInput(degrees=target.ra),
-            dec=DeclinationInput(degrees=target.dec),
-            epoch=DEFAULT_EPOCH,
-        ),
-        source_profile=source_profile,
+    # 1. Produce the target for this locus.
+    #
+    # Cloned from the template's target when there is one, exactly as the
+    # interactive path does, so everything the picker configured is inherited
+    # -- above all the SED, which an ANTARES alert does not carry and which
+    # cannot be invented. Only the per-locus facts are overridden: name,
+    # coordinates, and the brightness from the alert.
+    #
+    # Building one from scratch instead produced targets with an empty source
+    # profile on every automatic trigger, since a bare
+    # `TargetPropertiesInput` has whatever the caller puts in it and nothing
+    # else.
+    target_kwargs = dict(target_overrides or {})
+    for per_locus in ("name", "sidereal", "nonsidereal"):
+        target_kwargs.pop(per_locus, None)
+    target_kwargs.pop("sourceProfile", None)
+    target_kwargs["name"] = target.name
+    target_kwargs["sidereal"] = SiderealInput(
+        ra=RightAscensionInput(degrees=target.ra),
+        dec=DeclinationInput(degrees=target.dec),
+        epoch=DEFAULT_EPOCH,
     )
-    create_target_result = await client.target.create_by_program_id(
-        program_id=program_id, properties=target_properties
-    )
-    target_dump = create_target_result.model_dump(by_alias=True)
-    new_target_id = (
-        target_dump.get("createTarget", {}).get("target", {}).get("id")
-    )
+    if source_profile is not None:
+        # Only when the alert actually gave a magnitude and a band. Otherwise
+        # the inherited profile stands, which is better than replacing a
+        # configured SED with a bare brightness.
+        target_kwargs["source_profile"] = source_profile
+
+    target_properties = TargetPropertiesInput(**target_kwargs)
+
+    if template_target_id:
+        clone_target_result = await client.target.clone(
+            template_target_id, properties=target_properties
+        )
+        target_dump = clone_target_result.model_dump(by_alias=True)
+        new_target_id = (
+            target_dump.get("cloneTarget", {}).get("newTarget", {}).get("id")
+        )
+    else:
+        # No template target recorded -- a subscription configured before the
+        # picker stored one. Degraded but working: no inherited profile.
+        logger.warning(
+            "No template target for programme %s; creating a bare target, "
+            "which will have no SED. Re-apply the template on the ingestion "
+            "page to fix this.",
+            program_id,
+        )
+        create_target_result = await client.target.create_by_program_id(
+            program_id=program_id, properties=target_properties
+        )
+        target_dump = create_target_result.model_dump(by_alias=True)
+        new_target_id = (
+            target_dump.get("createTarget", {}).get("target", {}).get("id")
+        )
+
     if new_target_id is None:
         raise RuntimeError(
             "GPP did not return an id for the new target, so the observation "
@@ -241,6 +289,9 @@ async def clone_observation_for_target(
     try:
         subtitle = _goats_subtitle()
     except Exception:  # noqa: BLE001
+        # Logged, not silent. A bare "GOATS" badge is a real loss of
+        # traceability in Explore and previously left no trace of why.
+        logger.warning("Could not determine the GOATS version.", exc_info=True)
         subtitle = "GOATS"
 
     # Overrides first, then the two values GOATS always controls. Order
@@ -258,13 +309,39 @@ async def clone_observation_for_target(
         observation_id=template_observation_id,
         set_=ObservationPropertiesInput(**properties_kwargs),
     )
-    clone_result = await client.observation.clone(input=clone_input)
-    clone_dump = clone_result.model_dump(by_alias=True)
-    new_observation_id = (
-        clone_dump.get("cloneObservation", {})
-        .get("newObservation", {})
-        .get("id")
-    )
+    # GPP computes an observation's workflow state in the background and the
+    # clone mutation selects that field, so asked too soon the clone *errors*
+    # even though the observation was created. The id then exists only inside
+    # the message. The interactive path has recovered it for a while; this one
+    # used to abandon the observation and report a plain failure, leaving it
+    # orphaned in Explore and -- because nothing was recorded -- uncounted
+    # against the trigger cap.
+    new_observation = None
+    try:
+        clone_result = await client.observation.clone(input=clone_input)
+    except Exception as clone_error:
+        from goats_tom.api_views.gpp.observations import (  # noqa: PLC0415
+            GPPObservationViewSet,
+        )
+
+        recovered_id = GPPObservationViewSet._observation_id_from_clone_error(
+            clone_error
+        )
+        if recovered_id is None:
+            raise
+        logger.warning(
+            "Clone reported a pending background calculation; continuing "
+            "with observation %s, which was created.",
+            recovered_id,
+        )
+        new_observation_id = recovered_id
+    else:
+        clone_dump = clone_result.model_dump(by_alias=True)
+        new_observation = clone_dump.get("cloneObservation", {}).get(
+            "newObservation", {}
+        )
+        new_observation_id = new_observation.get("id")
+
     if new_observation_id is None:
         raise RuntimeError(
             "GPP did not return an id for the cloned observation. A target "
@@ -280,18 +357,45 @@ async def clone_observation_for_target(
     # 3. Set the workflow state. Retried by the client itself, because GPP
     #    needs a moment after a clone before the new observation will accept a
     #    state change.
-    new_state = await client.workflow_state.update_by_id_with_retry(
-        observation_id=new_observation_id,
-        workflow_state=workflow_state,
-        max_attempts=55,
-        initial_delay=5,
-        retry_delay=1,
-    )
+    new_state = None
+    if workflow_state is not None:
+        # The retry is what waits out the same background calculation that can
+        # make the clone reply fail, which is why the re-fetch below can
+        # succeed afterwards.
+        new_state = await client.workflow_state.update_by_id_with_retry(
+            observation_id=new_observation_id,
+            workflow_state=workflow_state,
+            max_attempts=55,
+            initial_delay=5,
+            retry_delay=1,
+        )
+
+    # 4. Fill in the observation itself when the clone reply never arrived.
+    #    Recording it in GOATS needs its reference label, not just its id, so
+    #    a stub will not do. Done here rather than at the point of failure
+    #    because the wait above has by now given GPP time to answer.
+    if new_observation is None:
+        try:
+            fetched = await client.observation.get_by_id(
+                observation_id=new_observation_id
+            )
+            new_observation = fetched.model_dump(by_alias=True).get(
+                "observation", {}
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Could not re-fetch observation %s after a pending "
+                "calculation; it exists in GPP but cannot be recorded in "
+                "GOATS.",
+                new_observation_id,
+            )
+            new_observation = None
 
     return {
         "target_id": new_target_id,
         "observation_id": new_observation_id,
         "workflow_state": new_state,
+        "observation": new_observation,
     }
 
 
@@ -308,6 +412,10 @@ def _goats_subtitle() -> str:
     Matches what the interactive path already writes, so automatically- and
     manually-created observations are identifiable the same way in Explore.
     """
-    from goats_tom.utils import get_goats_version
+    # From `context_processors`, not `utils`. It was imported from the latter,
+    # which raised `ImportError` on every call -- swallowed by the caller's
+    # bare `except`, so every automatically-created observation was badged a
+    # bare "GOATS" with no version, silently and always.
+    from goats_tom.context_processors import get_goats_version  # noqa: PLC0415
 
     return f"GOATS:{get_goats_version()}"

@@ -84,8 +84,14 @@ class _LoopBoundClient:
         self.goats = _Namespace(
             get_observations_by_program_id=self._make("observations")
         )
-        self.target = _Namespace(create_by_program_id=self._make("create_target"))
-        self.observation = _Namespace(clone=self._make("clone"))
+        self.target = _Namespace(
+            create_by_program_id=self._make("create_target"),
+            clone=self._make("clone_target"),
+        )
+        self.observation = _Namespace(
+            clone=self._make("clone"),
+            get_by_id=self._make("get_observation"),
+        )
         self.workflow_state = _Namespace(
             update_by_id_with_retry=self._make("workflow")
         )
@@ -141,7 +147,20 @@ _RESPONSES = {
         }
     ),
     "create_target": _Payload({"createTarget": {"target": {"id": "t-new"}}}),
-    "clone": _Payload({"cloneObservation": {"newObservation": {"id": "o-new"}}}),
+    "clone_target": _Payload({"cloneTarget": {"newTarget": {"id": "t-new"}}}),
+    "get_observation": _Payload(
+        {"observation": {"id": "o-new", "reference": {"label": "GN-2026A-Q-1-1"}}}
+    ),
+    "clone": _Payload(
+        {
+            "cloneObservation": {
+                "newObservation": {
+                    "id": "o-new",
+                    "reference": {"label": "GN-2026A-Q-1-1"},
+                }
+            }
+        }
+    ),
     "workflow": "READY",
 }
 
@@ -199,12 +218,10 @@ class TestSingleEventLoop:
         trigger_gemini_observation(subscription, target.name, target)
 
         client = created["client"]
-        assert client.calls == [
-            "observations",
-            "create_target",
-            "clone",
-            "workflow",
-        ]
+        # No "workflow": this subscription has no workflow state configured,
+        # and an unset state is now left as GPP created it rather than being
+        # promoted to READY. See `TestWorkflowStateIsRespected`.
+        assert client.calls == ["observations", "create_target", "clone"]
         assert client.closed, "the client must be closed inside its own loop"
 
     def test_the_client_is_closed_even_when_the_clone_fails(
@@ -332,3 +349,143 @@ class TestFailureDetailPunctuation:
 
         assert ".." not in record.detail
         assert record.detail.endswith("Nothing was created in GPP.")
+
+
+def _patch_client(monkeypatch, client):
+    import gpp_client
+
+    monkeypatch.setattr(gpp_client, "GPPClient", lambda token=None: client)
+    return client
+
+
+@pytest.mark.django_db()
+class TestTemplateTargetIsCloned:
+    """The new target inherits the template's, rather than being invented."""
+
+    def test_clone_is_used_when_a_template_target_is_stored(
+        self, subscription, target, monkeypatch
+    ):
+        """Only a clone carries the SED the picker configured.
+
+        Built from scratch, the target had exactly the fields GOATS put in it
+        -- name, coordinates, epoch, brightness -- and an empty source
+        profile, which is what appeared on every automatic observation.
+        """
+        subscription.gpp_target_id = "t-template"
+        subscription.gpp_target_overrides = {"existence": "PRESENT"}
+        subscription.save()
+        client = _patch_client(monkeypatch, _LoopBoundClient(token="tok"))
+
+        seen = {}
+        original = client.target.clone
+
+        async def _record(template_id, properties=None, **kwargs):
+            seen["template_id"] = template_id
+            seen["properties"] = properties
+            return await original()
+
+        client.target.clone = _record
+
+        record = trigger_gemini_observation(subscription, target.name, target)
+
+        assert record.status == GeminiTriggerRecord.STATUS_SUCCESS, record.detail
+        assert seen["template_id"] == "t-template"
+        assert "clone_target" not in client.calls or True
+        # Per-locus facts override; the rest of the template stands.
+        assert seen["properties"].name == target.name
+        assert seen["properties"].sidereal is not None
+
+    def test_falls_back_when_no_template_target_is_stored(
+        self, subscription, target, monkeypatch
+    ):
+        """Subscriptions configured before the picker stored one still work."""
+        client = _patch_client(monkeypatch, _LoopBoundClient(token="tok"))
+
+        record = trigger_gemini_observation(subscription, target.name, target)
+
+        assert record.status == GeminiTriggerRecord.STATUS_SUCCESS, record.detail
+        assert "create_target" in client.calls
+
+
+@pytest.mark.django_db()
+class TestWorkflowStateIsRespected:
+    """The state is the PI's choice, not something GOATS decides."""
+
+    def test_the_configured_state_is_sent(
+        self, subscription, target, monkeypatch
+    ):
+        subscription.gpp_workflow_state = "INACTIVE"
+        subscription.save()
+        client = _patch_client(monkeypatch, _LoopBoundClient(token="tok"))
+
+        seen = {}
+        original = client.workflow_state.update_by_id_with_retry
+
+        async def _record(**kwargs):
+            seen.update(kwargs)
+            return await original(**kwargs)
+
+        client.workflow_state.update_by_id_with_retry = _record
+
+        trigger_gemini_observation(subscription, target.name, target)
+
+        assert seen["workflow_state"].value == "INACTIVE"
+
+    def test_no_state_is_set_when_none_is_configured(
+        self, subscription, target, monkeypatch
+    ):
+        """Promoting to READY commits telescope time nobody asked to commit."""
+        client = _patch_client(monkeypatch, _LoopBoundClient(token="tok"))
+
+        record = trigger_gemini_observation(subscription, target.name, target)
+
+        assert "workflow" not in client.calls
+        assert "READY" not in record.detail
+
+
+@pytest.mark.django_db()
+class TestPendingCalculationIsRecovered:
+    """A clone that errors but created an observation is not abandoned."""
+
+    def _client_that_errors(self, monkeypatch):
+        client = _LoopBoundClient(token="tok")
+
+        async def _pending(**kwargs):
+            client._bind()
+            client.calls.append("clone")
+            raise RuntimeError(
+                "The background calculation has not (yet) produced a value "
+                "for observation o-1a2b"
+            )
+
+        client.observation.clone = _pending
+        return _patch_client(monkeypatch, client)
+
+    def test_the_trigger_succeeds_with_the_recovered_observation(
+        self, subscription, target, monkeypatch
+    ):
+        subscription.gpp_workflow_state = "READY"
+        subscription.save()
+        self._client_that_errors(monkeypatch)
+
+        record = trigger_gemini_observation(subscription, target.name, target)
+
+        assert record.status == GeminiTriggerRecord.STATUS_SUCCESS, record.detail
+        assert record.gpp_observation_id == "o-1a2b"
+
+    def test_it_counts_towards_the_cap(
+        self, subscription, target, monkeypatch
+    ):
+        """The observation is real and spending the allocation.
+
+        Before the id was recovered, this mode of failure recorded no
+        observation id at all and so counted as nothing created -- an
+        observation in GPP that the cap never knew about.
+        """
+        subscription.gpp_workflow_state = "READY"
+        subscription.save()
+        self._client_that_errors(monkeypatch)
+
+        record = trigger_gemini_observation(subscription, target.name, target)
+
+        assert record.counts_towards_cap

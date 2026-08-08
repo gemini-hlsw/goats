@@ -850,12 +850,68 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         # so it is read straight from the submitted form data.
         workflow_state = normalized_data.get("workflowStateSelect") or ""
 
+        # The target side of the same form. Previously only the observation
+        # properties were returned, so everything the picker collected about
+        # the *target* -- most importantly its SED, which cannot be
+        # reconstructed from an ANTARES alert -- was discarded the moment the
+        # user clicked Apply. Automatic triggering then built targets from
+        # name and coordinates alone and produced observations with an empty
+        # source profile.
+        target_overrides: dict[str, Any] = {}
+        gpp_target_id = ""
+        instrument = ""
+        try:
+            target_serializer = TargetSerializer(data=normalized_data)
+            target_serializer.is_valid(raise_exception=True)
+            target_overrides = target_serializer.to_pydantic().model_dump(
+                by_alias=True, exclude_none=True
+            )
+            # Name and coordinates are per-locus and are set at trigger time.
+            # Carrying the template's would point every observation at the
+            # object the template happened to be built around.
+            for per_locus in ("name", "sidereal", "nonsidereal"):
+                target_overrides.pop(per_locus, None)
+
+        except Exception:
+            # Narrow on purpose: only the target *properties* are optional
+            # here. The identifiers below are not, and are validated outside
+            # this block so a failure surfaces instead of quietly producing a
+            # half-configured template.
+            logger.exception(
+                "Could not serialize the target side of the template; "
+                "automatic triggering will not inherit its source profile."
+            )
+
+        # Sent by the picker from the template observation it already holds,
+        # not read from this form. `ContextSerializer` cannot supply them: it
+        # requires a GOATS target primary key, and the ingestion page has no
+        # target -- so routing through it returned empty strings on every
+        # Apply and left triggering unable to start.
+        gpp_target_id = (normalized_data.get("templateTargetId") or "").strip()
+        instrument = (normalized_data.get("templateInstrument") or "").strip()
+
+        from gpp_client.generated.enums import (  # noqa: PLC0415
+            ObservingModeType,
+        )
+
+        valid_modes = {mode.value for mode in ObservingModeType}
+        if instrument and instrument not in valid_modes:
+            logger.warning(
+                "Unknown observing mode %r for template %s; discarding it.",
+                instrument,
+                normalized_data.get("gppObservationId"),
+            )
+            instrument = ""
+
         return Response(
             {
                 "overrides": properties.model_dump(
                     by_alias=True, exclude_none=True
                 ),
                 "workflowState": workflow_state,
+                "targetOverrides": target_overrides,
+                "gppTargetId": gpp_target_id,
+                "instrument": instrument,
             }
         )
 

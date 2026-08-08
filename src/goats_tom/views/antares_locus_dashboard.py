@@ -12,6 +12,7 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -253,12 +254,15 @@ def _get_page(request: HttpRequest):
         # This run only. Records are kept per run, so an older run's outcome
         # for the same locus is history, not the current state -- showing it
         # would tell the PI a locus had failed when this run has not yet
-        # tried it.
+        # tried it. Keyed on `run_number`, not `generation`: the latter also
+        # advances on stop, so merely stopping ingestion blanked the column.
         trigger_by_locus_id = {
             record.locus_id: record
-            for record in GeminiTriggerRecord.objects.filter(
+            for record in GeminiTriggerRecord.objects.select_related(
+                "observation_record"
+            ).filter(
                 subscription=subscription,
-                generation=subscription.generation,
+                run_number=subscription.run_number,
                 locus_id__in=[locus.locus_id for locus in page],
             )
         }
@@ -270,8 +274,25 @@ def _get_page(request: HttpRequest):
         ).select_related("saved_by")
     }
 
+    # Resolved for the page in one query. A locus can be saved under either
+    # the target's name or an alias, matching how `locus_is_saved_as_target`
+    # decides it is saved -- keying on name alone would leave the badge
+    # unlinked for exactly the aliased loci that are hardest to find by hand.
+    from tom_targets.models import Target  # noqa: PLC0415
+
+    target_by_locus_id: dict[str, object] = {}
+    for target in Target.objects.filter(
+        Q(name__in=page_locus_ids) | Q(aliases__name__in=page_locus_ids)
+    ).distinct():
+        names = {target.name} | set(
+            target.aliases.values_list("name", flat=True)
+        )
+        for name in names & set(page_locus_ids):
+            target_by_locus_id.setdefault(name, target)
+
     for locus in page:
         locus.is_saved_target = locus.locus_id in saved_locus_ids
+        locus.saved_target = target_by_locus_id.get(locus.locus_id)
         locus.gemini_trigger = trigger_by_locus_id.get(locus.locus_id)
         locus.saved_by_user = (
             saved_by_locus_id.get(locus.locus_id)

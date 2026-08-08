@@ -91,6 +91,24 @@ class AntaresStreamSubscription(models.Model):
         Stored as GPP's own property shape, already validated by
         `goats_tom.serializers.gpp.ObservationSerializer`, so a malformed
         override cannot reach trigger time and fail once per alert.
+    run_number : `models.PositiveIntegerField`
+        Counts ingestion *runs*. Incremented only when a run starts, unlike
+        `generation`, which also advances on stop so that a stopped consumer
+        is fenced off. Gemini trigger records and the trigger cap are scoped
+        to this, so stopping ingestion leaves the run's results on the
+        dashboard and only starting again clears them.
+    gpp_target_id : `models.CharField`
+        The template observation's target in GPP. Cloned for each new locus so
+        the created target inherits the template's source profile -- including
+        its SED, which cannot be reconstructed from an alert.
+    gpp_target_overrides : `models.JSONField`
+        Target properties from the template picker, as a GPP
+        `TargetPropertiesInput` dump. The companion to
+        `gpp_observation_overrides`; without it the picker's target-side
+        configuration was collected and then discarded.
+    gpp_instrument : `models.CharField`
+        The template's instrument, needed to record the created observation in
+        GOATS the way the interactive path does.
     gpp_workflow_state : `models.CharField`
         Workflow state to set on each created observation. Blank means
         ``READY``.
@@ -218,6 +236,9 @@ class AntaresStreamSubscription(models.Model):
     gpp_observation_id = models.CharField(max_length=128, blank=True, default="")
     gpp_observation_overrides = models.JSONField(default=dict, blank=True)
     gpp_workflow_state = models.CharField(max_length=32, blank=True, default="")
+    gpp_target_id = models.CharField(max_length=128, blank=True, default="")
+    gpp_target_overrides = models.JSONField(default=dict, blank=True)
+    gpp_instrument = models.CharField(max_length=64, blank=True, default="")
     max_triggers = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -243,6 +264,7 @@ class AntaresStreamSubscription(models.Model):
     last_handler_warning = models.TextField(blank=True, default="")
     last_handler_warning_at = models.DateTimeField(null=True, blank=True)
     generation = models.PositiveIntegerField(default=0)
+    run_number = models.PositiveIntegerField(default=0, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
     draft_topics = models.TextField(blank=True, default="")
     draft_consumer_group = models.CharField(max_length=128, blank=True, default="")

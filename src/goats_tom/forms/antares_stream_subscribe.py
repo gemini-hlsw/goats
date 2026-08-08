@@ -124,6 +124,21 @@ class AntaresStreamSubscribeForm(forms.Form):
         required=False,
         widget=forms.HiddenInput(attrs={"id": "id_gpp_workflow_state"}),
     )
+    # The target half of the template panel's configuration. Collected by the
+    # same picker as the observation overrides but previously discarded, which
+    # left automatic triggering unable to reproduce what the picker showed.
+    gpp_target_overrides = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_gpp_target_overrides"}),
+    )
+    gpp_target_id = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_gpp_target_id"}),
+    )
+    gpp_instrument = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_gpp_instrument"}),
+    )
     max_triggers = forms.IntegerField(
         label="Maximum Gemini observations to create",
         required=False,
@@ -219,7 +234,11 @@ class AntaresStreamSubscribeForm(forms.Form):
         self.available_topics = available_topics or []
         self.user = user
         self.helper = FormHelper()
-        self.helper.add_input(Submit("submit", "Start ingesting"))
+        submit = Submit("submit", "Start ingesting")
+        # Identified so the page can disable it while the configuration is
+        # incomplete; see antares_stream_subscribe.html.
+        submit.field_classes += " antares-submit"
+        self.helper.add_input(submit)
         # Errors are shown via a unified banner in the template (the same
         # one used for runtime handler failures), not crispy's default
         # inline per-field rendering -- avoids showing the same error
@@ -300,6 +319,66 @@ class AntaresStreamSubscribeForm(forms.Form):
             raise forms.ValidationError("Enter at least one topic name.")
         return topics
 
+    def clean_gpp_target_overrides(self):
+        """Parse the target overrides posted by the template panel.
+
+        Returns
+        -------
+        dict
+            The target properties, or ``{}`` if none were set.
+
+        Raises
+        ------
+        `forms.ValidationError`
+            If the value is not a JSON object.
+
+        Notes
+        -----
+        Same contract as `clean_gpp_observation_overrides`: produced and
+        validated server-side by `serialize_template_overrides`, so this only
+        guards a malformed or hand-edited post.
+        """
+        return self._clean_json_object(
+            "gpp_target_overrides", "the template target settings"
+        )
+
+    def _clean_json_object(self, field: str, description: str) -> dict:
+        """Parse a hidden JSON-object field.
+
+        Parameters
+        ----------
+        field : str
+            The cleaned-data key to read.
+        description : str
+            Human-readable name for the error message.
+
+        Returns
+        -------
+        dict
+            The parsed object, or ``{}`` when blank.
+
+        Raises
+        ------
+        `forms.ValidationError`
+            If the value is not a JSON object.
+        """
+        import json  # noqa: PLC0415
+
+        raw = (self.cleaned_data.get(field) or "").strip()
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+        except ValueError as exc:
+            raise forms.ValidationError(
+                f"Could not read {description}."
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise forms.ValidationError(
+                f"{description.capitalize()} must be a JSON object."
+            )
+        return parsed
+
     def clean_gpp_observation_overrides(self):
         """Parse the overrides posted by the template panel.
 
@@ -369,6 +448,27 @@ class AntaresStreamSubscribeForm(forms.Form):
                     "trigger_gemini_observations",
                     "Select a GPP template observation to clone before "
                     "enabling automatic triggering.",
+                )
+            elif not (
+                cleaned.get("gpp_target_id") and cleaned.get("gpp_instrument")
+            ):
+                # Selecting a template is not the same as applying it. Apply
+                # is what captures the target -- and with it the SED, which an
+                # ANTARES alert cannot supply -- and the instrument needed to
+                # record the observation in GOATS.
+                #
+                # Both used to be optional, so a half-configured template
+                # passed validation and then degraded silently at trigger
+                # time: targets with an empty source profile, observations
+                # that never appeared in GOATS, and nothing anywhere saying
+                # why. Failing here is the only point at which the PI can see
+                # the problem.
+                self.add_error(
+                    "trigger_gemini_observations",
+                    "Apply the template settings before enabling automatic "
+                    "triggering: choosing an observation is not enough, since "
+                    "Apply is what captures its source profile and "
+                    "instrument.",
                 )
 
         return cleaned

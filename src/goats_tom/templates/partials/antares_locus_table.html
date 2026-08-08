@@ -70,7 +70,18 @@
           <tr class="antares-locus-row" data-locus-id="{{ locus.locus_id }}">
             <td>
               {% if locus.is_saved_target %}
+              {% if locus.saved_target %}
+              {% comment %}
+              Linked to the target itself: the badge names something the PI
+              will want to open, and finding it by hand meant searching the
+              target list for the locus id.
+              {% endcomment %}
+              <a href="{{ locus.saved_target.get_absolute_url }}"
+                 class="badge badge-success text-decoration-none"
+                 title="Open {{ locus.saved_target.name }} in GOATS">&#10003; Saved</a>
+              {% else %}
               <span class="badge badge-success" title="Already saved as a target">&#10003; Saved</span>
+              {% endif %}
               {% else %}
               <input type="checkbox" name="locus_id" class="antares-locus-select" value="{{ locus.locus_id }}" aria-label="Save target {{ locus.locus_id }}">
               {% endif %}
@@ -143,7 +154,12 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="10" class="text-center">No ANTARES loci seen yet.</td>
+            {% comment %}
+            11, matching the header. At 10 the empty-state row stopped one
+            column short and the table looked broken before it had any
+            content.
+            {% endcomment %}
+            <td colspan="11" class="text-center">No ANTARES loci seen yet.</td>
           </tr>
           {% endfor %}
         </tbody>

@@ -289,6 +289,11 @@ bare "X is not defined" in the console.
     var anchor = toggle.closest(".form-check") || toggle.parentElement;
     anchor.parentElement.insertBefore(mount, anchor.nextSibling);
 
+    // The applied-state indicator and its asterisk both live on the
+    // "Choose observing template" button, next to the thing they describe,
+    // and the picker owns them (see #renderSummary). Nothing is added here:
+    // a second copy beside the checkbox only repeated it a few pixels away.
+
     // Auto-save is implied by triggering (the form enforces it server-side
     // too). Ticked here as well so the dependency is visible at the moment
     // it is created, rather than appearing on its own after a submit.
@@ -297,6 +302,57 @@ bare "X is not defined" in the console.
       toggle.addEventListener("change", function () {
         if (toggle.checked && !autoSave.checked) {
           autoSave.checked = true;
+        }
+      });
+    }
+
+    // An empty cap means *unlimited*, so an empty box is the dangerous state,
+    // not a neutral one. Django seeds it on a pristine form, but a saved
+    // subscription that never set a cap renders it blank -- and unticking
+    // triggering is the moment a PI is most likely to leave it that way and
+    // tick it again later without looking. Refilled only when empty, so a
+    // deliberate blank set during this edit is left alone.
+    // Ingestion is blocked while triggering is on but the template has not
+    // been applied. The form rejects this too -- that is the guarantee --
+    // but a rejected submit means reading an error to learn that "selected"
+    // and "applied" are different things. Disabling the button says so
+    // before the mistake rather than after it.
+    var submitButton = document.querySelector(
+      ".antares-submit, input[type=submit][name=submit]"
+    );
+
+
+    function templateIsApplied() {
+      var ids = ["id_gpp_observation_id", "id_gpp_target_id", "id_gpp_instrument"];
+      return ids.every(function (id) {
+        var el = document.getElementById(id);
+        return el && el.value.trim() !== "";
+      });
+    }
+
+    function syncSubmitState() {
+      var applied = templateIsApplied();
+      var blocked = toggle.checked && !applied;
+
+      if (!submitButton) return;
+      submitButton.disabled = blocked;
+      submitButton.classList.toggle("disabled", blocked);
+      // Short on purpose: it says what to do, not why. The chip beside the
+      // checkbox carries the state, and the panel explains the rest.
+      submitButton.title = blocked ? "Apply an observing template first" : "";
+    }
+
+    toggle.addEventListener("change", syncSubmitState);
+    // Setting a hidden input's value from script fires no event, so the
+    // picker announces Apply explicitly.
+    document.addEventListener("gpp-template-applied-changed", syncSubmitState);
+    syncSubmitState();
+
+    var maxTriggers = document.getElementById("id_max_triggers");
+    if (maxTriggers) {
+      toggle.addEventListener("change", function () {
+        if (!toggle.checked && maxTriggers.value.trim() === "") {
+          maxTriggers.value = "{{ default_max_triggers }}";
         }
       });
     }
@@ -350,6 +406,32 @@ bare "X is not defined" in the console.
     enableBasicAutocompletion: true,
     enableLiveAutocompletion: true,
   });
+
+  // Ace binds block indent/outdent to Command-] and Command-[ on macOS,
+  // which are Safari's and Chrome's Back and Forward. The browser wins, so
+  // the shortcut navigated away from a half-written handler instead of
+  // indenting it. Rebound to Ctrl-] / Ctrl-[ on every platform: one shortcut
+  // to remember, and no collision on any of them.
+  editor.commands.addCommand({
+    name: "goatsBlockIndent",
+    bindKey: { win: "Ctrl-]", mac: "Ctrl-]" },
+    exec: function (ed) {
+      ed.blockIndent();
+    },
+    multiSelectAction: "forEach",
+  });
+  editor.commands.addCommand({
+    name: "goatsBlockOutdent",
+    bindKey: { win: "Ctrl-[", mac: "Ctrl-[" },
+    exec: function (ed) {
+      ed.blockOutdent();
+    },
+    multiSelectAction: "forEach",
+  });
+  // The Command- bindings are removed rather than left shadowed, so the
+  // browser's Back is not sitting one keystroke away from the editor.
+  editor.commands.bindKey("Command-]", null);
+  editor.commands.bindKey("Command-[", null);
 
   // Completions for the names actually available inside handler code.
   // Kept deliberately in sync with what `goats_tom.antares_locus_handler`

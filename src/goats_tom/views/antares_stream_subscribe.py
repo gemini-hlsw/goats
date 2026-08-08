@@ -4,6 +4,7 @@ __all__ = [
     "antares_available_topics",
 ]
 
+import json
 import logging
 
 from django.contrib import messages
@@ -24,8 +25,40 @@ from goats_tom.antares_stream_control import (
 )
 from goats_tom.forms import AntaresStreamSubscribeForm
 from goats_tom.models import AntaresStreamSubscription
+from goats_tom.models.antares_stream_subscription import DEFAULT_MAX_TRIGGERS
 
 logger = logging.getLogger(__name__)
+
+
+def _apply_template_initial(initial: dict, current) -> None:
+    """Seed the hidden template fields from a saved subscription.
+
+    Parameters
+    ----------
+    initial : dict
+        The form's initial values, updated in place.
+    current : `goats_tom.models.AntaresStreamSubscription`
+        The saved subscription to read from.
+
+    Notes
+    -----
+    Shared by both re-render paths. They diverged once, and the draft path --
+    the one taken after a failed submission -- silently dropped the template,
+    which is exactly when a PI is least able to spot it.
+    """
+    initial["gpp_program_id"] = current.gpp_program_id
+    initial["gpp_observation_id"] = current.gpp_observation_id
+    initial["gpp_workflow_state"] = current.gpp_workflow_state
+    initial["gpp_target_id"] = current.gpp_target_id
+    initial["gpp_instrument"] = current.gpp_instrument
+    if current.gpp_target_overrides:
+        initial["gpp_target_overrides"] = json.dumps(
+            current.gpp_target_overrides
+        )
+    if current.gpp_observation_overrides:
+        initial["gpp_observation_overrides"] = json.dumps(
+            current.gpp_observation_overrides
+        )
 
 
 def _save_draft(subscription: AntaresStreamSubscription, request, error: str) -> None:
@@ -253,6 +286,12 @@ def antares_stream_subscribe(request):
                     "gpp_observation_overrides"
                 )
                 or {},
+                gpp_target_overrides=form.cleaned_data.get(
+                    "gpp_target_overrides"
+                )
+                or {},
+                gpp_target_id=form.cleaned_data.get("gpp_target_id") or "",
+                gpp_instrument=form.cleaned_data.get("gpp_instrument") or "",
                 gpp_workflow_state=form.cleaned_data.get("gpp_workflow_state")
                 or "",
             )
@@ -301,6 +340,14 @@ def antares_stream_subscribe(request):
                     current.draft_trigger_gemini_observations
                 )
                 initial["handler_code"] = current.draft_handler_code
+                # The template comes from the saved subscription, not the
+                # draft, which does not carry it. Omitting it re-rendered the
+                # hidden fields empty, so the next submit posted a blank
+                # template -- and with triggering on that fails validation,
+                # saves another draft, and drops it again. A PI could not
+                # escape without noticing they had to re-pick the template,
+                # with nothing on screen saying so.
+                _apply_template_initial(initial, current)
             else:
                 initial["topics"] = ", ".join(current.topics)
                 initial["consumer_group"] = current.consumer_group
@@ -308,16 +355,8 @@ def antares_stream_subscribe(request):
                 initial["trigger_gemini_observations"] = (
                     current.trigger_gemini_observations
                 )
-                initial["gpp_program_id"] = current.gpp_program_id
-                initial["gpp_observation_id"] = current.gpp_observation_id
                 initial["max_triggers"] = current.max_triggers
-                initial["gpp_workflow_state"] = current.gpp_workflow_state
-                if current.gpp_observation_overrides:
-                    import json
-
-                    initial["gpp_observation_overrides"] = json.dumps(
-                        current.gpp_observation_overrides
-                    )
+                _apply_template_initial(initial, current)
                 initial["handler_code"] = current.handler_code
         form = AntaresStreamSubscribeForm(initial=initial, user=request.user)
 
@@ -328,6 +367,10 @@ def antares_stream_subscribe(request):
             "form": form,
             "current": current,
             "read_only": False,
+            # For the JS that refills an emptied cap when triggering is
+            # unticked; blank means unlimited, so an empty box is a hazard
+            # rather than a neutral default.
+            "default_max_triggers": DEFAULT_MAX_TRIGGERS,
             # Supplied even for owners: a PI who is also a member of another
             # PI's group needs the switcher too.
             "available_dashboards": list(

@@ -161,9 +161,37 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
         return self.observation_forms.get(observation_type, GEMObservationForm)
 
     def submit_observation(self, observation_payload: list[dict[str, Any]]):
-        # TODO: Need to return observation ids as a list.
-        print("Submitting observations to Gemini is not supported yet.")
-        return [observation_payload["params"]["observation_id"]]
+        """Record an observation that already exists in GPP.
+
+        Parameters
+        ----------
+        observation_payload : list of dict
+            The payload built by the observation form.
+
+        Returns
+        -------
+        list of str
+            The observation's id, as TOM expects a list.
+
+        Notes
+        -----
+        Nothing is sent to Gemini here, and nothing should be: by the time
+        this runs the observation has already been created in GPP -- by the
+        template picker, or by automatic triggering -- and this call only
+        gives TOM an id to hang its `ObservationRecord` on.
+
+        This used to `print` "Submitting observations to Gemini is not
+        supported yet", which read as a failure in the logs immediately
+        before TOM logged a successful submission. The flow was correct; the
+        message described an older design.
+        """
+        observation_id = observation_payload["params"]["observation_id"]
+        logger.debug(
+            "Recording GPP observation %s in GOATS; nothing is submitted to "
+            "Gemini, the observation already exists.",
+            observation_id,
+        )
+        return [observation_id]
 
     def validate_observation(self, observation_payload: dict) -> dict:
         """Validates the observation payload.

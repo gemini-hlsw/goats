@@ -28,7 +28,14 @@ class GeminiTriggerRecord(models.Model):
 
     Attributes
     ----------
-    generation : `models.PositiveIntegerField`
+    observation_record : `models.ForeignKey`
+        The GOATS record created for this observation, when one was. Held as
+        a real relation rather than matched by string later: the trigger knows
+        the GPP id (``o-5b1e``) while the record is keyed by its GPP reference
+        label (``G-2026A-0166-Q-0892``), so there is nothing to join on
+        afterwards. `SET_NULL` because deleting the record should not erase
+        the fact that a trigger happened.
+    run_number : `models.PositiveIntegerField`
         The subscription's run counter at the moment the alert arrived. Part
         of the uniqueness key, so records are scoped to one ingestion run.
         Passed in from the consumer rather than read at trigger time: the task
@@ -74,7 +81,14 @@ class GeminiTriggerRecord(models.Model):
         (STATUS_SKIPPED, "Skipped"),
     ]
 
-    generation = models.PositiveIntegerField(default=0, db_index=True)
+    run_number = models.PositiveIntegerField(default=0, db_index=True)
+    observation_record = models.ForeignKey(
+        "tom_observations.ObservationRecord",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
     subscription = models.ForeignKey(
         "goats_tom.AntaresStreamSubscription",
         on_delete=models.CASCADE,
@@ -102,17 +116,17 @@ class GeminiTriggerRecord(models.Model):
             # The idempotency key. See the class docstring: this is what makes
             # a duplicated trigger impossible rather than merely unlikely.
             #
-            # Scoped to one ingestion run, not to all time. `generation` is
-            # the subscription's run counter (see
-            # `goats_tom.antares_stream_control.advance_generation`), bumped
-            # on every start, stop and config save, so a new run reconsiders
+            # Scoped to one ingestion run, not to all time. `run_number` is
+            # bumped only when a run starts (see
+            # `goats_tom.antares_stream_control.advance_run_number`), not on
+            # stop as `generation` is, so a new run reconsiders
             # every locus while a run still never retries one. Keying on
             # subscription and locus alone meant a locus that failed once --
             # for any reason, including a bug -- could never be triggered
             # again for the lifetime of that PI's account, since there is
             # exactly one subscription row per user and it is never replaced.
             models.UniqueConstraint(
-                fields=["subscription", "generation", "locus_id"],
+                fields=["subscription", "run_number", "locus_id"],
                 name="unique_gemini_trigger_per_locus_per_run",
             )
         ]

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dramatiq.actor(max_retries=0)
 def trigger_gemini_observation_task(
-    subscription_id: int, locus_id: str, generation: int = 0
+    subscription_id: int, locus_id: str, run_number: int = 0
 ) -> None:
     """Trigger a Gemini observation for one saved locus.
 
@@ -30,7 +30,7 @@ def trigger_gemini_observation_task(
     locus_id : str
         The locus to observe. Looked up here rather than passed as an object,
         since only primitives survive the message broker.
-    generation : int, optional
+    run_number : int, optional
         The subscription's run counter when the alert arrived. Passed in
         rather than read from the subscription here: this task is queued and
         may run after a restart has already bumped the counter, which would
@@ -92,7 +92,7 @@ def trigger_gemini_observation_task(
         return
 
     try:
-        trigger_gemini_observation(subscription, locus_id, target, generation)
+        trigger_gemini_observation(subscription, locus_id, target, run_number)
     except Exception:  # noqa: BLE001
         # `trigger_gemini_observation` records its own outcomes, so reaching
         # here means something failed outside that handling. Logged rather

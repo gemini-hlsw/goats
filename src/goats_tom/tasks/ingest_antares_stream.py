@@ -501,7 +501,7 @@ def _newest_alert_brightness(locus) -> tuple[float | None, str]:
     return magnitude, str(passband).strip()
 
 
-def _already_triggered(subscription_id: int, locus_id: str, generation: int) -> bool:
+def _already_triggered(subscription_id: int, locus_id: str, run_number: int) -> bool:
     """Whether this subscription has already attempted a trigger for this locus.
 
     Parameters
@@ -510,9 +510,10 @@ def _already_triggered(subscription_id: int, locus_id: str, generation: int) -> 
         The subscription in question.
     locus_id : str
         The locus.
-    generation : int
-        This consumer run's fencing token. Scopes the check to this run, so a
-        restart reconsiders every locus.
+    run_number : int
+        This consumer run's number. Scopes the check to the run, so starting
+        ingestion again reconsiders every locus -- while merely stopping does
+        not, unlike the fencing token `generation`.
 
     Returns
     -------
@@ -531,7 +532,7 @@ def _already_triggered(subscription_id: int, locus_id: str, generation: int) -> 
 
     return GeminiTriggerRecord.objects.filter(
         subscription_id=subscription_id,
-        generation=generation,
+        run_number=run_number,
         locus_id=locus_id,
     ).exists()
 
@@ -781,6 +782,10 @@ def ingest_antares_stream(
     handler_code = subscription.handler_code
     save_all_targets = subscription.save_all_targets
     trigger_gemini_observations = subscription.trigger_gemini_observations
+    # Read once, like the rest of this snapshot, and safe to do so: the run
+    # number only changes when a run *starts*, and starting one advances
+    # `generation` too, which fences this consumer off on its next check.
+    run_number = subscription.run_number
     owner = subscription.owner
     # Resolved once here, not per locus: auto-saved targets are shared with
     # the owner's team so the whole group sees them, and this costs a query.
@@ -982,7 +987,7 @@ def ingest_antares_stream(
                     # at all for the same reason.
                     #
                     # Triggering has its own idempotency: GeminiTriggerRecord
-                    # is unique per (subscription, generation, locus), so a
+                    # is unique per (subscription, run_number, locus), so a
                     # locus triggers at most once per run however many alerts
                     # arrive -- and is reconsidered on the next run.
                     #
@@ -992,12 +997,12 @@ def ingest_antares_stream(
                     # ingestion for every alert -- and a GPP outage would stop
                     # the stream rather than just the triggering.
                     if trigger_gemini_observations and not _already_triggered(
-                        subscription_id, locus.locus_id, generation
+                        subscription_id, locus.locus_id, run_number
                     ):
                         trigger_gemini_observation_task.send(
                             subscription_id=subscription_id,
                             locus_id=locus.locus_id,
-                            generation=generation,
+                            run_number=run_number,
                         )
                 except Exception:
                     logger.exception(
