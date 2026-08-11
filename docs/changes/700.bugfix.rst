@@ -1,1 +1,0 @@
-Fixed error notifications showing empty messages by falling back to the exception class name

@@ -1,1 +1,0 @@
-Fixed empty template folders not being preserved in package data

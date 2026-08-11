@@ -3,6 +3,34 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.8.0 (2026-08-11)
+===========================
+
+New Features
+------------
+
+- Integrated JDaviz into GOATS for interactive spectral analysis and data visualization (`PR #670 <https://github.com/gemini-hlsw/goats/pull/670>`_)
+
+
+Changes
+-------
+
+- Overhauled file management and listing in GOATS for improved organization and usability. (`PR #698 <https://github.com/gemini-hlsw/goats/pull/698>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed telescope name and added filter suffix for LSST and ZTF data ingested from ANTARES (`PR #697 <https://github.com/gemini-hlsw/goats/pull/697>`_)
+- Fixed error notifications showing empty messages by falling back to the exception class name (`PR #700 <https://github.com/gemini-hlsw/goats/pull/700>`_)
+- Fixed color scheme regression in the light curve photometry data display (`PR #701 <https://github.com/gemini-hlsw/goats/pull/701>`_)
+- Fixed file type management to correctly affect the Photometry and Spectroscopy tabs (`PR #704 <https://github.com/gemini-hlsw/goats/pull/704>`_)
+- Fixed light curve CSV file getting an unwanted suffix when updating photometry (`PR #706 <https://github.com/gemini-hlsw/goats/pull/706>`_)
+- Removed the Analyze button from the Photometry tab (`PR #708 <https://github.com/gemini-hlsw/goats/pull/708>`_)
+- Fixed missing goats_cli.goats_template in package data. (`PR #713 <https://github.com/gemini-hlsw/goats/pull/713>`_)
+- Fixed empty template folders not being preserved in package data (`PR #714 <https://github.com/gemini-hlsw/goats/pull/714>`_)
+
+
 Version 26.7.0 (2026-07-06)
 ===========================
 
