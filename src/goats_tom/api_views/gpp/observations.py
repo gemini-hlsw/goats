@@ -907,10 +907,18 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 observation_id=gpp_observation_id,
                 set_=observation_properties,
             )
-            clone_observation_result = async_to_sync(client.observation.clone)(
-                input=clone_input,
-            )
-            clone_observation_dump = clone_observation_result.model_dump(by_alias=True)
+            try:
+                clone_observation_result = async_to_sync(client.observation.clone)(
+                    input=clone_input,
+                )
+                clone_observation_dump = clone_observation_result.model_dump(
+                    by_alias=True
+                )
+            except Exception as error_clone:
+                if "background calculation" not in str(error_clone):
+                    raise
+                clone_observation_dump = error_clone.data or {}
+
             new_observation = clone_observation_dump.get("cloneObservation", {}).get(
                 "newObservation", {}
             )

@@ -160,10 +160,36 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
         """Return the appropriate form to use."""
         return self.observation_forms.get(observation_type, GEMObservationForm)
 
-    def submit_observation(self, observation_payload: list[dict[str, Any]]):
-        # TODO: Need to return observation ids as a list.
-        print("Submitting observations to Gemini is not supported yet.")
-        return [observation_payload["params"]["observation_id"]]
+    def submit_observation(self, observation_payload: dict[str, Any]) -> list[str]:
+        """Record a GPP observation as a GOATS ``ObservationRecord``.
+
+        Parameters
+        ----------
+        observation_payload : `dict`
+            The observation payload, as built by
+            ``BaseObservationForm.observation_payload``.
+
+        Returns
+        -------
+        `list` [`str`]
+            The GPP observation ID, wrapped in a list, or an empty list if the
+            payload has no ``observation_id`` to record.
+        """
+        # GOATS submits/clones observations to Gemini directly through the GPP
+        observation_id = observation_payload["params"].get("observation_id")
+        if not observation_id:
+            logger.warning(
+                "Cannot record observation as a GOATS ObservationRecord: "
+                "payload has no observation_id. Observations must be created "
+                "in GPP first."
+            )
+            return []
+
+        logger.debug(
+            "Recording GPP observation %s as a GOATS ObservationRecord.",
+            observation_id,
+        )
+        return [observation_id]
 
     def validate_observation(self, observation_payload: dict) -> dict:
         """Validates the observation payload.
