@@ -56,6 +56,10 @@ UNSUPPORTED_MESSAGE = (
     "data (e.g. a calibration or 2D/multi-extension frame)."
 )
 
+#: Unit the spectral axis is displayed in, matching the TOM spectrum plots.
+#: Without this jdaviz shows the WCS unit, which wcslib normalises to SI metres.
+SPECTRAL_DISPLAY_UNIT = "Angstrom"
+
 #: Environment variable overriding the worker pool size (see :func:`_pool_size`).
 MAX_WORKERS_ENV = "GOATS_JDAVIZ_MAX_WORKERS"
 
@@ -396,6 +400,40 @@ def _spectra_are_2d(spectra: list | None) -> bool:
     return bool(spectra) and any(spectrum.flux.ndim == 2 for _, spectrum in spectra)
 
 
+def _with_display_spectral_axis(spectrum: Any) -> Any:
+    """Return ``spectrum`` with its spectral axis in :data:`SPECTRAL_DISPLAY_UNIT`.
+
+    Non-wavelength axes (pixel, frequency) are returned untouched.
+
+    Parameters
+    ----------
+    spectrum : specutils.Spectrum
+        Spectrum as read from the file.
+
+    Returns
+    -------
+    specutils.Spectrum
+        The converted spectrum, or the original one if it could not be converted.
+    """
+    try:
+        axis = spectrum.spectral_axis
+        if not axis.unit.is_equivalent(u.m):
+            return spectrum
+        converted = {
+            "flux": spectrum.flux,
+            "spectral_axis": axis.to(SPECTRAL_DISPLAY_UNIT),
+            "uncertainty": spectrum.uncertainty,
+            "mask": spectrum.mask,
+            "meta": spectrum.meta,
+        }
+        if spectrum.flux.ndim > 1:
+            converted["spectral_axis_index"] = spectrum.spectral_axis_index
+        return Spectrum(**converted)
+    except Exception as exc:  # noqa: BLE001 -- cosmetic: never block the viewer.
+        logger.info("Could not convert the spectral axis: %s", exc)
+        return spectrum
+
+
 def _build_specviz(path: Path, spectra: list | None) -> tuple[Any, str | None]:
     """Create the right jdaviz helper with the spectra (or file) loaded.
 
@@ -426,10 +464,11 @@ def _build_specviz(path: Path, spectra: list | None) -> tuple[Any, str | None]:
         viz = _create_specviz2d()
         try:
             for label, spectrum in spectra:
-                if spectrum.flux.ndim == 2:
-                    viz.load_data(spectrum_2d=spectrum, spectrum_2d_label=label)
+                converted = _with_display_spectral_axis(spectrum)
+                if converted.flux.ndim == 2:
+                    viz.load_data(spectrum_2d=converted, spectrum_2d_label=label)
                 else:
-                    viz.load_data(spectrum_1d=spectrum, spectrum_1d_label=label)
+                    viz.load_data(spectrum_1d=converted, spectrum_1d_label=label)
         except Exception as exc:
             logger.info("Could not load %s as a 2D spectrum: %s", path.name, exc)
             return viz, UNSUPPORTED_MESSAGE.format(name=path.name)
@@ -439,7 +478,7 @@ def _build_specviz(path: Path, spectra: list | None) -> tuple[Any, str | None]:
     try:
         if spectra:
             for label, spectrum in spectra:
-                viz.load(spectrum, data_label=label)
+                viz.load(_with_display_spectral_axis(spectrum), data_label=label)
         else:
             viz.load(str(path))
     except Exception as exc:
