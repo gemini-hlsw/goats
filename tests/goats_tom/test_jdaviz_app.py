@@ -10,13 +10,18 @@ tests.
 import types
 from pathlib import Path
 
+import astropy.units as u
 import numpy as np
 import pytest
 from astropy.io import fits
+from astropy.nddata import StdDevUncertainty
+from astropy.wcs import WCS
+from specutils import Spectrum
 
 from goats_tom import jdaviz_app
 from goats_tom.jdaviz_app import (
     SCIENCE_EXTENSION,
+    SPECTRAL_DISPLAY_UNIT,
     UNSUPPORTED_MESSAGE,
     _build_specviz,
     _call_off_event_loop,
@@ -26,6 +31,7 @@ from goats_tom.jdaviz_app import (
     _read_dragons_spectra,
     _resolve_spectra,
     _spectra_are_2d,
+    _with_display_spectral_axis,
 )
 
 
@@ -400,6 +406,57 @@ class _FakeSpecviz2d:
         if self._fail:
             raise RuntimeError("cannot load")
         self.loads.append(kwargs)
+
+
+class TestWithDisplaySpectralAxis:
+    def test_wavelength_axis_is_converted(self):
+        spectrum = Spectrum(
+            flux=np.arange(5.0) * u.Jy, spectral_axis=np.linspace(400, 500, 5) * u.nm
+        )
+        converted = _with_display_spectral_axis(spectrum)
+
+        assert converted.spectral_axis.unit == u.Unit(SPECTRAL_DISPLAY_UNIT)
+        # 1 nm is 10 Angstrom, so the values scale by ten.
+        assert converted.spectral_axis.value[0] == pytest.approx(4000.0)
+        assert converted.spectral_axis.value[-1] == pytest.approx(5000.0)
+
+    def test_wcs_axis_in_metres_is_converted(self):
+        header = _linear_wcs_header(np.zeros(4), ctype="AWAV")
+        header["CUNIT1"] = "nm"
+        spectrum = Spectrum(flux=np.zeros(4) * u.count, wcs=WCS(header))
+        # astropy normalises the spectral WCS to SI before we ever see it.
+        assert spectrum.spectral_axis.unit == u.m
+
+        converted = _with_display_spectral_axis(spectrum)
+        assert converted.spectral_axis.unit == u.Unit(SPECTRAL_DISPLAY_UNIT)
+
+    def test_uncalibrated_pixel_axis_is_left_alone(self):
+        spectrum = Spectrum(flux=np.zeros(5) * u.count)
+        assert _with_display_spectral_axis(spectrum) is spectrum
+
+    def test_frequency_axis_is_left_alone(self):
+        spectrum = Spectrum(
+            flux=np.zeros(5) * u.Jy, spectral_axis=np.linspace(1e9, 2e9, 5) * u.Hz
+        )
+        assert _with_display_spectral_axis(spectrum) is spectrum
+
+    def test_uncertainty_mask_and_meta_survive(self):
+        spectrum = Spectrum(
+            flux=np.arange(5.0) * u.Jy,
+            spectral_axis=np.linspace(400, 500, 5) * u.nm,
+            uncertainty=StdDevUncertainty(np.full(5, 0.1)),
+            mask=np.array([0, 0, 1, 0, 0], dtype=bool),
+            meta={"origin": "test"},
+        )
+        converted = _with_display_spectral_axis(spectrum)
+
+        assert converted.uncertainty.array == pytest.approx(np.full(5, 0.1))
+        assert converted.mask.sum() == 1
+        assert converted.meta == {"origin": "test"}
+
+    def test_unconvertible_spectrum_is_returned_unchanged(self):
+        spectrum = types.SimpleNamespace(flux=np.zeros(3))
+        assert _with_display_spectral_axis(spectrum) is spectrum
 
 
 class TestBuildSpecviz:
