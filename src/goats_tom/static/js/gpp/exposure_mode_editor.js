@@ -57,8 +57,8 @@ class ExposureModeEditor {
       const filter = item.filter ?? "";
       const exposureTimeMode = item.exposureTimeMode ?? {};
       const mode = exposureTimeMode?.signalToNoise != null
-        ? "Signal / Noise"
-        : "Time & Count";
+        ? Lookups.exposureTimeMode.SIGNAL_TO_NOISE
+        : Lookups.exposureTimeMode.TIME_AND_COUNT;
 
       return {
         filter,
@@ -96,8 +96,8 @@ class ExposureModeEditor {
     }
 
     const mode = exposureTimeMode?.signalToNoise != null
-      ? "Signal / Noise"
-      : "Time & Count";
+      ? Lookups.exposureTimeMode.SIGNAL_TO_NOISE
+      : Lookups.exposureTimeMode.TIME_AND_COUNT;
 
     return {
       exposureTimeMode,
@@ -242,7 +242,7 @@ class ExposureModeEditor {
     const select = Utils.createElement("select", "form-select");
     select.id = id;
     select.name = "exposureModeSelect";
-    ["Signal / Noise", "Time & Count"].forEach((opt) => {
+    Object.values(Lookups.exposureTimeMode).forEach((opt) => {
       const o = Utils.createElement("option");
       o.value = opt;
       o.textContent = opt;
@@ -323,7 +323,7 @@ class ExposureModeEditor {
    */
   #buildFieldsRow(inputs, mode) {
     const row = Utils.createElement("div", ["row", "g-3"]);
-    const isSN = mode === "Signal / Noise";
+    const isSN = mode === Lookups.exposureTimeMode.SIGNAL_TO_NOISE;
 
     row.append(inputs.snInput);
     row.append(inputs.snWavelengthInput);
@@ -422,7 +422,7 @@ class ExposureModeEditor {
   #updateVisibility(index) {
     const exposure = index !== undefined ? this.#exposures[index] : this.#exposures;
     const mode = exposure.select.value;
-    const isSN = mode === "Signal / Noise";
+    const isSN = mode === Lookups.exposureTimeMode.SIGNAL_TO_NOISE;
     const inputs = exposure.inputs;
 
     this.#toggleField(inputs.snInput, isSN);
@@ -459,7 +459,7 @@ class ExposureModeEditor {
     const mode = exposure.select.value;
     const inputs = exposure.inputs;
 
-    if (mode === "Signal / Noise") {
+    if (mode === Lookups.exposureTimeMode.SIGNAL_TO_NOISE) {
       const sn = parseFloat(inputs.snInput.querySelector("input").value);
       const wavelength = parseFloat(
         inputs.snWavelengthInput.querySelector("input").value

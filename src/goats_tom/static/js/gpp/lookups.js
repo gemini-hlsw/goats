@@ -100,6 +100,37 @@ class Lookups {
     DECREASING: "decreasing",
   };
 
+  /** GPP keys the imaging variant payload by name, not by display label. */
+  static gmosImagingVariantDataKeys = {
+    PRE_IMAGING: "preImaging",
+    GROUPED: "grouped",
+    INTERLEAVED: "interleaved",
+  };
+
+  /** GPP sends the pre-imaging offsets as four named keys, not as a list. */
+  static gmosImagingPreImagingOffsetKeys = [
+    "offset1",
+    "offset2",
+    "offset3",
+    "offset4",
+  ];
+
+  /**
+   * Exposure time mode labels. These travel to the backend as-is:
+   * `ExposureModeSerializer.exposureModeSelect` validates them literally, so
+   * changing a label here also changes the payload.
+   */
+  static exposureTimeMode = {
+    SIGNAL_TO_NOISE: "Signal / Noise",
+    TIME_AND_COUNT: "Time & Count",
+  };
+
+  /** Guide state values; toggled with a checkbox, so they have no labels. */
+  static guideState = {
+    ENABLED: "ENABLED",
+    DISABLED: "DISABLED",
+  };
+
   static gmosReadMode = {
     FAST: "Fast",
     SLOW: "Slow",
