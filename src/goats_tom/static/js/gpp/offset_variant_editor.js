@@ -79,7 +79,7 @@ class OffsetVariantEditor {
       ? enumeratedValues.map(item => ({
           p: item.offset?.p?.arcseconds ?? 0,
           q: item.offset?.q?.arcseconds ?? 0,
-          enabled: item.guiding === "ENABLED"
+          enabled: item.guiding === Lookups.guideState.ENABLED
         }))
       : [{ p: 0, q: 0, enabled: true }];
 
@@ -89,7 +89,7 @@ class OffsetVariantEditor {
       ? skyEnumeratedValues.map(item => ({
           p: item.offset?.p?.arcseconds ?? 0,
           q: item.offset?.q?.arcseconds ?? 0,
-          enabled: item.guiding === "ENABLED"
+          enabled: item.guiding === Lookups.guideState.ENABLED
         }))
       : [];
 
@@ -189,15 +189,18 @@ class OffsetVariantEditor {
    * @returns {HTMLElement[]}
    */
   #buildPreImagingSection(data = {}) {
-    let offsets = data?.preImaging?.values ?? 
-                  OffsetVariantEditor.DEFAULT_PRE_IMAGING_OFFSETS;
+    const preImaging = data?.[Lookups.gmosImagingVariantDataKeys.PRE_IMAGING];
 
-    if (offsets && typeof offsets === 'object' && !Array.isArray(offsets)) {
-      offsets = Object.values(offsets).map(item => ({
-        p: item.offset?.p?.arcseconds ?? item.p ?? 0,
-        q: item.offset?.q?.arcseconds ?? item.q ?? 0
-      }));
-    }
+    // With nothing to show, start from the dither template, like Explore does when
+    // the observation carries no offsets at all.
+    // Otherwise reflect the payload: GPP keys the four offsets by name, and a
+    // missing one stays empty instead of borrowing a value from the template.
+    const offsets = preImaging
+      ? Lookups.gmosImagingPreImagingOffsetKeys.map((key) => ({
+          p: preImaging[key]?.p?.arcseconds ?? null,
+          q: preImaging[key]?.q?.arcseconds ?? null,
+        }))
+      : OffsetVariantEditor.DEFAULT_PRE_IMAGING_OFFSETS;
 
     return [
       this.#buildPreImagingOffsets(offsets),
@@ -309,6 +312,10 @@ class OffsetVariantEditor {
     const currentVariantData = data?.[this.#currentVariant];
     const skyCount = currentVariantData?.skyCount ?? 0;
     const skyOffsetsGeneratorType = currentVariantData?.skyOffsets?.generatorType ?? Lookups.gmosImagingOffsets.NONE;
+    // GPP sends the enum, but the select and the toggles work on display labels.
+    const skyOffsetsLabel =
+      Lookups.gmosImagingOffsets[skyOffsetsGeneratorType] ??
+      skyOffsetsGeneratorType;
 
     const skyCountField = this.#buildNumberField({
       colClass: "col-6",
@@ -317,7 +324,6 @@ class OffsetVariantEditor {
       name: "skyOffsetCount",
       value: skyCount,
       min: 0,
-      disabled: skyOffsetsGeneratorType === Lookups.gmosImagingOffsets.NONE,
     });
 
     // Add listener to remove excess offsets when count decreases
@@ -326,7 +332,9 @@ class OffsetVariantEditor {
       skyCountInput.addEventListener("change", (e) => {
         const newCount = parseIntSafe(e.target.value);
         const maxOffsets = newCount * 2;
-        
+
+        this.#syncSkyOffsetsAvailability(newCount);
+
         // If there are more offsets than allowed, remove the excess
         if (this.#skyExplicitOffsets.length > maxOffsets) {
           this.#skyExplicitOffsets.splice(maxOffsets);
@@ -343,8 +351,9 @@ class OffsetVariantEditor {
         id: `${this.#idPrefix}-sky-offsets`,
         name: "skyOffsets",
         options: Object.values(Lookups.gmosImagingOffsets),
-        value: Lookups.gmosImagingOffsets[skyOffsetsGeneratorType] ?? skyOffsetsGeneratorType,
-        disabled: true,
+        value: skyOffsetsLabel,
+        // Picking a generator only makes sense once a sky offset is requested.
+        disabled: skyCount <= 0,
       }),
     ]);
   }
@@ -1283,7 +1292,10 @@ class OffsetVariantEditor {
     input.step = "0.01";
     input.id = id;
     input.name = name;
-    input.value = Number(value).toFixed(2);
+    // A null value means the payload carried no offset; leave the field empty
+    // rather than showing a zero the origin never sent.
+    input.value =
+      value === null || value === "" ? "" : Number(value).toFixed(2);
 
     const control = this.#buildInputGroup([
       this.#buildText("span", axis, ["input-group-text"]),
@@ -1397,13 +1409,35 @@ class OffsetVariantEditor {
 
       block.classList.toggle("d-none", mode !== selectedMode);
     });
+  }
 
-    // Enable/disable sky count
-    const skyCountField = this.#container.querySelector(
-      `#${this.#idPrefix}-sky-offset-count`,
+  /**
+   * Enable the sky offsets generator only while at least one sky offset is asked
+   * for, falling back to no generator when the count drops to zero and to the
+   * explicit list when it goes back up.
+   *
+   * @private
+   * @param {number} count
+   */
+  #syncSkyOffsetsAvailability(count) {
+    const skyOffsetsSelect = this.#container.querySelector(
+      `#${this.#idPrefix}-sky-offsets`,
     );
-    if (skyCountField) {
-      skyCountField.disabled = selectedMode === Lookups.gmosImagingOffsets.NONE;
+    if (!skyOffsetsSelect) return;
+
+    skyOffsetsSelect.disabled = count <= 0;
+
+    if (count <= 0) {
+      skyOffsetsSelect.value = Lookups.gmosImagingOffsets.NONE;
+      this.#toggleSkyOffsetBlocks(skyOffsetsSelect.value);
+      return;
+    }
+
+    // Asking for sky offsets again: start from the explicit list. An already
+    // chosen generator is left alone.
+    if (skyOffsetsSelect.value === Lookups.gmosImagingOffsets.NONE) {
+      skyOffsetsSelect.value = Lookups.gmosImagingOffsets.ENUMERATED;
+      this.#toggleSkyOffsetBlocks(skyOffsetsSelect.value);
     }
   }
 
@@ -1428,9 +1462,37 @@ class OffsetVariantEditor {
   #bindSkyOffsetsChange() {
     this.#container.querySelectorAll('[name="skyOffsets"]').forEach((select) => {
       select.addEventListener("change", (event) => {
+        // No generator means no sky offsets at all, so clear the count too.
+        if (event.target.value === Lookups.gmosImagingOffsets.NONE) {
+          this.#clearSkyOffsets();
+          return;
+        }
+
         this.#toggleSkyOffsetBlocks(event.target.value);
       });
     });
+  }
+
+  /**
+   * Drop every sky offset: zero the count, remove the explicit rows and lock the
+   * generator until a sky offset is requested again.
+   *
+   * @private
+   */
+  #clearSkyOffsets() {
+    const skyCountInput = this.#container.querySelector(
+      `#${this.#idPrefix}-sky-offset-count`,
+    );
+    if (skyCountInput) {
+      skyCountInput.value = "0";
+    }
+
+    if (this.#skyExplicitOffsets.length > 0) {
+      this.#skyExplicitOffsets.splice(0);
+      this.#refreshSkyExplicitList();
+    }
+
+    this.#syncSkyOffsetsAvailability(0);
   }
 
   /**
@@ -1504,7 +1566,9 @@ class OffsetVariantEditor {
 
     if (values.offsets === Lookups.gmosImagingOffsets.ENUMERATED) {
       values.explicitOffsets = this.#explicitOffsets.map((offset) => ({
-        guiding: offset.enabled ? "ENABLED" : "DISABLED",
+        guiding: offset.enabled
+          ? Lookups.guideState.ENABLED
+          : Lookups.guideState.DISABLED,
         offset: {
           p: { arcseconds: offset.p },
           q: { arcseconds: offset.q }
@@ -1554,7 +1618,9 @@ class OffsetVariantEditor {
     // SKY OFFSETS
     if (values.skyOffsets === Lookups.gmosImagingOffsets.ENUMERATED) {
       values.skyExplicitOffsets = this.#skyExplicitOffsets.map((offset) => ({
-        guiding: offset.enabled ? "ENABLED" : "DISABLED",
+        guiding: offset.enabled
+          ? Lookups.guideState.ENABLED
+          : Lookups.guideState.DISABLED,
         offset: {
           p: { arcseconds: offset.p },
           q: { arcseconds: offset.q }
