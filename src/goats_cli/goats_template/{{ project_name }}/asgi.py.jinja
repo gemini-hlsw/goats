@@ -26,8 +26,6 @@ from goats_tom.routing import websocket_urlpatterns
 # is populated before importing code that may import ORM models.
 django_asgi_app = get_asgi_application()
 
-import goats_tom.routing
-
 channels_app = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
@@ -37,5 +35,5 @@ channels_app = ProtocolTypeRouter(
     }
 )
 
-# Serve the embedded jdaviz Specviz viewer (the "Analyze" button) under /jdaviz.
+# Serve the embedded jdaviz viewer (the "Analyze" button) under /jdaviz.
 application = mount_jdaviz(channels_app)
