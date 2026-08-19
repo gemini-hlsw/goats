@@ -65,6 +65,18 @@ postgres = [
     # unchanged: single-user installs run on SQLite and never need this.
     "psycopg[binary]>=3.1",
 ]
+server = [
+    # Multi-tenant server deployment (GOATS_STREAM_EXECUTOR=datalab), where
+    # stream consumption is offloaded to Astro Data Lab. An extra for the
+    # same reason as postgres: the desktop single-astronomer install runs
+    # everything locally and must never need any of this.
+    "goats[postgres]",
+    # Jupyter kernels only execute code sent over a websocket -- the
+    # contents and sessions APIs are plain HTTP, but neither runs anything.
+    # This is the client for that socket, needed solely by
+    # goats_tom.astro_data_lab.headless.
+    "websocket-client>=1.7,<2",
+]
 
 [project.urls]
 Homepage = "https://github.com/gemini-hlsw/goats"
@@ -121,6 +133,11 @@ DJANGO_SETTINGS_MODULE = "goats_tom.tests.settings"
 norecursedirs = "tests/unit/goats_tom/ocs"
 asyncio_default_fixture_loop_scope = "session"
 addopts = "-r A -v -n auto"
+# Remote-path tests (GOATS_STREAM_EXECUTOR=datalab). Marked so the desktop
+# suite can be run as `-m "not remote"` and stay exactly as it was.
+markers = [
+    "remote: exercises the Astro Data Lab offload path; needs goats[server].",
+]
 
 [tool.towncrier]
 version = ""
