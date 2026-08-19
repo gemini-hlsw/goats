@@ -33,6 +33,9 @@ READYZ_TARGET_PATH = JDAVIZ_PREFIX + "/readyz"
 #: Dotted path of the Solara component module Solara serves (the ``SOLARA_APP``).
 SOLARA_APP_MODULE = "goats_tom.jdaviz_app"
 
+#: How long Solara keeps a disconnected viewer kernel before culling it.
+KERNEL_CULL_TIMEOUT = "3h"
+
 #: Max websocket message size (bytes) for the dev server's daphne transport.
 #: daphne defaults to 1 MiB per message; the embedded jdaviz kernel streams much
 #: larger binary widget state (a 2D spectrum, a long 1D, bqplot marks), which
@@ -43,7 +46,6 @@ WEBSOCKET_MAX_MESSAGE_SIZE = 64 * 1024 * 1024
 #: Third-party loggers (the jdaviz/glue/solara stack) raised to WARNING so their
 #: INFO chatter -- glue hub "Subscribing"/"Broadcasting", settings loading,
 #: Solara "Executing ..." -- stays out of the GOATS server logs.
-# NOISY_LOGGERS = ("glue", "jdaviz", "solara", "reacton", "bqplot")
 NOISY_LOGGERS = ("glue", "solara")
 
 # ASGI typing aliases (kept lightweight to avoid a Starlette typing dependency).
@@ -125,6 +127,11 @@ def init_solara() -> ASGIApp | None:
                 _quiet_jdaviz_logging()
                 os.environ.setdefault("SOLARA_APP", SOLARA_APP_MODULE)
                 os.environ.setdefault("SOLARA_ROOT_PATH", JDAVIZ_PREFIX)
+                # Solara keeps a disconnected kernel alive for 24h by default,
+                # which suits notebooks but not this viewer: every "Analyze"
+                # opens a fresh kernel holding a full jdaviz app (tens of MB).
+                # Long enough to survive a reload or a brief network drop.
+                os.environ.setdefault("SOLARA_KERNEL_CULL_TIMEOUT", KERNEL_CULL_TIMEOUT)
                 # Serve front-end assets locally (proxied) instead of from a
                 # public CDN so the viewer works offline and asset URLs stay
                 # under /jdaviz.
