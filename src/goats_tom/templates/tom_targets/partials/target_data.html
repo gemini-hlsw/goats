@@ -43,7 +43,7 @@
             <th scope="row">Broker</th>
             <td>
                 {% with ra_hms=target.as_dict.ra|deg_to_sexigesimal:"hms" dec_dms=target.as_dict.dec|deg_to_sexigesimal:"dms" %}
-                <a href="{% antares_url target.as_dict.name ra_hms dec_dms %}" target="_blank" rel="noopener">
+                <a href="{% antares_url target.names ra_hms dec_dms %}" target="_blank" rel="noopener">
                     ANTARES
                 </a>
                 {% endwith %}
