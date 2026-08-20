@@ -430,7 +430,21 @@
         layout: {
           xaxis: { title: "Wavelength", tickformat: "d" },
           yaxis: { title: "Flux", tickformat: ".1g" },
+          height: 520,
+          // Keep the top margin free for the editable title and subtitle.
+          margin: { b: 170 },
           showlegend: true,
+          legend: {
+            orientation: "h",
+            yanchor: "top",
+            y: -0.30,
+            xanchor: "right",
+            x: 1,
+            // Boxed so the legend reads as its own block, not as axis labels.
+            bgcolor: "rgba(0, 0, 0, 0)",
+            bordercolor: "#c8c8c8",
+            borderwidth: 1,
+          },
         },
       },
     ],
@@ -458,8 +472,21 @@
             zeroline: false,
             tickformat: ".2f",
           },
+          height: 520,
+          // Keep the top margin free for the editable title and subtitle.
+          margin: { b: 170 },
           showlegend: true,
-          legend: { x: 1, xanchor: "right", y: 1 },
+          legend: {
+            orientation: "h",
+            yanchor: "top",
+            y: -0.30,
+            xanchor: "right",
+            x: 1,
+            // Boxed so the legend reads as its own block, not as axis labels.
+            bgcolor: "rgba(0, 0, 0, 0)",
+            bordercolor: "#c8c8c8",
+            borderwidth: 1,
+          },
         },
       },
     ],
@@ -484,6 +511,14 @@
           editable: true,
           modeBarButtonsToRemove: ["resetScale2d"],
         }
+      );
+
+      // The plot is built while its tab is still hidden, so the container has no
+      // width yet and Plotly falls back to its default 700px. Resize it as soon
+      // as the container gets a real width, and on any later layout change.
+      const plotContainer = document.getElementById(plotId);
+      new ResizeObserver(() => Plotly.Plots.resize(plotContainer)).observe(
+        plotContainer
       );
 
       // Event listener for plot button clicks.
