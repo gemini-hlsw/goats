@@ -73,6 +73,22 @@ class Utils {
   }
 
   /**
+   * Returns the enum value whose display label matches the given text.
+   *
+   * Editors keep display labels in their controls, so this reverses a `Lookups`
+   * map to recover the value the API expects. Unknown labels are passed through
+   * so the serializer reports them instead of failing silently. Applying it to a
+   * value that is already an enum is a no-op.
+   * @param {Object} lookup - Map of enum value to display label.
+   * @param {string|null} label - The display label to reverse.
+   * @returns {string|null} The matching enum value, or the label when unknown.
+   */
+  static enumForLabel(lookup, label) {
+    if (label == null) return null;
+    return Object.keys(lookup).find((key) => lookup[key] === label) ?? label;
+  }
+
+  /**
    * Creates a new HTML element with optional class names.
    * @param {string} tag The tag name of the element to create.
    * @param {string | string[]} classNames The class name(s) to add to the element.
