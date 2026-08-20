@@ -9,17 +9,34 @@ register = template.Library()
 
 
 @register.simple_tag
-def antares_url(name: str | None, ra_hms: str | None, dec_dms: str | None) -> str:
+def antares_url(
+    names: list[str] | None, ra_hms: str | None, dec_dms: str | None
+) -> str:
     """
     Build an ANTARES LoCI URL.
 
-    - If name contains 'ANT' → direct object page
+    - If any name is an ANTARES locus ID → direct object page
     - Else → cone search (1 arcsec) using HMS/DMS strings
+
+    Parameters
+    ----------
+    names : list[str] | None
+        Target name and aliases.
+    ra_hms : str | None
+        Right ascension in sexagesimal HMS.
+    dec_dms : str | None
+        Declination in sexagesimal DMS.
+
+    Returns
+    -------
+    str
+        The ANTARES URL.
     """
     base = f"{ANTARESConfig.get_url()}/loci"
 
-    if name and "ANT" in name:
-        return f"{base}/{quote(name)}"
+    locus_id = next((n for n in names or [] if n and n.startswith("ANT")), None)
+    if locus_id:
+        return f"{base}/{quote(locus_id)}"
 
     if not ra_hms or not dec_dms:
         return base

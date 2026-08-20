@@ -20,14 +20,14 @@ def _extract_query_payload(url: str) -> dict:
     return json.loads(payload_json)
 
 
-def test_antares_url_direct_object_when_name_contains_ANT():
-    url = antares_url("ANT123", None, None)
+def test_antares_url_direct_object_when_name_is_locus_id():
+    url = antares_url(["ANT123"], None, None)
     assert url == f"{BASE}/ANT123"
 
 
 def test_antares_url_direct_object_quotes_name():
     # Space should be URL-encoded
-    url = antares_url("ANT 123", None, None)
+    url = antares_url(["ANT 123"], None, None)
     assert url == f"{BASE}/ANT%20123"
 
 
@@ -37,15 +37,15 @@ def test_antares_url_returns_base_when_no_name_and_missing_coords():
 
 
 def test_antares_url_returns_base_when_missing_ra_or_dec():
-    assert antares_url("something-else", None, "00:00:00") == BASE
-    assert antares_url("something-else", "00:00:00", None) == BASE
+    assert antares_url(["something-else"], None, "00:00:00") == BASE
+    assert antares_url(["something-else"], "00:00:00", None) == BASE
 
 
 def test_antares_url_cone_search_builds_expected_query_payload():
     ra_hms = "12:34:56.7"
     dec_dms = "-01:02:03.4"
 
-    url = antares_url("not-ant-name", ra_hms, dec_dms)
+    url = antares_url(["not-ant-name"], ra_hms, dec_dms)
     assert url.startswith(f"{BASE}?query=")
 
     payload = _extract_query_payload(url)
@@ -65,3 +65,19 @@ def test_antares_url_cone_search_builds_expected_query_payload():
     assert f0["text"] == f'Cone Search: {center}, 1"'
     assert f0["field"]["distance"] == "0.0002777777777777778 degree"
     assert f0["field"]["htm16"]["center"] == center
+
+
+def test_antares_url_direct_object_when_alias_is_locus_id():
+    # Locus ID present as an alias, not as the primary name.
+    url = antares_url(["SN 2024abc", "ZTF24aaa", "ANT2024abc"], "12:34:56.7", "-01:02:03.4")
+    assert url == f"{BASE}/ANT2024abc"
+
+
+def test_antares_url_cone_search_when_no_name_starts_with_ANT():
+    # "ANT" as a substring must not be mistaken for a locus ID.
+    url = antares_url(["GALANTIC-1"], "12:34:56.7", "-01:02:03.4")
+    assert url.startswith(f"{BASE}?query=")
+
+
+def test_antares_url_returns_base_when_empty_names_and_missing_coords():
+    assert antares_url([], None, None) == BASE
