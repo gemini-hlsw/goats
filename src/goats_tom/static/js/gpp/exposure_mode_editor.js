@@ -134,9 +134,9 @@ class ExposureModeEditor {
     const filterLabel = this.#createLabel("Select Filter", "filter-selector");
     
     const filterSelect = Utils.createElement("select", "form-select");
+    // No name: this only navigates between filters, it is not part of the payload.
     filterSelect.id = "filter-selector";
-    filterSelect.name = "filter-selector";
-    
+
     this.#exposures.forEach((exposure, index) => {
       const opt = Utils.createElement("option");
       opt.value = index;

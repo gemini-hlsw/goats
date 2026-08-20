@@ -3,7 +3,9 @@ from gpp_client.generated.enums import ObservingModeType
 from rest_framework.exceptions import ValidationError
 
 from goats_tom.serializers.gpp.instruments import (
+    GMOSNorthImagingSerializer,
     GMOSNorthLongSlitSerializer,
+    GMOSSouthImagingSerializer,
     GMOSSouthLongSlitSerializer,
     InstrumentRegistry,
 )
@@ -15,9 +17,13 @@ from goats_tom.serializers.gpp.instruments import (
         # Valid keys using Enum.
         (ObservingModeType.GMOS_NORTH_LONG_SLIT, GMOSNorthLongSlitSerializer),
         (ObservingModeType.GMOS_SOUTH_LONG_SLIT, GMOSSouthLongSlitSerializer),
+        (ObservingModeType.GMOS_NORTH_IMAGING, GMOSNorthImagingSerializer),
+        (ObservingModeType.GMOS_SOUTH_IMAGING, GMOSSouthImagingSerializer),
         # Valid keys using raw strings.
         ("GMOS_NORTH_LONG_SLIT", GMOSNorthLongSlitSerializer),
         ("GMOS_SOUTH_LONG_SLIT", GMOSSouthLongSlitSerializer),
+        ("GMOS_NORTH_IMAGING", GMOSNorthImagingSerializer),
+        ("GMOS_SOUTH_IMAGING", GMOSSouthImagingSerializer),
     ],
 )
 def test_gpp_instrument_registry_valid(input_key, expected_serializer):
@@ -30,7 +36,7 @@ def test_gpp_instrument_registry_valid(input_key, expected_serializer):
     [
         "GMOS_EAST_LONG_SLIT",  # Invalid string.
         "FLAMINGOS_2_IFU",  # Not yet registered.
-        ObservingModeType.GMOS_SOUTH_IMAGING,  # Valid enum but unregistered.
+        ObservingModeType.FLAMINGOS_2_LONG_SLIT,  # Valid enum but unregistered.
         "gmos_north_long_slit",  # Incorrect casing.
         "",  # Empty string.
         None,  # None type.
