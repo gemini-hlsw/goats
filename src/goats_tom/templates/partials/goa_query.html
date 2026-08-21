@@ -3,7 +3,7 @@
   {% if object.url %}
   <div class="row g-3 justify-content-center">
     <div class="col-12 text-center m-4">
-      {% if object.status != "Error" %}
+      {% if object.status != "Error"  and object.status != "" %}
         <a class="btn btn-outline-primary" href="{% url 'goa-archive-redirect' object.id %}" target="_blank" rel="noopener noreferrer">View at Archive »</a>
       {% else %}
         <a class="btn btn-outline-primary disabled" href="#">View at Archive »</a>
@@ -20,7 +20,7 @@
   {% endif %}
   <form method="post" action="{% url 'goa_query' observationrecord.id%}">
     {% csrf_token %}
-    <fieldset {% if object.status == "Error" %}disabled{% endif %}>
+    <fieldset {% if object.status == "Error" or  object.status == "" %}disabled{% endif %}>
       <div class="form-row justify-content-center">
         <div class="col-md-5">
           <div class="row form-group">
