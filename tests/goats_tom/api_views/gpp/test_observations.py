@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
-from gpp_client.generated.enums import ObservationWorkflowState
+from gpp_client.generated.enums import AttachmentType, ObservationWorkflowState
 from gpp_client.generated.set_observation_workflow_state import (
     SetObservationWorkflowStateSetObservationWorkflowState,
 )
@@ -876,6 +876,14 @@ class TestGPPObservationViewSet:
         assert to_add[0]["description"] == "first"
         assert to_add[0]["file"] == file1
 
+    @staticmethod
+    def _mock_program_attachments(mocker, client, attachments):
+        """Stub the program attachment listing used to detect existing charts."""
+        result = mocker.Mock()
+        result.model_dump.return_value = {"program": {"attachments": attachments}}
+        client.attachment.get_all_by_program_id = mocker.Mock(return_value=result)
+        return result
+
     def test_process_finder_charts_delete_only_returns_remaining_ids(self, mocker):
         client = mocker.Mock()
 
@@ -896,6 +904,8 @@ class TestGPPObservationViewSet:
             return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
 
         out = self.viewset._process_finder_charts(
             client=client,
@@ -938,6 +948,8 @@ class TestGPPObservationViewSet:
             return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock(side_effect=["new-1", "new-2"])
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
 
         out = self.viewset._process_finder_charts(
             client=client,
@@ -968,6 +980,142 @@ class TestGPPObservationViewSet:
 
         assert out == ["existing-1", "new-1", "new-2"]
 
+    @pytest.mark.parametrize("overwrite", [False, True])
+    def test_process_finder_charts_same_name_honours_overwrite(
+        self, mocker, overwrite
+    ):
+        """A stored chart of the same name is replaced only when asked to."""
+        file1 = SimpleUploadedFile("FC1.png", b"abc", content_type="image/png")
+
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": []}
+        }
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
+        )
+        client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(
+            mocker,
+            client,
+            [
+                {
+                    "id": "prog-fc-1",
+                    "fileName": "fc1.png",
+                    "fileSize": 3,
+                    "attachmentType": AttachmentType.FINDER,
+                },
+                {
+                    "id": "prog-other",
+                    "fileName": "proposal.pdf",
+                    "fileSize": 3,
+                    "attachmentType": AttachmentType.SCIENCE,
+                },
+            ],
+        )
+
+        out = self.viewset._process_finder_charts(
+            client=client,
+            observation_id="obs-1",
+            program_id="prog-1",
+            finder_charts={
+                "toDelete": [],
+                "toAdd": [
+                    {"description": "first", "file": file1, "overwrite": overwrite}
+                ],
+            },
+        )
+
+        client.attachment.upload.assert_not_called()
+        assert out == ["prog-fc-1"]
+
+        if overwrite:
+            client.attachment.update_by_id.assert_called_once_with(
+                attachment_id="prog-fc-1",
+                file_name="FC1.png",
+                description="first",
+                content=b"abc",
+            )
+        else:
+            client.attachment.update_by_id.assert_not_called()
+
+    @pytest.mark.parametrize("overwrite", [False, True])
+    def test_process_finder_charts_different_size_reuses_or_overwrites(
+        self, mocker, overwrite
+    ):
+        """A same-name chart of a different size never uploads a duplicate."""
+        file1 = SimpleUploadedFile("fc1.png", b"abcdef", content_type="image/png")
+
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": []}
+        }
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
+        )
+        client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(
+            mocker,
+            client,
+            [
+                {
+                    "id": "prog-fc-1",
+                    "fileName": "fc1.png",
+                    "fileSize": 3,
+                    "attachmentType": AttachmentType.FINDER,
+                }
+            ],
+        )
+
+        out = self.viewset._process_finder_charts(
+            client=client,
+            observation_id="obs-1",
+            program_id="prog-1",
+            finder_charts={
+                "toDelete": [],
+                "toAdd": [
+                    {"description": "first", "file": file1, "overwrite": overwrite}
+                ],
+            },
+        )
+
+        client.attachment.upload.assert_not_called()
+        assert out == ["prog-fc-1"]
+
+        if overwrite:
+            client.attachment.update_by_id.assert_called_once_with(
+                attachment_id="prog-fc-1",
+                file_name="fc1.png",
+                description="first",
+                content=b"abcdef",
+            )
+        else:
+            client.attachment.update_by_id.assert_not_called()
+
     def test_process_finder_charts_skips_items_without_file(self, mocker):
         client = mocker.Mock()
 
@@ -988,6 +1136,8 @@ class TestGPPObservationViewSet:
             return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
 
         out = self.viewset._process_finder_charts(
             client=client,
@@ -1056,6 +1206,8 @@ class TestGPPObservationViewSet:
             return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
 
         if setup_attr == "delete_error":
             client.attachment.delete_by_id.side_effect = RuntimeError("boom")

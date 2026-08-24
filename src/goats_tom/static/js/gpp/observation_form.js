@@ -614,6 +614,7 @@ class ObservationForm {
       toAdd: toAdd.map((item, index) => ({
         description: item.description ?? "",
         fileKey: `file_${index}`,
+        overwrite: Boolean(item.overwrite),
       })),
       toDelete,
     };

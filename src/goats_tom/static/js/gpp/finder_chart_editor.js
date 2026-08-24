@@ -29,8 +29,16 @@ class FinderChartEditor {
    */
   #stagedDeletes = new Set();
   /**
+   * Finder charts already stored in the program, keyed by lowercased file name.
+   * Null until loaded.
+   * @type {Map<string, Object>|null}
+   */
+  #programCharts = null;
+  /**
    * @type {{
    *   onFinderChartDownload?: Function,
+   *   onProgramFinderCharts?: Function,
+   *   onConfirmOverwrite?: Function,
    *   onChange?: Function
    * }}
    */
@@ -97,6 +105,7 @@ class FinderChartEditor {
     this.#baseItems = Array.isArray(data) ? [...data] : [];
     this.#stagedAdds = [];
     this.#stagedDeletes.clear();
+    this.#programCharts = null;
     this.#addForm = null;
     this.render();
   }
@@ -220,11 +229,12 @@ class FinderChartEditor {
 
     if (item.rowState === "staged-add") {
       tr.classList.add("table-secondary");
-      updatedContent = this.#createBadge(
-        " Upload pending",
-        "success",
-        "fa-clock",
-      );
+      const badge = item.overwrite
+        ? [" Overwrites program file", "warning", "fa-triangle-exclamation"]
+        : item.existingId
+          ? [" Already in program", "secondary", "fa-link"]
+          : [" Upload pending", "success", "fa-clock"];
+      updatedContent = this.#createBadge(...badge);
     } else if (item.rowState === "staged-delete") {
       tr.classList.add("table-secondary");
       updatedContent = this.#createBadge(
@@ -474,6 +484,66 @@ class FinderChartEditor {
     this.render();
   }
   /**
+   * Load the finder charts already stored in the program.
+   *
+   * Failures are non-fatal: the file is then staged as a plain upload.
+   *
+   * @returns {Promise<Map<string, Object>>}
+   *   Program charts keyed by lowercased file name and size.
+   */
+  async #loadProgramCharts() {
+    if (this.#programCharts) return this.#programCharts;
+    let results = [];
+    try {
+      results = (await this.#callbacks.onProgramFinderCharts?.()) ?? [];
+    } catch {
+      results = [];
+    }
+    this.#programCharts = new Map(
+      results
+        .filter((chart) => chart?.fileName)
+        .map((chart) => [String(chart.fileName).toLowerCase(), chart]),
+    );
+    return this.#programCharts;
+  }
+  /**
+   * Decide whether a selected file overwrites a stored chart.
+   *
+   * @param {File} file
+   *   File chosen by the user.
+   * @returns {Promise<{existing: Object|null, overwrite: boolean}|null>}
+   *   The matching program chart and whether to replace it, or null when
+   *   nothing should be staged.
+   */
+  async #resolveExistingChart(file) {
+    const charts = await this.#loadProgramCharts();
+    const existing = charts.get(String(file.name).toLowerCase()) ?? null;
+    if (!existing) return { existing: null, overwrite: false };
+
+    const sameSize = Number(existing.fileSize) === Number(file.size);
+    const choice = await this.#callbacks.onConfirmOverwrite?.({
+      file,
+      existing,
+      sameSize,
+    });
+
+    // No handler at all falls back to keeping the stored file; an explicit
+    // dismissal cancels the whole add.
+    if (choice === undefined) return { existing, overwrite: false };
+    if (!choice) return null;
+
+    // Keeping an identical file changes nothing when the observation already
+    // references it, so no row is staged; otherwise it still has to be attached.
+    if (choice === "existing" && sameSize) {
+      const attached = this.#baseItems.some(
+        (item) => String(item.id) === String(existing.id),
+      );
+      if (attached) return null;
+    }
+
+    return { existing, overwrite: choice === "overwrite" };
+  }
+  /**
    * Build the staged-add form.
    *
    * @returns {HTMLElement}
@@ -522,17 +592,29 @@ class FinderChartEditor {
     cancelBtn.textContent = "Cancel";
     cancelBtn.disabled = this.#readOnly;
     cancelBtn.addEventListener("click", () => this.#toggleAddForm());
-    addBtn.addEventListener("click", () => {
+    addBtn.addEventListener("click", async () => {
       const file = fileInput.files?.[0] ?? null;
       if (!file) {
         fileInput.focus();
         return;
       }
+      addBtn.disabled = true;
+      let resolution;
+      try {
+        resolution = await this.#resolveExistingChart(file);
+      } finally {
+        addBtn.disabled = this.#readOnly;
+      }
+      // Dismissed confirmation: leave the form untouched so the user can pick
+      // a different file.
+      if (!resolution) return;
       this.#dispatch({
         type: "STAGE_ADD",
         payload: {
           file,
           description: descInput.value?.trim() || "",
+          existing: resolution.existing,
+          overwrite: resolution.overwrite,
         },
       });
       fileInput.value = "";
@@ -589,7 +671,7 @@ class FinderChartEditor {
   #reduce(state, action) {
     switch (action.type) {
       case "STAGE_ADD": {
-        const { file, description } = action.payload ?? {};
+        const { file, description, existing, overwrite } = action.payload ?? {};
         const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         return {
           ...state,
@@ -601,6 +683,8 @@ class FinderChartEditor {
               fileName: file.name,
               description: description || "",
               previewUrl: URL.createObjectURL(file),
+              existingId: existing?.id ?? null,
+              overwrite: Boolean(overwrite),
             },
           ],
         };

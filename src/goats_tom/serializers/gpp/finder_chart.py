@@ -15,6 +15,7 @@ class FinderChartFileSerializer(serializers.Serializer):
 
     description = serializers.CharField(required=False, allow_blank=True, default="")
     file = serializers.FileField()
+    overwrite = serializers.BooleanField(required=False, default=False)
 
     MAX_BYTES = 10 * 1024 * 1024
     ALLOWED_EXT = {"png", "jpg", "jpeg"}
@@ -75,6 +76,7 @@ class FinderChartsSerializer(serializers.Serializer):
         Finder charts to upload. Each item must include:
         - description : str
         - file : UploadedFile
+        - overwrite : bool, replace a stored chart with the same name and size
 
     toDelete : list of str, optional
         Attachment IDs to delete.

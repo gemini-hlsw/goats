@@ -11,8 +11,10 @@ router.register(r"gpp/programs", api_views.GPPProgramViewSet, basename="gppprogr
 router.register(
     r"gpp/observations", api_views.GPPObservationViewSet, basename="gppobservations"
 )
+# Not nested under "gpp/observations": that viewset's detail route matches any
+# single path segment and would swallow the finder chart list route.
 router.register(
-    r"gpp/observations/finder-charts",
+    r"gpp/finder-charts",
     api_views.GPPFinderChartViewSet,
     basename="gppfindercharts",
 )
