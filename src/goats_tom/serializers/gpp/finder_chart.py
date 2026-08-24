@@ -79,11 +79,19 @@ class FinderChartsSerializer(serializers.Serializer):
         - overwrite : bool, replace a stored chart with the same name and size
 
     toDelete : list of str, optional
-        Attachment IDs to delete.
+        Attachment IDs to delete from the program.
+
+    toUnassign : list of str, optional
+        Attachment IDs to detach from the observation only.
     """
 
     toAdd = FinderChartFileSerializer(many=True, required=False, default=list)
     toDelete = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+    )
+    toUnassign = serializers.ListField(
         child=serializers.CharField(),
         required=False,
         default=list,

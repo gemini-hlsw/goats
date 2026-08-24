@@ -27,7 +27,7 @@ class FinderChartEditor {
    * Backend item ids staged for delete.
    * @type {Set<string>}
    */
-  #stagedDeletes = new Set();
+  #stagedDeletes = new Map();
   /**
    * Finder charts already stored in the program, keyed by lowercased file name.
    * Null until loaded.
@@ -35,10 +35,16 @@ class FinderChartEditor {
    */
   #programCharts = null;
   /**
+   * Whether the program reference counts are known to be incomplete.
+   * @type {boolean}
+   */
+  #programChartsHasMore = false;
+  /**
    * @type {{
    *   onFinderChartDownload?: Function,
    *   onProgramFinderCharts?: Function,
    *   onConfirmOverwrite?: Function,
+   *   onConfirmRemoval?: Function,
    *   onChange?: Function
    * }}
    */
@@ -106,6 +112,7 @@ class FinderChartEditor {
     this.#stagedAdds = [];
     this.#stagedDeletes.clear();
     this.#programCharts = null;
+    this.#programChartsHasMore = false;
     this.#addForm = null;
     this.render();
   }
@@ -119,27 +126,33 @@ class FinderChartEditor {
     return [...this.#stagedAdds];
   }
   /**
-   * Return ids of backend items staged for deletion.
+   * Return staged removal ids of the given kind.
    *
+   * @param {"delete"|"unassign"} kind
+   *   Whether the chart leaves the program or only this observation.
    * @returns {Array<string>}
-   *   Item ids staged for delete.
+   *   Matching item ids.
    */
-  #getItemsToDelete() {
-    return [...this.#stagedDeletes];
+  #getItemsToRemove(kind) {
+    return [...this.#stagedDeletes]
+      .filter(([, staged]) => staged === kind)
+      .map(([id]) => id);
   }
   /**
    * Return the full editor state.
    *
    * @returns {{
    *   toAdd: Array<Object>,
-   *   toDelete: Array<string>
+   *   toDelete: Array<string>,
+   *   toUnassign: Array<string>
    * }}
    *   Full state snapshot.
    */
   getPendingChanges() {
     return {
       toAdd: this.#getItemsToAdd(),
-      toDelete: this.#getItemsToDelete(),
+      toDelete: this.#getItemsToRemove("delete"),
+      toUnassign: this.#getItemsToRemove("unassign"),
     };
   }
   /**
@@ -206,6 +219,7 @@ class FinderChartEditor {
       rowState: this.#stagedDeletes.has(String(item.id))
         ? "staged-delete"
         : "saved",
+      removalKind: this.#stagedDeletes.get(String(item.id)) ?? null,
     }));
     const adds = this.#stagedAdds.map((item) => ({
       ...item,
@@ -237,11 +251,14 @@ class FinderChartEditor {
       updatedContent = this.#createBadge(...badge);
     } else if (item.rowState === "staged-delete") {
       tr.classList.add("table-secondary");
-      updatedContent = this.#createBadge(
-        " Marked for removal",
-        "danger",
-        "fa-trash",
-      );
+      updatedContent =
+        item.removalKind === "unassign"
+          ? this.#createBadge(
+              " Removed from observation",
+              "secondary",
+              "fa-link-slash",
+            )
+          : this.#createBadge(" Deleted from program", "danger", "fa-trash");
     } else {
       updatedContent = this.#formatDate(item.updatedAt);
     }
@@ -457,10 +474,12 @@ class FinderChartEditor {
       icon: "fa-trash",
       title: "Delete",
       disabled: this.#readOnly,
-      onClick: () => {
+      onClick: async () => {
+        const kind = await this.#resolveRemovalKind(item);
+        if (!kind) return;
         this.#dispatch({
           type: "STAGE_DELETE",
-          payload: { id: String(item.id) },
+          payload: { id: String(item.id), kind },
         });
       },
     });
@@ -484,6 +503,34 @@ class FinderChartEditor {
     this.render();
   }
   /**
+   * Decide whether removing a chart also deletes it from the program.
+   *
+   * Only asks when other observations reference it, or when the reference count
+   * is known to be incomplete.
+   *
+   * @param {Object} item
+   *   Saved finder chart being removed.
+   * @returns {Promise<"delete"|"unassign"|null>}
+   *   Chosen removal, or null when the user backed out.
+   */
+  async #resolveRemovalKind(item) {
+    const charts = await this.#loadProgramCharts();
+    const existing = [...charts.values()].find(
+      (chart) => String(chart.id) === String(item.id),
+    );
+    const others = (existing?.observationIds ?? []).length - 1;
+
+    if (others <= 0 && !this.#programChartsHasMore) return "delete";
+
+    return (
+      (await this.#callbacks.onConfirmRemoval?.({
+        item,
+        others: Math.max(others, 0),
+        uncertain: this.#programChartsHasMore,
+      })) ?? null
+    );
+  }
+  /**
    * Load the finder charts already stored in the program.
    *
    * Failures are non-fatal: the file is then staged as a plain upload.
@@ -495,7 +542,9 @@ class FinderChartEditor {
     if (this.#programCharts) return this.#programCharts;
     let results = [];
     try {
-      results = (await this.#callbacks.onProgramFinderCharts?.()) ?? [];
+      const payload = (await this.#callbacks.onProgramFinderCharts?.()) ?? {};
+      results = payload.results ?? [];
+      this.#programChartsHasMore = Boolean(payload.hasMore);
     } catch {
       results = [];
     }
@@ -702,8 +751,8 @@ class FinderChartEditor {
       }
       case "STAGE_DELETE": {
         const id = String(action.payload?.id ?? "");
-        const nextDeletes = new Set(state.stagedDeletes);
-        nextDeletes.add(id);
+        const nextDeletes = new Map(state.stagedDeletes);
+        nextDeletes.set(id, action.payload?.kind ?? "delete");
         return {
           ...state,
           stagedDeletes: nextDeletes,
@@ -711,7 +760,7 @@ class FinderChartEditor {
       }
       case "UNSTAGE_DELETE": {
         const id = String(action.payload?.id ?? "");
-        const nextDeletes = new Set(state.stagedDeletes);
+        const nextDeletes = new Map(state.stagedDeletes);
         nextDeletes.delete(id);
         return {
           ...state,

@@ -235,3 +235,13 @@ def test_finder_charts_serializer_defaults_and_parses_overwrite(item, expected):
 
     assert serializer.is_valid(), serializer.errors
     assert serializer.validated_data["toAdd"][0]["overwrite"] is expected
+
+
+def test_finder_charts_serializer_separates_delete_and_unassign():
+    serializer = FinderChartsSerializer(
+        data={"toDelete": ["a1"], "toUnassign": ["a2"]}
+    )
+
+    assert serializer.is_valid(), serializer.errors
+    assert serializer.validated_data["toDelete"] == ["a1"]
+    assert serializer.validated_data["toUnassign"] == ["a2"]

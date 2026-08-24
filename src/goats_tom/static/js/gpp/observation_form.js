@@ -608,7 +608,8 @@ class ObservationForm {
     formData.append("timingWindows", JSON.stringify(timingWindows));
 
     // finder charts
-    const { toAdd, toDelete } = this.#finderChartEditor.getPendingChanges();
+    const { toAdd, toDelete, toUnassign } =
+      this.#finderChartEditor.getPendingChanges();
 
     const finderCharts = {
       toAdd: toAdd.map((item, index) => ({
@@ -617,6 +618,7 @@ class ObservationForm {
         overwrite: Boolean(item.overwrite),
       })),
       toDelete,
+      toUnassign,
     };
 
     formData.append("finderCharts", JSON.stringify(finderCharts));

@@ -820,7 +820,11 @@ class TestGPPObservationViewSet:
 
         out = self.viewset._normalize_finder_charts(data)
 
-        assert out["finderCharts"] == {"toAdd": [], "toDelete": []}
+        assert out["finderCharts"] == {
+            "toAdd": [],
+            "toDelete": [],
+            "toUnassign": [],
+        }
 
     def test_normalize_finder_charts_builds_to_add_and_to_delete(self):
         file1 = SimpleUploadedFile("fc1.png", b"abc", content_type="image/png")
@@ -1115,6 +1119,53 @@ class TestGPPObservationViewSet:
             )
         else:
             client.attachment.update_by_id.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "key, deletes_from_program",
+        [("toDelete", True), ("toUnassign", False)],
+    )
+    def test_process_finder_charts_unassign_keeps_the_program_file(
+        self, mocker, key, deletes_from_program
+    ):
+        """Only ``toDelete`` removes the attachment from the program."""
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": [{"id": "a1"}, {"id": "a2"}]}
+        }
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
+        )
+        client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
+
+        out = self.viewset._process_finder_charts(
+            client=client,
+            observation_id="obs-1",
+            program_id="prog-1",
+            finder_charts={key: ["a1"]},
+        )
+
+        # Either way the observation stops referencing it.
+        assert out == ["a2"]
+
+        if deletes_from_program:
+            client.attachment.delete_by_id.assert_called_once_with(
+                attachment_id="a1"
+            )
+        else:
+            client.attachment.delete_by_id.assert_not_called()
 
     def test_process_finder_charts_skips_items_without_file(self, mocker):
         client = mocker.Mock()
