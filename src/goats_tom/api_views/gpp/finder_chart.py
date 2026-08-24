@@ -3,6 +3,7 @@ import logging
 from asgiref.sync import async_to_sync
 from django.core.cache import cache
 from gpp_client import GPPClient
+from gpp_client.generated.enums import AttachmentType
 from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -83,6 +84,64 @@ class GPPFinderChartViewSet(GenericViewSet):
                     logger.debug("Failed to close GPP client.", exc_info=True)
 
         return async_to_sync(_runner)()
+
+    def list(self, request):
+        """
+        Return the finder charts stored in a program.
+
+        Parameters
+        ----------
+        request : Request
+            Incoming authenticated request carrying a ``program_id`` query param.
+
+        Returns
+        -------
+        Response
+            Response containing the program finder charts.
+        """
+        program_id = request.query_params.get("program_id")
+
+        try:
+            if not program_id:
+                raise ValueError("Missing program id.")
+
+            token = self._get_gpp_token(request)
+
+            async def _get_charts(client: GPPClient) -> list[dict]:
+                attachments = await client.attachment.get_all_by_program_id(
+                    program_id=program_id
+                )
+                program = attachments.model_dump(by_alias=True).get("program") or {}
+
+                return [
+                    {
+                        "id": str(a["id"]),
+                        "fileName": a.get("fileName"),
+                        "fileSize": a.get("fileSize"),
+                        "description": a.get("description"),
+                        "updatedAt": a.get("updatedAt"),
+                    }
+                    for a in program.get("attachments") or []
+                    if a.get("attachmentType") == AttachmentType.FINDER
+                ]
+
+            charts = self._run_with_client(token=token, coro=_get_charts)
+
+            return Response({"results": charts}, status=status.HTTP_200_OK)
+
+        except Exception as exc:
+            logger.exception("Finder chart list failed program_id=%s", program_id)
+
+            self._notify(
+                label="Finder charts",
+                message=str(exc),
+                color="danger",
+            )
+
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=True, methods=["get"], url_path="download-url")
     def download_url(self, request, pk=None):

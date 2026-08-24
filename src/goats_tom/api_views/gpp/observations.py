@@ -216,6 +216,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 {
                     "description": item.get("description", ""),
                     "file": file_obj,
+                    "overwrite": bool(item.get("overwrite", False)),
                 }
             )
 
@@ -225,6 +226,40 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         }
 
         return data
+
+    def _get_program_finder_charts(
+        self, client: GPPClient, program_id: str
+    ) -> dict[str, str]:
+        """
+        Map the file names of the finder charts already stored in a program.
+
+        Parameters
+        ----------
+        client : GPPClient
+            Authenticated GPP client.
+        program_id : str
+            Program owning the attachments.
+
+        Returns
+        -------
+        dict[str, str]
+            Lowercased file name mapped to the attachment id.
+        """
+        try:
+            payload = async_to_sync(client.attachment.get_all_by_program_id)(
+                program_id=program_id
+            )
+            program = payload.model_dump(by_alias=True).get("program") or {}
+        except Exception as e:
+            raise ValueError(
+                f"Failed to fetch attachments for program '{program_id}': {e}"
+            ) from e
+
+        return {
+            str(a["fileName"]).lower(): str(a["id"])
+            for a in program.get("attachments") or []
+            if a.get("attachmentType") == AttachmentType.FINDER
+        }
 
     def _process_finder_charts(
         self,
@@ -265,6 +300,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         currentIds = [a["id"] for a in attachment_data.get("attachments", [])]
         # add new finder charts to program
         if to_add:
+            program_charts = self._get_program_finder_charts(client, program_id)
+
             for item in to_add:
                 description = item.get("description", "")
                 file = item.get("file")
@@ -273,6 +310,31 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                     continue
 
                 file.seek(0)
+                # GPP rejects duplicate file names within a program, so a chart
+                # already stored under the same name is reused, keeping its id so
+                # other observations referencing it stay valid.
+                existing_id = program_charts.get(file.name.lower())
+
+                if existing_id is not None:
+                    # Replacing the stored content needs the confirmation the
+                    # editor asks for; otherwise the chart is simply attached.
+                    if item.get("overwrite"):
+                        try:
+                            async_to_sync(client.attachment.update_by_id)(
+                                attachment_id=existing_id,
+                                file_name=file.name,
+                                description=description or None,
+                                content=file.read(),
+                            )
+                        except Exception as e:
+                            raise ValueError(
+                                f"Failed to overwrite finder chart '{file.name}': {e}"
+                            ) from e
+
+                    if existing_id not in currentIds:
+                        currentIds.append(existing_id)
+                    continue
+
                 try:
                     newId = async_to_sync(client.attachment.upload)(
                         program_id=program_id,
@@ -287,6 +349,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                     ) from e
 
                 currentIds.append(newId)
+                program_charts[file.name.lower()] = str(newId)
 
         return currentIds
 
