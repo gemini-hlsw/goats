@@ -80,6 +80,63 @@ def _format_workflow_state(workflow_state) -> str:
     return value or "unknown"
 
 
+def normalize_discovery_survey(discovery_survey: Any) -> str:
+    """Normalize the discovery survey submitted by the observation form.
+
+    Parameters
+    ----------
+    discovery_survey : Any
+        Raw form value.
+
+    Returns
+    -------
+    str
+        The cleaned survey name, or an empty string when there is none.
+    """
+    if not isinstance(discovery_survey, str):
+        return ""
+    # Colons delimit the subtitle fields, so they cannot appear in the survey.
+    return " ".join(discovery_survey.replace(":", " ").split())
+
+
+def build_goats_subtitle(discovery_survey: str = "") -> str:
+    """Build the GOATS identifier used as the GPP observation subtitle.
+
+    Parameters
+    ----------
+    discovery_survey : str, optional
+        Normalized survey the target was discovered by, appended as a suffix.
+
+    Returns
+    -------
+    str
+        ``"GOATS:<version>[:<survey>]"``, or ``"GOATS"`` if the version lookup
+        fails.
+    """
+    try:
+        subtitle = f"GOATS:{get_goats_version()}"
+    except Exception:
+        subtitle = "GOATS"
+
+    return f"{subtitle}:{discovery_survey}" if discovery_survey else subtitle
+
+
+def apply_goats_subtitle(observation_properties: Any, normalized_data: dict) -> None:
+    """Set the GOATS identifier, including the discovery survey, as the subtitle.
+
+    Parameters
+    ----------
+    observation_properties : Any
+        Observation properties sent to GPP.
+    normalized_data : dict
+        Normalized form data holding ``"discoverySurveyInput"``.
+    """
+    discovery_survey = normalize_discovery_survey(
+        normalized_data.get("discoverySurveyInput")
+    )
+    observation_properties.subtitle = build_goats_subtitle(discovery_survey)
+
+
 def build_failure_response(
     stage: Stage,
     error: Exception | str,
@@ -590,11 +647,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 observation_properties = observation_serializer.to_pydantic()
 
                 # Set subtitle to a GOATS identifier for easier tracking.
-                try:
-                    subtitle = f"GOATS:{get_goats_version()}"
-                except Exception:
-                    subtitle = "GOATS"
-                observation_properties.subtitle = subtitle
+                apply_goats_subtitle(observation_properties, normalized_data)
             else:
                 # Only the observation ID is needed to update the workflow state.
                 gpp_observation_id = normalized_data.get("hiddenObservationIdInput")
@@ -840,11 +893,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             observation_properties = observation_serializer.to_pydantic()
 
             # Set subtitle to a GOATS identifier for easier tracking.
-            try:
-                subtitle = f"GOATS:{get_goats_version()}"
-            except Exception:
-                subtitle = "GOATS"
-            observation_properties.subtitle = subtitle
+            apply_goats_subtitle(observation_properties, normalized_data)
 
             # Serialize and validate workflow state.
             workflow_state_serializer = WorkflowStateSerializer(data=normalized_data)

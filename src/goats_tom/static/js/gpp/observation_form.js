@@ -339,6 +339,8 @@ class ObservationForm {
    *     ({name, ra, dec}) whose value is displayed while the override is locked.
    * @param {Array<string|{labelText: string, value: string}>=} field.options - Options for a
    * select element.
+   * @param {Array<string>=} field.datalist - Suggested values rendered as a
+   *     <datalist> for an input element. The input stays free-text.
    * @returns {!HTMLElement}
    * @private
    */
@@ -357,6 +359,7 @@ class ObservationForm {
     lockOverrideInMode = undefined,
     targetValueKey = undefined,
     options = [],
+    datalist = [],
   }) {
     const elementId = `${id}${Utils.capitalizeFirstLetter(element)}`;
 
@@ -440,6 +443,19 @@ class ObservationForm {
     control.name = elementId;
     control.disabled = isReadOnly;
 
+    // Suggested values that still allow typing an arbitrary one.
+    let datalistEl = null;
+    if (element === "input" && datalist.length) {
+      datalistEl = Utils.createElement("datalist");
+      datalistEl.id = `${elementId}Options`;
+      datalist.forEach((opt) => {
+        const optionEl = Utils.createElement("option");
+        optionEl.value = opt;
+        datalistEl.append(optionEl);
+      });
+      control.setAttribute("list", datalistEl.id);
+    }
+
     // Override toggle: a "target" (bullseye) button inside the input group that
     // switches the field between the selected target's value and a custom value.
     let overrideButton = null;
@@ -457,6 +473,7 @@ class ObservationForm {
     col.append(
       this.#wrapWithGroup(control, { prefix, suffix, overrideButton }),
     );
+    if (datalistEl) col.append(datalistEl);
     return col;
   }
 

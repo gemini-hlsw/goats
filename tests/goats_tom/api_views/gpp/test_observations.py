@@ -18,6 +18,8 @@ from goats_tom.api_views.gpp.observations import (
     Stage,
     StageMessage,
     build_failure_response,
+    build_goats_subtitle,
+    normalize_discovery_survey,
 )
 from goats_tom.tests.factories import GPPLoginFactory, UserFactory
 
@@ -163,6 +165,48 @@ def test_build_failure_response(
     assert isinstance(response, Response)
     assert response.status_code == http_status
     assert response.data == expected_response
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (None, ""),
+        ("", ""),
+        ("   ", ""),
+        ("Rubin", "Rubin"),
+        ("  Pan-STARRS  ", "Pan-STARRS"),
+        # Colons delimit the subtitle fields, so they are stripped.
+        ("Rubin: LSST", "Rubin LSST"),
+        (123, ""),
+    ],
+)
+def test_normalize_discovery_survey(raw, expected):
+    assert normalize_discovery_survey(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "discovery_survey, expected",
+    [
+        ("", "GOATS:1.2.3"),
+        ("Rubin", "GOATS:1.2.3:Rubin"),
+    ],
+)
+def test_build_goats_subtitle(mocker, discovery_survey, expected):
+    mocker.patch(
+        "goats_tom.api_views.gpp.observations.get_goats_version",
+        return_value="1.2.3",
+    )
+
+    assert build_goats_subtitle(discovery_survey) == expected
+
+
+def test_build_goats_subtitle_without_version(mocker):
+    mocker.patch(
+        "goats_tom.api_views.gpp.observations.get_goats_version",
+        side_effect=RuntimeError("boom"),
+    )
+
+    assert build_goats_subtitle() == "GOATS"
 
 
 @pytest.mark.django_db
@@ -315,12 +359,11 @@ class TestGPPObservationViewSet:
 
         return goats_target, target_props, obs_props
 
-    def test_update_only_happy_path(self, mocker):
-        """Exercise update_only target/observation/workflow updates."""
-        self._mock_validated_serializers(mocker)
-
-        mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
-        client = mock_client.return_value
+    def _mock_update_client(self, mocker):
+        """Patch ``GPPClient`` so target, observation and workflow updates succeed."""
+        client = mocker.patch(
+            "goats_tom.api_views.gpp.observations.GPPClient"
+        ).return_value
 
         target_update_result = mocker.Mock()
         target_update_result.model_dump.return_value = {
@@ -333,10 +376,15 @@ class TestGPPObservationViewSet:
             "updateObservations": {"observations": [{"id": "o-updated"}]}
         }
         client.observation.update_by_id = AsyncMock(return_value=obs_update_result)
-
         client.workflow_state.update_by_id_with_retry = AsyncMock(
             return_value=_mock_workflow_state_result("INACTIVE")
         )
+        return client
+
+    def test_update_only_happy_path(self, mocker):
+        """Exercise update_only target/observation/workflow updates."""
+        self._mock_validated_serializers(mocker)
+        client = self._mock_update_client(mocker)
 
         update_view = GPPObservationViewSet.as_view({"post": "update_only"})
         request = self.factory.post(
@@ -353,6 +401,36 @@ class TestGPPObservationViewSet:
         client.target.update_by_id.assert_called_once()
         client.observation.update_by_id.assert_called_once()
         client.workflow_state.update_by_id_with_retry.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "form_data, expected_subtitle",
+        [
+            ({"finderCharts": "{}"}, "GOATS:1.2.3"),
+            (
+                {"finderCharts": "{}", "discoverySurveyInput": "  Rubin  "},
+                "GOATS:1.2.3:Rubin",
+            ),
+        ],
+    )
+    def test_update_only_sets_discovery_survey_subtitle(
+        self, mocker, form_data, expected_subtitle
+    ):
+        """The survey submitted by the form is written to the GPP subtitle."""
+        _, _, obs_props = self._mock_validated_serializers(mocker)
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.get_goats_version",
+            return_value="1.2.3",
+        )
+        self._mock_update_client(mocker)
+
+        update_view = GPPObservationViewSet.as_view({"post": "update_only"})
+        request = self.factory.post(self.observation_update_and_save_url, form_data)
+        force_authenticate(request, user=self.user_with_login)
+
+        response = update_view(request)
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert obs_props.subtitle == expected_subtitle
 
     def test_update_only_target_update_returns_no_id(self, mocker):
         """update_only treats missing target id as a partial failure but continues."""
