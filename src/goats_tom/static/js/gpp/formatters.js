@@ -28,6 +28,20 @@ class Formatters {
   }
 
   /**
+   * Extracts the discovery survey suffix from a GOATS subtitle.
+   * Subtitles written by GOATS look like "GOATS:<version>[:<survey>]".
+   *
+   * @param {*} subtitle - The observation subtitle.
+   * @returns {string} The survey, or an empty string when there is none.
+   */
+  static discoverySurveyFromSubtitle(subtitle) {
+    if (typeof subtitle !== "string") return "";
+    const parts = subtitle.split(":");
+    if (parts[0] !== "GOATS" || parts.length < 3) return "";
+    return parts.slice(2).join(":").trim();
+  }
+
+  /**
    * Converts an underscore-separated string to title case.
    * Capitalizes the first letter of each word and lowercases the rest.
    *
