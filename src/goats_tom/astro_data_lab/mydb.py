@@ -130,6 +130,12 @@ class MyDBClient:
                 "Python version." % (type(exc).__name__, exc)
             ) from exc
         self._qc = queryClient
+        # The underlying client object, needed to reach `_mydb_create`
+        # directly -- see `ensure_table` for why the public wrapper is
+        # unusable.
+        self._impl = getattr(queryClient, "client", None) or getattr(
+            queryClient, "qc_client", None
+        )
         self.token = token
         # `query` has no client-side timeout by default, so a service that
         # stalls -- which a table in a bad state can cause -- hangs the
@@ -276,45 +282,91 @@ class MyDBClient:
                 f"{columns}, expected {list(schema)}. Rename or remove it."
             )
 
-        # Unreadable. Either genuinely absent, or a phantom catalog entry.
-        # `drop=True` is safe *only* in the phantom case: a table that cannot
-        # be selected from holds nothing recoverable. It is never passed for
-        # a table that reads back correctly, which is what would destroy loci
-        # the VM has not yet pulled.
+        # Unreadable: either genuinely absent, or a phantom catalog entry
+        # from a create that failed part-way.
+        #
+        # `queryClient.mydb_create` is called through its private
+        # implementation rather than the public wrapper, because the public
+        # three-argument form throws the token away::
+        #
+        #     def mydb_create(token, table, schema, **kw):
+        #         return qc_client._mydb_create(token=def_token(None), ...)
+        #                                             ^^^^^^^^^^^^^^^
+        #
+        # `def_token(None)` resolves whatever ambient login the environment
+        # happens to have. In an interactive Data Lab notebook that is the
+        # user's own session, so creation appears to work. In a detached
+        # runner there is no ambient login, so it falls back to the anonymous
+        # token, which cannot create tables in anyone's MyDB -- and because
+        # the error check compares bytes to str and is never true, the call
+        # still returns 'OK'. The result is a create that silently does
+        # nothing, surfacing much later as
+        # `relation "mydb.<table>" does not exist` on the first insert.
+        #
+        # Every other MyDB call (`insert`, `drop`, `rename`, `truncate`,
+        # `query`) uses `def_token(token)` and is unaffected. This is a bug in
+        # one function, not a pattern.
         schema_csv = "".join(f"{name},{dtype}\n" for name, dtype in schema.items())
+        if self._impl is None:
+            raise MyDBError(
+                "Could not reach the queryClient implementation object; "
+                "cannot create tables with an explicit token."
+            )
         try:
-            _check(
-                self._qc.mydb_create(
-                    self.token, table, schema_csv, drop=bool(listed)
-                ),
-                f"creating {table!r}",
+            raw = self._impl._mydb_create(
+                token=self.token,
+                table=table,
+                schema=schema_csv,
+                # drop=True only for a listed-but-unreadable table, which
+                # holds nothing recoverable. Never for a readable one.
+                drop=bool(listed),
             )
         except Exception as exc:
-            raise MyDBError(f"Could not create MyDB table {table!r}: {exc}") from exc
+            raise MyDBError(
+                f"Could not create MyDB table {table!r}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
 
         columns = self.describe(table)
-        if not columns:
-            # Created, but not yet readable. Treated as success rather than
-            # failure: `mydb_create` reported no error, and the alternative is
-            # aborting a whole window over a catalog that is a second behind.
-            # A genuinely broken table surfaces on the first insert, which is
-            # retried through `ensure_table` anyway.
-            logger.warning(
-                "MyDB table %r created but not yet readable; continuing.", table
+        if sorted(columns) == sorted(schema):
+            logger.info(
+                "Created MyDB table %r with %d columns%s.",
+                table, len(columns),
+                " (repaired a phantom entry)" if listed else "",
             )
             return True
-        if sorted(columns) != sorted(schema):
+        if columns:
             raise MyDBError(
                 f"MyDB table {table!r} was created with columns {columns}, "
                 f"expected {list(schema)}."
             )
-        logger.info(
-            "Created MyDB table %r with %d columns%s.",
-            table,
-            len(columns),
-            " (repaired a phantom catalog entry)" if listed else "",
+        # Fatal. Letting this slide with a warning only moved the failure to
+        # the first insert, with a message that named neither the creation nor
+        # its cause.
+        raise MyDBError(
+            f"Could not create MyDB table {table!r}: not readable after "
+            f"creation. Service said {str(raw)[:160]!r} (note: mydb_create "
+            f"cannot report errors and always returns 'OK'). Tables listed: "
+            f"{self.list_tables()}. Token recognised as an auth token: "
+            f"{self._token_looks_valid()}."
         )
-        return True
+
+    def _token_looks_valid(self) -> bool:
+        """Whether ``dl`` parses our token as an auth token.
+
+        Notes
+        -----
+        Several `queryClient` wrappers decide whether their first positional
+        argument is a token or a table name by calling `is_auth_token` on it.
+        A token that fails that test is silently reinterpreted as a table
+        name, so this is worth reporting when something inexplicable happens.
+        """
+        try:
+            from dl.queryClient import is_auth_token  # noqa: PLC0415
+
+            return bool(is_auth_token(self.token))
+        except Exception:
+            return False
 
     def drop(self, table: str) -> None:
         """Drop `table` entirely.
