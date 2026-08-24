@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from asgiref.sync import async_to_sync
@@ -107,27 +108,47 @@ class GPPFinderChartViewSet(GenericViewSet):
 
             token = self._get_gpp_token(request)
 
-            async def _get_charts(client: GPPClient) -> list[dict]:
-                attachments = await client.attachment.get_all_by_program_id(
-                    program_id=program_id
+            async def _get_charts(client: GPPClient) -> dict:
+                attachments, observations = await asyncio.gather(
+                    client.attachment.get_all_by_program_id(program_id=program_id),
+                    client.goats.get_observations_by_program_id(program_id=program_id),
                 )
-                program = attachments.model_dump(by_alias=True).get("program") or {}
 
-                return [
+                program = attachments.model_dump(by_alias=True).get("program") or {}
+                matched = (
+                    observations.model_dump(by_alias=True).get("observations") or {}
+                )
+
+                # Which observations reference each attachment. Paginated results
+                # make this a lower bound, flagged to the caller via hasMore.
+                references: dict[str, list[str]] = {}
+                for observation in matched.get("matches") or []:
+                    for attachment in observation.get("attachments") or []:
+                        references.setdefault(str(attachment["id"]), []).append(
+                            str(observation["id"])
+                        )
+
+                results = [
                     {
                         "id": str(a["id"]),
                         "fileName": a.get("fileName"),
                         "fileSize": a.get("fileSize"),
                         "description": a.get("description"),
                         "updatedAt": a.get("updatedAt"),
+                        "observationIds": references.get(str(a["id"]), []),
                     }
                     for a in program.get("attachments") or []
                     if a.get("attachmentType") == AttachmentType.FINDER
                 ]
 
-            charts = self._run_with_client(token=token, coro=_get_charts)
+                return {
+                    "results": results,
+                    "hasMore": bool(matched.get("hasMore", False)),
+                }
 
-            return Response({"results": charts}, status=status.HTTP_200_OK)
+            payload = self._run_with_client(token=token, coro=_get_charts)
+
+            return Response(payload, status=status.HTTP_200_OK)
 
         except Exception as exc:
             logger.exception("Finder chart list failed program_id=%s", program_id)

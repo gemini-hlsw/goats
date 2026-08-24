@@ -223,6 +223,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         data["finderCharts"] = {
             "toAdd": to_add,
             "toDelete": raw_finder_charts.get("toDelete", []),
+            "toUnassign": raw_finder_charts.get("toUnassign", []),
         }
 
         return data
@@ -268,22 +269,21 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         program_id: str,
         finder_charts: dict[str, Any],
     ) -> list[str]:
-        to_delete = finder_charts.get("toDelete", [])
+        to_delete = {str(i) for i in finder_charts.get("toDelete", [])}
+        to_unassign = {str(i) for i in finder_charts.get("toUnassign", [])}
         to_add = finder_charts.get("toAdd", [])
 
-        # Finder charts are currently treated as observation-owned attachments,
-        # even though GPP stores them at program level. Therefore deleting a
-        # finder chart from the UI removes it from the program.
-        if to_delete:
-            for attachment_id in to_delete:
-                try:
-                    async_to_sync(client.attachment.delete_by_id)(
-                        attachment_id=attachment_id
-                    )
-                except Exception as e:
-                    raise ValueError(
-                        f"Failed to delete finder chart '{attachment_id}': {e}"
-                    ) from e
+        # GPP stores attachments at program level, so unassigning only drops the
+        # observation's reference while deleting removes the file for everyone.
+        for attachment_id in sorted(to_delete):
+            try:
+                async_to_sync(client.attachment.delete_by_id)(
+                    attachment_id=attachment_id
+                )
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to delete finder chart '{attachment_id}': {e}"
+                ) from e
         try:
             attachment_result = async_to_sync(
                 client.attachment.get_all_by_observation_id
@@ -297,7 +297,12 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 f"'{observation_id}': {e}"
             ) from e
 
-        currentIds = [a["id"] for a in attachment_data.get("attachments", [])]
+        removed = to_delete | to_unassign
+        currentIds = [
+            a["id"]
+            for a in attachment_data.get("attachments", [])
+            if str(a["id"]) not in removed
+        ]
         # add new finder charts to program
         if to_add:
             program_charts = self._get_program_finder_charts(client, program_id)
@@ -768,7 +773,9 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             try:
                 finder_charts = normalized_data.get("finderCharts") or {}
 
-                if finder_charts.get("toAdd") or finder_charts.get("toDelete"):
+                if any(
+                    finder_charts.get(k) for k in ("toAdd", "toDelete", "toUnassign")
+                ):
                     finder_chart_ids = self._process_finder_charts(
                         client=client,
                         observation_id=gpp_observation_id,
@@ -1006,7 +1013,18 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             )
 
             finder_charts = normalized_data.get("finderCharts") or {}
-            if finder_charts.get("toAdd") or finder_charts.get("toDelete"):
+            if any(finder_charts.get(k) for k in ("toAdd", "toDelete", "toUnassign")):
+                # Creating clones another observation, so the attachments read
+                # here belong to the clone source. Removals can only mean "do not
+                # inherit"; deleting would destroy the source observation's chart.
+                finder_charts = {
+                    **finder_charts,
+                    "toDelete": [],
+                    "toUnassign": [
+                        *finder_charts.get("toUnassign", []),
+                        *finder_charts.get("toDelete", []),
+                    ],
+                }
                 finder_chart_ids = self._process_finder_charts(
                     client=client,
                     observation_id=gpp_observation_id,
