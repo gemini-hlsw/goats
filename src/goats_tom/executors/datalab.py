@@ -83,13 +83,16 @@ class DataLabExecutor(StreamExecutor):
         interchangeable**: a science token for ``/auth`` and MyDB, and a
         JupyterHub token for spawning and driving the notebook server.
 
-        `AstroDatalabLogin` stores only a username and password, so the
-        science token is minted here by logging in. The JupyterHub token has
-        nowhere to live yet -- it is read from an optional `jupyter_token`
-        attribute, which does not exist on the model. **Adding a nullable
-        `jupyter_token` field to `AstroDatalabLogin` is an outstanding
-        decision**; until then `datalab` mode cannot launch, and the error
-        below says so rather than failing obscurely inside the Hub API.
+        `AstroDatalabLogin` stores a username, a password and an optional
+        `jupyter_token`. The science token is minted here by logging in with
+        the first two; the JupyterHub token is stored, because there is no
+        way to derive it.
+
+        `jupyter_token` is blank for any user who has linked Data Lab without
+        intending to run remote jobs, which is the normal case on a desktop
+        install. The error below therefore names it explicitly rather than
+        letting the omission surface as a Hub 404, which reads as a missing
+        server rather than a missing credential.
         """
         datalab = getattr(subscription.owner, "astrodatalablogin", None)
         kafka = getattr(subscription.owner, "antareskafkalogin", None)
@@ -106,9 +109,9 @@ class DataLabExecutor(StreamExecutor):
         jupyter_token = getattr(datalab, "jupyter_token", "") or ""
         if not jupyter_token:
             raise HeadlessError(
-                f"{subscription.owner} has no JupyterHub token stored. This is "
-                "a separate credential from the Data Lab science token and "
-                "AstroDatalabLogin has no field for it yet."
+                f"{subscription.owner} has no JupyterHub token stored. It is "
+                "a separate credential from the Data Lab password and must be "
+                "added on the credentials page before remote jobs can run."
             )
 
         return {

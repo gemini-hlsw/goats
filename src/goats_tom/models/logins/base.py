@@ -44,7 +44,9 @@ class UsernamePasswordLogin(BaseLogin):
     username : str
         The username for this login.
     password : str
-        The password for this login, stored in encrypted form.
+        The password for this login. Stored in **plain text**, like every
+        other credential here -- see the note on `BaseLogin.updated_at`.
+        Encrypting these at rest is required before a shared deployment.
     """
 
     username = models.CharField(max_length=100, blank=False, null=False)
