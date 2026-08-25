@@ -1,4 +1,4 @@
-<div class="container my-3">
+<div class="my-3">
   <h5>Select and Plot Data Products</h5>
   <p>
     Use the table below to select data products.
@@ -23,7 +23,7 @@
       <input type="text" class="form-control" id="{{ data_type }}FileSearch" placeholder="Type to filter file names...">
     </div>
     <div class="col-12">
-      <div style="overflow-y: auto; height: 400px">
+      <div class="overflow-auto" style="max-height: 400px">
         <table class="table">
           <thead>
             <tr>
@@ -44,7 +44,7 @@
                 </button>
                 {% if data_type == "spectroscopy" %}
                 <button type="button" class="btn btn-primary btn-sm plot-button" data-action="analyze"
-                  title="Click to open this data product in the Specviz analyzer">
+                  title="Click to open this data product in the jdaviz analyzer">
                   Analyze
                 </button>
                 {% endif %}

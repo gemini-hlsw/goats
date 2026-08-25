@@ -218,3 +218,30 @@ def test_finder_charts_serializer_validates_to_delete_items(to_delete, valid):
     assert serializer.is_valid() is valid
     if not valid:
         assert "toDelete" in serializer.errors
+
+
+@pytest.mark.parametrize(
+    "item, expected",
+    [
+        ({"description": "d", "file": make_file("chart1.png")}, False),
+        (
+            {"description": "d", "file": make_file("chart1.png"), "overwrite": True},
+            True,
+        ),
+    ],
+)
+def test_finder_charts_serializer_defaults_and_parses_overwrite(item, expected):
+    serializer = FinderChartsSerializer(data={"toAdd": [item]})
+
+    assert serializer.is_valid(), serializer.errors
+    assert serializer.validated_data["toAdd"][0]["overwrite"] is expected
+
+
+def test_finder_charts_serializer_separates_delete_and_unassign():
+    serializer = FinderChartsSerializer(
+        data={"toDelete": ["a1"], "toUnassign": ["a2"]}
+    )
+
+    assert serializer.is_valid(), serializer.errors
+    assert serializer.validated_data["toDelete"] == ["a1"]
+    assert serializer.validated_data["toUnassign"] == ["a2"]

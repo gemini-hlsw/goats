@@ -50,6 +50,9 @@
  * formatter   : function(value: any): string (optional)
  *     Formats the displayed value (used with `lookup`).
  *
+ * datalist    : array of strings (optional)
+ *     Suggested values rendered as a <datalist>. The input stays free-text.
+ *
  * showIfMode  : "normal" | "too" | "both" (default: "both")
  *     Determines visibility based on observation mode.
  *
@@ -147,6 +150,15 @@ const SHARED_FIELDS = [
     lockOverrideInMode: "too",
     overridePlaceholder: "Using selected target's name",
     targetValueKey: "name",
+  },
+  {
+    labelText: "Discovery Survey",
+    path: "subtitle",
+    formatter: Formatters.discoverySurveyFromSubtitle,
+    id: "discoverySurvey",
+    colSize: "col-lg-6",
+    showIfMode: "both",
+    datalist: ["Rubin", "ZTF"],
   },
   {
     labelText: "Radial Velocity",

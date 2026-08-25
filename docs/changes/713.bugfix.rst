@@ -1,1 +1,0 @@
-Fixed missing goats_cli.goats_template in package data.

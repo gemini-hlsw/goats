@@ -2,9 +2,9 @@
 
 This module is served by Solara and mounted into the GOATS ASGI application
 under the ``/jdaviz`` prefix (see the project ``asgi.py``). A request to
-``/jdaviz/?dataproduct=<pk>`` loads that DataProduct's file into Specviz (1D
-spectra) or Specviz2d (2D spectra) for interactive analysis. It backs the
-"Analyze" button in the data product visualizer.
+``/jdaviz/?dataproduct=<pk>`` loads that DataProduct's file into jdaviz's
+top-level ("deconfigged") app for interactive analysis, as a 1D or a 2D
+spectrum. It backs the "Analyze" button in the data product visualizer.
 
 Solara selects this module through the ``SOLARA_APP`` environment variable,
 which :func:`goats_tom.jdaviz_asgi.init_solara` sets to ``"goats_tom.jdaviz_app"``.
@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as _FuturesTimeoutError
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs
@@ -35,7 +36,6 @@ import jdaviz
 import solara
 from astropy.io import fits
 from astropy.wcs import WCS
-from jdaviz import Specviz, Specviz2d
 from jdaviz.app import custom_components
 from specutils import Spectrum
 
@@ -49,17 +49,88 @@ DATAPRODUCT_PARAM = "dataproduct"
 #: FITS extension holding the science flux in DRAGONS/Gemini MEF spectra.
 SCIENCE_EXTENSION = "SCI"
 
-#: User-facing message when a file cannot be reduced to a 1D spectrum.
+#: User-facing message when a file cannot be loaded as a spectrum (1D or 2D).
 UNSUPPORTED_MESSAGE = (
-    "Could not load {name} as a 1D spectrum. It may not be spectroscopic 1D "
-    "data (e.g. a calibration or 2D/multi-extension frame)."
+    "Could not load {name} as a spectrum. It may not be spectroscopic data "
+    "(e.g. a calibration frame, or a format jdaviz does not recognise)."
 )
 
+#: Unit the spectral axis is displayed in, matching the TOM spectrum plots.
+#: Without this jdaviz shows the WCS unit, which wcslib normalises to SI metres.
+SPECTRAL_DISPLAY_UNIT = "Angstrom"
+
+#: jdaviz loader formats. The top-level app resolves the loader from the input,
+#: so an ambiguous ``Spectrum`` (1D and 2D both match) must say which one it is.
+FORMAT_1D = "1D Spectrum"
+FORMAT_2D = "2D Spectrum"
+
+#: Environment variable overriding the worker pool size (see :func:`_pool_size`).
+MAX_WORKERS_ENV = "GOATS_JDAVIZ_MAX_WORKERS"
+
+#: Maximum seconds a single FITS file open/read may take before it is abandoned.
+#: Generous enough for a large MEF on a slow disk, short enough that the fallback
+#: still gets a turn within :data:`_WORKER_TIMEOUT`.
+_FITS_TIMEOUT = 45.0
+
+#: Maximum seconds the overall data-resolution worker may run before giving up.
+#: Budgeted to nest the stages: ``_FITS_TIMEOUT`` for the DRAGONS reader plus a
+#: comparable slice for the ``SpectroscopyProcessor`` fallback. Kept well under
+#: two minutes because the caller blocks a Solara render thread while waiting.
+_WORKER_TIMEOUT = 90.0
+
+
+def _pool_size() -> int:
+    """Return the worker-pool size, honouring :data:`MAX_WORKERS_ENV`.
+
+    Defaults to ``2x`` the CPU count, capped at 16.
+
+    The cap is about the *work*, not the database: GOATS runs on SQLite, which
+    serialises access to one file, so extra threads never multiply query
+    throughput. What they do parallelise is the expensive part -- reading FITS and
+    running the ``SpectroscopyProcessor`` -- which is CPU- and disk-bound, hence a
+    modest multiple of the CPU count rather than a large I/O-style pool.
+
+    Deployments that need a different trade-off can override it via the
+    environment.
+    """
+    override = os.environ.get(MAX_WORKERS_ENV)
+    if override:
+        try:
+            return max(1, int(override))
+        except ValueError:
+            logger.warning(
+                "Ignoring invalid %s=%r; falling back to the default pool size.",
+                MAX_WORKERS_ENV,
+                override,
+            )
+    return min(16, (os.cpu_count() or 4) * 2)
+
+
 #: Shared worker pool for off-event-loop DB/file reads (reused across requests).
-_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="goats-jdaviz")
+_executor = ThreadPoolExecutor(
+    max_workers=_pool_size(),
+    thread_name_prefix="goats-jdaviz",
+)
+
+#: Dedicated pool for blocking FITS reads, kept separate from :data:`_executor`
+#: so a stalled file read cannot consume the slots shared with DB queries. Sized
+#: to match :data:`_executor` because every ``_executor`` worker can be waiting on
+#: one of these -- a smaller pool here would just move the bottleneck. These
+#: threads touch no ORM, so they cost no database connections.
+#:
+#: Note that a read that exceeds :data:`_FITS_TIMEOUT` is only *abandoned*: the
+#: thread cannot be killed and keeps its slot until the read returns. A stalled
+#: mount can therefore exhaust this pool for the life of the process, after which
+#: every DRAGONS read times out and the viewer falls back to the processor.
+_io_executor = ThreadPoolExecutor(
+    max_workers=_pool_size(),
+    thread_name_prefix="goats-jdaviz-io",
+)
 
 
-def _call_off_event_loop(func: Callable[[], Any]) -> Any:
+def _call_off_event_loop(
+    func: Callable[[], Any], timeout: float = _WORKER_TIMEOUT
+) -> Any:
     """Run a synchronous, DB-touching callable in a loop-free worker thread.
 
     Solara renders inside an asyncio event loop, where Django refuses synchronous
@@ -70,6 +141,9 @@ def _call_off_event_loop(func: Callable[[], Any]) -> Any:
     ----------
     func : callable
         Zero-argument callable to run off the event loop.
+    timeout : float
+        Maximum seconds to wait for ``func`` to complete. Raises
+        ``concurrent.futures.TimeoutError`` if the deadline is exceeded.
 
     Returns
     -------
@@ -87,7 +161,7 @@ def _call_off_event_loop(func: Callable[[], Any]) -> Any:
             # Close this thread's database connections so they are not leaked.
             connections.close_all()
 
-    return _executor.submit(worker).result()
+    return _executor.submit(worker).result(timeout=timeout)
 
 
 def _query_param(search: str | None, name: str) -> str | None:
@@ -132,7 +206,7 @@ def _read_processor_spectra(dataproduct: Any) -> list:
 def _resolve_spectra(
     pk: str | None,
 ) -> tuple[Path | None, list | None, str | None]:
-    """Resolve a DataProduct primary key to spectra (or a path) for Specviz.
+    """Resolve a DataProduct primary key to spectra (or a path) for jdaviz.
 
     Tries, in order: the DRAGONS ``SCI`` reader (keeps the real nm WCS), then
     TOM's ``SpectroscopyProcessor`` (parity with the "Plot" button). If both
@@ -237,6 +311,10 @@ def _read_dragons_spectra(path: Path) -> list | None:
     jdaviz's auto-loader does not recognise that layout, so the ``SCI`` extensions
     are read explicitly.
 
+    The actual ``fits.open`` call runs in :data:`_io_executor` under a
+    :data:`_FITS_TIMEOUT` deadline so a stalled network mount or corrupt file
+    cannot hold a :data:`_executor` slot indefinitely.
+
     Parameters
     ----------
     path : Path
@@ -251,67 +329,109 @@ def _read_dragons_spectra(path: Path) -> list | None:
         DRAGONS ``SCI`` spectrum (a non-FITS file such as CSV, or a FITS without a
         usable ``SCI`` extension), so the caller can fall back to the processor.
     """
+
+    def _fits_read() -> list | None:
+        try:
+            with fits.open(path) as hdul:
+                sci_hdus = [
+                    hdu
+                    for hdu in hdul
+                    if hdu.name == SCIENCE_EXTENSION
+                    and hdu.data is not None
+                    and hdu.data.ndim in (1, 2)
+                ]
+                if not sci_hdus:
+                    return None
+                multiple = len(sci_hdus) > 1
+                spectra = []
+                for hdu in sci_hdus:
+                    spectrum = _dragons_hdu_to_spectrum(hdu)
+                    if spectrum is None:
+                        continue
+                    label = f"{path.stem} [SCI,{hdu.ver}]" if multiple else path.stem
+                    spectra.append((label, spectrum))
+            return spectra or None
+        except OSError:
+            # Not a FITS file (e.g. CSV) -- fall back to the processor.
+            return None
+
     try:
-        with fits.open(path) as hdul:
-            sci_hdus = [
-                hdu
-                for hdu in hdul
-                if hdu.name == SCIENCE_EXTENSION
-                and hdu.data is not None
-                and hdu.data.ndim in (1, 2)
-            ]
-            if not sci_hdus:
-                return None
-            multiple = len(sci_hdus) > 1
-            spectra = []
-            for hdu in sci_hdus:
-                spectrum = _dragons_hdu_to_spectrum(hdu)
-                if spectrum is None:
-                    continue
-                label = f"{path.stem} [SCI,{hdu.ver}]" if multiple else path.stem
-                spectra.append((label, spectrum))
-        return spectra or None
-    except OSError:
-        # Not a FITS file (e.g. CSV) -- fall back to the processor.
+        return _io_executor.submit(_fits_read).result(timeout=_FITS_TIMEOUT)
+    except _FuturesTimeoutError:
+        logger.warning(
+            "FITS read timed out after %.0fs for %s; skipping DRAGONS reader.",
+            _FITS_TIMEOUT,
+            path.name,
+        )
         return None
 
 
-def _hide_popout(viz: Any) -> None:
-    """Hide the "open in another window" (popout) button on a jdaviz helper.
+def _widget(viz: Any) -> Any:
+    """Return the ipywidget to display for a jdaviz helper.
 
-    In the embedded iframe the popout tries to re-instantiate the app in a new
-    browser window and crashes (it is also hidden via CSS in
-    :func:`_inject_jdaviz_styles` as a fallback).
+    The helper's public ``app`` attribute is deprecated in favour of the private
+    ``_app``; prefer the latter and fall back so both keep working.
     """
-    popout_button = getattr(viz.app, "popout_button", None)
-    if popout_button is not None:
-        popout_button.layout.display = "none"
+    private = getattr(viz, "_app", None)
+    return private if private is not None else viz.app
 
 
-def _create_specviz() -> Any:
-    """Create a 1D Specviz helper configured for embedding in GOATS.
+def _forget_app(viz: Any) -> None:
+    """Drop ``viz`` from jdaviz's process-wide app registry.
+
+    ``jdaviz.new_app`` appends every app it builds to a module-level list that is
+    never pruned, so each opened viewer would stay alive for the life of the
+    server process. Matching is by identity, and the whole thing is best-effort:
+    the registry is private API, so failing to prune must never break the viewer.
+
+    Parameters
+    ----------
+    viz : Any
+        The jdaviz app to remove from the registry.
+    """
+    try:
+        apps = jdaviz.get_all_apps()
+        for index, existing in enumerate(apps):
+            if existing is viz:
+                del apps[index]
+                return
+    except Exception as exc:  # noqa: BLE001 -- pruning must never break the page.
+        logger.debug("Could not drop the jdaviz app from its registry: %s", exc)
+
+
+def _create_app() -> Any:
+    """Create a jdaviz app configured for embedding in GOATS.
 
     Returns
     -------
-    jdaviz.Specviz
-        The configured, empty Specviz helper.
+    jdaviz.configs.deconfigged.helper.App
+        The configured, empty app.
     """
-    viz = Specviz()
-    _hide_popout(viz)
-    return viz
+    # Never set as current: the module-level jdaviz API acts on the "current"
+    # app, which is process-wide state shared by every user session here.
+    return jdaviz.new_app(set_as_current=False)
 
 
-def _create_specviz2d() -> Any:
-    """Create a 2D Specviz2d helper configured for embedding in GOATS.
+def _replace_failed_app(viz: Any) -> Any:
+    """Return a fresh app to show instead of ``viz``, discarding the failed one.
+
+    A failed load can leave half-resolved data behind (jdaviz's own loaders may
+    import a file as the wrong thing before erroring), so the user gets an empty
+    app rather than one showing whatever it managed to read. The discarded app is
+    dropped from the registry so a failed load does not retain two apps.
+
+    Parameters
+    ----------
+    viz : Any
+        The app whose load failed.
 
     Returns
     -------
-    jdaviz.Specviz2d
-        The configured, empty Specviz2d helper.
+    Any
+        A new, empty jdaviz app.
     """
-    viz = Specviz2d()
-    _hide_popout(viz)
-    return viz
+    _forget_app(viz)
+    return _create_app()
 
 
 def _spectra_are_2d(spectra: list | None) -> bool:
@@ -319,17 +439,51 @@ def _spectra_are_2d(spectra: list | None) -> bool:
     return bool(spectra) and any(spectrum.flux.ndim == 2 for _, spectrum in spectra)
 
 
+def _with_display_spectral_axis(spectrum: Any) -> Any:
+    """Return ``spectrum`` with its spectral axis in :data:`SPECTRAL_DISPLAY_UNIT`.
+
+    Non-wavelength axes (pixel, frequency) are returned untouched.
+
+    Parameters
+    ----------
+    spectrum : specutils.Spectrum
+        Spectrum as read from the file.
+
+    Returns
+    -------
+    specutils.Spectrum
+        The converted spectrum, or the original one if it could not be converted.
+    """
+    try:
+        axis = spectrum.spectral_axis
+        if not axis.unit.is_equivalent(u.m):
+            return spectrum
+        converted = {
+            "flux": spectrum.flux,
+            "spectral_axis": axis.to(SPECTRAL_DISPLAY_UNIT),
+            "uncertainty": spectrum.uncertainty,
+            "mask": spectrum.mask,
+            "meta": spectrum.meta,
+        }
+        if spectrum.flux.ndim > 1:
+            converted["spectral_axis_index"] = spectrum.spectral_axis_index
+        return Spectrum(**converted)
+    except Exception as exc:  # noqa: BLE001 -- cosmetic: never block the viewer.
+        logger.info("Could not convert the spectral axis: %s", exc)
+        return spectrum
+
+
 def _build_specviz(path: Path, spectra: list | None) -> tuple[Any, str | None]:
-    """Create the right jdaviz helper with the spectra (or file) loaded.
+    """Create the jdaviz app with the spectra (or file) loaded.
 
     Routing:
 
-    * 2D spectra (a DRAGONS rectified ``SCI`` image) go into **Specviz2d**, which
-      shows the 2D frame and auto-extracts a 1D trace.
-    * everything else goes into **Specviz**. If ``spectra`` is provided (from our
-      DRAGONS/processor readers) those are loaded; otherwise jdaviz's own loaders
-      are tried on ``path`` so any specutils format jdaviz supports (JWST, SDSS,
-      ECSV, tabular-fits, ...) works.
+    * 2D spectra (a DRAGONS rectified ``SCI`` image) are loaded as ``2D
+      Spectrum``, which shows the 2D frame and auto-extracts a 1D trace.
+    * everything else is loaded as ``1D Spectrum``. If ``spectra`` is provided
+      (from our DRAGONS/processor readers) those are loaded; otherwise jdaviz's
+      own loaders are tried on ``path`` so any specutils format jdaviz supports
+      (JWST, SDSS, ECSV, tabular-fits, ...) works.
 
     Parameters
     ----------
@@ -341,42 +495,53 @@ def _build_specviz(path: Path, spectra: list | None) -> tuple[Any, str | None]:
     Returns
     -------
     tuple
-        A ``(viz, load_error)`` pair. The viewer is always returned (so the user
+        A ``(viz, load_error)`` pair. A viewer is always returned (so the user
         keeps the tools); ``load_error`` carries a short message if the file could
         not be loaded, instead of crashing the render.
     """
+    viz = _create_app()
+
     if _spectra_are_2d(spectra):
-        viz = _create_specviz2d()
         try:
             for label, spectrum in spectra:
-                if spectrum.flux.ndim == 2:
-                    viz.load_data(spectrum_2d=spectrum, spectrum_2d_label=label)
-                else:
-                    viz.load_data(spectrum_1d=spectrum, spectrum_1d_label=label)
+                converted = _with_display_spectral_axis(spectrum)
+                # A Spectrum matches both loaders, so the format is explicit.
+                fmt = FORMAT_2D if converted.flux.ndim == 2 else FORMAT_1D
+                viz.load(converted, format=fmt, data_label=label)
         except Exception as exc:
             logger.info("Could not load %s as a 2D spectrum: %s", path.name, exc)
-            return viz, UNSUPPORTED_MESSAGE.format(name=path.name)
+            return _replace_failed_app(viz), UNSUPPORTED_MESSAGE.format(name=path.name)
         return viz, None
 
-    viz = _create_specviz()
     try:
         if spectra:
             for label, spectrum in spectra:
-                viz.load(spectrum, data_label=label)
+                viz.load(
+                    _with_display_spectral_axis(spectrum),
+                    format=FORMAT_1D,
+                    data_label=label,
+                )
         else:
             viz.load(str(path))
     except Exception as exc:
         logger.info("Could not load %s as a spectrum: %s", path.name, exc)
-        return viz, UNSUPPORTED_MESSAGE.format(name=path.name)
+        return _replace_failed_app(viz), UNSUPPORTED_MESSAGE.format(name=path.name)
     return viz, None
 
 
 def _register_jdaviz_components() -> None:
     """Register the vue components jdaviz needs to render inside Solara.
 
-    Mirrors ``create_shared_widgets`` in jdaviz's own ``jdaviz/solara.py``.
+    Deliberately duplicates ``create_shared_widgets`` from jdaviz's own
+    ``jdaviz/solara.py`` instead of importing it: that module registers a global
+    ``@solara.lab.on_kernel_start`` hook whose kernel-close callback calls
+    ``os._exit(0)``. That is right for the standalone ``jdaviz`` app (closing the
+    tab shuts its server down) but fatal here, where the process is the whole
+    GOATS ASGI server -- leaving the viewer would kill GOATS for every user.
+    **Do not replace this with an import of jdaviz.solara.**
+
     Registration is per Solara kernel, so the caller runs this once per kernel
-    via ``solara.use_memo(..., [])`` -- a new kernel (e.g. reopening the modal on
+    via ``solara.use_memo(..., [])`` -- a new kernel (e.g. reopening the viewer on
     another spectrum) re-mounts the component and runs it again, while re-renders
     within a kernel skip it (re-registering every render is wasted work).
     """
@@ -401,14 +566,48 @@ def _inject_jdaviz_styles() -> None:
     """
     jdaviz_dir = os.path.dirname(jdaviz.__file__)
     solara.Style(Path(jdaviz_dir) / "solara.css")
-    # Hide every "open in another window" (popout) button -- the popout crashes
-    # the embedded viewer. Targets the ipypopout button by its mdi icon.
-    solara.Style(".v-btn:has(.mdi-application-export){display:none!important;}")
+
+
+def _resolve_spectra_timed(
+    pk: str | None,
+) -> tuple[Path | None, list | None, str | None]:
+    """Run :func:`_resolve_spectra` under a timeout, degrading to a message.
+
+    Two failure modes are turned into a user-facing message instead of a broken
+    render: the worker deadline expiring, and SQLite refusing the read because the
+    database is locked. The latter is not hypothetical -- GOATS stores its data on
+    SQLite, whose writers take a database-wide lock, so a background download or
+    reduction writing DataProducts can stall this read until the configured busy
+    timeout elapses and the driver raises.
+
+    Returns
+    -------
+    tuple
+        The ``(path, spectra, error)`` triple from :func:`_resolve_spectra`, or a
+        triple carrying a user-facing message if the read could not be completed.
+    """
+    # Imported lazily so this module stays importable without Django configured.
+    from django.db import OperationalError  # noqa: PLC0415
+
+    try:
+        return _call_off_event_loop(lambda: _resolve_spectra(pk))
+    except _FuturesTimeoutError:
+        logger.warning("Data resolution timed out for data product %r.", pk)
+        return None, None, "Timed out loading the data product — please try again."
+    except OperationalError as exc:
+        logger.warning(
+            "Database unavailable while loading data product %r: %s", pk, exc
+        )
+        return (
+            None,
+            None,
+            "The database is busy right now — please try again in a moment.",
+        )
 
 
 @solara.component
 def Page() -> None:
-    """Render Specviz for the data product identified in the URL query string."""
+    """Render the jdaviz app for the data product identified in the URL."""
     solara.Title("GOATS · Analyze")
     _inject_jdaviz_styles()
     # Register jdaviz's shared vue components once per kernel (not every render).
@@ -422,12 +621,10 @@ def Page() -> None:
     pk = _query_param(router.search, DATAPRODUCT_PARAM)
 
     # Resolve the spectra (data only, no widgets) during render. This touches the
-    # Django ORM and the file system, so it runs off the event loop.
-    path, spectra, error = solara.use_memo(
-        lambda: _call_off_event_loop(lambda: _resolve_spectra(pk)), [pk]
-    )
+    # Django ORM and the file system, so it runs off the event loop under a timeout.
+    path, spectra, error = solara.use_memo(lambda: _resolve_spectra_timed(pk), [pk])
 
-    # Build the Specviz app *after* the initial render, in a use_effect. jdaviz
+    # Build the jdaviz app *after* the initial render, in a use_effect. jdaviz
     # instantiates internal Solara components (file_drop, file_browser) when its
     # app is constructed; building it during render makes Solara detect and mount
     # those at the top level -- the duplicated file browser / drag-and-drop seen
@@ -436,9 +633,14 @@ def Page() -> None:
     # ``Jdaviz`` Solara component.
     viz_state, set_viz_state = solara.use_state((None, None))  # (viz, load_error)
 
-    def build_viewer() -> None:
-        if path is not None:
-            set_viz_state(_build_specviz(path, spectra))
+    def build_viewer() -> Callable[[], None] | None:
+        if path is None:
+            return None
+        viz, load_error = _build_specviz(path, spectra)
+        set_viz_state((viz, load_error))
+        # Unmounting (closing the tab, or the kernel being culled) is the only
+        # chance to prune jdaviz's registry -- see :func:`_forget_app`.
+        return lambda: _forget_app(viz)
 
     solara.use_effect(build_viewer, [pk])
 
@@ -460,4 +662,4 @@ def Page() -> None:
         else:
             if load_error is not None:
                 solara.Error(load_error)
-            solara.display(viz.app)
+            solara.display(_widget(viz))

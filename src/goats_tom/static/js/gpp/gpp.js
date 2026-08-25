@@ -63,7 +63,7 @@ class GPPModel {
   #gppSaveNormalObservationUrl = `${this.#gppObservationsUrl}save-only/`;
   #gppCreateTooObservationUrl = `${this.#gppObservationsUrl}create-and-save/`;
   #gppUpdateNormalObservationUrl = `${this.#gppObservationsUrl}update-only/`;
-  #gppFinderChartsUrl = `${this.#gppObservationsUrl}finder-charts/`;
+  #gppFinderChartsUrl = `${this.#gppUrl}finder-charts/`;
   #gppPingUrl = `${this.#gppUrl}ping/`;
 
   // Data-storing maps.
@@ -103,6 +103,14 @@ class GPPModel {
   async getFinderChartDownloadUrl(attachmentId) {
     return await this.#normalizeResponse(() =>
       this.#api.get(`${this.#gppFinderChartsUrl}${attachmentId}/download-url/`),
+    );
+  }
+
+  async getProgramFinderCharts(programId) {
+    return await this.#normalizeResponse(() =>
+      this.#api.get(
+        `${this.#gppFinderChartsUrl}?program_id=${encodeURIComponent(programId)}`,
+      ),
     );
   }
   /**
@@ -490,6 +498,15 @@ class GPPView {
       onFinderChartDownload: async (payload) => {
         return await this.#callbacks.finderChartDownload?.(payload);
       },
+      onProgramFinderCharts: async () => {
+        return await this.#callbacks.programFinderCharts?.();
+      },
+      onConfirmOverwrite: async (payload) => {
+        return await this.#callbacks.confirmOverwrite?.(payload);
+      },
+      onConfirmRemoval: async (payload) => {
+        return await this.#callbacks.confirmRemoval?.(payload);
+      },
     };
   }
 
@@ -613,6 +630,15 @@ class GPPView {
       case "finderChartDownload":
         this.#callbacks.finderChartDownload = handler;
         break;
+      case "programFinderCharts":
+        this.#callbacks.programFinderCharts = handler;
+        break;
+      case "confirmOverwrite":
+        this.#callbacks.confirmOverwrite = handler;
+        break;
+      case "confirmRemoval":
+        this.#callbacks.confirmRemoval = handler;
+        break;
     }
   }
 }
@@ -667,6 +693,147 @@ class GPPController {
     this.#view.bindCallback("finderChartDownload", (payload) =>
       this.#downloadFinderChart(payload),
     );
+    this.#view.bindCallback("programFinderCharts", () =>
+      this.#getProgramFinderCharts(),
+    );
+    this.#view.bindCallback("confirmOverwrite", (payload) =>
+      this.#confirmFinderChartOverwrite(payload),
+    );
+    this.#view.bindCallback("confirmRemoval", (payload) =>
+      this.#confirmFinderChartRemoval(payload),
+    );
+  }
+
+  /**
+   * Format a byte count for display.
+   * @param {number|string|null} bytes Size in bytes.
+   * @returns {string} Human readable size.
+   * @private
+   */
+  #formatBytes(bytes) {
+    const value = Number(bytes);
+    if (!Number.isFinite(value)) return "unknown size";
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  /**
+   * Ask how a shared finder chart should be removed.
+   * @param {{item: Object, others: number, uncertain: boolean}} payload Chart and usage.
+   * @returns {Promise<"delete"|"unassign"|null>} Chosen removal, or null if dismissed.
+   * @private
+   */
+  #confirmFinderChartRemoval({ item, others, uncertain }) {
+    const name = Utils.escapeHTML(String(item.fileName ?? "This finder chart"));
+    const usage = uncertain
+      ? `<strong>${name}</strong> may be used by other observations in this
+         program; the list of observations was too long to check completely.`
+      : `<strong>${name}</strong> is also used by ${others} other
+         observation${others === 1 ? "" : "s"} in this program.`;
+
+    this.#modal.show({
+      title: "Finder chart is shared",
+      body: `
+        <p class="mb-2">${usage}</p>
+        <p class="mb-0">
+          Remove it from this observation only, or delete it from the program for
+          all of them?
+        </p>
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" id="fc-unassign">
+          Remove from observation
+        </button>
+        <button type="button" class="btn btn-danger" id="fc-delete">
+          Delete from program
+        </button>
+      `,
+      dialogClasses: ["modal-dialog-centered"],
+    });
+
+    const element = document.getElementById("modalManager");
+
+    return new Promise((resolve) => {
+      let answer = null;
+      element.querySelector("#fc-unassign").addEventListener("click", () => {
+        answer = "unassign";
+        this.#modal.hide();
+      });
+      element.querySelector("#fc-delete").addEventListener("click", () => {
+        answer = "delete";
+        this.#modal.hide();
+      });
+      element.addEventListener("hidden.bs.modal", () => resolve(answer), {
+        once: true,
+      });
+    });
+  }
+
+  async #getProgramFinderCharts() {
+    const programId = this.#model.activeProgram?.id;
+    if (!programId) return { results: [], hasMore: false };
+    const { status, data } =
+      await this.#model.getProgramFinderCharts(programId);
+    if (status < 200 || status >= 300) {
+      throw new Error(data?.detail || "Finder chart list request failed.");
+    }
+    return { results: data?.results ?? [], hasMore: Boolean(data?.hasMore) };
+  }
+
+  /**
+   * Ask the user how to handle a stored finder chart with the same name.
+   * @param {{file: File, existing: Object, sameSize: boolean}} payload Selected
+   * file, stored chart, and whether their sizes match.
+   * @returns {Promise<"overwrite"|"existing"|null>} Choice, or null if dismissed.
+   * @private
+   */
+  #confirmFinderChartOverwrite({ file, existing, sameSize }) {
+    const name = Utils.escapeHTML(String(existing.fileName));
+    const detail = sameSize
+      ? `<strong>${name}</strong> is already stored in this program with the same
+         size, so it looks like the same file.`
+      : `<strong>${name}</strong> is already stored in this program, but with a
+         different size (${this.#formatBytes(existing.fileSize)} stored,
+         ${this.#formatBytes(file.size)} selected).`;
+    const question = sameSize
+      ? "Overwrite the stored file, or keep the one already in the program?"
+      : `Overwrite the stored file, or keep it and just attach it to this
+         observation?`;
+
+    this.#modal.show({
+      title: "Finder chart already in program",
+      body: `
+        <p class="mb-2">${detail}</p>
+        <p class="mb-0">${question}</p>
+      `,
+      footer: `
+        <button type="button" class="btn btn-secondary" id="fc-keep">
+          ${sameSize ? "Keep current" : "Use existing"}
+        </button>
+        <button type="button" class="btn btn-danger" id="fc-overwrite">
+          Overwrite
+        </button>
+      `,
+      dialogClasses: ["modal-dialog-centered"],
+    });
+
+    const element = document.getElementById("modalManager");
+
+    return new Promise((resolve) => {
+      let answer = null;
+      element.querySelector("#fc-keep").addEventListener("click", () => {
+        answer = "existing";
+        this.#modal.hide();
+      });
+      element.querySelector("#fc-overwrite").addEventListener("click", () => {
+        answer = "overwrite";
+        this.#modal.hide();
+      });
+      element.addEventListener("hidden.bs.modal", () => resolve(answer), {
+        once: true,
+      });
+    });
   }
 
   async #downloadFinderChart({ attachmentId }) {

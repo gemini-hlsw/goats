@@ -43,6 +43,16 @@
     <div class="alert alert-danger mt-3" role="alert">
       <strong>Observation in Error state:</strong> Unable to proceed. Review the observation and update the status.
     </div>
+    {% elif not object.status %}
+    <div class="alert alert-warning mt-3" role="alert">
+      <strong>Observation status has not been retrieved yet:</strong> GOA queries and DRAGONS reduction stay disabled until the status is retrieved from the observatory.
+      <a
+        href="{% url 'targets:detail' pk=object.target.id %}?update_status=True"
+        title="Update status of observations for target"
+        class="alert-link"
+        >Update Observations Status</a
+      > to unlock them.
+    </div>
     {% endif %}
   </div>
 </div>

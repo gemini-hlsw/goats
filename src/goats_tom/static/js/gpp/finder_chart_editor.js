@@ -27,10 +27,24 @@ class FinderChartEditor {
    * Backend item ids staged for delete.
    * @type {Set<string>}
    */
-  #stagedDeletes = new Set();
+  #stagedDeletes = new Map();
+  /**
+   * Finder charts already stored in the program, keyed by lowercased file name.
+   * Null until loaded.
+   * @type {Map<string, Object>|null}
+   */
+  #programCharts = null;
+  /**
+   * Whether the program reference counts are known to be incomplete.
+   * @type {boolean}
+   */
+  #programChartsHasMore = false;
   /**
    * @type {{
    *   onFinderChartDownload?: Function,
+   *   onProgramFinderCharts?: Function,
+   *   onConfirmOverwrite?: Function,
+   *   onConfirmRemoval?: Function,
    *   onChange?: Function
    * }}
    */
@@ -97,6 +111,8 @@ class FinderChartEditor {
     this.#baseItems = Array.isArray(data) ? [...data] : [];
     this.#stagedAdds = [];
     this.#stagedDeletes.clear();
+    this.#programCharts = null;
+    this.#programChartsHasMore = false;
     this.#addForm = null;
     this.render();
   }
@@ -110,27 +126,33 @@ class FinderChartEditor {
     return [...this.#stagedAdds];
   }
   /**
-   * Return ids of backend items staged for deletion.
+   * Return staged removal ids of the given kind.
    *
+   * @param {"delete"|"unassign"} kind
+   *   Whether the chart leaves the program or only this observation.
    * @returns {Array<string>}
-   *   Item ids staged for delete.
+   *   Matching item ids.
    */
-  #getItemsToDelete() {
-    return [...this.#stagedDeletes];
+  #getItemsToRemove(kind) {
+    return [...this.#stagedDeletes]
+      .filter(([, staged]) => staged === kind)
+      .map(([id]) => id);
   }
   /**
    * Return the full editor state.
    *
    * @returns {{
    *   toAdd: Array<Object>,
-   *   toDelete: Array<string>
+   *   toDelete: Array<string>,
+   *   toUnassign: Array<string>
    * }}
    *   Full state snapshot.
    */
   getPendingChanges() {
     return {
       toAdd: this.#getItemsToAdd(),
-      toDelete: this.#getItemsToDelete(),
+      toDelete: this.#getItemsToRemove("delete"),
+      toUnassign: this.#getItemsToRemove("unassign"),
     };
   }
   /**
@@ -197,6 +219,7 @@ class FinderChartEditor {
       rowState: this.#stagedDeletes.has(String(item.id))
         ? "staged-delete"
         : "saved",
+      removalKind: this.#stagedDeletes.get(String(item.id)) ?? null,
     }));
     const adds = this.#stagedAdds.map((item) => ({
       ...item,
@@ -220,18 +243,22 @@ class FinderChartEditor {
 
     if (item.rowState === "staged-add") {
       tr.classList.add("table-secondary");
-      updatedContent = this.#createBadge(
-        " Upload pending",
-        "success",
-        "fa-clock",
-      );
+      const badge = item.overwrite
+        ? [" Overwrites program file", "warning", "fa-triangle-exclamation"]
+        : item.existingId
+          ? [" Already in program", "secondary", "fa-link"]
+          : [" Upload pending", "success", "fa-clock"];
+      updatedContent = this.#createBadge(...badge);
     } else if (item.rowState === "staged-delete") {
       tr.classList.add("table-secondary");
-      updatedContent = this.#createBadge(
-        " Marked for removal",
-        "danger",
-        "fa-trash",
-      );
+      updatedContent =
+        item.removalKind === "unassign"
+          ? this.#createBadge(
+              " Removed from observation",
+              "secondary",
+              "fa-link-slash",
+            )
+          : this.#createBadge(" Deleted from program", "danger", "fa-trash");
     } else {
       updatedContent = this.#formatDate(item.updatedAt);
     }
@@ -447,10 +474,12 @@ class FinderChartEditor {
       icon: "fa-trash",
       title: "Delete",
       disabled: this.#readOnly,
-      onClick: () => {
+      onClick: async () => {
+        const kind = await this.#resolveRemovalKind(item);
+        if (!kind) return;
         this.#dispatch({
           type: "STAGE_DELETE",
-          payload: { id: String(item.id) },
+          payload: { id: String(item.id), kind },
         });
       },
     });
@@ -472,6 +501,96 @@ class FinderChartEditor {
     }
     this.#addForm = this.#buildAddForm();
     this.render();
+  }
+  /**
+   * Decide whether removing a chart also deletes it from the program.
+   *
+   * Only asks when other observations reference it, or when the reference count
+   * is known to be incomplete.
+   *
+   * @param {Object} item
+   *   Saved finder chart being removed.
+   * @returns {Promise<"delete"|"unassign"|null>}
+   *   Chosen removal, or null when the user backed out.
+   */
+  async #resolveRemovalKind(item) {
+    const charts = await this.#loadProgramCharts();
+    const existing = [...charts.values()].find(
+      (chart) => String(chart.id) === String(item.id),
+    );
+    const others = (existing?.observationIds ?? []).length - 1;
+
+    if (others <= 0 && !this.#programChartsHasMore) return "delete";
+
+    return (
+      (await this.#callbacks.onConfirmRemoval?.({
+        item,
+        others: Math.max(others, 0),
+        uncertain: this.#programChartsHasMore,
+      })) ?? null
+    );
+  }
+  /**
+   * Load the finder charts already stored in the program.
+   *
+   * Failures are non-fatal: the file is then staged as a plain upload.
+   *
+   * @returns {Promise<Map<string, Object>>}
+   *   Program charts keyed by lowercased file name and size.
+   */
+  async #loadProgramCharts() {
+    if (this.#programCharts) return this.#programCharts;
+    let results = [];
+    try {
+      const payload = (await this.#callbacks.onProgramFinderCharts?.()) ?? {};
+      results = payload.results ?? [];
+      this.#programChartsHasMore = Boolean(payload.hasMore);
+    } catch {
+      results = [];
+    }
+    this.#programCharts = new Map(
+      results
+        .filter((chart) => chart?.fileName)
+        .map((chart) => [String(chart.fileName).toLowerCase(), chart]),
+    );
+    return this.#programCharts;
+  }
+  /**
+   * Decide whether a selected file overwrites a stored chart.
+   *
+   * @param {File} file
+   *   File chosen by the user.
+   * @returns {Promise<{existing: Object|null, overwrite: boolean}|null>}
+   *   The matching program chart and whether to replace it, or null when
+   *   nothing should be staged.
+   */
+  async #resolveExistingChart(file) {
+    const charts = await this.#loadProgramCharts();
+    const existing = charts.get(String(file.name).toLowerCase()) ?? null;
+    if (!existing) return { existing: null, overwrite: false };
+
+    const sameSize = Number(existing.fileSize) === Number(file.size);
+    const choice = await this.#callbacks.onConfirmOverwrite?.({
+      file,
+      existing,
+      sameSize,
+    });
+
+    // No handler at all falls back to keeping the stored file; an explicit
+    // dismissal cancels the whole add.
+    if (choice === undefined) return { existing, overwrite: false };
+    if (!choice) return null;
+
+    // Keeping an identical file changes nothing when the observation already
+    // references it, so no row is staged; otherwise it still has to be attached.
+    if (choice === "existing" && sameSize) {
+      const attached = this.#baseItems.some(
+        (item) => String(item.id) === String(existing.id),
+      );
+      if (attached) return null;
+    }
+
+    return { existing, overwrite: choice === "overwrite" };
   }
   /**
    * Build the staged-add form.
@@ -522,17 +641,29 @@ class FinderChartEditor {
     cancelBtn.textContent = "Cancel";
     cancelBtn.disabled = this.#readOnly;
     cancelBtn.addEventListener("click", () => this.#toggleAddForm());
-    addBtn.addEventListener("click", () => {
+    addBtn.addEventListener("click", async () => {
       const file = fileInput.files?.[0] ?? null;
       if (!file) {
         fileInput.focus();
         return;
       }
+      addBtn.disabled = true;
+      let resolution;
+      try {
+        resolution = await this.#resolveExistingChart(file);
+      } finally {
+        addBtn.disabled = this.#readOnly;
+      }
+      // Dismissed confirmation: leave the form untouched so the user can pick
+      // a different file.
+      if (!resolution) return;
       this.#dispatch({
         type: "STAGE_ADD",
         payload: {
           file,
           description: descInput.value?.trim() || "",
+          existing: resolution.existing,
+          overwrite: resolution.overwrite,
         },
       });
       fileInput.value = "";
@@ -589,7 +720,7 @@ class FinderChartEditor {
   #reduce(state, action) {
     switch (action.type) {
       case "STAGE_ADD": {
-        const { file, description } = action.payload ?? {};
+        const { file, description, existing, overwrite } = action.payload ?? {};
         const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         return {
           ...state,
@@ -601,6 +732,8 @@ class FinderChartEditor {
               fileName: file.name,
               description: description || "",
               previewUrl: URL.createObjectURL(file),
+              existingId: existing?.id ?? null,
+              overwrite: Boolean(overwrite),
             },
           ],
         };
@@ -618,8 +751,8 @@ class FinderChartEditor {
       }
       case "STAGE_DELETE": {
         const id = String(action.payload?.id ?? "");
-        const nextDeletes = new Set(state.stagedDeletes);
-        nextDeletes.add(id);
+        const nextDeletes = new Map(state.stagedDeletes);
+        nextDeletes.set(id, action.payload?.kind ?? "delete");
         return {
           ...state,
           stagedDeletes: nextDeletes,
@@ -627,7 +760,7 @@ class FinderChartEditor {
       }
       case "UNSTAGE_DELETE": {
         const id = String(action.payload?.id ?? "");
-        const nextDeletes = new Set(state.stagedDeletes);
+        const nextDeletes = new Map(state.stagedDeletes);
         nextDeletes.delete(id);
         return {
           ...state,

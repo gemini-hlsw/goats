@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
-from gpp_client.generated.enums import ObservationWorkflowState
+from gpp_client.generated.enums import AttachmentType, ObservationWorkflowState
 from gpp_client.generated.set_observation_workflow_state import (
     SetObservationWorkflowStateSetObservationWorkflowState,
 )
@@ -18,6 +18,8 @@ from goats_tom.api_views.gpp.observations import (
     Stage,
     StageMessage,
     build_failure_response,
+    build_goats_subtitle,
+    normalize_discovery_survey,
 )
 from goats_tom.tests.factories import GPPLoginFactory, UserFactory
 
@@ -163,6 +165,48 @@ def test_build_failure_response(
     assert isinstance(response, Response)
     assert response.status_code == http_status
     assert response.data == expected_response
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (None, ""),
+        ("", ""),
+        ("   ", ""),
+        ("Rubin", "Rubin"),
+        ("  Pan-STARRS  ", "Pan-STARRS"),
+        # Colons delimit the subtitle fields, so they are stripped.
+        ("Rubin: LSST", "Rubin LSST"),
+        (123, ""),
+    ],
+)
+def test_normalize_discovery_survey(raw, expected):
+    assert normalize_discovery_survey(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "discovery_survey, expected",
+    [
+        ("", "GOATS:1.2.3"),
+        ("Rubin", "GOATS:1.2.3:Rubin"),
+    ],
+)
+def test_build_goats_subtitle(mocker, discovery_survey, expected):
+    mocker.patch(
+        "goats_tom.api_views.gpp.observations.get_goats_version",
+        return_value="1.2.3",
+    )
+
+    assert build_goats_subtitle(discovery_survey) == expected
+
+
+def test_build_goats_subtitle_without_version(mocker):
+    mocker.patch(
+        "goats_tom.api_views.gpp.observations.get_goats_version",
+        side_effect=RuntimeError("boom"),
+    )
+
+    assert build_goats_subtitle() == "GOATS"
 
 
 @pytest.mark.django_db
@@ -315,12 +359,11 @@ class TestGPPObservationViewSet:
 
         return goats_target, target_props, obs_props
 
-    def test_update_only_happy_path(self, mocker):
-        """Exercise update_only target/observation/workflow updates."""
-        self._mock_validated_serializers(mocker)
-
-        mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
-        client = mock_client.return_value
+    def _mock_update_client(self, mocker):
+        """Patch ``GPPClient`` so target, observation and workflow updates succeed."""
+        client = mocker.patch(
+            "goats_tom.api_views.gpp.observations.GPPClient"
+        ).return_value
 
         target_update_result = mocker.Mock()
         target_update_result.model_dump.return_value = {
@@ -333,10 +376,15 @@ class TestGPPObservationViewSet:
             "updateObservations": {"observations": [{"id": "o-updated"}]}
         }
         client.observation.update_by_id = AsyncMock(return_value=obs_update_result)
-
         client.workflow_state.update_by_id_with_retry = AsyncMock(
             return_value=_mock_workflow_state_result("INACTIVE")
         )
+        return client
+
+    def test_update_only_happy_path(self, mocker):
+        """Exercise update_only target/observation/workflow updates."""
+        self._mock_validated_serializers(mocker)
+        client = self._mock_update_client(mocker)
 
         update_view = GPPObservationViewSet.as_view({"post": "update_only"})
         request = self.factory.post(
@@ -353,6 +401,36 @@ class TestGPPObservationViewSet:
         client.target.update_by_id.assert_called_once()
         client.observation.update_by_id.assert_called_once()
         client.workflow_state.update_by_id_with_retry.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "form_data, expected_subtitle",
+        [
+            ({"finderCharts": "{}"}, "GOATS:1.2.3"),
+            (
+                {"finderCharts": "{}", "discoverySurveyInput": "  Rubin  "},
+                "GOATS:1.2.3:Rubin",
+            ),
+        ],
+    )
+    def test_update_only_sets_discovery_survey_subtitle(
+        self, mocker, form_data, expected_subtitle
+    ):
+        """The survey submitted by the form is written to the GPP subtitle."""
+        _, _, obs_props = self._mock_validated_serializers(mocker)
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.get_goats_version",
+            return_value="1.2.3",
+        )
+        self._mock_update_client(mocker)
+
+        update_view = GPPObservationViewSet.as_view({"post": "update_only"})
+        request = self.factory.post(self.observation_update_and_save_url, form_data)
+        force_authenticate(request, user=self.user_with_login)
+
+        response = update_view(request)
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert obs_props.subtitle == expected_subtitle
 
     def test_update_only_target_update_returns_no_id(self, mocker):
         """update_only treats missing target id as a partial failure but continues."""
@@ -742,7 +820,11 @@ class TestGPPObservationViewSet:
 
         out = self.viewset._normalize_finder_charts(data)
 
-        assert out["finderCharts"] == {"toAdd": [], "toDelete": []}
+        assert out["finderCharts"] == {
+            "toAdd": [],
+            "toDelete": [],
+            "toUnassign": [],
+        }
 
     def test_normalize_finder_charts_builds_to_add_and_to_delete(self):
         file1 = SimpleUploadedFile("fc1.png", b"abc", content_type="image/png")
@@ -798,6 +880,14 @@ class TestGPPObservationViewSet:
         assert to_add[0]["description"] == "first"
         assert to_add[0]["file"] == file1
 
+    @staticmethod
+    def _mock_program_attachments(mocker, client, attachments):
+        """Stub the program attachment listing used to detect existing charts."""
+        result = mocker.Mock()
+        result.model_dump.return_value = {"program": {"attachments": attachments}}
+        client.attachment.get_all_by_program_id = mocker.Mock(return_value=result)
+        return result
+
     def test_process_finder_charts_delete_only_returns_remaining_ids(self, mocker):
         client = mocker.Mock()
 
@@ -818,6 +908,8 @@ class TestGPPObservationViewSet:
             return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
 
         out = self.viewset._process_finder_charts(
             client=client,
@@ -860,6 +952,8 @@ class TestGPPObservationViewSet:
             return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock(side_effect=["new-1", "new-2"])
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
 
         out = self.viewset._process_finder_charts(
             client=client,
@@ -890,6 +984,189 @@ class TestGPPObservationViewSet:
 
         assert out == ["existing-1", "new-1", "new-2"]
 
+    @pytest.mark.parametrize("overwrite", [False, True])
+    def test_process_finder_charts_same_name_honours_overwrite(
+        self, mocker, overwrite
+    ):
+        """A stored chart of the same name is replaced only when asked to."""
+        file1 = SimpleUploadedFile("FC1.png", b"abc", content_type="image/png")
+
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": []}
+        }
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
+        )
+        client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(
+            mocker,
+            client,
+            [
+                {
+                    "id": "prog-fc-1",
+                    "fileName": "fc1.png",
+                    "fileSize": 3,
+                    "attachmentType": AttachmentType.FINDER,
+                },
+                {
+                    "id": "prog-other",
+                    "fileName": "proposal.pdf",
+                    "fileSize": 3,
+                    "attachmentType": AttachmentType.SCIENCE,
+                },
+            ],
+        )
+
+        out = self.viewset._process_finder_charts(
+            client=client,
+            observation_id="obs-1",
+            program_id="prog-1",
+            finder_charts={
+                "toDelete": [],
+                "toAdd": [
+                    {"description": "first", "file": file1, "overwrite": overwrite}
+                ],
+            },
+        )
+
+        client.attachment.upload.assert_not_called()
+        assert out == ["prog-fc-1"]
+
+        if overwrite:
+            client.attachment.update_by_id.assert_called_once_with(
+                attachment_id="prog-fc-1",
+                file_name="FC1.png",
+                description="first",
+                content=b"abc",
+            )
+        else:
+            client.attachment.update_by_id.assert_not_called()
+
+    @pytest.mark.parametrize("overwrite", [False, True])
+    def test_process_finder_charts_different_size_reuses_or_overwrites(
+        self, mocker, overwrite
+    ):
+        """A same-name chart of a different size never uploads a duplicate."""
+        file1 = SimpleUploadedFile("fc1.png", b"abcdef", content_type="image/png")
+
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": []}
+        }
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
+        )
+        client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(
+            mocker,
+            client,
+            [
+                {
+                    "id": "prog-fc-1",
+                    "fileName": "fc1.png",
+                    "fileSize": 3,
+                    "attachmentType": AttachmentType.FINDER,
+                }
+            ],
+        )
+
+        out = self.viewset._process_finder_charts(
+            client=client,
+            observation_id="obs-1",
+            program_id="prog-1",
+            finder_charts={
+                "toDelete": [],
+                "toAdd": [
+                    {"description": "first", "file": file1, "overwrite": overwrite}
+                ],
+            },
+        )
+
+        client.attachment.upload.assert_not_called()
+        assert out == ["prog-fc-1"]
+
+        if overwrite:
+            client.attachment.update_by_id.assert_called_once_with(
+                attachment_id="prog-fc-1",
+                file_name="fc1.png",
+                description="first",
+                content=b"abcdef",
+            )
+        else:
+            client.attachment.update_by_id.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "key, deletes_from_program",
+        [("toDelete", True), ("toUnassign", False)],
+    )
+    def test_process_finder_charts_unassign_keeps_the_program_file(
+        self, mocker, key, deletes_from_program
+    ):
+        """Only ``toDelete`` removes the attachment from the program."""
+        client = mocker.Mock()
+
+        def fake_async_to_sync(fn):
+            return fn
+
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.async_to_sync",
+            side_effect=fake_async_to_sync,
+        )
+
+        mock_attachment_result = mocker.Mock()
+        mock_attachment_result.model_dump.return_value = {
+            "observation": {"attachments": [{"id": "a1"}, {"id": "a2"}]}
+        }
+        client.attachment.delete_by_id = mocker.Mock()
+        client.attachment.get_all_by_observation_id = mocker.Mock(
+            return_value=mock_attachment_result
+        )
+        client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
+
+        out = self.viewset._process_finder_charts(
+            client=client,
+            observation_id="obs-1",
+            program_id="prog-1",
+            finder_charts={key: ["a1"]},
+        )
+
+        # Either way the observation stops referencing it.
+        assert out == ["a2"]
+
+        if deletes_from_program:
+            client.attachment.delete_by_id.assert_called_once_with(
+                attachment_id="a1"
+            )
+        else:
+            client.attachment.delete_by_id.assert_not_called()
+
     def test_process_finder_charts_skips_items_without_file(self, mocker):
         client = mocker.Mock()
 
@@ -910,6 +1187,8 @@ class TestGPPObservationViewSet:
             return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
 
         out = self.viewset._process_finder_charts(
             client=client,
@@ -978,6 +1257,8 @@ class TestGPPObservationViewSet:
             return_value=mock_attachment_result
         )
         client.attachment.upload = mocker.Mock()
+        client.attachment.update_by_id = mocker.Mock()
+        self._mock_program_attachments(mocker, client, [])
 
         if setup_attr == "delete_error":
             client.attachment.delete_by_id.side_effect = RuntimeError("boom")

@@ -2,30 +2,39 @@
 
 Focuses on the data-resolution layer (query parsing, the DRAGONS ``SCI`` FITS
 reader and ``_resolve_spectra``) that decides what gets handed to jdaviz. The
-Solara ``Page`` component and the ``Specviz`` helpers are not constructed here:
+Solara ``Page`` component and the jdaviz app itself are not constructed here:
 they need a live jdaviz kernel and a browser, so they are out of scope for unit
 tests.
 """
 
+import ast
 import types
 from pathlib import Path
 
+import astropy.units as u
 import numpy as np
 import pytest
 from astropy.io import fits
+from astropy.nddata import StdDevUncertainty
+from astropy.wcs import WCS
+from specutils import Spectrum
 
 from goats_tom import jdaviz_app
 from goats_tom.jdaviz_app import (
+    FORMAT_1D,
+    FORMAT_2D,
     SCIENCE_EXTENSION,
+    SPECTRAL_DISPLAY_UNIT,
     UNSUPPORTED_MESSAGE,
     _build_specviz,
     _call_off_event_loop,
     _dragons_hdu_to_spectrum,
-    _hide_popout,
     _query_param,
     _read_dragons_spectra,
     _resolve_spectra,
     _spectra_are_2d,
+    _widget,
+    _with_display_spectral_axis,
 )
 
 
@@ -359,105 +368,232 @@ class TestCallOffEventLoop:
 
 
 
-class TestHidePopout:
-    def test_hides_popout_button(self):
-        layout = types.SimpleNamespace(display=None)
-        viz = types.SimpleNamespace(
-            app=types.SimpleNamespace(
-                popout_button=types.SimpleNamespace(layout=layout)
-            )
+class TestLoaderFormats:
+    """The format strings are resolved by jdaviz at runtime, so pin them here."""
+
+    def test_formats_exist_in_jdaviz(self):
+        from jdaviz.core.registries import (  # noqa: PLC0415
+            loader_importer_registry,
         )
-        _hide_popout(viz)
-        assert layout.display == "none"
 
-    def test_missing_popout_button_is_noop(self):
-        viz = types.SimpleNamespace(app=types.SimpleNamespace())
-        _hide_popout(viz)
+        registered = loader_importer_registry.members
+        assert FORMAT_1D in registered
+        assert FORMAT_2D in registered
 
 
+class TestForgetApp:
+    def test_removes_the_app_from_the_registry(self, monkeypatch):
+        keep, drop = object(), object()
+        registry = [keep, drop]
+        monkeypatch.setattr(jdaviz_app.jdaviz, "get_all_apps", lambda: registry)
 
-class _FakeSpecviz:
-    """Stand-in for a ``Specviz`` helper recording ``load`` calls."""
+        jdaviz_app._forget_app(drop)
+
+        assert registry == [keep]
+
+    def test_unknown_app_is_a_noop(self, monkeypatch):
+        registry = [object()]
+        monkeypatch.setattr(jdaviz_app.jdaviz, "get_all_apps", lambda: registry)
+
+        jdaviz_app._forget_app(object())
+
+        assert len(registry) == 1
+
+    def test_registry_failure_is_swallowed(self, monkeypatch):
+        def boom():
+            raise RuntimeError("no registry")
+
+        monkeypatch.setattr(jdaviz_app.jdaviz, "get_all_apps", boom)
+
+        jdaviz_app._forget_app(object())
+
+
+class TestJdavizSolaraIsNotImported:
+    """``jdaviz.solara`` must never be imported by the embedded viewer.
+
+    It registers a global ``on_kernel_start`` hook whose kernel-close callback
+    runs ``os._exit(0)``: leaving the viewer would kill the whole GOATS server.
+    """
+
+    def test_module_does_not_import_jdaviz_solara(self):
+        tree = ast.parse(Path(jdaviz_app.__file__).read_text())
+        imported = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module)
+
+        assert "jdaviz.solara" not in imported
+
+    def test_no_exiting_kernel_hook_is_registered(self):
+        from solara.lifecycle import _on_kernel_start_callbacks  # noqa: PLC0415
+
+        modules = [
+            getattr(getattr(entry, "callback", entry), "__module__", "")
+            for entry in _on_kernel_start_callbacks
+        ]
+        assert "jdaviz.solara" not in modules
+
+
+class TestWidget:
+    def test_private_app_is_preferred(self):
+        private, public = types.SimpleNamespace(), types.SimpleNamespace()
+        viz = types.SimpleNamespace(_app=private, app=public)
+
+        assert _widget(viz) is private
+
+    def test_falls_back_to_public_app(self):
+        public = types.SimpleNamespace()
+        viz = types.SimpleNamespace(app=public)
+
+        assert _widget(viz) is public
+
+
+
+class _FakeApp:
+    """Stand-in for the jdaviz app recording ``load`` calls."""
 
     def __init__(self, fail=False):
         self.loads = []
         self._fail = fail
 
-    def load(self, spectrum, data_label=None):
+    def load(self, inp, format=None, data_label=None):  # noqa: A002 -- jdaviz API
         if self._fail:
             raise RuntimeError("cannot load")
-        self.loads.append((spectrum, data_label))
+        self.loads.append((inp, format, data_label))
 
 
-class _FakeSpecviz2d:
-    """Stand-in for a ``Specviz2d`` helper recording ``load_data`` calls."""
+class TestWithDisplaySpectralAxis:
+    def test_wavelength_axis_is_converted(self):
+        spectrum = Spectrum(
+            flux=np.arange(5.0) * u.Jy, spectral_axis=np.linspace(400, 500, 5) * u.nm
+        )
+        converted = _with_display_spectral_axis(spectrum)
 
-    def __init__(self, fail=False):
-        self.loads = []
-        self._fail = fail
+        assert converted.spectral_axis.unit == u.Unit(SPECTRAL_DISPLAY_UNIT)
+        # 1 nm is 10 Angstrom, so the values scale by ten.
+        assert converted.spectral_axis.value[0] == pytest.approx(4000.0)
+        assert converted.spectral_axis.value[-1] == pytest.approx(5000.0)
 
-    def load_data(self, **kwargs):
-        if self._fail:
-            raise RuntimeError("cannot load")
-        self.loads.append(kwargs)
+    def test_wcs_axis_in_metres_is_converted(self):
+        header = _linear_wcs_header(np.zeros(4), ctype="AWAV")
+        header["CUNIT1"] = "nm"
+        spectrum = Spectrum(flux=np.zeros(4) * u.count, wcs=WCS(header))
+        # astropy normalises the spectral WCS to SI before we ever see it.
+        assert spectrum.spectral_axis.unit == u.m
+
+        converted = _with_display_spectral_axis(spectrum)
+        assert converted.spectral_axis.unit == u.Unit(SPECTRAL_DISPLAY_UNIT)
+
+    def test_uncalibrated_pixel_axis_is_left_alone(self):
+        spectrum = Spectrum(flux=np.zeros(5) * u.count)
+        assert _with_display_spectral_axis(spectrum) is spectrum
+
+    def test_frequency_axis_is_left_alone(self):
+        spectrum = Spectrum(
+            flux=np.zeros(5) * u.Jy, spectral_axis=np.linspace(1e9, 2e9, 5) * u.Hz
+        )
+        assert _with_display_spectral_axis(spectrum) is spectrum
+
+    def test_uncertainty_mask_and_meta_survive(self):
+        spectrum = Spectrum(
+            flux=np.arange(5.0) * u.Jy,
+            spectral_axis=np.linspace(400, 500, 5) * u.nm,
+            uncertainty=StdDevUncertainty(np.full(5, 0.1)),
+            mask=np.array([0, 0, 1, 0, 0], dtype=bool),
+            meta={"origin": "test"},
+        )
+        converted = _with_display_spectral_axis(spectrum)
+
+        assert converted.uncertainty.array == pytest.approx(np.full(5, 0.1))
+        assert converted.mask.sum() == 1
+        assert converted.meta == {"origin": "test"}
+
+    def test_unconvertible_spectrum_is_returned_unchanged(self):
+        spectrum = types.SimpleNamespace(flux=np.zeros(3))
+        assert _with_display_spectral_axis(spectrum) is spectrum
 
 
 class TestBuildSpecviz:
     PATH = Path("spec.fits")
 
-    def test_1d_spectra_load_into_specviz(self, monkeypatch):
-        fake = _FakeSpecviz()
-        monkeypatch.setattr(jdaviz_app, "_create_specviz", lambda: fake)
+    def test_1d_spectra_load_as_1d_format(self, monkeypatch):
+        fake = _FakeApp()
+        monkeypatch.setattr(jdaviz_app, "_create_app", lambda: fake)
         s1, s2 = _spectrum(1), _spectrum(1)
 
         viz, load_error = _build_specviz(self.PATH, [("a", s1), ("b", s2)])
         assert viz is fake
         assert load_error is None
-        assert fake.loads == [(s1, "a"), (s2, "b")]
+        assert fake.loads == [(s1, FORMAT_1D, "a"), (s2, FORMAT_1D, "b")]
 
     def test_no_spectra_uses_jdaviz_loader_on_path(self, monkeypatch):
-        fake = _FakeSpecviz()
-        monkeypatch.setattr(jdaviz_app, "_create_specviz", lambda: fake)
+        fake = _FakeApp()
+        monkeypatch.setattr(jdaviz_app, "_create_app", lambda: fake)
 
         viz, load_error = _build_specviz(self.PATH, None)
         assert viz is fake
         assert load_error is None
-        assert fake.loads == [(str(self.PATH), None)]
+        # No format: jdaviz resolves the loader from the file itself.
+        assert fake.loads == [(str(self.PATH), None, None)]
 
-    def test_2d_spectrum_routes_to_specviz2d(self, monkeypatch):
-        fake = _FakeSpecviz2d()
-        monkeypatch.setattr(jdaviz_app, "_create_specviz2d", lambda: fake)
+    def test_2d_spectrum_loads_as_2d_format(self, monkeypatch):
+        fake = _FakeApp()
+        monkeypatch.setattr(jdaviz_app, "_create_app", lambda: fake)
         s2d = _spectrum(2)
 
         viz, load_error = _build_specviz(self.PATH, [("img", s2d)])
         assert viz is fake
         assert load_error is None
-        assert fake.loads == [{"spectrum_2d": s2d, "spectrum_2d_label": "img"}]
+        assert fake.loads == [(s2d, FORMAT_2D, "img")]
 
-    def test_mixed_spectra_route_1d_and_2d_into_specviz2d(self, monkeypatch):
-        fake = _FakeSpecviz2d()
-        monkeypatch.setattr(jdaviz_app, "_create_specviz2d", lambda: fake)
+    def test_mixed_spectra_keep_their_own_format(self, monkeypatch):
+        fake = _FakeApp()
+        monkeypatch.setattr(jdaviz_app, "_create_app", lambda: fake)
         s2d, s1d = _spectrum(2), _spectrum(1)
 
         viz, load_error = _build_specviz(self.PATH, [("img", s2d), ("trace", s1d)])
         assert load_error is None
         assert fake.loads == [
-            {"spectrum_2d": s2d, "spectrum_2d_label": "img"},
-            {"spectrum_1d": s1d, "spectrum_1d_label": "trace"},
+            (s2d, FORMAT_2D, "img"),
+            (s1d, FORMAT_1D, "trace"),
         ]
 
-    def test_1d_load_failure_keeps_viewer_and_reports(self, monkeypatch):
-        fake = _FakeSpecviz(fail=True)
-        monkeypatch.setattr(jdaviz_app, "_create_specviz", lambda: fake)
+    def _failing_then_clean(self, monkeypatch):
+        """Patch ``_create_app`` so the first app fails to load and the next is clean.
+
+        Returns ``(created, forgotten)``: the apps handed out, and the ones passed
+        to ``_forget_app``.
+        """
+        pending = [_FakeApp(fail=True), _FakeApp()]
+        created, forgotten = [], []
+
+        def factory():
+            app = pending.pop(0)
+            created.append(app)
+            return app
+
+        monkeypatch.setattr(jdaviz_app, "_create_app", factory)
+        monkeypatch.setattr(jdaviz_app, "_forget_app", forgotten.append)
+        return created, forgotten
+
+    def test_1d_load_failure_returns_clean_viewer_and_reports(self, monkeypatch):
+        created, forgotten = self._failing_then_clean(monkeypatch)
 
         viz, load_error = _build_specviz(self.PATH, None)
-        assert viz is fake
+        # The app that failed is discarded: it may hold half-resolved data.
+        assert len(created) == 2
+        assert viz is created[1]
+        # ...and dropped from jdaviz's registry, so a failure retains one app.
+        assert forgotten == [created[0]]
         assert load_error == UNSUPPORTED_MESSAGE.format(name=self.PATH.name)
 
-    def test_2d_load_failure_keeps_viewer_and_reports(self, monkeypatch):
-        fake = _FakeSpecviz2d(fail=True)
-        monkeypatch.setattr(jdaviz_app, "_create_specviz2d", lambda: fake)
+    def test_2d_load_failure_returns_clean_viewer_and_reports(self, monkeypatch):
+        created, forgotten = self._failing_then_clean(monkeypatch)
 
         viz, load_error = _build_specviz(self.PATH, [("img", _spectrum(2))])
-        assert viz is fake
+        assert len(created) == 2
+        assert viz is created[1]
+        assert forgotten == [created[0]]
         assert load_error == UNSUPPORTED_MESSAGE.format(name=self.PATH.name)

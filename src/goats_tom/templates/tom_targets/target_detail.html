@@ -157,7 +157,7 @@
   };
 
   /**
-   * Open the jdaviz Specviz analyzer for a data product in a new browser tab.
+   * Open the jdaviz analyzer for a data product in a new browser tab.
    * The viewer is served by Solara under /jdaviz/?dataproduct=<id>
    * (see goats_tom.jdaviz_app).
    * @param {string} dataproductId - The data product primary key.
@@ -430,7 +430,21 @@
         layout: {
           xaxis: { title: "Wavelength", tickformat: "d" },
           yaxis: { title: "Flux", tickformat: ".1g" },
+          height: 520,
+          // Keep the top margin free for the editable title and subtitle.
+          margin: { b: 170 },
           showlegend: true,
+          legend: {
+            orientation: "h",
+            yanchor: "top",
+            y: -0.30,
+            xanchor: "right",
+            x: 1,
+            // Boxed so the legend reads as its own block, not as axis labels.
+            bgcolor: "rgba(0, 0, 0, 0)",
+            bordercolor: "#c8c8c8",
+            borderwidth: 1,
+          },
         },
       },
     ],
@@ -458,8 +472,21 @@
             zeroline: false,
             tickformat: ".2f",
           },
+          height: 520,
+          // Keep the top margin free for the editable title and subtitle.
+          margin: { b: 170 },
           showlegend: true,
-          legend: { x: 1, xanchor: "right", y: 1 },
+          legend: {
+            orientation: "h",
+            yanchor: "top",
+            y: -0.30,
+            xanchor: "right",
+            x: 1,
+            // Boxed so the legend reads as its own block, not as axis labels.
+            bgcolor: "rgba(0, 0, 0, 0)",
+            bordercolor: "#c8c8c8",
+            borderwidth: 1,
+          },
         },
       },
     ],
@@ -486,6 +513,14 @@
         }
       );
 
+      // The plot is built while its tab is still hidden, so the container has no
+      // width yet and Plotly falls back to its default 700px. Resize it as soon
+      // as the container gets a real width, and on any later layout change.
+      const plotContainer = document.getElementById(plotId);
+      new ResizeObserver(() => Plotly.Plots.resize(plotContainer)).observe(
+        plotContainer
+      );
+
       // Event listener for plot button clicks.
       tbody.addEventListener("click", async (event) => {
         const action = event.target.dataset.action;
@@ -499,7 +534,7 @@
         const dataType = row.dataset.dataType;
         const file = row.dataset.file;
 
-        // Open the Specviz analyzer for this data product in a new tab.
+        // Open the jdaviz analyzer for this data product in a new tab.
         if (action === "analyze") {
           openAnalyzer(dataproductId);
           return;

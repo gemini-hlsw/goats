@@ -6,26 +6,32 @@
         {{ hidden }}
       {% endfor %}
     <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Photometry Data</h5>
+        <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+            <div class="d-flex align-items-baseline gap-2">
+                <h5 class="mb-0">Photometry Data</h5>
+                <span class="text-body-secondary">{{ data|length }} data point{{ data|length|pluralize }}</span>
+            </div>
+            <input type="text" class="form-control form-control-sm w-auto" id="photDataSearch" size="28"
+                   placeholder="Type to filter photometry..." aria-label="Filter photometry rows">
         </div>
         <div class="card-body p-0">
-          <table id="photData" class="table table-striped table-hover table-sm mb-0" cellspacing="0" width="100%">
+          <div class="overflow-auto" style="max-height: 400px">
+          <table id="photData" class="table table-striped table-hover table-sm align-middle mb-0" cellspacing="0" width="100%">
               <thead>
                   <tr>
-                      <th>
+                      <th class="sticky-top bg-body-secondary">
                           <div class="form-check">
                               <input type="checkbox" class="form-check-input" id="share-all-phot" onclick="select_all_phot()" value=""/>
                               <label class="form-check-label" for="share-all-phot">Share</label>
                           </div>
                       </th>
-                      <th>Timestamp</th>
-                      <th>MJD</th>
-                      <th>Telescope</th>
-                      <th>Filter</th>
-                      <th>Magnitude</th>
-                      <th>Error</th>
-                      <th>Source</th>
+                      <th class="sticky-top bg-body-secondary">Timestamp</th>
+                      <th class="sticky-top bg-body-secondary text-end">MJD</th>
+                      <th class="sticky-top bg-body-secondary">Telescope</th>
+                      <th class="sticky-top bg-body-secondary">Filter</th>
+                      <th class="sticky-top bg-body-secondary text-end">Magnitude</th>
+                      <th class="sticky-top bg-body-secondary text-end">Error</th>
+                      <th class="sticky-top bg-body-secondary">Source</th>
                   </tr>
               </thead>
               <tbody>
@@ -33,65 +39,63 @@
               <tr>
                   <td><input type="checkbox" class="phot-row" id="phot-row-{{ datum.id }}" name="share-box" value="{{ datum.id }}" onchange="check_selected_phot()"></td>
                   <td>{{ datum.timestamp }}</td>
-                  <td>{{ datum.mjd|floatformat:4  }}</td>
-                  <td>{{ datum.telescope }}</td>
+                  <td class="text-end">{{ datum.mjd|floatformat:4  }}</td>
+                  <td title="{{ datum.telescope }}">{{ datum.telescope|truncatechars:16 }}</td>
                   <td>{{ datum.filter }}</td>
-                  <td>
-                      {% if datum.limit %}&gt;{% endif %}
-                      {{ datum.magnitude|truncate_value_for_display }}
-                  </td>
+                  <td class="text-end">{% if datum.limit %}&gt;{% endif %}{{ datum.magnitude|truncate_value_for_display }}</td>
                   {% if datum.error %}
-                      <td>{{ datum.error|truncate_value_for_display:5 }}</td>
+                      <td class="text-end">{{ datum.error|truncate_value_for_display:5 }}</td>
                   {% else %}
-                      <td>{{ datum.magnitude_error|floatformat:4 }}</td>
+                      <td class="text-end">{{ datum.magnitude_error|floatformat:4 }}</td>
                   {% endif %}
-                  <td>{{ datum.source }}</td>
+                  <td title="{{ datum.source }}">{{ datum.source|truncatechars:16 }}</td>
               </tr>
               {% empty %}
               <tr>
-                  <td colspan="8">No Photometry Data.</td>
+                  <td colspan="8" class="text-center text-body-secondary py-4">No Photometry Data.</td>
               </tr>
               {% endfor %}
+              <tr id="photDataNoMatchesRow" style="display: none;">
+                  <td colspan="8" class="text-center text-body-secondary py-4">No matches found...</td>
+              </tr>
               </tbody>
           </table>
+          </div>
         </div>
         {% if not target_share %}
-            <div class="card mt-2">
-                <div class="card-header">
+            <div class="card border-0 border-top rounded-0">
+                <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
                     Share Selected Data
+                    <span class="text-body-secondary" id="photShareCount">
+                        0 of {{ data|length }}
+                    </span>
                 </div>
+                <div class="card-body">
                 {% if sharing_destinations %}
-                    <div class="form-row" style="padding-inline:1rem">
+                    <div class="row g-3">
                         <div class="col-sm-12">
                             {% bootstrap_field target_data_share_form.share_title %}
                         </div>
-                    </div>
-                    <div class="form-row" style="padding-inline:1rem">
                         <div class="col-sm-12">
                             {% bootstrap_field target_data_share_form.share_message %}
                         </div>
-                    </div>
-                    <div class="form-row" style="padding-inline:1rem">
                         <div class="col-sm-4">
                             {% bootstrap_field target_data_share_form.share_destination %}
                         </div>
-                        <div class="col-sm-2 offset-sm-1">
-                            <input type="submit" class="btn btn-primary" id="submit_selected_phot" value="Submit" name="share_targetdata_form" style="position:absolute; bottom:1rem" disabled onclick="setTargetOnPhotometryForm('')">
+                        <div class="col-sm-8 d-flex align-items-end gap-2 flex-wrap mb-3">
+                            <input type="submit" class="btn btn-primary" id="submit_selected_phot" value="Submit" name="share_targetdata_form" disabled onclick="setTargetOnPhotometryForm('')">
+                            {% if hermes_sharing %}
+                            <span class="text-body-secondary">or</span>
+                            <button class="btn btn-info" type="submit" formaction="{% url 'tom_targets:hermes-preload' pk=target.id %}" onclick="setTargetOnPhotometryForm('_blank')">Open in Hermes &#x1F5D7;</button>
+                            {% endif %}
                         </div>
-                        {% if hermes_sharing %}
-                        <div class="col-sm-1">
-                            <b style="position:absolute; bottom:1.2rem">or</b>
-                        </div>
-                        <div class="col-sm-4">
-                            <button class="btn btn-info" type="submit" formaction="{% url 'tom_targets:hermes-preload' pk=target.id %}" onclick="setTargetOnPhotometryForm('_blank')" style="position:absolute; bottom:1rem">Open in Hermes &#x1F5D7;</button>
-                        </div>
-                        {% endif %}
                     </div>
                 {% else %}
-                    <em style="padding-inline:1rem">Not Configured. See
+                    <em>Not Configured. See
                         <a href="https://tom-toolkit.readthedocs.io/en/stable/managing_data/tom_direct_sharing.html"
                            target="_blank">Documentation</a>.</em>
                 {% endif %}
+                </div>
             </div>
         {% endif %}
     </div>
@@ -109,21 +113,50 @@
   function select_all_phot() {
       var share_all = document.getElementById("share-all-phot");
       if (share_all.checked == true) {
-          $('input[name=share-box][class=phot-row]').prop('checked', true);
+          $('input[name=share-box][class=phot-row]:visible').prop('checked', true);
       } else {
-          $('input[name=share-box][class=phot-row]').prop('checked', false);
+          $('input[name=share-box][class=phot-row]:visible').prop('checked', false);
       }
       check_selected_phot();
   }
   function check_selected_phot() {
       var share_boxes = document.querySelectorAll("[name='share-box'][class='phot-row']");
       var submit_btn = document.getElementById('submit_selected_phot');
+      var counts = document.getElementById('photShareCount');
+      var selected = 0;
       for (const box of share_boxes) {
           if (box.checked == true) {
-              submit_btn.disabled = false;
-              return;
+              selected++;
           }
       }
-      submit_btn.disabled = true;
+      if (submit_btn) {
+          submit_btn.disabled = selected === 0;
+          submit_btn.title = selected === 0 ? 'Select at least one data point to share' : '';
+      }
+      if (counts) {
+          // Counts are numbers built here, never user input, so innerHTML is safe.
+          counts.innerHTML = (selected === 0
+              ? '0'
+              : '<span class="fw-semibold text-body">' + selected + '</span>')
+              + ' of ' + share_boxes.length;
+      }
   }
+  // Filter the rows as the user types, mirroring the plot selector tables.
+  document.getElementById('photDataSearch').addEventListener('input', (event) => {
+      const query = event.target.value.toLowerCase().trim();
+      const rows = document.querySelectorAll('#photData tbody tr:not(#photDataNoMatchesRow)');
+      let visibleCount = 0;
+      rows.forEach((row) => {
+          const match = row.textContent.toLowerCase().includes(query);
+          row.style.display = match ? '' : 'none';
+          visibleCount += match ? 1 : 0;
+      });
+      document.getElementById('photDataNoMatchesRow').style.display = visibleCount === 0 ? '' : 'none';
+  });
+  // Enter inside the filter would otherwise submit the share form.
+  document.getElementById('photDataSearch').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+          event.preventDefault();
+      }
+  });
 </script>
