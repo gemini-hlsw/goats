@@ -18,10 +18,9 @@ import logging
 
 from django.db.models import F
 from django.utils import timezone
-from dramatiq_abort import abort
 
+from goats_tom.executors import get_executor
 from goats_tom.models import AntaresStreamSubscription
-from goats_tom.tasks import ingest_antares_stream
 from goats_tom.tasks.ingest_antares_stream import (
     ANTARES_TOPIC_PREFIX,
     get_antares_kafka_login,
@@ -404,24 +403,19 @@ def _abort_running_consumer(subscription: AntaresStreamSubscription) -> None:
     message has actually stopped, which is exactly why a fixed delay was
     not a real guarantee and the fencing token is used instead.
     """
-    if not (subscription.dramatiq_message_id and subscription.is_running):
-        return
-
-    logger.info(
-        "Aborting ANTARES stream consumer (message_id=%s).",
-        subscription.dramatiq_message_id,
-    )
-    try:
-        abort(subscription.dramatiq_message_id)
-    except Exception:
-        # Best-effort: if the message can't be found/aborted (e.g. it
-        # already finished, or the broker restarted), log and move on --
-        # the generation fencing token still protects correctness even if
-        # this abort silently fails.
-        logger.exception(
-            "Failed to abort ANTARES stream consumer (message_id=%s).",
-            subscription.dramatiq_message_id,
-        )
+    # Delegated to the executor, which owns what "stop" means for the
+    # backend in use. `LocalExecutor.stop()` is the `dramatiq_abort` call
+    # that used to be inline here, including its guard on
+    # `dramatiq_message_id` and `is_running`; `DataLabExecutor.stop()`
+    # signals the detached remote runner instead, where there is no message
+    # to abort at all.
+    #
+    # Neither raises. The reasoning in the docstring above holds unchanged
+    # for both, and is if anything stronger remotely: a detached runner has
+    # no process API once the websocket closes, so stopping it is even more
+    # clearly an optimisation than aborting a Dramatiq message. The
+    # generation fencing token remains the only actual guarantee.
+    get_executor().stop(subscription)
 
 
 def restart_antares_stream(
@@ -583,23 +577,32 @@ def restart_antares_stream(
     # row, so it must be current before the actor can possibly start.
     subscription.save()
 
-    message = ingest_antares_stream.send(
-        subscription_id=subscription.pk,
-        generation=new_generation,
-    )
+    # Dispatched through the executor rather than to Dramatiq directly, so
+    # the same generation/run-number bookkeeping above serves both the local
+    # single-astronomer install and a server offloading to Astro Data Lab.
+    # With `GOATS_STREAM_EXECUTOR` unset this resolves to `LocalExecutor`,
+    # whose `start()` is the `.send()` call that used to be inline here --
+    # same arguments, same return, no behaviour change.
+    handle = get_executor().start(subscription, new_generation)
 
-    subscription.dramatiq_message_id = message.message_id
-    subscription.save(update_fields=["dramatiq_message_id"])
+    # Only local mode yields a Dramatiq message id. In `datalab` mode the
+    # handle points at a `RemoteJob` row instead and this column stays null,
+    # which is why the executor returns a backend-neutral handle rather than
+    # a bare id.
+    if handle.message_id:
+        subscription.dramatiq_message_id = handle.message_id
+        subscription.save(update_fields=["dramatiq_message_id"])
 
     logger.info(
         "Started ANTARES stream consumer for owner=%s subscription id=%s "
-        "topics=%s group=%r generation=%d (message_id=%s).",
+        "topics=%s group=%r generation=%d (executor=%s handle=%s).",
         getattr(owner, "username", None),
         subscription.pk,
         topics,
         subscription.resolved_consumer_group,
         new_generation,
-        message.message_id,
+        handle.kind,
+        handle.message_id or handle.remote_job_id,
     )
     return subscription
 
