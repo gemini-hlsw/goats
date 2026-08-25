@@ -12,6 +12,7 @@ class ObservationForm {
   #target;
   #schedulingWindowsEditor;
   #finderChartEditor;
+  #offsetVariantEditor;
 
   /**
    * Create an ObservationForm.
@@ -129,8 +130,8 @@ class ObservationForm {
       },
       handleOffsetVariant: (meta, raw) => {
         const div = Utils.createElement("div", "mt-3");
-        new OffsetVariantEditor(div, {
-          data: raw ?? [],
+        this.#offsetVariantEditor = new OffsetVariantEditor(div, {
+          data: raw ?? {},
           readOnly: this.#readOnly,
         });
         return [div];
@@ -164,6 +165,9 @@ class ObservationForm {
   clear() {
     this.#container.innerHTML = "";
     this.#form = null;
+    // Only imaging modes build this editor, so drop the stale reference or a
+    // later long-slit form would still submit the previous offset variant.
+    this.#offsetVariantEditor = null;
   }
 
   /**
@@ -622,6 +626,15 @@ class ObservationForm {
     };
 
     formData.append("finderCharts", JSON.stringify(finderCharts));
+
+    // Imaging offset variant: nested generators and offset lists that flat form
+    // fields cannot express, so it travels as JSON like the timing windows do.
+    if (this.#offsetVariantEditor) {
+      formData.append(
+        "imagingOffsetVariant",
+        JSON.stringify(this.#offsetVariantEditor.getValues()),
+      );
+    }
 
     toAdd.forEach((item, index) => {
       const key = `file_${index}`;

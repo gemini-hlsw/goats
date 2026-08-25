@@ -1,0 +1,1 @@
+Added support for sending GMOS imaging observing mode data to GPP
