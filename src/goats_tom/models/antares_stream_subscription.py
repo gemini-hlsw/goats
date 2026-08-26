@@ -10,6 +10,12 @@ from django.db import models
 # allocation check is somehow unavailable.
 DEFAULT_MAX_TRIGGERS = 10
 
+#: Loci kept on the dashboard before ingestion stops, when the user leaves the
+#: field at its default. A bound rather than a target: `cleanup_stale_antares_loci`
+#: already discards rows that stop updating, so this exists to stop a handler
+#: that filters nothing from filling the table, not to ration normal use.
+DEFAULT_MAX_LOCI = 100
+
 
 class AntaresStreamSubscription(models.Model):
     """One user's ANTARES Kafka stream subscription and its dashboard.
@@ -239,6 +245,14 @@ class AntaresStreamSubscription(models.Model):
     gpp_target_id = models.CharField(max_length=128, blank=True, default="")
     gpp_target_overrides = models.JSONField(default=dict, blank=True)
     gpp_instrument = models.CharField(max_length=64, blank=True, default="")
+    max_loci = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Stop ingesting once the dashboard holds this many loci. Blank "
+            "for no limit."
+        ),
+    )
     max_triggers = models.PositiveIntegerField(
         null=True,
         blank=True,

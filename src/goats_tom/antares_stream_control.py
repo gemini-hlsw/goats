@@ -428,6 +428,7 @@ def restart_antares_stream(
     gpp_program_id: str = "",
     gpp_observation_id: str = "",
     max_triggers=None,
+    max_loci=None,
     gpp_observation_overrides=None,
     gpp_workflow_state: str = "",
     gpp_target_overrides=None,
@@ -543,6 +544,7 @@ def restart_antares_stream(
     subscription.gpp_program_id = gpp_program_id
     subscription.gpp_observation_id = gpp_observation_id
     subscription.max_triggers = max_triggers
+    subscription.max_loci = max_loci
     subscription.gpp_observation_overrides = gpp_observation_overrides or {}
     subscription.gpp_workflow_state = gpp_workflow_state or ""
     subscription.gpp_target_overrides = gpp_target_overrides or {}

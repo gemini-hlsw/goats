@@ -125,51 +125,6 @@ _SAFE_BUILTINS = {
 }
 
 
-def _make_dashboard_locus_count(subscription_id=None):
-    """Build the `dashboard_locus_count` function for one subscription.
-
-    Parameters
-    ----------
-    subscription_id : int, optional
-        The subscription whose dashboard to count. `None` counts nothing and
-        returns 0 -- used by the form's dry run, where there is no running
-        subscription yet and any number would be meaningless.
-
-    Returns
-    -------
-    callable
-        A zero-argument function returning the current row count, exposed to
-        handler code as the pre-bound name `dashboard_locus_count` (a
-        function, not the count itself -- call it as
-        `dashboard_locus_count()` to get a fresh value each time).
-
-    Notes
-    -----
-    A factory rather than a plain function because the count must be scoped
-    to the caller's own dashboard. `AntaresLocus` rows are per-subscription
-    (see `goats_tom.models.AntaresLocus.subscription`), so an unscoped
-    ``objects.count()`` would return every user's loci added together: a
-    handler written as "stop once my dashboard has 500" would fire on other
-    people's traffic, and the number itself leaks how busy other users are.
-
-    Deliberately a single, narrow, read-only function -- not the ORM, not the
-    `AntaresLocus` model itself -- so handler code can implement things like
-    "stop once the dashboard has N loci" without gaining any broader database
-    access.
-    """
-
-    def dashboard_locus_count() -> int:
-        from goats_tom.models import AntaresLocus  # noqa: PLC0415
-
-        if subscription_id is None:
-            return 0
-        return AntaresLocus.objects.filter(
-            subscription_id=subscription_id
-        ).count()
-
-    return dashboard_locus_count
-
-
 def _build_preimported_modules() -> dict:
     """Pre-import the small set of allowed third-party packages once.
 
@@ -177,9 +132,7 @@ def _build_preimported_modules() -> dict:
     -------
     dict
         Maps the name user code will see (e.g. ``"numpy"``) to the actual
-        imported module object. `dashboard_locus_count` is deliberately not
-        here: it has to be built per run, bound to the calling subscription
-        (see `_make_dashboard_locus_count`). Done here, at import time of *this*
+        imported module object. Done here, at import time of *this*
         trusted module, not inside user code -- user code never executes
         an `import` statement itself; these modules are simply already
         present as bound names in the restricted namespace.
@@ -237,6 +190,24 @@ class LocusHandlerRuntimeError(LocusHandlerError):
     """
 
 
+def _handler_runs_remotely() -> bool:
+    """Whether handlers execute on Astro Data Lab rather than on this host.
+
+    Notes
+    -----
+    Read through `getattr` with a default, like every other consumer of
+    ``GOATS_STREAM_EXECUTOR``: a `generated.py` predating this work has no
+    such key and must not raise.
+
+    Imported inside the function to keep `goats_tom.executors` off this
+    module's import path, since it is loaded by the local consumer on every
+    install.
+    """
+    from goats_tom.executors import DATALAB, resolve_executor_name  # noqa: PLC0415
+
+    return resolve_executor_name() == DATALAB
+
+
 def check_handler_source(source: str) -> None:
     """Reject obviously dangerous or malformed source before running it.
 
@@ -279,12 +250,28 @@ def check_handler_source(source: str) -> None:
     """
     import ast as _ast  # noqa: PLC0415
 
-    lowered = source.lower()
-    for forbidden in _FORBIDDEN_SUBSTRINGS:
-        if forbidden in lowered:
-            raise LocusHandlerError(
-                f"Handler code contains a disallowed pattern: {forbidden!r}"
-            )
+    # Local mode only.
+    #
+    # The ban exists because a local handler runs inside the GOATS process,
+    # on the host holding every user's credentials, so `import`, `open(` and
+    # dunder access are real escapes from the restricted namespace.
+    #
+    # On Data Lab none of that applies: the handler runs on the PI's own
+    # account, under their quota, with their credentials, and the account is
+    # the isolation. Blocking `import` there would reject code that is not
+    # merely harmless but *necessary* -- handlers are expected to import from
+    # the Data Lab stack, which is the whole reason for running them there.
+    #
+    # This is a deliberate loosening of what GOATS will accept, not an
+    # oversight: in `datalab` mode GOATS stops vetting handler content and
+    # relies on account isolation instead.
+    if not _handler_runs_remotely():
+        lowered = source.lower()
+        for forbidden in _FORBIDDEN_SUBSTRINGS:
+            if forbidden in lowered:
+                raise LocusHandlerError(
+                    f"Handler code contains a disallowed pattern: {forbidden!r}"
+                )
 
     try:
         tree = _ast.parse(source)
@@ -398,6 +385,25 @@ def validate_handler_code(source: str, user=None) -> None:
         `LocusHandlerRuntimeError`.
     """
     check_handler_source(source)
+
+    # No dry run when handlers execute remotely.
+    #
+    # The dry run below executes `myfilter` on *this* host. In `datalab`
+    # mode that is the wrong machine: the handler is written against the
+    # Data Lab stack, may import modules this host does not have, and runs
+    # there under a different interpreter. Running it here produces both
+    # false failures (a valid remote handler rejected at submit) and false
+    # passes (a handler that works here but not there), so the result would
+    # be actively misleading rather than merely absent.
+    #
+    # Structure -- parses, defines `myfilter`, right arity -- is checked
+    # above and is environment-independent, so it still applies. A handler
+    # that is wrong in a way only execution reveals now surfaces on its
+    # first window, through the same unhealthy banner a runtime failure
+    # already raises.
+    if _handler_runs_remotely():
+        return
+
     # Built here rather than inside run_locus_handler: this is a one-off
     # dry run, so the cost is paid once, and only when the handler
     # actually references the service.
@@ -595,9 +601,6 @@ def run_locus_handler(
     restricted_globals = {
         "__builtins__": _SAFE_BUILTINS,
         **_PREIMPORTED_MODULES,
-        # Built per run, bound to this subscription: the count must reflect
-        # the caller's own dashboard, not every user's rows added together.
-        "dashboard_locus_count": _make_dashboard_locus_count(subscription_id),
     }
     # Only pay for constructing RSP_tap_service (a real network call --
     # TAPService.__init__ probes the RSP TAP endpoint's /capabilities) if

@@ -143,7 +143,7 @@ class DataLabExecutor(StreamExecutor):
             )
         return str(token)
 
-    def start(self, subscription, generation: int) -> ExecutorHandle:
+    def start(self, subscription, generation: int) -> ExecutorHandle:  # noqa: C901
         """Launch one window for `subscription`.
 
         Notes
@@ -195,6 +195,15 @@ class DataLabExecutor(StreamExecutor):
             ),
         }
 
+        stale = list(
+            RemoteJob.objects.filter(
+                subscription=subscription, remote_dir_deleted=False
+            )
+            .exclude(status__in=(RemoteJob.Status.PENDING, RemoteJob.Status.RUNNING))
+            .values_list("pk", "job_id")[:20]
+        )
+        stale_ids = [job_id for _, job_id in stale]
+
         client = DataLabHeadlessClient(
             credentials["datalab_username"],
             credentials["jupyter_token"],
@@ -214,6 +223,10 @@ class DataLabExecutor(StreamExecutor):
                     "job_spec.json": json.dumps(spec),
                 },
                 job_id=job.job_id,
+                # Riding on this kernel rather than spawning one per
+                # cleanup. Marked below only after the launch succeeds, so a
+                # failed launch leaves them pending for the next attempt.
+                cleanup_job_ids=stale_ids,
             )
         except Exception as exc:
             job.status = RemoteJob.Status.FAILED
@@ -224,9 +237,28 @@ class DataLabExecutor(StreamExecutor):
         finally:
             client.close()
 
+        # Set here, unlike `LocalExecutor`, and the difference is
+        # deliberate. Locally `.send()` only enqueues, so marking the
+        # subscription running at submission time was a race -- the actor
+        # confirms startup instead. `launch()` has no such gap: it returns
+        # only after the launcher cell has reported the detached runner's
+        # PID, so the remote process is genuinely started by this point.
+        #
+        # It also has to be set, not merely nice to have: the supervisor
+        # selects subscriptions by `is_running`, so leaving it false means
+        # this job is never polled, never collected from, and never
+        # relaunched -- a window running on Data Lab with nothing watching
+        # it.
+        subscription.is_running = True
+        subscription.save(update_fields=["is_running"])
+
         job.session_id = handle.session_id
         job.kernel_id = handle.kernel_id
         job.remote_pid = handle.pid
+        if stale:
+            RemoteJob.objects.filter(pk__in=[pk for pk, _ in stale]).update(
+                remote_dir_deleted=True
+            )
         job.status = RemoteJob.Status.RUNNING
         job.last_heartbeat = timezone.now()
         job.save(
@@ -288,6 +320,22 @@ class DataLabExecutor(StreamExecutor):
                     logger.warning(
                         "Could not kill remote job %s.", job.job_id, exc_info=True
                     )
+                # Remove the job directory too. The supervisor does this
+                # when it polls or reaps a job, but a user-initiated stop
+                # takes neither path -- so without this, stopping ingestion
+                # leaves the notebook and logs on the PI's account with
+                # nothing that will ever come back for them.
+                try:
+                    client.delete_job_dir(job.job_id)
+                except Exception:
+                    logger.warning(
+                        "Could not delete remote job dir for %s.",
+                        job.job_id, exc_info=True,
+                    )
+
+            # Bulk update after the loop: these rows are terminal now, and
+            # marking them individually inside it would leave the set
+            # half-updated if a later kill raised.
             active.update(status=RemoteJob.Status.LOST, finished_at=timezone.now())
         finally:
             client.close()

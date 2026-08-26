@@ -70,8 +70,27 @@ STICKY_KEYS = ("kafka", "kafka_config", "environment")
 SECRET_FILES = ("job_spec.json",)
 CODE_FILES = ("runner.py", "mydb.py", "handler.py")
 
-# Rows per MyDB insert. Each insert is followed by an offset commit, so this
-# also sets how much work a crash can duplicate.
+# Seconds between progress writes to `status.json`.
+#
+# Without these the file changes only at startup and at the end, so a window
+# reports `seen=0` for its whole duration however much it is draining -- and,
+# worse, the supervisor derives liveness from the status file changing, so a
+# job that reports nothing for long enough is reaped as lost while working
+# perfectly. Fine for a ten-minute window, fatal for a continuous one.
+PROGRESS_SECONDS = 30.0
+
+# Seconds before an accumulated batch is written, regardless of size.
+#
+# This, not `BATCH_SIZE`, is what normally triggers a write. Waiting for a
+# fixed count meant a quiet topic held loci until the window ended -- over ten
+# minutes to reach a dashboard that shows them in about a second locally.
+FLUSH_SECONDS = 2.0
+
+# Upper bound on rows per insert. A burst backstop, not the usual trigger:
+# every write is an HTTP POST to the query service plus a Kafka commit, so a
+# firehose sending one request per locus would leave the runner waiting on
+# round trips instead of draining the stream. Each insert is followed by an
+# offset commit, so this also caps how much work a crash can duplicate.
 BATCH_SIZE = 200
 
 
@@ -483,6 +502,7 @@ def locus_to_row(locus, topic, spec, now):
         "magnitude": prop("newest_alert_magnitude", "mag"),
         "passband": prop("newest_alert_passband", "passband") or "",
         "topic": topic or "",
+        "latest_alert_id": prop("newest_alert_id") or "",
         "in_tns": bool(prop("in_tns")),
         # Strictly increasing; the VM pages on this when draining.
         "written_at": now,
@@ -519,10 +539,33 @@ def run_window(spec, job_dir):
         client.commit()
         del batch[:]
 
+    def maybe_flush(now):
+        """Write the batch if it is full or has waited long enough."""
+        nonlocal next_flush
+        if batch and (len(batch) >= BATCH_SIZE or now >= next_flush):
+            flush()
+            next_flush = now + FLUSH_SECONDS
+
+    next_progress = time.time() + PROGRESS_SECONDS
+    next_flush = time.time() + FLUSH_SECONDS
+
     try:
         while time.time() < deadline:
             topic, locus = client.poll(timeout=POLL_SECONDS)
+
+            # Written on a timer rather than per locus: it is the only
+            # liveness signal the supervisor has, so it must keep ticking
+            # through quiet stretches when no locus arrives at all.
+            if time.time() >= next_progress:
+                write_status(job_dir, "running", stage="draining",
+                             seen=seen, kept=kept)
+                next_progress = time.time() + PROGRESS_SECONDS
+
             if locus is None:
+                # Flush here too: without this, a locus arriving just before
+                # a quiet stretch waits for the *next* locus before being
+                # written, which on a slow topic could be minutes.
+                maybe_flush(time.time())
                 continue
             seen += 1
             try:
@@ -551,8 +594,7 @@ def run_window(spec, job_dir):
             if keep:
                 batch.append(locus_to_row(locus, topic, spec, stamp.next()))
                 kept += 1
-                if len(batch) >= BATCH_SIZE:
-                    flush()
+            maybe_flush(time.time())
         flush()
         return {"state": "finished", "seen": seen, "kept": kept}
     finally:

@@ -181,7 +181,21 @@ class JobHandle:
 # code with no opportunity to fail loudly, since nothing is listening by the
 # time it matters.
 _LAUNCHER_CELL = '''
-import json, os, subprocess, sys
+import json, os, shutil, subprocess, sys
+# Remove finished jobs' directories.
+#
+# Done here, on a kernel that is being spawned anyway, rather than from a
+# kernel of its own: every kernel stages a notebook and Jupyter drops an
+# `.ipynb_checkpoints` beside it, so a cleanup-only kernel creates litter
+# while clearing it. The contents API cannot do this at all -- it has no
+# recursive delete and, with `allow_hidden` false, cannot even see the
+# checkpoint directories that block a delete.
+for _stale in {cleanup!r}:
+    try:
+        shutil.rmtree(os.path.join(os.path.dirname(os.getcwd()), _stale),
+                      ignore_errors=True)
+    except Exception:
+        pass
 # The kernel's working directory is the directory of the notebook that
 # started the session, which is exactly where the runner was staged. Use it
 # rather than expanduser("~"): the contents API serves paths relative to the
@@ -422,6 +436,7 @@ class DataLabHeadlessClient:
         env: Optional[dict[str, str]] = None,
         job_id: Optional[str] = None,
         exec_timeout: float = 60.0,
+        cleanup_job_ids: Optional[list[str]] = None,
     ) -> JobHandle:
         """Stage a script and start it as a detached remote process.
 
@@ -443,6 +458,9 @@ class DataLabHeadlessClient:
             token and subscription/generation identifiers.
         job_id : str, optional
             Job identifier; generated if omitted.
+        cleanup_job_ids : list of str, optional
+            Directories of earlier, finished jobs to remove before starting.
+            Handled by the launcher cell so no extra kernel is needed.
         exec_timeout : float, optional
             Seconds to wait for the launcher cell to report a PID.
 
@@ -479,6 +497,7 @@ class DataLabHeadlessClient:
 
         # Steps 3-5: session, socket, detach.
         cell = _LAUNCHER_CELL.format(
+            cleanup=[str(x) for x in (cleanup_job_ids or [])],
 
             job_id=job_id,
             script_name=script_name,
@@ -556,6 +575,12 @@ class DataLabHeadlessClient:
                 "Install the server extra: pip install 'goats[server]'."
             ) from exc
 
+        # A caller-supplied path belongs to something with its own lifetime
+        # -- a job directory that is removed when the job is cleaned up. One
+        # generated here belongs to nothing, so it is removed below once the
+        # cell has run. Without that, every kill and every ad-hoc cell left a
+        # `cell-*.ipynb` on the PI's account permanently.
+        transient_notebook = notebook_path is None
         notebook_path = notebook_path or posixpath.join(
             self.config.job_root, f"cell-{uuid.uuid4().hex[:8]}.ipynb"
         )
@@ -616,6 +641,16 @@ class DataLabHeadlessClient:
             except Exception:
                 logger.debug("Ignoring error closing kernel websocket.", exc_info=True)
             self._delete_session(session_id)
+            if transient_notebook:
+                try:
+                    self._session.delete(
+                        f"{self._user}/contents/{notebook_path}",
+                        timeout=self.config.timeout,
+                    )
+                except requests.RequestException:
+                    logger.debug(
+                        "Could not remove %s.", notebook_path, exc_info=True
+                    )
 
         return pid, error, session_id, kernel_id
 
@@ -790,7 +825,7 @@ class DataLabHeadlessClient:
         return response.json().get("content")
 
     def delete_job_dir(self, job_id: str) -> bool:
-        """Delete a job's directory and everything in it.
+        """Delete a job's directory and everything beneath it.
 
         Parameters
         ----------
@@ -800,40 +835,60 @@ class DataLabHeadlessClient:
         Returns
         -------
         bool
-            Whether the directory is gone afterwards.
+            Whether the directory is gone afterwards. Verified by re-reading
+            the path rather than inferred from the delete response.
 
         Notes
         -----
         Call once the job's status and logs have been collected. The runner
         scrubs its own credentials and code, but the directory, notebook and
-        logs remain on the PI's account until this runs -- and the notebook
-        records what GOATS executed.
+        logs remain on the PI's account until this runs.
 
-        The contents API has no recursive delete, so children are removed
-        first. Failure is not raised: leaving a directory behind is untidy,
-        not dangerous, and must not abort a supervisor cycle.
+        Done from a kernel with `shutil.rmtree`, not through the contents
+        API. The API has no recursive delete, refuses to remove a non-empty
+        directory, and -- with ``allow_hidden`` false, the default -- cannot
+        even *see* hidden entries. So a `.ipynb_checkpoints` directory, which
+        Jupyter creates beside every notebook it opens, blocks the delete
+        while remaining invisible to any listing the API can produce. Walking
+        the tree over HTTP therefore cannot work in general, however many
+        requests it makes.
+
+        A kernel sees the real filesystem, so one `rmtree` call replaces the
+        whole walk. The cost is a kernel spawn per cleanup, which is
+        acceptable: this runs once per window, against a job that has already
+        finished, and the alternative is unbounded litter on the PI's own
+        storage.
+
+        Failure is not raised: an undeleted directory is untidy, not
+        dangerous, and must not abort a supervisor cycle.
         """
         directory = self._job_dir(job_id)
+        if not self._exists(directory):
+            return True
+
+        try:
+            _, error, _, _ = self._run_cell(
+                "import os, shutil\n"
+                f"shutil.rmtree(os.path.join(os.getcwd(), {job_id!r}), "
+                "ignore_errors=True)\n",
+                timeout=60.0,
+            )
+            if error:
+                logger.warning("Could not delete %s: %s", directory, error)
+        except Exception:
+            logger.warning("Could not delete %s.", directory, exc_info=True)
+            return False
+        return not self._exists(directory)
+
+    def _exists(self, path: str) -> bool:
+        """Whether `path` is still present on the notebook filesystem."""
         try:
             response = self._session.get(
-                f"{self._user}/contents/{directory}", timeout=self.config.timeout
-            )
-            if response.status_code == 404:
-                return True
-            response.raise_for_status()
-            for entry in response.json().get("content") or []:
-                path = entry.get("path")
-                if path:
-                    self._session.delete(
-                        f"{self._user}/contents/{path}", timeout=self.config.timeout
-                    )
-            self._session.delete(
-                f"{self._user}/contents/{directory}", timeout=self.config.timeout
+                f"{self._user}/contents/{path}", timeout=self.config.timeout
             )
         except requests.RequestException:
-            logger.warning("Could not delete job dir %s.", directory, exc_info=True)
-            return False
-        return True
+            return True
+        return response.status_code != 404
 
     def job_status(self, job_id: str) -> dict[str, Any]:
         """Read a job's status file.

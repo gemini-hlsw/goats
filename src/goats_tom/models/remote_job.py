@@ -77,6 +77,12 @@ class RemoteJob(models.Model):
     error : `models.TextField`
         Reason and traceback when the runner failed, so a PI can see why
         their handler aborted without an administrator reading remote logs.
+    remote_dir_deleted : `models.BooleanField`
+        Whether this job's directory on Data Lab has been removed. Cleanup
+        rides on the *next* launch rather than happening here, so this
+        records what is still outstanding. The runner cannot remove its own
+        directory: the VM reads `status.json` after the process exits, which
+        is where `loci_seen` and any error come from.
     launched_at, finished_at : `models.DateTimeField`
         Window boundaries as observed by the VM.
     """
@@ -117,6 +123,7 @@ class RemoteJob(models.Model):
     loci_kept = models.PositiveIntegerField(default=0)
     error = models.TextField(null=True, blank=True)
 
+    remote_dir_deleted = models.BooleanField(default=False)
     launched_at = models.DateTimeField(auto_now_add=True)
     finished_at = models.DateTimeField(null=True, blank=True)
 

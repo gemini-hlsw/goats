@@ -34,6 +34,14 @@ def antares_url(
     """
     base = f"{ANTARESConfig.get_url()}/loci"
 
+    # A bare string is accepted as well as a list. Iterating a string yields
+    # single characters, none of which can start with "ANT", so a caller
+    # passing one locus id would silently fall through to the bare /loci
+    # page -- with the link text still correct, since templates render the
+    # id separately. Normalising here fixes that at the point where the
+    # assumption actually lives.
+    if isinstance(names, str):
+        names = [names]
     locus_id = next((n for n in names or [] if n and n.startswith("ANT")), None)
     if locus_id:
         return f"{base}/{quote(locus_id)}"

@@ -1,6 +1,7 @@
 """Tests for the registration, popup, editor and routing fixes."""
 
 import pytest
+from django.test import override_settings
 from django.contrib.auth.models import Group, User
 from django.urls import reverse
 
@@ -342,71 +343,117 @@ class TestOwnPageBannerIsolation:
 
 
 @pytest.mark.django_db()
-class TestDashboardLocusCountScoping:
-    """`dashboard_locus_count()` counts only the caller's own dashboard."""
+class TestDashboardLocusCountRemoved:
+    """`dashboard_locus_count()` no longer exists in any form.
 
-    def _two_dashboards(self):
-        from goats_tom.models import AntaresLocus
+    Removed when the loci limit became `AntaresStreamSubscription.max_loci`,
+    enforced in `upsert_locus_row`. The count is a fact about GOATS's own
+    database, and a handler running on Data Lab cannot see it -- so the same
+    handler behaved differently depending on where it ran. Enforcing on the
+    GOATS side also means the limit cannot be evaded by editing a staged
+    handler.
+    """
 
-        pi_a = User.objects.create_user("counta")
-        pi_b = User.objects.create_user("countb")
-        sub_a = AntaresStreamSubscription.objects.create(owner=pi_a, topics=["a"])
-        sub_b = AntaresStreamSubscription.objects.create(owner=pi_b, topics=["b"])
-        for i in range(2):
-            AntaresLocus.objects.create(
-                subscription=sub_a, locus_id=f"A{i}", ra=1.0, dec=2.0,
-                latest_alert_id="x",
-            )
-        for i in range(5):
-            AntaresLocus.objects.create(
-                subscription=sub_b, locus_id=f"B{i}", ra=1.0, dec=2.0,
-                latest_alert_id="x",
-            )
-        return sub_a, sub_b
+    def test_name_is_not_bound_in_handlers(self):
+        """A handler still calling it must fail loudly, not silently pass."""
+        from goats_tom.antares_locus_handler import (
+            LocusHandlerRuntimeError,
+            run_locus_handler,
+        )
 
-    def test_counts_only_own_rows(self):
-        """Regression test: this used to count every subscription's loci.
-
-        Loci became per-subscription, but the counter stayed an unscoped
-        `objects.count()` -- so a handler written as "stop once my dashboard
-        has N" fired on other people's traffic, and the number leaked how busy
-        other users were.
-        """
-        from goats_tom.antares_locus_handler import _make_dashboard_locus_count
-
-        sub_a, sub_b = self._two_dashboards()
-        assert _make_dashboard_locus_count(sub_a.pk)() == 2
-        assert _make_dashboard_locus_count(sub_b.pk)() == 5
-
-    def test_unscoped_returns_zero(self):
-        """The form's dry run has no subscription, so any number is a lie."""
-        from goats_tom.antares_locus_handler import _make_dashboard_locus_count
-
-        self._two_dashboards()
-        assert _make_dashboard_locus_count()() == 0
-
-    def test_handler_sees_the_scoped_count(self):
-        """The name reaches user code bound to the right subscription."""
-        from goats_tom.antares_locus_handler import run_locus_handler
-
-        sub_a, _ = self._two_dashboards()
         source = (
             "def myfilter(locus):\n"
-            "    return dashboard_locus_count() == 2\n"
+            "    return dashboard_locus_count() < 10\n"
         )
-        assert run_locus_handler(source, object(), subscription_id=sub_a.pk)
+        with pytest.raises(LocusHandlerRuntimeError, match="dashboard_locus_count"):
+            run_locus_handler(source, object(), subscription_id=1)
+
+    def test_builder_is_gone(self):
+        """No leftover private helper to be rebound by accident."""
+        import goats_tom.antares_locus_handler as mod
+
+        assert not hasattr(mod, "_make_dashboard_locus_count")
+
+    def test_not_mentioned_anywhere_the_user_can_see(self):
+        """Skeleton and help text must not advertise a name that is gone."""
+        form = AntaresStreamSubscribeForm()
+        assert "dashboard_locus_count" not in (
+            AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON
+        )
+        assert "dashboard_locus_count" not in str(
+            form.fields["handler_code"].help_text
+        )
+
+
+@pytest.mark.django_db()
+class TestHandlerValidationIsModeDependent:
+    """Handler vetting depends on where the handler will actually run.
+
+    Locally a handler executes inside the GOATS process, on the host holding
+    every user's credentials, so `import` and friends are real escapes from
+    the restricted namespace. On Data Lab it runs under the PI's own account
+    and quota, which is the isolation -- and handlers are *expected* to
+    import from the Data Lab stack, so the ban would reject necessary code.
+    """
+
+    IMPORTS = "import math\ndef myfilter(locus):\n    return math.isfinite(locus.ra)\n"
+    BROKEN = "def myfilter(locus)\n    return True\n"
+    NO_FUNC = "def other(locus):\n    return True\n"
+
+    def test_import_blocked_locally(self):
+        from goats_tom.antares_locus_handler import (
+            LocusHandlerError,
+            check_handler_source,
+        )
+
+        with pytest.raises(LocusHandlerError, match="disallowed pattern"):
+            check_handler_source(self.IMPORTS)
+
+    @override_settings(GOATS_STREAM_EXECUTOR="datalab")
+    def test_import_allowed_remotely(self):
+        from goats_tom.antares_locus_handler import check_handler_source
+
+        check_handler_source(self.IMPORTS)
+
+    @override_settings(GOATS_STREAM_EXECUTOR="datalab")
+    def test_structure_still_checked_remotely(self):
+        """Syntax and `myfilter` are environment-independent, so they stay."""
+        from goats_tom.antares_locus_handler import (
+            LocusHandlerError,
+            check_handler_source,
+        )
+
+        with pytest.raises(LocusHandlerError, match="Syntax error"):
+            check_handler_source(self.BROKEN)
+        with pytest.raises(LocusHandlerError, match="myfilter"):
+            check_handler_source(self.NO_FUNC)
+
+    @override_settings(GOATS_STREAM_EXECUTOR="datalab")
+    def test_no_server_side_dry_run_remotely(self, monkeypatch):
+        """Executing here would give both false passes and false failures."""
+        import goats_tom.antares_locus_handler as mod
+
+        ran = []
+        monkeypatch.setattr(
+            mod, "run_locus_handler", lambda *a, **k: ran.append(1) or True
+        )
+        mod.validate_handler_code("def myfilter(locus):\n    return True\n")
+        assert not ran
+
+    def test_dry_run_still_happens_locally(self, monkeypatch):
+        import goats_tom.antares_locus_handler as mod
+
+        ran = []
+        monkeypatch.setattr(
+            mod, "run_locus_handler", lambda *a, **k: ran.append(1) or True
+        )
+        mod.validate_handler_code("def myfilter(locus):\n    return True\n")
+        assert ran
 
 
 @pytest.mark.django_db()
 class TestHelpTextAndSkeletonContent:
     """The skeleton documents the helpers; the help text stays short."""
-
-    def test_skeleton_shows_dashboard_count_example(self):
-        """A helper nobody knows how to call may as well not exist."""
-        assert (
-            "dashboard_locus_count() >= 10"
-            in AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON
-        )
 
     def test_skeleton_shows_rsp_example(self):
         """Likewise the TAP query, which is the harder one to guess."""

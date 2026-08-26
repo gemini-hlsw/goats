@@ -46,7 +46,12 @@ a set of long-lived consumers from starving every other GOATS background
 task; see `ANTARES_QUEUE_NAME`.
 """
 
-__all__ = ["ingest_antares_stream", "get_antares_kafka_login"]
+__all__ = [
+    "upsert_locus_row",
+    "LocusCapReached",
+    "ingest_antares_stream",
+    "get_antares_kafka_login",
+]
 
 import logging
 
@@ -67,7 +72,7 @@ from goats_tom.antares_target_save import (
     SaveLocusError,
     save_locus_as_target,
 )
-from goats_tom.models import AntaresLocus
+from goats_tom.models import AntaresLocus, AntaresStreamSubscription
 
 logger = logging.getLogger(__name__)
 
@@ -662,6 +667,72 @@ def _upsert_locus(subscription_id: int, locus, topic: str | None = None) -> None
     if newest_alert_id is not None:
         field_updates["latest_alert_id"] = newest_alert_id
 
+    upsert_locus_row(subscription_id, locus.locus_id, field_updates)
+
+
+class LocusCapReached(Exception):
+    """Raised when a subscription has reached its `max_loci` limit.
+
+    Notes
+    -----
+    An exception rather than a silent skip so both callers must decide what
+    to do. Quietly dropping loci would make a capped subscription
+    indistinguishable from a broken one.
+    """
+
+
+def upsert_locus_row(subscription_id: int, locus_id: str, field_updates: dict) -> None:
+    """Create or update one `AntaresLocus` staging row.
+
+    Parameters
+    ----------
+    subscription_id : int
+        Primary key of the owning subscription. Rows are unique per
+        ``(subscription, locus_id)``.
+    locus_id : str
+        ANTARES locus identifier.
+    field_updates : dict
+        Column values to write.
+
+    Notes
+    -----
+    Lifted verbatim out of `_upsert_locus` so both ingestion paths share one
+    writer: the local consumer, which builds `field_updates` from a live
+    `Locus` object, and the Data Lab supervisor, which builds the same
+    mapping from rows pulled out of a PI's MyDB. Only the *construction* of
+    `field_updates` differs between them; the write must not, or the two
+    paths would drift and the dashboard would show different columns
+    depending on where a locus happened to arrive from.
+
+    Enforces `AntaresStreamSubscription.max_loci`, raising `LocusCapReached`
+    when the limit is met. Enforced **here**, at the single point both paths
+    write through, rather than in the handler: the count is a property of
+    GOATS's own database, and the remote handler runs on a machine that
+    cannot see it. Putting the check in the writer also means the limit
+    cannot be evaded by editing a staged handler, since it is applied on this
+    side of the boundary.
+
+    Updates to a locus already on the dashboard are always allowed -- the cap
+    limits how many distinct loci are held, not how often each refreshes, so
+    a capped subscription still shows current magnitudes for what it has.
+
+    The transaction and locking reasoning below is unchanged from when this
+    was inline.
+    """
+    cap = (
+        AntaresStreamSubscription.objects.filter(pk=subscription_id)
+        .values_list("max_loci", flat=True)
+        .first()
+    )
+    if cap:
+        existing = AntaresLocus.objects.filter(subscription_id=subscription_id)
+        if not existing.filter(locus_id=locus_id).exists():
+            if existing.count() >= cap:
+                raise LocusCapReached(
+                    f"Subscription {subscription_id} has reached its limit of "
+                    f"{cap} loci."
+                )
+
     with transaction.atomic():
         # Note: no select_for_update() here. Confirmed via Django's own
         # `connection.features.has_select_for_update` (False on SQLite,
@@ -677,7 +748,7 @@ def _upsert_locus(subscription_id: int, locus, topic: str | None = None) -> None
         # concurrent processing).
         row, created = AntaresLocus.objects.get_or_create(
             subscription_id=subscription_id,
-            locus_id=locus.locus_id,
+            locus_id=locus_id,
             defaults=field_updates,
         )
         if not created:
@@ -935,7 +1006,6 @@ def ingest_antares_stream(
                             handler_code,
                             locus,
                             rsp_tap_service=rsp_tap_service,
-                            # So `dashboard_locus_count()` reports this
                             # dashboard's rows, not every subscription's.
                             subscription_id=subscription_id,
                         )
@@ -955,7 +1025,16 @@ def ingest_antares_stream(
                         continue
 
                 try:
-                    _upsert_locus(subscription_id, locus, topic)
+                    try:
+                        _upsert_locus(subscription_id, locus, topic)
+                    except LocusCapReached as exc:
+                        # Not an error: the subscription did what the user
+                        # asked. Stop consuming rather than spinning on a
+                        # stream whose every locus will now be refused.
+                        logger.info("%s Stopping the consumer.", exc)
+                        _record_handler_warning(subscription_id, str(exc))
+                        _mark_not_running(subscription_id)
+                        return
 
                     # Skipped only when this owner has a recorded save AND
                     # a target still exists -- see `_auto_save_already_done`.

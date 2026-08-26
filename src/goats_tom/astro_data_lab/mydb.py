@@ -62,6 +62,12 @@ LOCI_SCHEMA: dict[str, str] = {
     "magnitude": "double precision",
     "passband": "text",
     "topic": "text",
+    # The dashboard shows this column, so a remotely ingested locus would
+    # display a blank Alert ID without it. Added before rollout because MyDB
+    # schema changes cannot be applied in lockstep across 300 personal
+    # databases: `ensure_table` refuses a table whose columns do not match,
+    # so a later addition would strand every account created before it.
+    "latest_alert_id": "text",
     "in_tns": "boolean",
     "written_at": "double precision",
 }
@@ -613,14 +619,23 @@ class MyDBClient:
         return rows
 
     def finish_drain(self, drain_table: str) -> None:
-        """Drop a drained table.
+        """Drop a drained table, tolerating one that is already gone.
 
         Warnings
         --------
         Call **only** after the rows are committed to `AntaresLocus`. The
         runner has already advanced its Kafka offsets past them, so anything
         dropped before ingest is gone for good.
+
+        Notes
+        -----
+        A missing table is not an error here. This is called on every cycle,
+        including ones that collected nothing, and refusing to clean up
+        because there was nothing to clean up would be the wrong shape -- and
+        would leave callers writing the same try/except around every call.
         """
+        if not any(drain_table == t.strip() for t in self.list_tables()):
+            return
         self.drop(drain_table)
 
 def _parse_schema_listing(raw: Any) -> list[str]:

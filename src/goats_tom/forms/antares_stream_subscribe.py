@@ -13,7 +13,10 @@ from goats_tom.antares_locus_handler import (
     is_effectively_blank,
     validate_handler_code,
 )
-from goats_tom.models.antares_stream_subscription import DEFAULT_MAX_TRIGGERS
+from goats_tom.models.antares_stream_subscription import (
+    DEFAULT_MAX_LOCI,
+    DEFAULT_MAX_TRIGGERS,
+)
 
 
 class AntaresStreamSubscribeForm(forms.Form):
@@ -158,28 +161,35 @@ class AntaresStreamSubscribeForm(forms.Form):
         ),
     )
 
+    max_loci = forms.IntegerField(
+        # "blank for no limit" lives in the label rather than a `help_text`
+        # line of its own: it is a property of the field, not advice about
+        # it, and a whole rendered line for four words is not worth it.
+        label="Maximum loci to keep on the dashboard (leave blank for no limit)",
+        required=False,
+        min_value=1,
+        # Pre-filled for the same reason as `max_triggers`: blank means *no
+        # limit*, so an empty box on a fresh page quietly grants an unbounded
+        # dashboard to anyone who never noticed the field.
+        initial=DEFAULT_MAX_LOCI,
+        widget=forms.NumberInput(attrs={"style": "max-width: 10rem;"}),
+    )
+
     use_handler_code = forms.BooleanField(
+        # This checkbox is the editor's header: the separate "Custom locus
+        # handler (optional)" label below it said the same thing again, and
+        # the two stacked with a gap between them. `handler_code` therefore
+        # renders with no label of its own -- see below.
         label="Use a custom locus handler",
         required=False,
-        help_text=(
-            "Leave unchecked to ingest every locus on the subscribed topics. "
-            "Tick this to apply the filter below."
-        ),
     )
 
     HANDLER_CODE_SKELETON = (
         "def myfilter(locus):\n"
-        "    # Return True to keep this locus, False to skip it.\n"
-        "    # Available by name (no 'import'): numpy, pandas, astropy,\n"
-        "    # astroquery, dashboard_locus_count(), RSP_tap_service.\n"
         "    #\n"
         "    # Example -- keep only alerts brighter than magnitude 19:\n"
         "    #     mag = locus.properties.get(\"newest_alert_magnitude\") or 99\n"
         "    #     if mag > 19:\n"
-        "    #         return False\n"
-        "    #\n"
-        "    # Stop once the dashboard holds 10 loci:\n"
-        "    #     if dashboard_locus_count() >= 10:\n"
         "    #         return False\n"
         "    #\n"
         "    # Query Rubin catalogs (needs a stored RSP access token):\n"
@@ -195,7 +205,9 @@ class AntaresStreamSubscribeForm(forms.Form):
     )
 
     handler_code = forms.CharField(
-        label="Custom locus handler (optional)",
+        # Deliberately unlabelled: the checkbox immediately above names this
+        # field, and repeating it cost two lines and a gap for no meaning.
+        label="",
         required=False,
         widget=forms.Textarea(
             attrs={
@@ -211,15 +223,13 @@ class AntaresStreamSubscribeForm(forms.Form):
             '<a href="https://nsf-noirlab.gitlab.io/csdc/antares/client/'
             'api.html#antares_client.models.Locus" target="_blank" '
             'rel="noopener noreferrer">the Locus API</a> for available '
-            "attributes. numpy, pandas, astropy, and astroquery are "
-            "available by name. 'import' is blocked, along with file "
-            "access, eval/exec. <code>dashboard_locus_count()</code> "
-            "returns how many loci are currently on the dashboard. "
-            "<code>RSP_tap_service</code> (if you've stored an "
-            "{rsp_token_link}) queries Rubin catalog data. See "
-            '<a href="https://sdm-schemas.lsst.io/" target="_blank" '
-            'rel="noopener noreferrer">here</a> for tables and schemas '
-            "for Rubin data products."
+            "attributes. If running locally, 'import' is blocked, along "
+            "with file access, eval/exec, but numpy, pandas, astropy, and "
+            "astroquery are available by name. <code>RSP_tap_service</code> "
+            "(if you've stored an {rsp_token_link}) queries Rubin catalog "
+            'data. See <a href="https://sdm-schemas.lsst.io/" '
+            'target="_blank" rel="noopener noreferrer">here</a> for tables '
+            "and schemas for Rubin data products."
         ),
     )
 

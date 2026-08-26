@@ -282,6 +282,7 @@ def antares_stream_subscribe(request):
                 gpp_program_id=form.cleaned_data.get("gpp_program_id", ""),
                 gpp_observation_id=form.cleaned_data.get("gpp_observation_id", ""),
                 max_triggers=form.cleaned_data.get("max_triggers"),
+                max_loci=form.cleaned_data.get("max_loci"),
                 gpp_observation_overrides=form.cleaned_data.get(
                     "gpp_observation_overrides"
                 )
@@ -356,6 +357,7 @@ def antares_stream_subscribe(request):
                     current.trigger_gemini_observations
                 )
                 initial["max_triggers"] = current.max_triggers
+                initial["max_loci"] = current.max_loci
                 _apply_template_initial(initial, current)
                 initial["handler_code"] = current.handler_code
         form = AntaresStreamSubscribeForm(initial=initial, user=request.user)
@@ -371,6 +373,10 @@ def antares_stream_subscribe(request):
             # unticked; blank means unlimited, so an empty box is a hazard
             # rather than a neutral default.
             "default_max_triggers": DEFAULT_MAX_TRIGGERS,
+            # For the editor's Reset button; defined once on the form
+            # so the button restores exactly what a new subscription
+            # starts with, rather than a copy that could drift.
+            "handler_code_skeleton": AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON,
             # Supplied even for owners: a PI who is also a member of another
             # PI's group needs the switcher too.
             "available_dashboards": list(

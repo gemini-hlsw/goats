@@ -391,6 +391,39 @@ bare "X is not defined" in the console.
   editorDiv.id = "antares-handler-code-editor";
   textarea.insertAdjacentElement("afterend", editorDiv);
 
+  // Placed on the "Use a custom locus handler" row, not on a bar of its own.
+  //
+  // That checkbox is the editor's header now, so the button belongs beside
+  // it: a row of its own added a line and left the button floating with
+  // nothing to associate it with. Rendered as a quiet link so it does not
+  // compete with the form's submit button.
+  var handlerToggle = document.getElementById("id_use_handler_code");
+  var formCheck = handlerToggle
+    ? handlerToggle.closest(".form-check") || handlerToggle.parentElement
+    : null;
+  if (formCheck) {
+    // Wrapped, not restyled.
+    //
+    // Making the `.form-check` itself a flex row with
+    // `justify-content-between` stretched it to full width and pushed its
+    // three children to the far edges -- checkbox hard left, label adrift in
+    // the middle, Reset against the page margin. The checkbox and its label
+    // have to stay one unit, so the flex row goes *around* the untouched
+    // `.form-check` and Reset trails it.
+    var row = document.createElement("div");
+    row.className = "d-flex align-items-baseline gap-3";
+    formCheck.insertAdjacentElement("beforebegin", row);
+    row.appendChild(formCheck);
+    formCheck.classList.add("mb-0");
+
+    var resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.id = "antares-handler-reset";
+    resetButton.className = "btn btn-link btn-sm p-0 text-decoration-none";
+    resetButton.textContent = "Reset to template";
+    row.appendChild(resetButton);
+  }
+
   var editor = ace.edit(editorDiv.id);
   editor.session.setMode("ace/mode/python");
   editor.setValue(textarea.value, -1); // -1 moves cursor to start
@@ -400,7 +433,7 @@ bare "X is not defined" in the console.
     // Both require ext-language_tools.js (loaded above) -- without it
     // these options are silently ignored. Basic = Ctrl+Space on demand;
     // live = suggestions appear as you type, which is the point here:
-    // the available names (RSP_tap_service, dashboard_locus_count, the
+    // the available names (RSP_tap_service, the
     // Locus attributes) aren't guessable, so surfacing them while
     // typing is the whole discoverability win.
     enableBasicAutocompletion: true,
@@ -435,7 +468,7 @@ bare "X is not defined" in the console.
 
   // Completions for the names actually available inside handler code.
   // Kept deliberately in sync with what `goats_tom.antares_locus_handler`
-  // really pre-binds (see `_PREIMPORTED_MODULES`, `_dashboard_locus_count`,
+  // really pre-binds (see `_PREIMPORTED_MODULES`,
   // and `build_rsp_tap_service`) plus the ANTARES `Locus` attributes --
   // suggesting a name that isn't genuinely bound would be worse than
   // suggesting nothing, since it'd fail only at submission/runtime.
@@ -446,12 +479,6 @@ bare "X is not defined" in the console.
     { caption: "astropy", value: "astropy", meta: "pre-bound package" },
     { caption: "astroquery", value: "astroquery", meta: "pre-bound package" },
     // GOATS-provided helpers.
-    {
-      caption: "dashboard_locus_count",
-      snippet: "dashboard_locus_count()",
-      meta: "GOATS helper",
-      docText: "Number of loci currently on the dashboard.",
-    },
     {
       caption: "RSP_tap_service",
       snippet:
@@ -574,6 +601,29 @@ bare "X is not defined" in the console.
   // and dimmed to match -- otherwise it invites edits that would silently do
   // nothing. The boilerplate stays visible and selectable either way, so it
   // can still be read and copied before deciding to use it.
+  // Reset the editor to the starter template.
+  //
+  // The skeleton comes from the server (the same constant the form uses for
+  // a new subscription) rather than being duplicated here, so the button
+  // cannot drift out of step with what a fresh subscription actually starts
+  // with. Confirmed first: this discards whatever the PI has written, and an
+  // accidental click after an hour of editing would be unrecoverable -- the
+  // editor has no undo across a full setValue.
+  var resetBtn = document.getElementById("antares-handler-reset");
+  var HANDLER_SKELETON = "{{ handler_code_skeleton|escapejs }}";
+  if (resetBtn) {
+    resetBtn.addEventListener("click", function () {
+      if (!window.confirm(
+        "Replace the handler with the starter template? Your current code " +
+        "will be lost."
+      )) {
+        return;
+      }
+      editor.setValue(HANDLER_SKELETON, -1);
+      editor.focus();
+    });
+  }
+
   var useHandler = document.getElementById("id_use_handler_code");
   if (useHandler) {
     var syncHandlerEditorState = function () {
@@ -583,6 +633,10 @@ bare "X is not defined" in the console.
       editor.renderer.$cursorLayer.element.style.display = enabled
         ? ""
         : "none";
+      // Resetting is an edit, so it follows the same rule as the editor.
+      if (resetBtn) {
+        resetBtn.disabled = !enabled;
+      }
     };
     syncHandlerEditorState();
     useHandler.addEventListener("change", syncHandlerEditorState);

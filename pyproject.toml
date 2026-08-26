@@ -76,6 +76,11 @@ server = [
     # This is the client for that socket, needed solely by
     # goats_tom.astro_data_lab.headless.
     "websocket-client>=1.7,<2",
+    # The Data Lab client. Needed on the **VM**, not only on Data Lab: the
+    # server mints a science token per launch and drains each PI's MyDB, both
+    # through `dl`. Wrapped by goats_tom.astro_data_lab.mydb, which imports it
+    # lazily so a desktop install never loads it.
+    "astro-datalab>=2.20",
 ]
 
 [project.urls]
