@@ -1,5 +1,4 @@
 from django.urls import include, path
-from tom_alerts.views import BrokerQueryListView
 from tom_common.api_router import SharedAPIRootRouter
 from tom_tns.urls import urlpatterns as tom_tns_urls
 
@@ -93,7 +92,7 @@ urlpatterns = [
         views.ObservationRecordDeleteView.as_view(),
         name="delete",
     ),
-    path("brokers/list/", BrokerQueryListView.as_view(), name="list"),
+    path("brokers/list/", views.BrokerQueryListView.as_view(), name="list"),
     path(
         "users/<int:pk>/generate_token/",
         views.UserGenerateTokenView.as_view(),
@@ -140,6 +139,19 @@ urlpatterns = [
         name="template-create",
     ),
     path("targets/<int:pk>/", views.TargetDetailView.as_view(), name="detail"),
+    # Override the TOM list views to add date ordering; these must come before
+    # the `tom_common.urls` include so they win the URL match.
+    path("targets/", views.TargetListView.as_view(), name="target-list"),
+    path(
+        "alerts/query/list/",
+        views.BrokerQueryListView.as_view(),
+        name="brokerquery-list",
+    ),
+    path(
+        "observations/template/list/",
+        views.ObservationTemplateListView.as_view(),
+        name="observation-template-list",
+    ),
     path("tns/", include(tom_tns_urls)),
     path(
         "targets/<int:target_id>/refresh-antares/",

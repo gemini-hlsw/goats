@@ -1,5 +1,6 @@
 from goats_tom.views.antares import RefreshAntaresPhotometryView
 from goats_tom.views.astro_datalab import AstroDatalabView
+from goats_tom.views.brokerquery_list import BrokerQueryListView
 from goats_tom.views.brokerquery_name import update_brokerquery_name
 from goats_tom.views.dataproduct_delete import DataProductDeleteView
 from goats_tom.views.dataproduct_upload import DataProductUploadView
@@ -20,9 +21,11 @@ from goats_tom.views.logins import (
 from goats_tom.views.observation_record_delete import ObservationRecordDeleteView
 from goats_tom.views.observation_record_detail import ObservationRecordDetailView
 from goats_tom.views.observation_template_create import ObservationTemplateCreateView
+from goats_tom.views.observation_template_list import ObservationTemplateListView
 from goats_tom.views.status import status_view
 from goats_tom.views.target_delete import TargetDeleteView
 from goats_tom.views.target_detail import TargetDetailView
+from goats_tom.views.target_list import TargetListView
 from goats_tom.views.tasks import ongoing_tasks
 from goats_tom.views.user_generate_token import UserGenerateTokenView
 
@@ -50,4 +53,7 @@ __all__ = [
     "TNSLoginView",
     "status_view",
     "RefreshAntaresPhotometryView",
+    "TargetListView",
+    "BrokerQueryListView",
+    "ObservationTemplateListView",
 ]
