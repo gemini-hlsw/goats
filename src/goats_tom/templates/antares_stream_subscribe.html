@@ -416,6 +416,19 @@ bare "X is not defined" in the console.
     row.appendChild(formCheck);
     formCheck.classList.add("mb-0");
 
+    // Close the gap above the editor.
+    //
+    // Crispy puts the checkbox and the textarea in two separate
+    // `.form-group` wrappers, each carrying its own bottom margin, while
+    // every other field has its label and input inside one. That doubled
+    // spacing is what set the editor further from its heading than the
+    // fields above it are from theirs. Dropping the margin on the
+    // checkbox's wrapper makes the pair space like a single field.
+    var toggleGroup = row.closest(".form-group");
+    if (toggleGroup) {
+      toggleGroup.classList.add("mb-0");
+    }
+
     var resetButton = document.createElement("button");
     resetButton.type = "button";
     resetButton.id = "antares-handler-reset";
