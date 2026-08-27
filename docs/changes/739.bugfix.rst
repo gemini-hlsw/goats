@@ -1,0 +1,1 @@
+Fixed the GPP observations list failing after GPP removed long slit offsets

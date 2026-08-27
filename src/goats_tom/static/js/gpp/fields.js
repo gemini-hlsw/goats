@@ -418,7 +418,7 @@ function generateGmosLongSlitFields(site) {
     },
     {
       labelText: "Spatial Offsets",
-      path: `${obsPath}.offsets`,
+      path: obsPath,
       id: "spatialOffsets",
       suffix: "arcsec",
       handler: "handleSpatialOffsetsList",

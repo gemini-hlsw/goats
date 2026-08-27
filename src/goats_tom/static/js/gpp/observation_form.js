@@ -101,7 +101,11 @@ class ObservationForm {
         return [div];
       },
       handleSpatialOffsetsList: (meta, raw) => {
-        const values = raw?.map((o) => o.arcseconds.toFixed(2)) ?? [];
+        // GPP only fills the explicit configs when the user overrode the defaults.
+        const configs =
+          raw?.explicitTelescopeConfigs ?? raw?.defaultTelescopeConfigs;
+        const values =
+          configs?.alongSlit?.map((o) => o.q.arcseconds.toFixed(2)) ?? [];
         return [this.#createFormField({ ...meta, value: values.join(", ") })];
       },
       handleWavelengthDithersList: (meta, raw) => {
