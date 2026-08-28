@@ -1,3 +1,4 @@
+from goats_tom.forms.form_schema import describe_field, describe_form
 from goats_tom.forms.goa_query import GOAQueryForm
 from goats_tom.forms.logins import (
     AstroDatalabLoginForm,
@@ -8,6 +9,8 @@ from goats_tom.forms.logins import (
 )
 
 __all__ = [
+    "describe_field",
+    "describe_form",
     "GOAQueryForm",
     "TNSLoginForm",
     "AstroDatalabLoginForm",

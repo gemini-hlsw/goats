@@ -21,6 +21,8 @@ from tom_observations.facilities.soar import SOARSettings
 
 from goats_tom.context.user_context import get_current_user_id
 
+from .blanco import GOATSBLANCOImagingObservationForm
+
 logger = logging.getLogger(__name__)
 
 
@@ -242,7 +244,8 @@ class BLANCOFacility(
     InferDataProductTypeMixin, UserAwareFacilityMixin, BaseBLANCOFacility
 ):
     """
-    BLANCO facility with per-user API keys.
+    BLANCO facility with per-user API keys, serving the GOATS form.
     """
 
     settings_cls = UserAwareBLANCOSettings
+    observation_forms = {"IMAGING": GOATSBLANCOImagingObservationForm}
