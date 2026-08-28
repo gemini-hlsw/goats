@@ -47,7 +47,12 @@ CADENCE_FIELDS = ["period", "jitter"]
 CONFIGURATION_FIELDS = [
     "c_{index}_instrument_type",
     "c_{index}_configuration_type",
+    "c_{index}_target_override",
 ]
+
+#: The configuration field that only means something when the request's
+#: target keeps company: it substitutes another target of the same group.
+TARGET_OVERRIDE = "c_{index}_target_override"
 
 #: A reading order for the instrument parameters; the rest follow as declared.
 PARAMETER_ORDER = [
@@ -123,6 +128,17 @@ def _messages(form: Any) -> dict[str, list[str]]:
         name: [error["message"] for error in errors]
         for name, errors in form.errors.get_json_data().items()
     }
+
+
+def _configuration_fields(form: Any, index: int) -> list[str]:
+    """What a configuration asks for, in the order the portal asks it."""
+    names = [name.format(index=index) for name in CONFIGURATION_FIELDS]
+    override = TARGET_OVERRIDE.format(index=index)
+    # A target that keeps no company has nothing to be substituted by: the
+    # only target on offer would be the one the request already names.
+    if len(form.fields[override].choices) < 2:
+        names.remove(override)
+    return names
 
 
 def _ordered(parameters: dict[str, dict], order: list[str]) -> list[str]:
@@ -232,7 +248,7 @@ class BLANCOObservationViewSet(ViewSet):
                     "id": index,
                     "fields": describe_form(
                         form,
-                        [name.format(index=index) for name in CONFIGURATION_FIELDS]
+                        _configuration_fields(form, index)
                         + [
                             f"c_{index}_{EXTRA}_{parameter}"
                             for parameter in _ordered(

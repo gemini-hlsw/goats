@@ -253,3 +253,28 @@ def test_a_bound_the_chosen_instrument_sets_is_refused(form_class, target):
     assert form_class(
         data=filled(target, c_1_instrument_type=DECAM, c_1_ic_1_exposure_time="120")
     ).is_valid()
+
+
+def test_a_configuration_observes_the_target_substituted_for_it(form_class, target):
+    """The toolkit builds the target block; what it builds it from is ours."""
+    from tom_targets.models import TargetList
+
+    companion = SiderealTargetFactory.create(name="the other one")
+    group = TargetList.objects.create(name="a group")
+    group.targets.set([target, companion])
+
+    form = form_class(data=filled(target, c_1_target_override=str(companion.id)))
+    assert form.is_valid(), form.errors
+
+    configuration = form.observation_payload()["requests"][0]["configurations"][0]
+
+    assert configuration["target"]["name"] == "the other one"
+
+
+def test_a_configuration_left_alone_observes_the_request_s_target(form_class, target):
+    form = form_class(data=filled(target))
+    assert form.is_valid(), form.errors
+
+    configuration = form.observation_payload()["requests"][0]["configurations"][0]
+
+    assert configuration["target"]["name"] == target.name

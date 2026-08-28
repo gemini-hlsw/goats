@@ -49,6 +49,7 @@ PORTAL_HELP = {
 CONFIGURATION_LABELS = {
     "instrument_type": "Instrument",
     "configuration_type": "Type",
+    "target_override": "Target",
     "max_airmass": "Maximum Airmass",
     "min_lunar_distance": "Minimum Lunar Separation",
     "max_lunar_phase": "Maximum Lunar Phase",

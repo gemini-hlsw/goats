@@ -257,3 +257,43 @@ def test_a_check_needs_a_target_like_everything_else(client):
     )
 
     assert response.status_code == 400
+
+
+@pytest.mark.django_db()
+def test_a_configuration_can_be_given_a_target_of_its_own(client, target):
+    """The portal lets a configuration observe another target of the group,
+    which is what a request of several configurations is usually for."""
+    from tom_targets.models import TargetList
+
+    companion = SiderealTargetFactory.create(name="the other one")
+    group = TargetList.objects.create(name="a group")
+    group.targets.set([target, companion])
+
+    configuration = client.get(
+        reverse("blancoobservations-list"), {"target_id": target.id}
+    ).json()["sections"][1]["instances"][0]
+
+    override = next(
+        field
+        for field in configuration["fields"]
+        if field["name"] == "c_1_target_override"
+    )
+
+    assert override["label"] == "Target"
+    assert [choice["label"] for choice in override["choices"]] == [
+        target.name,
+        "the other one",
+    ]
+
+
+@pytest.mark.django_db()
+def test_a_target_that_keeps_no_company_is_not_asked_to_be_substituted(client, target):
+    """The only target on offer would be the one the request already names."""
+    names = [
+        field["name"]
+        for field in client.get(
+            reverse("blancoobservations-list"), {"target_id": target.id}
+        ).json()["sections"][1]["instances"][0]["fields"]
+    ]
+
+    assert "c_1_target_override" not in names
