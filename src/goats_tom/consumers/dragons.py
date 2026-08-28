@@ -6,6 +6,8 @@ import json
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 
+from goats_tom.consumers.auth import _is_authenticated
+
 
 class DRAGONSConsumer(WebsocketConsumer):
     """A WebSocket consumer that handles sending update to connected clients on the
@@ -21,7 +23,20 @@ class DRAGONSConsumer(WebsocketConsumer):
     group_name = "dragons_group"
 
     def connect(self) -> None:
-        """Adds this consumer to the DRAGONS group upon WebSocket connection."""
+        """Join the DRAGONS group, if the connection is authenticated.
+
+        Notes
+        -----
+        Same reasoning as `goats_tom.consumers.UpdatesConsumer.connect`:
+        WebSockets bypass Django's middleware, so `AUTH_STRATEGY` does not
+        protect this and the check has to happen here. DRAGONS reduction
+        progress names files and runs, which is not something to hand to an
+        anonymous connection on a shared server.
+        """
+        if not _is_authenticated(self.scope.get("user")):
+            self.close()
+            return
+
         async_to_sync(self.channel_layer.group_add)(self.group_name, self.channel_name)
         self.accept()
 

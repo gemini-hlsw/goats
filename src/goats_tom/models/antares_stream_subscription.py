@@ -277,6 +277,15 @@ class AntaresStreamSubscription(models.Model):
     is_running = models.BooleanField(default=False)
     last_handler_warning = models.TextField(blank=True, default="")
     last_handler_warning_at = models.DateTimeField(null=True, blank=True)
+    # Whether the last notice reports a fault or a normal outcome.
+    #
+    # The banner previously inferred this from `is_running`: any stopped
+    # subscription with a message showed it in red as an "Ingestion error".
+    # That was right for a crash and wrong for reaching a loci limit the
+    # user set themselves, which is the system doing exactly as asked.
+    # Defaults to True so every existing caller keeps reporting faults as
+    # faults without being touched.
+    last_handler_warning_is_error = models.BooleanField(default=True)
     generation = models.PositiveIntegerField(default=0)
     run_number = models.PositiveIntegerField(default=0, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)

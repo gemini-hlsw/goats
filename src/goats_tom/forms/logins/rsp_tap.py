@@ -27,13 +27,7 @@ class RSPTapLoginForm(forms.ModelForm):
         widgets = {
             "access_token": forms.PasswordInput(attrs={"class": "form-control"}),
         }
-        help_texts = {
-            "access_token": mark_safe(
-                "Used to query Rubin catalog data (via the TAP service) "
-                "from custom ANTARES locus handler code. See "
-                '<a href="https://rsp.lsst.io/guides/auth/'
-                'creating-user-tokens.html" target="_blank" '
-                'rel="noopener noreferrer">Creating user tokens</a> for '
-                "how to create one."
-            ),
-        }
+        # No help text: it repeated the description under the heading
+        # almost word for word, and the field is a single token box that
+        # needs no explanation of its own.
+        help_texts = {"access_token": ""}

@@ -1,0 +1,39 @@
+{% comment %}
+Share this observation record with one of your groups.
+
+An observation and its files are private to the PI who triggered them. This
+panel shares the *record* -- that the observation exists, and its status --
+without releasing the data. Sharing the files is a separate action on the
+data product table below, deliberately: coordinating on a target should not
+require handing over proprietary data.
+
+Shown only to someone who may change the record, so a collaborator given
+sight of an observation cannot pass it on to a third group.
+{% endcomment %}
+{% if can_share_observation and shareable_groups %}
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="post" action="{% url 'share-observation-record' object.id %}"
+          class="d-flex align-items-center flex-wrap gap-2 mb-0">
+      {% csrf_token %}
+      <label for="observation-share-groups" class="mb-0 me-2">
+        Share this observation with
+      </label>
+      <select name="groups" id="observation-share-groups"
+              class="form-control form-control-sm w-auto" multiple size="1"
+              aria-label="Groups to share this observation with">
+        {% for group in shareable_groups %}
+        <option value="{{ group.pk }}">{{ group.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" name="action" value="share"
+              class="btn btn-sm btn-outline-primary">Share</button>
+      <button type="submit" name="action" value="unshare"
+              class="btn btn-sm btn-outline-secondary">Unshare</button>
+      <span class="text-muted small ms-2">
+        Shares the record only. Data products are shared separately.
+      </span>
+    </form>
+  </div>
+</div>
+{% endif %}

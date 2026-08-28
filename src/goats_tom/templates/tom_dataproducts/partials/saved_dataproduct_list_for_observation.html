@@ -3,9 +3,30 @@
 {% if products_page.has_other_pages %}
   {% bootstrap_pagination products_page parameter_name="page_saved" %}
 {% endif%}
+{% comment %}
+The whole table sits inside the sharing form so a single submit can carry
+either one checked row or every file on the observation.
+
+A GOA download routinely produces dozens of files, so per-row sharing alone
+would be tedious enough that people would avoid it -- and data nobody shares
+because sharing is annoying is the same outcome as data they could not share
+at all.
+
+No "shared with" column: it would repeat a group name on every row of a long
+table for information that is rarely what the reader came for.
+{% endcomment %}
+<form method="post" action="{% url 'share-data-products' observation_record.id %}"
+      id="dataproduct-share-form">
+  {% csrf_token %}
 <table class="table table-striped">
   <thead>
     <tr>
+      {% if can_share_observation and shareable_groups %}
+      <th style="width: 2rem;">
+        <input type="checkbox" id="dataproduct-select-all"
+               aria-label="Select all data products on this page">
+      </th>
+      {% endif %}
       <th>File</th>
       <th>Type</th>
       <th>Created</th>
@@ -15,6 +36,13 @@
   <tbody>
     {% for product in products_page %}
     <tr>
+      {% if can_share_observation and shareable_groups %}
+      <td>
+        <input type="checkbox" name="products" value="{{ product.id }}"
+               class="dataproduct-select"
+               aria-label="Select {{ product }} for sharing">
+      </td>
+      {% endif %}
       <td><a href="{{ product.data.url }}">{{ product }}</a></td>
       <td>{% dataproduct_type_dropdown product %}</td>
       <td>{{ product.created }}</td>
@@ -29,6 +57,41 @@
     {% endfor %}
   </tbody>
 </table>
+{% if can_share_observation and shareable_groups and products_page %}
+<div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+  <label for="dataproduct-share-groups" class="mb-0 me-2">Share selected with</label>
+  <select name="groups" id="dataproduct-share-groups"
+          class="form-control form-control-sm w-auto" multiple size="1"
+          aria-label="Groups to share these data products with">
+    {% for group in shareable_groups %}
+    <option value="{{ group.pk }}">{{ group.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" name="action" value="share"
+          class="btn btn-sm btn-outline-primary">Share</button>
+  <button type="submit" name="action" value="unshare"
+          class="btn btn-sm btn-outline-secondary">Unshare</button>
+  {% comment %}
+  Applies to every file on the observation, not just the current page --
+  which is why it is a separate button rather than the select-all checkbox,
+  whose scope is visibly the page it sits on.
+  {% endcomment %}
+  <button type="submit" name="all_products" value="1"
+          class="btn btn-sm btn-outline-primary ms-2">Share all files</button>
+</div>
+{% endif %}
+</form>
 {% if products_page.has_other_pages %}
   {% bootstrap_pagination products_page parameter_name="page_saved" %}
 {% endif%}
+<script>
+  (function () {
+    var all = document.getElementById("dataproduct-select-all");
+    if (!all) return;
+    all.addEventListener("change", function () {
+      document
+        .querySelectorAll(".dataproduct-select")
+        .forEach(function (box) { box.checked = all.checked; });
+    });
+  })();
+</script>

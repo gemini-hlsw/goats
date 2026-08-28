@@ -54,6 +54,8 @@
 
 {% include "partials/antares_dashboard_status.html" %}
 
+{% include "partials/antares_remote_jobs.html" %}
+
 <div id="antares-locus-table-container">
   {% include "partials/antares_locus_table.html" %}
 </div>
@@ -180,6 +182,12 @@
     checkboxes.forEach(function (cb) {
       params.append("locus_id", cb.value);
     });
+    // Same reason as the table's own refresh: without the subscription this
+    // poll resolves the viewer's own dashboard and reports saved status for
+    // the wrong set of loci.
+    {% if current_subscription %}
+    params.append("subscription", "{{ current_subscription.pk }}");
+    {% endif %}
 
     fetch("{% url 'antares-locus-saved-status' %}?" + params.toString())
       .then(function (resp) {

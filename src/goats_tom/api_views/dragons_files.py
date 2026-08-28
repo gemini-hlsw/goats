@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from goats_tom.scoping import ScopedQuerySetMixin
 from goats_tom.filters import AstrodataFilter
 from goats_tom.models import DRAGONSFile
 from goats_tom.serializers import (
@@ -18,6 +19,7 @@ from goats_tom.serializers import (
 
 
 class DRAGONSFilesViewSet(
+    ScopedQuerySetMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
     mixins.UpdateModelMixin,
@@ -30,6 +32,12 @@ class DRAGONSFilesViewSet(
     serializer_class = DRAGONSFileSerializer
     filter_serializer_class = DRAGONSFileFilterSerializer
     permission_classes = [IsAuthenticated]
+    # Scoped by the data products being reduced, not by the target.
+    # Observation records are shared with collaborators on a target so
+    # everyone can see what was triggered; the files stay private to
+    # whoever triggered them, and a reduction belongs with its files.
+    # See `goats_tom.scoping`.
+    dataproduct_path = "data_product"
     queryset = DRAGONSFile.objects.all()
 
     def get_queryset(self) -> QuerySet:

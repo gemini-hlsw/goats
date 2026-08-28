@@ -16,15 +16,24 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from tom_dataproducts.models import DataProduct
 
+from goats_tom.scoping import ScopedQuerySetMixin
 from goats_tom.models import DRAGONSRun
 from goats_tom.serializers import DRAGONSProcessedFilesSerializer, HeaderSerializer
 from goats_tom.utils import delete_associated_data_products
 
 
 class DRAGONSProcessedFilesViewSet(
+    ScopedQuerySetMixin,
     mixins.RetrieveModelMixin, GenericViewSet, mixins.UpdateModelMixin
 ):
     """A viewset for displaying the processed files of a `DRAGONSRun`."""
+
+    # Scoped by the data products being reduced, not by the target.
+    # Observation records are shared with collaborators on a target so
+    # everyone can see what was triggered; the files stay private to
+    # whoever triggered them, and a reduction belongs with its files.
+    # See `goats_tom.scoping`.
+    dataproduct_path = "observation_record__dataproduct"
 
     queryset = DRAGONSRun.objects.all()
     serializer_class = DRAGONSProcessedFilesSerializer

@@ -114,11 +114,18 @@
         <a class="nav-link" href="{% url 'login' %}" title="Sign in to GOATS or request an account">Login / Register</a>
       </li>
       {% endif %}
+      {% comment %}
+      Desktop installs only -- see `GOATS_SHOW_SHUTDOWN`. On a shared server
+      this button would let one PI stop everyone's ingestion.
+      {% endcomment %}
+      {% show_shutdown_button as show_shutdown %}
+      {% if show_shutdown %}
       <li class="nav-item">
         <button id="shutdownBtn" class="nav-link px-md-2 py-2" title="Shut down GOATS">
           <i class="fa-solid fa-power-off fa-lg"></i><span class="d-md-none ms-2">Shut Down</span>
         </button>
       </li>
+      {% endif %}
     </ul>
   </div>
 </div>

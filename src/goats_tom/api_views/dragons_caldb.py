@@ -7,16 +7,25 @@ import bz2
 from rest_framework import mixins, permissions
 from rest_framework.viewsets import GenericViewSet
 
+from goats_tom.scoping import ScopedQuerySetMixin
 from goats_tom.models import DRAGONSRun
 from goats_tom.serializers import DRAGONSCaldbSerializer
 
 
 class DRAGONSCaldbViewSet(
+    ScopedQuerySetMixin,
     mixins.UpdateModelMixin,
     mixins.RetrieveModelMixin,
     GenericViewSet,
 ):
     """A viewset for updating the `DRAGONSRun` calibration database."""
+
+    # Scoped by the data products being reduced, not by the target.
+    # Observation records are shared with collaborators on a target so
+    # everyone can see what was triggered; the files stay private to
+    # whoever triggered them, and a reduction belongs with its files.
+    # See `goats_tom.scoping`.
+    dataproduct_path = "observation_record__dataproduct"
 
     queryset = DRAGONSRun.objects.all()
     serializer_class = DRAGONSCaldbSerializer

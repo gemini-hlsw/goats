@@ -1,5 +1,7 @@
 __all__ = ["RSPTapLoginView"]
 
+from django.utils.safestring import mark_safe
+
 from goats_tom.forms import RSPTapLoginForm
 from goats_tom.models import RSPTapLogin
 
@@ -17,10 +19,13 @@ class RSPTapLoginView(BaseLoginView):
     """
 
     service_name = "RSP TAP"
-    service_description = (
+    service_description = mark_safe(
         "Provide your Rubin Science Platform (RSP) access token to query "
         "Rubin catalog data from custom ANTARES locus handler code via "
-        "the TAP service."
+        "the TAP service. See "
+        '<a href="https://rsp.lsst.io/guides/auth/creating-user-tokens.html" '
+        'target="_blank" rel="noopener noreferrer">Creating user tokens</a> '
+        "for how to create one."
     )
     model_class = RSPTapLogin
     form_class = RSPTapLoginForm

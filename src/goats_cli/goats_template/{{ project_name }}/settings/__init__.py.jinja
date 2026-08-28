@@ -26,6 +26,11 @@ in the following sequence:
       - Optional environment-specific overrides.
       - Selected using the GOATS_ENV environment variable.
       - Defaults to "production".
+      - "production" is what the desktop, single-astronomer install runs
+        under. A shared, internet-facing deployment serving many PIs should
+        use "server" instead, which locks the site behind a login, pins the
+        hostname and requires HTTPS -- all of which would break a laptop
+        install, which is why they are not in "production".
 
 5. local.py
       - User overrides.
@@ -36,6 +41,7 @@ Usage
 To select an environment:
 
     GOATS_ENV=production python manage.py runserver
+    GOATS_ENV=server python manage.py runserver
     GOATS_ENV=cli goats run
 
 In most installations, only local.py is modified.
@@ -55,6 +61,11 @@ try:
         from .environments.production import *
     elif env == "cli":
         from .environments.cli import *
+    elif env == "server":
+        # Shared, internet-facing deployment. Deliberately a separate
+        # environment from `production`, which the desktop install also
+        # uses: the hardening in here would break a laptop install.
+        from .environments.server import *
     # For unknown values, we currently do nothing. You can switch this
     # to raising an error if you want strict behavior.
 except ImportError:

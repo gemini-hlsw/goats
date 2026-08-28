@@ -77,7 +77,14 @@ CODE_FILES = ("runner.py", "mydb.py", "handler.py")
 # worse, the supervisor derives liveness from the status file changing, so a
 # job that reports nothing for long enough is reaped as lost while working
 # perfectly. Fine for a ten-minute window, fatal for a continuous one.
-PROGRESS_SECONDS = 30.0
+#
+# Short, and deliberately shorter than it needs to be for liveness alone.
+# Loci reach MyDB every `FLUSH_SECONDS` and the supervisor collects them
+# every 15 seconds, so at 30 seconds the dashboard filled with loci while the
+# counts beside it still read zero -- the panel contradicting the table it
+# sits above. This is a small write to local disk, so matching the flush
+# cadence costs nothing.
+PROGRESS_SECONDS = 5.0
 
 # Seconds before an accumulated batch is written, regardless of size.
 #
@@ -424,7 +431,51 @@ def build_streaming_client(spec, strip=STRIP_KAFKA_OPTIONS):
     return client, report
 
 
-def load_handler(path):
+def build_rsp_tap_service(token):
+    """Build a `pyvo.dal.TAPService` for the Rubin Science Platform.
+
+    Parameters
+    ----------
+    token : str or None
+        The PI's RSP access token, passed in the job spec.
+
+    Returns
+    -------
+    `pyvo.dal.TAPService` or None
+        `None` if no token was supplied or the service cannot be built.
+        Handlers must check for `None`, exactly as they do locally.
+
+    Notes
+    -----
+    Mirrors `goats_tom.antares_locus_handler.build_rsp_tap_service`: the
+    token goes in as an HTTP Basic Auth password with username
+    ``x-oauth-basic``, per RSP's external-access documentation.
+
+    Duplicated rather than imported because this file runs on Data Lab with
+    no `goats_tom` package available. The two must be changed together, and
+    the shared piece -- the token itself -- travels in the job spec.
+
+    Returning `None` on failure rather than raising is deliberate: an
+    unreachable TAP service is an environment problem, not a fault in the
+    PI\'s handler, and raising here would abort the window and mark the
+    subscription unhealthy for something they did not do.
+    """
+    if not token:
+        return None
+    try:
+        import pyvo
+        from pyvo.auth import AuthSession
+
+        session = AuthSession()
+        session.credentials.set_password("x-oauth-basic", token)
+        return pyvo.dal.TAPService(
+            "https://data.lsst.cloud/api/tap", session=session
+        )
+    except Exception:
+        return None
+
+
+def load_handler(path, extra_globals=None):
     """Import the PI's handler module and return its ``myfilter``.
 
     Raises
@@ -443,6 +494,11 @@ def load_handler(path):
     """
     spec = importlib.util.spec_from_file_location("goats_handler", path)
     module = importlib.util.module_from_spec(spec)
+    # Injected before execution so module-level code can use them too, and
+    # so a handler referring to `RSP_tap_service` resolves the same name it
+    # would locally.
+    for name, value in (extra_globals or {}).items():
+        setattr(module, name, value)
     spec.loader.exec_module(module)
     handler = getattr(module, "myfilter", None)
     if not callable(handler):
@@ -516,7 +572,10 @@ def run_window(spec, job_dir):
     db = mydb.MyDBClient(spec["datalab_token"])
     db.ensure_table(table)
 
-    handler = load_handler(os.path.join(job_dir, "handler.py"))
+    handler = load_handler(
+        os.path.join(job_dir, "handler.py"),
+        {"RSP_tap_service": build_rsp_tap_service(spec.get("rsp_token"))},
+    )
 
     client, kafka_report = build_streaming_client(
         spec, strip=tuple(spec.get("strip_kafka_options", STRIP_KAFKA_OPTIONS))
@@ -615,7 +674,10 @@ def preview(spec, job_dir):
     """
     from antares_client import search
 
-    handler = load_handler(os.path.join(job_dir, "handler.py"))
+    handler = load_handler(
+        os.path.join(job_dir, "handler.py"),
+        {"RSP_tap_service": build_rsp_tap_service(spec.get("rsp_token"))},
+    )
     locus = search.get_by_id(spec["preview_locus_id"])
     if locus is None:
         return {"state": "failed", "reason": "locus not found"}

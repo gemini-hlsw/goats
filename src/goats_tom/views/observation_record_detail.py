@@ -31,6 +31,21 @@ class ObservationRecordDetailView(BaseObservationRecordDetailView):
         facility.set_user(self.request.user)
         observation_record = self.get_object()
 
+        # Sharing controls for the observation and its data products.
+        #
+        # Both templates need the same two values, so they are worked out
+        # once here rather than in each. `shareable_groups` is the user's own
+        # groups: the select element must not offer a collaboration they have
+        # nothing to do with, and the view re-checks it besides, since a
+        # select element is not a security boundary.
+        context["can_share_observation"] = (
+            self.request.user.is_superuser
+            or self.request.user.has_perm(
+                "tom_observations.change_observationrecord", observation_record
+            )
+        )
+        context["shareable_groups"] = self.request.user.groups.all()
+
         context["editable"] = isinstance(facility, BaseManualObservationFacility)
         context["data_products"] = facility.all_data_products(self.object)
         context["can_be_cancelled"] = (

@@ -98,6 +98,11 @@ class RemoteJob(models.Model):
         # heartbeat went stale, so what went wrong is unknown. Worth telling
         # apart, because FAILED carries a reason and this does not.
         LOST = "lost", "Lost"
+        # Distinct from LOST, which it used to share. Stopping ingestion is
+        # something the user chose, and reporting it as "Lost" made a normal
+        # action look like a fault -- the one word on the dashboard that
+        # should never worry someone who just clicked Stop.
+        STOPPED = "stopped", "Stopped"
 
     subscription = models.ForeignKey(
         "goats_tom.AntaresStreamSubscription",

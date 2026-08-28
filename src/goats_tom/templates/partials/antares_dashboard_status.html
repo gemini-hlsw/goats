@@ -1,6 +1,16 @@
 {% load antares_locus_extras %}
+{% comment %}
+The poll carries `subscription`, and the markup it returns carries it again.
+
+Without it each refresh re-resolved the dashboard with nothing named, and
+`get_subscription_for_view` falls back to the viewer's own subscription -- so
+a member who selected another PI's dashboard saw the right banner for about
+three seconds before their own replaced it. Restoring it here is not enough
+on its own: the returned partial replaces this element, so the parameter has
+to survive into the new markup or it is lost after a single refresh.
+{% endcomment %}
 <div id="antares-dashboard-status"
-     hx-get="{% url 'antares-dashboard-status' %}"
+     hx-get="{% url 'antares-dashboard-status' %}{% if current_subscription %}?subscription={{ current_subscription.pk }}{% endif %}"
      hx-trigger="every 3s"
      hx-swap="outerHTML">
 {% if current_subscription and current_subscription.topics %}
@@ -30,10 +40,20 @@
   <strong>Warning</strong> (as of {{ current_subscription.last_handler_warning_at }}):
   <div class="font-monospace" style="white-space: pre-wrap;">{{ current_subscription.last_handler_warning }}</div>
 </div>
-{% else %}
+{% elif current_subscription.last_handler_warning_is_error %}
 <div class="alert alert-danger">
   <strong>Ingestion error</strong> (as of {{ current_subscription.last_handler_warning_at }}):
   <div class="font-monospace" style="white-space: pre-wrap;">{{ current_subscription.last_handler_warning }}</div>
+</div>
+{% else %}
+{% comment %}
+Stopped for a reason the user chose -- reaching their own loci limit. Styled
+as information, not as a failure: nothing went wrong, and a red "Ingestion
+error" for a limit working correctly is alarming for no reason.
+{% endcomment %}
+<div class="alert alert-info">
+  <strong>Ingestion stopped</strong> (as of {{ current_subscription.last_handler_warning_at }}):
+  <div style="white-space: pre-wrap;">{{ current_subscription.last_handler_warning }}</div>
 </div>
 {% endif %}
 {% endif %}

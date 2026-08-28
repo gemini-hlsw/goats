@@ -610,7 +610,7 @@ class TestRequestAccessEmptyStates:
         """Nothing to request yet."""
         client.force_login(stranger)
         response = client.get(reverse("antares-request-access"))
-        assert b"no PI has stored ANTARES" in response.content
+        assert b"no dashboards to request yet" in response.content
 
     def test_message_after_requesting_everything(
         self, client, stranger, pi_group
@@ -629,5 +629,5 @@ class TestRequestAccessEmptyStates:
         # No banner for this case any more -- the "Your requests" table below
         # already says it, with more detail. The "nothing exists" message must
         # still not appear, since something does exist.
-        assert b"no PI has stored ANTARES" not in response.content
+        assert b"no dashboards to request yet" not in response.content
         assert b"Your requests" in response.content

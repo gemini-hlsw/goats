@@ -7,6 +7,7 @@ from dramatiq_abort import abort
 from rest_framework import mixins, permissions
 from rest_framework.viewsets import GenericViewSet
 
+from goats_tom.scoping import ScopedQuerySetMixin
 from goats_tom.models import DRAGONSReduce
 from goats_tom.realtime import DRAGONSProgress, NotificationInstance
 from goats_tom.serializers import (
@@ -18,12 +19,19 @@ from goats_tom.tasks import run_dragons_reduce
 
 
 class DRAGONSReduceViewSet(
+    ScopedQuerySetMixin,
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.CreateModelMixin,
     mixins.UpdateModelMixin,
     GenericViewSet,
 ):
+    # Scoped by the data products being reduced, not by the target.
+    # Observation records are shared with collaborators on a target so
+    # everyone can see what was triggered; the files stay private to
+    # whoever triggered them, and a reduction belongs with its files.
+    # See `goats_tom.scoping`.
+    dataproduct_path = "recipe__dragons_run__observation_record__dataproduct"
     queryset = DRAGONSReduce.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     filter_serializer_class = DRAGONSReduceFilterSerializer

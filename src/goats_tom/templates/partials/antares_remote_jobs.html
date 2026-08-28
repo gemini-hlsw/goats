@@ -1,0 +1,25 @@
+{% comment %}
+Recent Astro Data Lab processing for this subscription.
+
+Rendered only in `datalab` mode -- `remote_jobs` is empty otherwise (see
+`goats_tom.views.antares_locus_dashboard._recent_remote_jobs`), so a desktop
+install shows nothing rather than an empty panel explaining a feature it does
+not have.
+
+Collapsed by default: diagnostic detail, not the point of the page.
+
+The refreshing region is the inner body partial, deliberately *inside* the
+collapse rather than wrapping it. Swapping the collapse itself every fifteen
+seconds would snap the panel shut under anyone reading it.
+{% endcomment %}
+{% if remote_jobs %}
+<div class="mb-3">
+  <a class="small text-muted" data-bs-toggle="collapse" href="#antares-remote-jobs"
+     role="button" aria-expanded="false" aria-controls="antares-remote-jobs">
+    Processing state on Data Lab
+  </a>
+  <div class="collapse" id="antares-remote-jobs">
+    {% include "partials/antares_remote_jobs_body.html" %}
+  </div>
+</div>
+{% endif %}

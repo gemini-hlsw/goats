@@ -253,8 +253,13 @@ def _mark_unhealthy(subscription, status) -> None:
         "stopped and those alerts will be retried once the handler is fixed."
     )
     subscription.last_handler_warning_at = timezone.now()
+    subscription.last_handler_warning_is_error = True
     subscription.save(
-        update_fields=["last_handler_warning", "last_handler_warning_at"]
+        update_fields=[
+            "last_handler_warning",
+            "last_handler_warning_at",
+            "last_handler_warning_is_error",
+        ]
     )
 
 
@@ -326,29 +331,63 @@ def _collect(executor, subscription) -> None:
             break
         accepted += 1
 
+    if capped:
+        # The drain table is deliberately left in place.
+        #
+        # Dropping it here discarded every row the cap would not admit --
+        # and those rows were unrecoverable, because the runner commits its
+        # Kafka offsets when it writes them, so ANTARES considers them
+        # delivered and will not send them again. Raising the limit could
+        # not bring them back.
+        #
+        # `rotate_for_drain` returns a pre-existing drain table instead of
+        # rotating again, so the rows simply wait there until the cap is
+        # raised, and are ingested on the next cycle.
+        logger.info(
+            "Collected %d loci for subscription %s (%d rejected); cap "
+            "reached, %d row(s) held in the drain table.",
+            accepted, subscription.pk, rejected, len(rows) - accepted,
+        )
+        _stop_at_cap(executor, subscription)
+        return
+
     # Only after every accepted row is committed.
     executor.finish_collect(subscription)
     logger.info(
-        "Collected %d loci for subscription %s (%d rejected%s).",
-        accepted, subscription.pk, rejected, ", cap reached" if capped else "",
+        "Collected %d loci for subscription %s (%d rejected).",
+        accepted, subscription.pk, rejected,
     )
-    if capped:
-        _stop_at_cap(subscription)
 
 
-def _stop_at_cap(subscription) -> None:
+def _stop_at_cap(executor, subscription) -> None:
     """Stop a subscription that has reached `max_loci`.
 
     Notes
     -----
-    Clearing `is_running` is what actually halts the cycle: no further windows
-    are launched, and the running one ends at its own deadline. Any loci it
-    writes in the meantime are simply refused on the next collection.
+    Stops the remote job as well as clearing `is_running`. Clearing the flag
+    alone only stops the *VM* -- the runner carries on draining Kafka,
+    committing offsets and writing rows that will be refused, spending the
+    PI's quota to produce nothing. It also left the dashboard contradicting
+    itself: the subscription showed "Stopped" while its job showed "Running".
+
+    Stopping the runner has a second benefit. Alerts it has not yet consumed
+    keep their offsets uncommitted, so ANTARES redelivers them once the limit
+    is raised, rather than them passing by while nobody is allowed to accept
+    them.
 
     The user asked for this, so it is reported through the same banner as a
     handler warning rather than as a failure -- and the subscription can be
     restarted from the UI once they raise the limit or clear the dashboard.
     """
+    try:
+        executor.stop(subscription)
+    except Exception:
+        # Never fatal: the job ends at its own deadline regardless, and
+        # `generation` fencing makes anything it writes meanwhile unusable.
+        logger.warning(
+            "Could not stop remote job(s) for subscription %s at its cap.",
+            subscription.pk, exc_info=True,
+        )
     subscription.is_running = False
     subscription.last_handler_warning = (
         f"Ingestion stopped: the dashboard has reached its limit of "
@@ -356,9 +395,15 @@ def _stop_at_cap(subscription) -> None:
         "the dashboard, then start ingestion again."
     )
     subscription.last_handler_warning_at = timezone.now()
+    # Not a fault: the limit did what the user set it to do, so the banner
+    # renders as information rather than as a red "Ingestion error".
+    subscription.last_handler_warning_is_error = False
     subscription.save(
         update_fields=[
-            "is_running", "last_handler_warning", "last_handler_warning_at"
+            "is_running",
+            "last_handler_warning",
+            "last_handler_warning_at",
+            "last_handler_warning_is_error",
         ]
     )
     logger.info("Subscription %s stopped at its loci cap.", subscription.pk)

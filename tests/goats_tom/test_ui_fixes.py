@@ -227,7 +227,11 @@ class TestRequestAccessBanner:
         user = User.objects.create_user("emptyuser", password="pw-long-enough-1")
         client.force_login(user)
         response = client.get(reverse("antares-request-access"))
-        assert b"no PI has stored ANTARES" in response.content
+        # Asserts the message survives, not its wording. The explanatory
+        # clause was dropped because the reason a dashboard list is empty is
+        # not a user's problem to reason about; the point of this test is
+        # that the page still says something rather than rendering blank.
+        assert b"no dashboards to request yet" in response.content
 
 
 @pytest.mark.django_db()

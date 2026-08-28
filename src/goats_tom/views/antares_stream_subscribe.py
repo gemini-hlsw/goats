@@ -129,6 +129,30 @@ def _requested_subscription_id(request):
         return None
 
 
+def _stream_runs_remotely() -> bool:
+    """Whether ANTARES stream processing runs on Astro Data Lab.
+
+    Returns
+    -------
+    bool
+        `True` when ``GOATS_STREAM_EXECUTOR`` selects the Data Lab executor.
+
+    Notes
+    -----
+    Imported inside the function to keep `goats_tom.executors` off this
+    module's import path, and read through the same helper the executor seam
+    uses so the page cannot disagree with where jobs actually run.
+    """
+    from goats_tom.executors import DATALAB, resolve_executor_name  # noqa: PLC0415
+
+    try:
+        return resolve_executor_name() == DATALAB
+    except Exception:
+        # A misconfigured setting should not take down the subscription
+        # page; the worst outcome here is a missing hint.
+        return False
+
+
 def _render_read_only(request, subscription):
     """Render the ingestion page as a read-only view of somebody else's setup.
 
@@ -227,11 +251,25 @@ def antares_stream_subscribe(request):
     # broker query page (see `goats_tom.brokers.antares`).
     wants_own_page = request.GET.get("mine") == "1"
 
-    if current is None and not wants_own_page:
-        viewing = get_subscription_for_view(
-            request.user, _requested_subscription_id(request)
-        )
-        if viewing is not None:
+    # Read-only when looking at somebody else's configuration.
+    #
+    # Keyed on *which* subscription was asked for, not on whether the user
+    # happens to own one. The previous `current is None` guard meant the
+    # branch became unreachable the moment a member acquired a subscription
+    # of their own: the switcher still offered other dashboards, but choosing
+    # one silently rendered the user's own configuration under the other PI's
+    # name, and "View ingestion configuration" led back to their own page.
+    requested_id = _requested_subscription_id(request)
+    viewing_other = (
+        requested_id is not None
+        and (current is None or requested_id != current.pk)
+    )
+    if (viewing_other or current is None) and not wants_own_page:
+        viewing = get_subscription_for_view(request.user, requested_id)
+        # Only ever read-only for a subscription that is not theirs; a user
+        # who names their own pk in the query string still gets the editable
+        # page.
+        if viewing is not None and (current is None or viewing.pk != current.pk):
             return _render_read_only(request, viewing)
 
     if request.method == "POST" and request.POST.get("action") == "stop":
@@ -377,6 +415,11 @@ def antares_stream_subscribe(request):
             # so the button restores exactly what a new subscription
             # starts with, rather than a copy that could drift.
             "handler_code_skeleton": AntaresStreamSubscribeForm.HANDLER_CODE_SKELETON,
+            # Whether stream processing runs on Astro Data Lab rather than
+            # here, which decides whether the PI needs to store Data Lab
+            # credentials. Shown only when true: on a desktop install those
+            # credentials play no part, and the advice would be noise.
+            "stream_runs_remotely": _stream_runs_remotely(),
             # Supplied even for owners: a PI who is also a member of another
             # PI's group needs the switcher too.
             "available_dashboards": list(
@@ -427,11 +470,22 @@ def antares_stream_status(request):
     # Without this the fallback below filled a member's own (blank) setup page
     # with the PI's topics, running state and warnings three seconds after
     # load: the page rendered correctly, then this poll overwrote it.
-    if current is None and request.GET.get("mine") != "1":
-        current = get_subscription_for_view(
-            request.user, _requested_subscription_id(request)
-        )
-        read_only = current is not None
+    # Keyed on which subscription was asked for, not on whether the viewer
+    # owns one -- the same fix as the page view itself. Guarding on
+    # `current is None` meant the poll ignored `?subscription=` for anyone
+    # with a subscription of their own, so a read-only page loaded correctly
+    # and then had its banner replaced by the viewer's own three seconds
+    # later. The page and its poll must resolve the same subscription, or the
+    # poll silently contradicts the page it belongs to.
+    own_pk = current.pk if current is not None else None
+    requested_id = _requested_subscription_id(request)
+    if request.GET.get("mine") != "1" and (
+        own_pk is None or (requested_id is not None and requested_id != own_pk)
+    ):
+        viewing = get_subscription_for_view(request.user, requested_id)
+        if viewing is not None:
+            current = viewing
+            read_only = viewing.pk != own_pk
 
     return render(
         request,

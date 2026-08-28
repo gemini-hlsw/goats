@@ -7,6 +7,7 @@ from django.contrib import messages
 from guardian.shortcuts import get_objects_for_user
 from rest_framework import mixins, permissions
 from rest_framework.viewsets import GenericViewSet
+from tom_targets.models import Target
 from tom_dataproducts.models import DataProduct, ReducedDatum
 
 from goats_tom.serializers import DataProductTypeUpdateSerializer
@@ -26,8 +27,28 @@ class DataProductTypeViewSet(mixins.UpdateModelMixin, GenericViewSet):
     http_method_names = ["patch", "head", "options"]
 
     def get_queryset(self):
+        """Restrict to the data products the requesting user may view.
+
+        Notes
+        -----
+        The `TARGET_PERMISSIONS_ONLY` branch previously returned the queryset
+        **unscoped**, so with that setting at its default any user could
+        retag any data product in the database by its id. That mirrors
+        `tom_dataproducts.api_views.DataProductViewSet`, which filters by the
+        target's view permission in the same branch -- the setting chooses
+        *which* permission governs a data product, not whether one does.
+        """
         if settings.TARGET_PERMISSIONS_ONLY:
-            return super().get_queryset()
+            return (
+                super()
+                .get_queryset()
+                .filter(
+                    target__in=get_objects_for_user(
+                        self.request.user,
+                        f"{Target._meta.app_label}.view_target",
+                    )
+                )
+            )
         return get_objects_for_user(
             self.request.user,
             "tom_dataproducts.view_dataproduct",

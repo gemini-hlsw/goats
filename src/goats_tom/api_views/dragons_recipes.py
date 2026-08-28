@@ -7,16 +7,24 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from goats_tom.scoping import ScopedQuerySetMixin
 from goats_tom.models import DRAGONSRecipe
 from goats_tom.serializers import DRAGONSRecipeFilterSerializer, DRAGONSRecipeSerializer
 
 
 class DRAGONSRecipesViewSet(
+    ScopedQuerySetMixin,
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
     GenericViewSet,
 ):
+    # Scoped by the data products being reduced, not by the target.
+    # Observation records are shared with collaborators on a target so
+    # everyone can see what was triggered; the files stay private to
+    # whoever triggered them, and a reduction belongs with its files.
+    # See `goats_tom.scoping`.
+    dataproduct_path = "dragons_run__observation_record__dataproduct"
     queryset = DRAGONSRecipe.objects.all()
     serializer_class = DRAGONSRecipeSerializer
     filter_serializer_class = DRAGONSRecipeFilterSerializer

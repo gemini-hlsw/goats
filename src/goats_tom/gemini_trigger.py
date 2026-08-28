@@ -30,6 +30,8 @@ import logging
 
 from django.db import IntegrityError, transaction
 
+from goats_tom.permissions import grant_observation_permissions
+
 logger = logging.getLogger(__name__)
 
 # Attempts to fetch the programme's allocation before giving up. Retried
@@ -681,11 +683,17 @@ def _record_observation_in_goats(owner, target, instrument, observation) -> str:
             )
             return None
 
-        return ObservationRecord.objects.filter(
+        record = ObservationRecord.objects.filter(
             target_id=target.id,
             facility=facility,
             observation_id=observation_id,
         ).first()
+        if record is not None:
+            # The API path assigns no per-object permissions, so without this
+            # the observation is invisible to everyone including the PI who
+            # triggered it -- see `goats_tom.permissions`.
+            grant_observation_permissions(record, owner)
+        return record
     except Exception:
         logger.exception(
             "Could not record the created observation in GOATS for target %s.",

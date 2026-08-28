@@ -1,4 +1,14 @@
+from goats_tom.views.add_existing_observation import GOATSAddExistingObservationView
+from goats_tom.views.groups import (
+    GOATSAddProductToGroupView,
+    GOATSDataProductGroupCreateView,
+    GOATSDataProductGroupDeleteView,
+    GOATSDataProductGroupDetailView,
+    GOATSDataProductGroupListView,
+    GOATSObservationListView,
+)
 from goats_tom.views.antares import RefreshAntaresPhotometryView
+from goats_tom.views.sharing import share_data_products, share_observation_record
 from goats_tom.views.registration import (
     decide_registration_request,
     register,
@@ -18,6 +28,7 @@ from goats_tom.views.antares_locus_dashboard import (
     antares_locus_save_targets,
     antares_locus_saved_status,
     antares_locus_table,
+    antares_remote_jobs,
 )
 from goats_tom.views.antares_stream_subscribe import (
     antares_available_topics,
@@ -54,6 +65,15 @@ from goats_tom.views.tasks import ongoing_tasks
 from goats_tom.views.user_generate_token import UserGenerateTokenView
 
 __all__ = [
+    "GOATSAddProductToGroupView",
+    "GOATSDataProductGroupCreateView",
+    "GOATSDataProductGroupDeleteView",
+    "GOATSDataProductGroupDetailView",
+    "GOATSDataProductGroupListView",
+    "GOATSObservationListView",
+    "GOATSAddExistingObservationView",
+    "share_observation_record",
+    "share_data_products",
     "DRAGONSView",
     "DeleteObservationDataProductsView",
     "GOAArchiveRedirectView",
@@ -88,6 +108,7 @@ __all__ = [
     "antares_revoke_membership",
     "antares_locus_dashboard",
     "antares_locus_table",
+    "antares_remote_jobs",
     "antares_locus_save_targets",
     "antares_locus_saved_status",
     "antares_locus_clear",

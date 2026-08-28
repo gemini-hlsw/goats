@@ -42,6 +42,28 @@ class DataProductUploadView(BaseDataProductUploadView):
                 run_hook("data_product_post_upload", dp)
                 reduced_data = run_data_processor(dp)
                 if not settings.TARGET_PERMISSIONS_ONLY:
+                    # The uploader first, before any group they chose.
+                    #
+                    # Upstream assigns permissions *only* to the selected
+                    # groups, so uploading without picking one produced a file
+                    # with no permissions at all -- present on disk and in the
+                    # database, and invisible to everyone including the person
+                    # who had just uploaded it. That is how photometry
+                    # uploaded from the target page vanished from its own
+                    # Manage Data tab.
+                    for action in ("view", "change", "delete"):
+                        assign_perm(
+                            f"tom_dataproducts.{action}_dataproduct",
+                            self.request.user,
+                            dp,
+                        )
+                    if reduced_data is not None:
+                        assign_perm(
+                            "tom_dataproducts.view_reduceddatum",
+                            self.request.user,
+                            reduced_data,
+                        )
+
                     for group in form.cleaned_data["groups"]:
                         assign_perm("tom_dataproducts.view_dataproduct", group, dp)
                         assign_perm("tom_dataproducts.delete_dataproduct", group, dp)

@@ -1,4 +1,5 @@
 __all__ = [
+    "antares_remote_jobs",
     "antares_locus_dashboard",
     "antares_locus_table",
     "antares_locus_save_targets",
@@ -134,7 +135,46 @@ def _dashboard_context(request: HttpRequest, subscription) -> dict:
         ),
         "is_owner": can_configure(request.user, subscription),
         "may_save": can_save_targets(request.user, subscription),
+        "remote_jobs": _recent_remote_jobs(subscription),
     }
+
+
+def _recent_remote_jobs(subscription, limit: int = 10) -> list:
+    """Return this subscription's recent Data Lab windows, newest first.
+
+    Parameters
+    ----------
+    subscription : `goats_tom.models.AntaresStreamSubscription` or None
+        The dashboard's subscription.
+    limit : int, optional
+        How many windows to show.
+
+    Returns
+    -------
+    list
+        `RemoteJob` rows, or empty in `local` mode.
+
+    Notes
+    -----
+    Empty on a desktop install, where there are no remote jobs and the panel
+    should not appear at all -- the executor mode is checked rather than
+    relying on the table happening to be empty, so a server that switches
+    back to `local` stops showing stale history immediately.
+
+    Worth surfacing because these failures are otherwise invisible: a handler
+    that raises, a job reaped as lost, or windows drawing zero alerts are all
+    things a PI could only discover by asking an administrator to open a
+    shell.
+    """
+    if subscription is None:
+        return []
+    from goats_tom.executors import DATALAB, resolve_executor_name  # noqa: PLC0415
+
+    if resolve_executor_name() != DATALAB:
+        return []
+    from goats_tom.models import RemoteJob  # noqa: PLC0415
+
+    return list(RemoteJob.objects.filter(subscription=subscription)[:limit])
 
 
 def _resolve_sort(sort_param: str | None) -> tuple[str, str]:
@@ -170,8 +210,8 @@ def _resolve_sort(sort_param: str | None) -> tuple[str, str]:
     return order_by, sort_param
 
 
-def _saved_locus_ids(locus_ids: list[str]) -> set[str]:
-    """Batch-check which of the given locus IDs are already saved targets.
+def _saved_locus_ids(locus_ids: list[str], user=None) -> set[str]:
+    """Batch-check which of the given locus IDs are saved targets `user` can see.
 
     Two queries total regardless of how many locus IDs are given, rather
     than `locus_is_saved_as_target()` (2 queries each) called per ID --
@@ -184,17 +224,39 @@ def _saved_locus_ids(locus_ids: list[str]) -> set[str]:
     locus_ids : list of str
         Locus IDs to check.
 
+    user : `django.contrib.auth.models.User`, optional
+        Restrict to targets this user may view. Omitted only where the
+        caller has no user to hand.
+
     Returns
     -------
     set of str
-        The subset of `locus_ids` that are saved, as either a `Target`
-        name or a `TargetName` alias.
+        The subset of `locus_ids` saved as a `Target` -- by name or alias --
+        that `user` has permission to view.
+
+    Notes
+    -----
+    Scoped to the user, which is what makes "Saved" mean *saved and yours to
+    open*. Unscoped, a locus another PI had saved showed a Saved badge on
+    everyone's dashboard, replacing the save checkbox -- so a PI could
+    neither open the target nor save it, locked out of their own locus by
+    somebody else's action.
+
+    Saving it is the right move and already works: `save_locus_as_target`
+    finds the existing target and grants the second team view access rather
+    than creating a duplicate. Only the UI was preventing it.
     """
+    targets = Target.objects.all()
+    if user is not None:
+        from tom_targets.permissions import targets_for_user  # noqa: PLC0415
+
+        targets = targets_for_user(user, targets, "view_target")
+
     saved_by_name = set(
-        Target.objects.filter(name__in=locus_ids).values_list("name", flat=True)
+        targets.filter(name__in=locus_ids).values_list("name", flat=True)
     )
     saved_by_alias = set(
-        Target.objects.filter(aliases__name__in=locus_ids).values_list(
+        targets.filter(aliases__name__in=locus_ids).values_list(
             "aliases__name", flat=True
         )
     )
@@ -235,7 +297,7 @@ def _get_page(request: HttpRequest):
     page = paginator.get_page(request.GET.get("page", 1))
 
     page_locus_ids = [locus.locus_id for locus in page]
-    saved_locus_ids = _saved_locus_ids(page_locus_ids)
+    saved_locus_ids = _saved_locus_ids(page_locus_ids, request.user)
 
     # Who saved each one. One extra query for the whole page (not per
     # row), matching how `_saved_locus_ids` batches its own lookup.
@@ -267,12 +329,25 @@ def _get_page(request: HttpRequest):
             )
         }
 
-    saved_by_locus_id = {
-        record.locus_id: record.saved_by
-        for record in AntaresTargetSave.objects.filter(
-            locus_id__in=page_locus_ids
-        ).select_related("saved_by")
-    }
+    # The *first* PI to save each locus, not the most recent.
+    #
+    # `AntaresTargetSave` is unique per (locus, user), so a locus saved by two
+    # teams has two rows and this dict keeps whichever the iteration reached
+    # last -- which made the column appear to change hands every time somebody
+    # new saved a target they had not created. Ordering by `saved_at` and
+    # keeping the earliest makes it deterministic, and matches the
+    # first-team-wins rule the permissions already follow: the team that owns
+    # change and delete on the target is the team the column names.
+    #
+    # `setdefault` keeps the first row seen; the ordering is what makes that
+    # the earliest one.
+    saved_by_locus_id: dict[str, object] = {}
+    for record in (
+        AntaresTargetSave.objects.filter(locus_id__in=page_locus_ids)
+        .select_related("saved_by")
+        .order_by("saved_at", "pk")
+    ):
+        saved_by_locus_id.setdefault(record.locus_id, record.saved_by)
 
     # Resolved for the page in one query. A locus can be saved under either
     # the target's name or an alias, matching how `locus_is_saved_as_target`
@@ -280,8 +355,12 @@ def _get_page(request: HttpRequest):
     # unlinked for exactly the aliased loci that are hardest to find by hand.
     from tom_targets.models import Target  # noqa: PLC0415
 
+    from tom_targets.permissions import targets_for_user  # noqa: PLC0415
+
     target_by_locus_id: dict[str, object] = {}
-    for target in Target.objects.filter(
+    for target in targets_for_user(
+        request.user, Target.objects.all(), "view_target"
+    ).filter(
         Q(name__in=page_locus_ids) | Q(aliases__name__in=page_locus_ids)
     ).distinct():
         names = {target.name} | set(
@@ -395,10 +474,55 @@ def antares_locus_table(request: HttpRequest) -> HttpResponse:
 
     """
     page, sort_param = _get_page(request)
+    # `current_subscription` is passed so the partial can put it back into its
+    # own `hx-get`. Without it the parameter survives exactly one refresh:
+    # the first poll carries it, the markup it returns does not, and the
+    # second poll falls back to the viewer's own dashboard.
     return render(
         request,
         "partials/antares_locus_table.html",
-        {"page": page, "sort": sort_param},
+        {
+            "page": page,
+            "sort": sort_param,
+            "current_subscription": _visible_subscription(request),
+        },
+    )
+
+
+@login_required
+def antares_remote_jobs(request: HttpRequest) -> HttpResponse:
+    """Render the Data Lab processing panel's refreshing body.
+
+    Called by htmx every 15 seconds, matching the locus table. Without it the
+    counts froze at page-load values, so a run that was steadily working
+    looked stuck at zero -- the exact impression the panel exists to prevent.
+
+    Parameters
+    ----------
+    request : `HttpRequest`
+        The HTTP request. Reads the optional `subscription` query parameter.
+
+    Returns
+    -------
+    `HttpResponse`
+        The rendered panel body, or an empty one if the requester may not
+        view this dashboard.
+
+    Notes
+    -----
+    Resolves the subscription through `_visible_subscription`, the same
+    check the dashboard itself uses, rather than trusting the `subscription`
+    parameter -- otherwise this would happily report another PI's processing
+    history to anyone who edited the query string.
+    """
+    subscription = _visible_subscription(request)
+    return render(
+        request,
+        "partials/antares_remote_jobs_body.html",
+        {
+            "remote_jobs": _recent_remote_jobs(subscription),
+            "current_subscription": subscription,
+        },
     )
 
 
@@ -574,15 +698,22 @@ def antares_locus_saved_status(request: HttpRequest) -> JsonResponse:
         if subscription is not None and requested_ids
         else []
     )
-    saved = _saved_locus_ids(locus_ids) if locus_ids else set()
+    saved = _saved_locus_ids(locus_ids, request.user) if locus_ids else set()
 
     saved_by = {}
     if saved:
-        for record in AntaresTargetSave.objects.filter(
-            locus_id__in=saved
-        ).select_related("saved_by"):
+        # Earliest saver, exactly as the full table does -- see the
+        # `saved_by_locus_id` note in `_get_page`. This poll runs every few
+        # seconds and overwrites the column, so if it picked a different row
+        # than the table did, the name would flip back and forth between the
+        # two PIs who saved the locus.
+        for record in (
+            AntaresTargetSave.objects.filter(locus_id__in=saved)
+            .select_related("saved_by")
+            .order_by("saved_at", "pk")
+        ):
             if record.saved_by is not None:
-                saved_by[record.locus_id] = record.saved_by.username
+                saved_by.setdefault(record.locus_id, record.saved_by.username)
 
     return JsonResponse({"saved": sorted(saved), "saved_by": saved_by})
 

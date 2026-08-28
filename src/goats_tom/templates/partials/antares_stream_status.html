@@ -58,10 +58,21 @@
   <strong>Warning</strong> (as of {{ current.last_handler_warning_at }}):
   <div class="font-monospace" style="white-space: pre-wrap;">{{ current.last_handler_warning }}</div>
 </div>
-{% else %}
+{% elif current.last_handler_warning_is_error %}
 <div class="alert alert-danger">
   <strong>Ingestion error</strong> (as of {{ current.last_handler_warning_at }}):
   <div class="font-monospace" style="white-space: pre-wrap;">{{ current.last_handler_warning }}</div>
+</div>
+{% else %}
+{% comment %}
+Stopped for a reason the user chose -- reaching their own loci limit. Styled
+as information, not as a failure. Kept in step with the dashboard's copy of
+this banner in `antares_dashboard_status.html`: the same subscription state
+shown two different ways on two pages is worse than either styling alone.
+{% endcomment %}
+<div class="alert alert-info">
+  <strong>Ingestion stopped</strong> (as of {{ current.last_handler_warning_at }}):
+  <div style="white-space: pre-wrap;">{{ current.last_handler_warning }}</div>
 </div>
 {% endif %}
 {% endif %}

@@ -7,10 +7,32 @@ from channels.testing import WebsocketCommunicator
 from goats_tom.consumers import UpdatesConsumer
 
 
+def _authenticated_communicator(consumer, path, user=None):
+    """Build a communicator whose scope carries a signed-in user.
+
+    Both consumers now refuse anonymous connections, so a test that does not
+    populate ``scope["user"]`` is correctly rejected. These tests are about
+    message handling, not authentication -- the auth behaviour itself is
+    covered separately -- so they authenticate and move on.
+
+    A lightweight stand-in rather than a real `User`: the consumers only read
+    `is_authenticated` and `pk`, and building a database user would make
+    every one of these tests require database access for nothing.
+    """
+
+    class _SignedIn:
+        is_authenticated = True
+        pk = 1
+
+    communicator = WebsocketCommunicator(consumer.as_asgi(), path)
+    communicator.scope["user"] = user or _SignedIn()
+    return communicator
+
+
 @pytest.mark.asyncio()
 async def test_notification_message_handling():
     """Tests sending and receiving notification messages."""
-    communicator = WebsocketCommunicator(UpdatesConsumer.as_asgi(), "/ws/updates/")
+    communicator = _authenticated_communicator(UpdatesConsumer, "/ws/updates/")
     connected, _ = await communicator.connect()
     assert connected, "Connection to WebSocket failed"
 
@@ -48,7 +70,7 @@ async def test_notification_message_handling():
 @pytest.mark.asyncio()
 async def test_download_message_handling():
     """Tests sending and receiving download messages."""
-    communicator = WebsocketCommunicator(UpdatesConsumer.as_asgi(), "/ws/updates/")
+    communicator = _authenticated_communicator(UpdatesConsumer, "/ws/updates/")
     connected, _ = await communicator.connect()
     assert connected, "Connection to WebSocket failed"
 
@@ -88,10 +110,40 @@ async def test_download_message_handling():
 @pytest.mark.asyncio()
 async def test_no_pending_messages():
     """Tests for no pending messages."""
-    communicator = WebsocketCommunicator(UpdatesConsumer.as_asgi(), "/ws/updates/")
+    communicator = _authenticated_communicator(UpdatesConsumer, "/ws/updates/")
     await communicator.connect()
 
     # No messages should be pending.
     assert await communicator.receive_nothing() is True, "Unexpected message pending"
 
     await communicator.disconnect()
+
+
+@pytest.mark.asyncio()
+async def test_anonymous_connection_is_refused():
+    """An unauthenticated connection must not join the broadcast group.
+
+    Every connection used to be accepted and subscribed to
+    `BROADCAST_GROUP` before anyone checked who it was, so a stranger who
+    could reach the server received every notification GOATS sent. Harmless
+    on a single-user laptop; a leak of one PI's activity on a shared one.
+
+    WebSockets bypass Django's middleware, so `AUTH_STRATEGY = "LOCKED"`
+    does **not** close this -- which is the part that makes it easy to miss.
+    """
+    from django.contrib.auth.models import AnonymousUser
+
+    communicator = WebsocketCommunicator(UpdatesConsumer.as_asgi(), "/ws/updates/")
+    communicator.scope["user"] = AnonymousUser()
+    connected, _ = await communicator.connect()
+    await communicator.disconnect()
+    assert not connected
+
+
+@pytest.mark.asyncio()
+async def test_missing_user_in_scope_is_refused():
+    """Absent auth middleware must fail closed, not open."""
+    communicator = WebsocketCommunicator(UpdatesConsumer.as_asgi(), "/ws/updates/")
+    connected, _ = await communicator.connect()
+    await communicator.disconnect()
+    assert not connected

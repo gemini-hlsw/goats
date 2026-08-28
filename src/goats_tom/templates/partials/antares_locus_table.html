@@ -1,6 +1,16 @@
 {% load antares_locus_extras antares_extras %}
+{% comment %}
+The refresh must carry `subscription`, not just page and sort.
+
+Without it every poll re-resolved the dashboard from scratch, and
+`get_subscription_for_view` falls back to the viewer's *own* subscription
+when none is named. So a member who selected another PI's dashboard saw it
+for a few seconds and then watched their own data replace it -- the page
+looked like it was rejecting the choice, when really each refresh was
+silently making a different one.
+{% endcomment %}
 <div id="antares-locus-table-wrapper"
-     hx-get="{% url 'antares-locus-table' %}?page={{ page.number }}&sort={{ sort }}"
+     hx-get="{% url 'antares-locus-table' %}?page={{ page.number }}&sort={{ sort }}{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}"
      hx-trigger="every 15s"
      hx-target="#antares-locus-table-wrapper"
      hx-swap="outerHTML">
@@ -29,38 +39,38 @@
             <th>Latest Alert ID</th>
             <th>
               {% if sort == "-latest_alert" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp &#9660;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=latest_alert{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp &#9660;</a>
               {% elif sort == "latest_alert" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp &#9650;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-latest_alert{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp &#9650;</a>
               {% else %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-latest_alert" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-latest_alert{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Timestamp</a>
               {% endif %}
             </th>
             <th>
               {% if sort == "-magnitude" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9660;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=magnitude{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9660;</a>
               {% elif sort == "magnitude" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9650;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude &#9650;</a>
               {% else %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-magnitude{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Magnitude</a>
               {% endif %}
             </th>
             <th>
               {% if sort == "-topic" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=topic" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Topic &#9660;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=topic{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Topic &#9660;</a>
               {% elif sort == "topic" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-topic" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Topic &#9650;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-topic{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Topic &#9650;</a>
               {% else %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-topic" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Topic</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-topic{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Latest Alert Topic</a>
               {% endif %}
             </th>
             <th>
               {% if sort == "-first_seen" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Added to Dashboard &#9660;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=first_seen{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Added to Dashboard &#9660;</a>
               {% elif sort == "first_seen" %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Added to Dashboard &#9650;</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Added to Dashboard &#9650;</a>
               {% else %}
-              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Added to Dashboard</a>
+              <a href="#" hx-get="{% url 'antares-locus-table' %}?sort=-first_seen{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}" hx-target="#antares-locus-table-wrapper" hx-swap="outerHTML">Added to Dashboard</a>
               {% endif %}
             </th>
           </tr>
@@ -173,7 +183,7 @@
         <a class="page-link"
            href="#"
            {% if page.has_previous %}
-           hx-get="{% url 'antares-locus-table' %}?page={{ page.previous_page_number }}&sort={{ sort }}"
+           hx-get="{% url 'antares-locus-table' %}?page={{ page.previous_page_number }}&sort={{ sort }}{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}"
            hx-target="#antares-locus-table-wrapper"
            hx-swap="outerHTML"
            {% endif %}>Previous</a>
@@ -185,7 +195,7 @@
         <a class="page-link"
            href="#"
            {% if page.has_next %}
-           hx-get="{% url 'antares-locus-table' %}?page={{ page.next_page_number }}&sort={{ sort }}"
+           hx-get="{% url 'antares-locus-table' %}?page={{ page.next_page_number }}&sort={{ sort }}{% if current_subscription %}&subscription={{ current_subscription.pk }}{% endif %}"
            hx-target="#antares-locus-table-wrapper"
            hx-swap="outerHTML"
            {% endif %}>Next</a>

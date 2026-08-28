@@ -73,6 +73,44 @@ urlpatterns = [
         views.DeleteObservationDataProductsView.as_view(),
         name="delete-observation-data-products",
     ),
+    # Overrides closing TOM's group permission bypasses -- see
+    # `goats_tom.views.groups`. Declared before the tom_* includes so these
+    # win.
+    path(
+        "dataproducts/data/group/list/",
+        views.GOATSDataProductGroupListView.as_view(),
+        name="goats-dataproduct-group-list",
+    ),
+    path(
+        "dataproducts/data/group/create/",
+        views.GOATSDataProductGroupCreateView.as_view(),
+        name="goats-dataproduct-group-create",
+    ),
+    path(
+        "dataproducts/data/group/add/",
+        views.GOATSAddProductToGroupView.as_view(),
+        name="goats-dataproduct-group-add",
+    ),
+    path(
+        "dataproducts/data/group/<int:pk>/",
+        views.GOATSDataProductGroupDetailView.as_view(),
+        name="goats-dataproduct-group-detail",
+    ),
+    path(
+        "dataproducts/data/group/<int:pk>/delete/",
+        views.GOATSDataProductGroupDeleteView.as_view(),
+        name="goats-dataproduct-group-delete",
+    ),
+    path(
+        "observations/list/",
+        views.GOATSObservationListView.as_view(),
+        name="goats-observation-list",
+    ),
+    path(
+        "observations/add/",
+        views.GOATSAddExistingObservationView.as_view(),
+        name="add-existing-observation",
+    ),
     path(
         "observations/<int:pk>/",
         views.ObservationRecordDetailView.as_view(),
@@ -160,6 +198,21 @@ urlpatterns = [
         "antares/loci/table/",
         views.antares_locus_table,
         name="antares-locus-table",
+    ),
+    path(
+        "observations/<int:pk>/share/",
+        views.share_observation_record,
+        name="share-observation-record",
+    ),
+    path(
+        "observations/<int:pk>/share-data/",
+        views.share_data_products,
+        name="share-data-products",
+    ),
+    path(
+        "antares/loci/remote-jobs/",
+        views.antares_remote_jobs,
+        name="antares-remote-jobs",
     ),
     path(
         "antares/loci/save/",

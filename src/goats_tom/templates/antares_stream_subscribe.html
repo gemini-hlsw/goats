@@ -26,6 +26,24 @@
     your team can ask to join &mdash;
     <a href="{% url 'antares-manage-access' %}">manage access</a>.
   </p>
+  {% comment %}
+  Only in `datalab` mode. On a desktop install stream processing runs on this
+  machine and Data Lab credentials are not involved, so the sentence would be
+  advice about a situation the reader is not in.
+
+  Worth saying at all because the failure is silent from here: without stored
+  credentials the subscription saves and looks healthy, and nothing appears
+  wrong until the first window fails to launch on a page the PI has no reason
+  to be watching.
+  {% endcomment %}
+  {% if stream_runs_remotely %}
+  <p class="text-muted mb-2">
+    This GOATS runs stream processing on Astro Data Lab, under your own
+    account &mdash; so
+    <a href="{% url 'user-astro-data-lab-login' request.user.pk %}">store your
+    Data Lab credentials</a> before starting ingestion.
+  </p>
+  {% endif %}
   {% endif %}
 
   {% comment %}

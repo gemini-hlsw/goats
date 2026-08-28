@@ -277,6 +277,7 @@ class TestSavedBadgeLinksToTheTarget:
     """The badge names something the PI will want to open."""
 
     def test_it_links_when_the_target_is_resolvable(self, subscription, client):
+        from guardian.shortcuts import assign_perm
         from tom_targets.models import Target
 
         from goats_tom.models import AntaresLocus, AntaresTargetSave
@@ -284,6 +285,14 @@ class TestSavedBadgeLinksToTheTarget:
         target = Target.objects.create(
             name="ANTLINK", type=Target.SIDEREAL, ra=1.0, dec=2.0
         )
+        # Permission is now required for the badge to appear at all.
+        #
+        # "Saved" means saved *and visible to you*: a target another PI saved
+        # and never shared used to render a badge on everyone's dashboard,
+        # replacing the save checkbox and locking them out of a locus they
+        # could otherwise have saved for themselves.
+        assign_perm("tom_targets.view_target", subscription.owner, target)
+
         AntaresLocus.objects.create(
             subscription=subscription,
             locus_id="ANTLINK",

@@ -1,0 +1,134 @@
+"""
+Server environment overrides for GOATS.
+
+Loaded when GOATS_ENV=server. Use this for a shared, internet-facing
+deployment serving many PIs -- not for the single-astronomer desktop install,
+which runs under `production` and must keep behaving exactly as it does today.
+
+That split is the whole point of this file. Every setting here would be wrong
+on a laptop: locking the site behind a login, pinning the hostname, and
+insisting on HTTPS all break a local install, while leaving them off a shared
+server is what exposes 300 people's data.
+
+Read from the environment rather than hard-coded, so the same generated
+settings work across staging and production without editing::
+
+    GOATS_ALLOWED_HOSTS=goats.example.edu
+    GOATS_CSRF_TRUSTED_ORIGINS=https://goats.example.edu
+    GOATS_HSTS_SECONDS=3600
+
+User-specific adjustments belong in local.py rather than this file.
+"""
+
+import os
+
+DEBUG = False
+
+ANTARES_ENV = "PRODUCTION"
+
+# Every view requires a login.
+#
+# The default, READ_ONLY, lets anonymous visitors read the site. That is
+# reasonable for a public observatory TOM and wrong for a shared one holding
+# proprietary targets. It also matters more than it looks: almost no view in
+# GOATS carries its own login check, because they all rely on this setting.
+#
+# It does **not** cover WebSockets, which bypass Django's middleware entirely
+# -- see `goats_tom.consumers.auth`.
+AUTH_STRATEGY = "LOCKED"
+
+# Pages reachable without logging in.
+#
+# `AUTH_STRATEGY = "LOCKED"` blocks *every* URL for anonymous visitors, and
+# `tom_common.middleware.AuthStrategyMiddleware` opens only the login page by
+# default. Without this, the "Request one" link on the login page 403s -- a
+# new user cannot ask for an account, which makes an invitation-only
+# deployment unusable rather than secure.
+#
+# Matched with `fnmatch` against the request path, so wildcards work. Kept as
+# short as it can be: everything here is public to the internet.
+OPEN_URLS = [
+    # Request an account. An administrator still reviews every request, so
+    # this exposes a form, not access.
+    "/register/",
+    # Served by the reverse proxy in a real deployment, but Django handles it
+    # when running without one -- and a login page with no CSS looks broken.
+    "/static/*",
+]
+
+# The hostname this server answers to.
+#
+# base.py uses `["*"]`, which accepts any Host header and so permits
+# cache-poisoning and password-reset links pointing at an attacker's domain.
+# Set GOATS_ALLOWED_HOSTS to a comma-separated list of bare hostnames -- no
+# scheme, no port.
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("GOATS_ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+]
+
+# Full origins, scheme included, unlike ALLOWED_HOSTS. Only needed once the
+# site is behind HTTPS.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("GOATS_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
+# Behind a TLS-terminating reverse proxy.
+#
+# Without this Django believes every request arrived over plain HTTP, so it
+# builds `http://` redirects and treats secure cookies as unsendable -- which
+# looks like a login loop rather than a misconfiguration.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = True
+
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_HTTPONLY = True
+
+# Start HSTS short.
+#
+# Browsers honour the longest max-age they have seen and will not accept a
+# plain-HTTP connection to this host until it expires, so a certificate
+# problem under a long max-age locks users out with no way to click through.
+# Raise it once the deployment has been stable, and only then consider
+# `SECURE_HSTS_PRELOAD`.
+SECURE_HSTS_SECONDS = int(os.getenv("GOATS_HSTS_SECONDS", "3600"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+
+# Restrict every scoped queryset to the requesting user.
+#
+# GOATS' own DRAGONS models carry no owner: a run belongs to an observation
+# record, which belongs to a target, and it is the target that carries
+# per-object permissions. Without this those endpoints return every PI's runs
+# to anyone logged in, because they query the models directly and so bypass
+# the scoping TOM Toolkit applies to its own.
+GOATS_ENFORCE_SCOPING = True
+
+# Observation records and data products carry their own permissions, rather
+# than inheriting whoever can see the target.
+#
+# This is what makes a shared target work the way collaborators expect:
+# everyone on the target sees that an observation was triggered, but the data
+# stays with whoever triggered it, to share as they choose -- exactly as data
+# products already behave.
+#
+# It depends on permissions actually being assigned at creation. TOM's web
+# form does that from the groups the user picks; GOATS' Gemini triggering
+# goes through the API instead, whose `perform_create` assigns none, so
+# `goats_tom.gemini_trigger._grant_observation_permissions` fills that gap.
+# Without it an observation GOATS created would be visible to nobody.
+TARGET_PERMISSIONS_ONLY = False
+
+# No browser button that stops the whole service.
+#
+# On a laptop the shutdown button ends the session that `goats run` began.
+# Here it would let any one of hundreds of PIs stop everyone's ingestion, and
+# the process is supervised by systemd, so the button is both dangerous and
+# pointless.
+GOATS_SHOW_SHUTDOWN = False
+
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"

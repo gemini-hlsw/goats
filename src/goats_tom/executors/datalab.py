@@ -124,6 +124,18 @@ class DataLabExecutor(StreamExecutor):
             "kafka_secret": kafka.api_secret,
         }
 
+    def _rsp_token(self, subscription) -> str:
+        """Return the owner's stored RSP access token, or an empty string.
+
+        Notes
+        -----
+        Absence is normal and not an error. `RSP_tap_service` is `None` for
+        a PI without a token in both modes, and handlers are already
+        expected to check for that.
+        """
+        login = getattr(subscription.owner, "rsptaplogin", None)
+        return getattr(login, "access_token", "") or ""
+
     def _science_token(self, datalab) -> str:
         """Mint a Data Lab science token from stored credentials.
 
@@ -190,6 +202,11 @@ class DataLabExecutor(StreamExecutor):
             "extra_sys_path": list(
                 getattr(settings, "GOATS_DATALAB_EXTRA_SYS_PATH", [])
             ),
+            # Optional, unlike the credentials above: a PI with no stored
+            # RSP token simply gets `RSP_tap_service = None` remotely,
+            # exactly as they do locally. Requiring it would block every
+            # handler that never touches Rubin catalogs.
+            "rsp_token": self._rsp_token(subscription),
             "strip_kafka_options": list(
                 getattr(settings, "GOATS_DATALAB_STRIP_KAFKA_OPTIONS", [])
             ),
@@ -336,7 +353,9 @@ class DataLabExecutor(StreamExecutor):
             # Bulk update after the loop: these rows are terminal now, and
             # marking them individually inside it would leave the set
             # half-updated if a later kill raised.
-            active.update(status=RemoteJob.Status.LOST, finished_at=timezone.now())
+            active.update(
+                status=RemoteJob.Status.STOPPED, finished_at=timezone.now()
+            )
         finally:
             client.close()
 

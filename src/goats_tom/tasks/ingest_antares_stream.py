@@ -301,7 +301,9 @@ def _get_streaming_config(subscription) -> dict:
     }
 
 
-def _record_handler_warning(subscription_id: int, message: str) -> None:
+def _record_handler_warning(
+    subscription_id: int, message: str, is_error: bool = True
+) -> None:
     """Save a consumer error to this subscription's row, so it shows up on
     the ingestion page without needing to check server logs.
 
@@ -338,6 +340,10 @@ def _record_handler_warning(subscription_id: int, message: str) -> None:
     AntaresStreamSubscription.objects.filter(pk=subscription_id).update(
         last_handler_warning=message,
         last_handler_warning_at=timezone.now(),
+        # Drives the banner's styling. `False` marks an outcome the user
+        # asked for -- reaching their own loci limit -- which must not be
+        # shown in red as an "Ingestion error" alongside real faults.
+        last_handler_warning_is_error=is_error,
     )
 
 
@@ -1032,7 +1038,9 @@ def ingest_antares_stream(
                         # asked. Stop consuming rather than spinning on a
                         # stream whose every locus will now be refused.
                         logger.info("%s Stopping the consumer.", exc)
-                        _record_handler_warning(subscription_id, str(exc))
+                        _record_handler_warning(
+                            subscription_id, str(exc), is_error=False
+                        )
                         _mark_not_running(subscription_id)
                         return
 

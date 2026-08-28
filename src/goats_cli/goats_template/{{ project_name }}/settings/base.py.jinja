@@ -494,6 +494,26 @@ belongs. Setting this value to True will allow all ``ObservationRecord``,
 OPEN_URLS = []
 """List of URLs that are open even when AUTH_STRATEGY is LOCKED."""
 
+GOATS_ENFORCE_SCOPING = False
+"""Whether API querysets are restricted to the requesting user.
+
+False for the desktop install, where every row already belongs to the only
+user who can log in -- and where targets have no reason to have been assigned
+to groups, so enforcing per-object permissions would hide a lone astronomer's
+own data from them.
+
+Set to True in the `server` environment, where the same query returning
+everything is a leak between PIs."""
+
+GOATS_SHOW_SHUTDOWN = True
+"""Whether the navbar offers a button that shuts GOATS down.
+
+True for the desktop install, where `goats run` started the process and a
+button is the natural way to end it. Set to False in the `server` environment:
+on a shared deployment the button lets any one PI stop everyone else's
+ingestion, and the process is supervised by systemd rather than by a browser
+tab."""
+
 HOOKS = {
     "target_post_save": "tom_common.hooks.target_post_save",
     "observation_change_state": "tom_common.hooks.observation_change_state",

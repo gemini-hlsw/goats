@@ -7,6 +7,7 @@ import json
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 
+from goats_tom.consumers.auth import _is_authenticated
 from goats_tom.realtime.groups import BROADCAST_GROUP, user_group_name
 
 
@@ -38,15 +39,34 @@ class UpdatesConsumer(WebsocketConsumer):
     group_name = BROADCAST_GROUP
 
     def connect(self) -> None:
-        """Adds this consumer to the updates groups upon WebSocket connection."""
+        """Join the updates groups, if the connection is authenticated.
+
+        Notes
+        -----
+        The check happens **before** joining any group. Previously every
+        connection was accepted and added to the broadcast group first, so
+        anyone who could reach the server received every notification GOATS
+        sent, without an account. That mattered little on a single-user
+        laptop and not at all in a `READ_ONLY` deployment where the pages
+        were public anyway; on a shared server it leaks one PI's activity to
+        anybody at all.
+
+        WebSockets do **not** pass through Django's middleware, so
+        `AUTH_STRATEGY = "LOCKED"` does not close this. It has to be checked
+        here.
+
+        Rejected connections are closed rather than accepted-then-idled, so
+        the browser sees a failure and stops retrying against a socket that
+        will never carry anything.
+        """
+        if not _is_authenticated(self.scope.get("user")):
+            self.close()
+            return
+
         async_to_sync(self.channel_layer.group_add)(self.group_name, self.channel_name)
 
         # `scope["user"]` is populated by Channels' `AuthMiddlewareStack`
-        # (see the project's `asgi.py`). Read with `.get` and checked for
-        # `None`, since it is absent entirely for an unauthenticated
-        # connection -- and in tests that drive the consumer directly without
-        # the auth middleware -- in which case there is simply no private
-        # group to join.
+        # (see the project's `asgi.py`).
         self.user_group_name = user_group_name(self.scope.get("user"))
         if self.user_group_name is not None:
             async_to_sync(self.channel_layer.group_add)(

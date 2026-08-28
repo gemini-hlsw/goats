@@ -283,6 +283,7 @@ def download_goa_files(
                     )
                     dp.data.name = product_id
                     dp.save()
+                    _grant_dataproduct_permissions(dp, user)
                     # TODO: Do we need to add the hook after?
                     # Now create the metadata.
                     ad = astrodata.open(dp.data.path)
@@ -357,3 +358,56 @@ def download_goa_files(
             color="danger",
         )
         raise
+
+
+def _grant_dataproduct_permissions(data_product, user_id: int) -> None:
+    """Give the downloading user per-object permissions on a new file.
+
+    Parameters
+    ----------
+    data_product : `tom_dataproducts.models.DataProduct`
+        The newly created data product.
+    user_id : int
+        Primary key of the user whose download created it.
+
+    Notes
+    -----
+    Only meaningful when ``TARGET_PERMISSIONS_ONLY`` is False, where each
+    data product carries its own permissions rather than inheriting the
+    target's.
+
+    Needed because this task creates data products with no form and no group
+    selection. TOM's upload form assigns permissions from the groups a user
+    picks, but a GOA download has no such moment -- so without this the files
+    would have no permissions at all and be invisible to everyone, including
+    the PI who requested them.
+
+    Granted to the downloading user alone. They can share the files with a
+    group afterwards from the observation page; sharing proprietary data on
+    their behalf is not this task's decision to make.
+    """
+    from django.conf import settings  # noqa: PLC0415
+
+    if settings.TARGET_PERMISSIONS_ONLY:
+        return
+    from django.contrib.auth import get_user_model  # noqa: PLC0415
+    from guardian.shortcuts import assign_perm  # noqa: PLC0415
+
+    try:
+        owner = get_user_model().objects.filter(pk=user_id).first()
+        if owner is None:
+            logger.warning(
+                "No user %s to grant permissions on data product %s.",
+                user_id, data_product.product_id,
+            )
+            return
+        for action in ("view", "change", "delete"):
+            assign_perm(f"tom_dataproducts.{action}_dataproduct", owner, data_product)
+    except Exception:
+        # Never fatal: the file downloaded successfully. A permissions
+        # failure is a visibility problem to fix, not a reason to throw away
+        # data already fetched from the archive.
+        logger.exception(
+            "Could not assign permissions on data product %s to user %s.",
+            getattr(data_product, "product_id", None), user_id,
+        )

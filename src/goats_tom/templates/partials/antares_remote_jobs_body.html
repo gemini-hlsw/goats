@@ -1,0 +1,88 @@
+{% comment %}
+The refreshing half of the Data Lab processing panel.
+
+Polls itself every 15 seconds, matching the locus table. Without this the
+counts were frozen at whatever they were when the page loaded, so a run that
+was steadily working looked stuck on zero -- which is exactly the impression
+this panel exists to prevent.
+{% endcomment %}
+<div id="antares-remote-jobs-body"
+     hx-get="{% url 'antares-remote-jobs' %}{% if current_subscription %}?subscription={{ current_subscription.pk }}{% endif %}"
+     hx-trigger="every 15s"
+     hx-target="#antares-remote-jobs-body"
+     hx-swap="outerHTML">
+  {% comment %}
+  Every column an equal share of the width.
+
+  Bootstrap's `.table` is `width: 100%`, so any column left unsized absorbs
+  whatever the others do not use -- which handed all the slack to Detail and
+  stretched it across the page. Percentages summing to 100 give each column
+  a defined share and leave nothing to absorb, so the row stays balanced
+  however long an error message is.
+  {% endcomment %}
+  <table class="table table-sm small mt-2 mb-0" style="table-layout: fixed;">
+    <colgroup>
+      <col style="width: 20%;">
+      <col style="width: 20%;">
+      <col style="width: 20%;">
+      <col style="width: 20%;">
+      <col style="width: 20%;">
+    </colgroup>
+    <thead>
+      <tr>
+        <th scope="col">Started</th>
+        <th scope="col">State</th>
+        <th scope="col">Alerts seen</th>
+        <th scope="col">Alerts kept</th>
+        <th scope="col">Detail</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in remote_jobs %}
+      <tr>
+        <td class="text-nowrap pe-4">{{ job.launched_at|date:"Y-m-d H:i" }}</td>
+        <td>
+          {% comment %}
+          Three separate endings, deliberately not merged. "Stopped" is a
+          choice the user made and must not look like a fault; "Failed"
+          carries a reason; "Lost" means it stopped reporting and never said
+          why, which is a different thing again.
+          {% endcomment %}
+          {% if job.status == "finished" %}
+          <span class="badge bg-success-subtle text-success-emphasis">Finished</span>
+          {% elif job.status == "running" %}
+          <span class="badge bg-primary-subtle text-primary-emphasis">Running</span>
+          {% elif job.status == "pending" %}
+          <span class="badge bg-secondary-subtle text-secondary-emphasis">Starting</span>
+          {% elif job.status == "failed" %}
+          <span class="badge bg-danger-subtle text-danger-emphasis">Failed</span>
+          {% elif job.status == "stopped" %}
+          <span class="badge bg-secondary-subtle text-secondary-emphasis">Stopped</span>
+          {% else %}
+          <span class="badge bg-warning-subtle text-warning-emphasis">Lost</span>
+          {% endif %}
+        </td>
+        <td>{{ job.loci_seen }}</td>
+        <td>{{ job.loci_kept }}</td>
+        <td class="text-muted">
+          {% if job.error %}
+          {{ job.error|truncatechars:160 }}
+          {% elif job.status == "stopped" %}
+          You stopped ingestion.
+          {% elif job.status == "lost" %}
+          Stopped reporting; no result recorded.
+          {% elif job.restart_count %}
+          Restarted {{ job.restart_count }} time{{ job.restart_count|pluralize }}.
+          {% else %}
+          &mdash;
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="small text-muted mt-2 mb-0">
+    The dashboard keeps one row per locus and updates it as new alerts
+    arrive, so it will show fewer rows than the numbers here.
+  </p>
+</div>
