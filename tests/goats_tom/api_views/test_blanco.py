@@ -124,3 +124,136 @@ def test_an_unknown_target_is_not_found(client):
 def test_the_form_is_not_served_to_anyone(client):
     """The facility acts for a user, whose API key it uses."""
     assert APIClient().get(reverse("blancoobservations-list")).status_code in (401, 403)
+
+
+@pytest.mark.django_db()
+def test_the_sections_are_served_in_reading_order(client, target):
+    """What is asked, then what is done, then when it may be done."""
+    response = client.get(reverse("blancoobservations-list"), {"target_id": target.id})
+
+    titles = [section["title"] for section in response.json()["sections"]]
+
+    assert titles == ["Details", "Configuration", "Window"]
+
+
+@pytest.mark.django_db()
+def test_the_window_carries_the_cadence_that_would_replace_it(client, target):
+    """A cadence is not a second window: filling it in drops the window."""
+    window = client.get(
+        reverse("blancoobservations-list"), {"target_id": target.id}
+    ).json()["sections"][2]
+
+    assert [field["name"] for field in window["fields"]] == ["start", "end"]
+    assert window["sections"][0]["title"] == "Cadence"
+    assert [field["name"] for field in window["sections"][0]["fields"]] == [
+        "period",
+        "jitter",
+    ]
+
+
+@pytest.mark.django_db()
+def test_a_configuration_holds_its_exposures_and_its_constraints(client, target):
+    """The portal puts them inside the configuration they belong to."""
+    configuration = client.get(
+        reverse("blancoobservations-list"), {"target_id": target.id}
+    ).json()["sections"][1]
+
+    assert configuration["repeat"] == "configuration"
+    assert [section["title"] for section in configuration["instances"][0]["sections"]] == [
+        "Exposures",
+        "Constraints",
+    ]
+
+
+@pytest.mark.django_db()
+def test_every_configuration_the_facility_allows_is_described(client, target):
+    """The interface draws the first and adds the rest as they are asked for."""
+    configuration = client.get(
+        reverse("blancoobservations-list"), {"target_id": target.id}
+    ).json()["sections"][1]
+
+    assert len(configuration["instances"]) > 1
+    assert [instance["id"] for instance in configuration["instances"]][0] == 1
+
+
+@pytest.mark.django_db()
+def test_an_exposure_says_what_cannot_be_left_out(client, target):
+    """The field cannot be required of every exposure, only of the ones drawn."""
+    exposure = client.get(
+        reverse("blancoobservations-list"), {"target_id": target.id}
+    ).json()["sections"][1]["instances"][0]["sections"][0]["instances"][0]
+
+    required = {field["name"] for field in exposure["fields"] if field["required"]}
+
+    assert "c_1_ic_1_exposure_time" in required
+    assert "c_1_ic_1_offset_ra" not in required
+
+
+@pytest.mark.django_db()
+def test_what_the_toolkit_s_own_view_asks_for_is_served_too(client, target):
+    """The interface posts them back untouched when it submits."""
+    hidden = client.get(
+        reverse("blancoobservations-list"), {"target_id": target.id}
+    ).json()["hidden"]
+
+    assert hidden == {
+        "facility": "BLANCO",
+        "observation_type": "IMAGING",
+        "target_id": str(target.id),
+    }
+
+
+@pytest.mark.django_db()
+def test_a_form_with_nothing_in_it_comes_back_with_what_it_is_missing(client, target):
+    """Checked here first: the toolkit asks the portal whatever it holds, and
+    builds the payload to ask with, so an empty form raises instead."""
+    response = client.post(
+        reverse("blancoobservations-list"),
+        {"target_id": target.id, "fields": {}},
+        format="json",
+    )
+
+    body = response.json()
+
+    assert body["valid"] is False
+    assert body["errors"]["name"] == ["This field is required."]
+
+
+@pytest.mark.django_db()
+def test_a_form_the_portal_accepts_says_so(client, target, mocker):
+    mocker.patch(
+        "tom_observations.facilities.ocs.OCSBaseObservationForm.validate_at_facility"
+    )
+    mocker.patch(
+        "tom_observations.facilities.ocs.OCSFullObservationForm.get_validation_message",
+        return_value="This observation is valid.",
+    )
+
+    response = client.post(
+        reverse("blancoobservations-list"),
+        {
+            "target_id": target.id,
+            "fields": {
+                "name": "a request",
+                "proposal": "1",
+                "ipp_value": "1.05",
+                "observation_mode": "NORMAL",
+                "start": "2026-09-01 20:00:00",
+                "end": "2026-09-02 06:00:00",
+                "c_1_instrument_type": "",
+                "c_1_max_airmass": "1.6",
+            },
+        },
+        format="json",
+    )
+
+    assert response.json() == {"valid": True, "message": "This observation is valid."}
+
+
+@pytest.mark.django_db()
+def test_a_check_needs_a_target_like_everything_else(client):
+    response = client.post(
+        reverse("blancoobservations-list"), {"fields": {}}, format="json"
+    )
+
+    assert response.status_code == 400

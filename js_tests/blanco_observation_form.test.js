@@ -251,3 +251,334 @@ test("a form that cannot be loaded says so", async () => {
 
   expect(container.textContent).toContain("could not be loaded");
 });
+
+/** A form that repeats: two configurations, each of two exposures. */
+const instrument = (id) =>
+  field(`c_${id}_instrument_type`, {
+    type: "choice",
+    label: "Instrument",
+    initial: "BLANCO_DECAM",
+    choices: [
+      { value: "BLANCO_DECAM", label: "DECam" },
+      { value: "BLANCO_NEWFIRM", label: "NEWFIRM" },
+    ],
+  });
+
+const exposures = (id) => ({
+  title: "Exposures",
+  open: true,
+  repeat: "exposure",
+  instances: [1, 2].map((n) => ({
+    id: n,
+    fields: [
+      field(`c_${id}_ic_${n}_exposure_time`, { type: "float", required: true }),
+      field(`c_${id}_ic_${n}_filter`, {
+        type: "choice",
+        choices: [
+          { value: "r", label: "r" },
+          { value: "JX", label: "JX" },
+        ],
+      }),
+    ],
+  })),
+});
+
+const REPEATED = {
+  hidden: { facility: "BLANCO", observation_type: "IMAGING", target_id: "7" },
+  instruments: {
+    BLANCO_DECAM: {
+      extra_detector_centering: { allowed: ["central_gap"], default: "central_gap" },
+      filter: { allowed: ["r"] },
+    },
+    BLANCO_NEWFIRM: {
+      extra_detector_centering: { allowed: ["det_1"], default: "det_1" },
+      extra_dither_value: { min: 0, max: 1600 },
+      filter: { allowed: ["JX"] },
+      exposure_time: { max: 40 },
+    },
+  },
+  sections: [
+    {
+      title: "Configuration",
+      open: true,
+      repeat: "configuration",
+      instances: [1, 2].map((id) => ({
+        id,
+        fields: [
+          instrument(id),
+          field(`c_${id}_extra_detector_centering`, {
+            type: "choice",
+            choices: [
+              { value: "central_gap", label: "Central gap" },
+              { value: "det_1", label: "Det 1" },
+            ],
+          }),
+          field(`c_${id}_extra_dither_value`, { type: "integer" }),
+        ],
+        sections: [exposures(id)],
+      })),
+    },
+  ],
+};
+
+/** Render the repeated form, with an answer waiting for a POST. */
+async function renderRepeated(window, answer) {
+  const posts = [];
+  window.fetch = (url, options = {}) => {
+    if (options.method === "POST") {
+      posts.push({ url, options });
+      return Promise.resolve({ ok: true, json: async () => answer });
+    }
+    return Promise.resolve({ ok: true, json: async () => REPEATED });
+  };
+  const BlancoObservationForm = window.eval("BlancoObservationForm");
+  const container = window.document.getElementById("blancoContainer");
+  const form = new BlancoObservationForm(container);
+  await form.init();
+  return { form, container, posts };
+}
+
+/** Let the fetch and the promises hanging off it finish. */
+const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+const tabs = (container, role) =>
+  [...container.querySelectorAll(`[data-role="${role}-tab"] .nav-link`)];
+
+test("a nested section is not the accordion the section holding it is", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window);
+
+  const nested = container.querySelector('[data-role="section"][data-section="section-exposures"]');
+  const heading = nested.querySelector("h6");
+
+  // No chevron of its own: the weight is what tells the two apart.
+  expect(heading.textContent).toBe("Exposures");
+  expect(heading.className).toContain("text-uppercase");
+  expect(nested.querySelector('[data-role="section-toggle"]')).toBeNull();
+});
+
+test("a repeated section draws one instance and adds the rest when asked", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window);
+
+  expect(tabs(container, "configuration")).toHaveLength(1);
+
+  container.querySelector('[data-role="add-configuration"]').click();
+
+  expect(tabs(container, "configuration")).toHaveLength(2);
+  expect(container.querySelectorAll('[data-role="configuration"]')).toHaveLength(2);
+});
+
+test("a button that can do nothing looks spent", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window);
+  const add = container.querySelector('[data-role="add-configuration"]');
+  const remove = container.querySelector('[data-role="remove-configuration"]');
+
+  // Nothing to remove while there is one, nothing to add past the last.
+  expect(remove.disabled).toBe(true);
+  expect(remove.className).toContain("btn-outline-secondary");
+  add.click();
+  expect(remove.disabled).toBe(false);
+  expect(remove.className).toContain("btn-outline-danger");
+  expect(add.disabled).toBe(true);
+  expect(add.className).toContain("btn-outline-secondary");
+});
+
+test("the last drawn is the one removed", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window);
+  container.querySelector('[data-role="add-configuration"]').click();
+
+  container.querySelector('[data-role="remove-configuration"]').click();
+
+  expect(tabs(container, "configuration").map((tab) => tab.textContent)).toEqual([
+    "1 · DECam",
+  ]);
+});
+
+test("a tab says what is inside it", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window);
+  const select = container.querySelector('[data-field="c_1_instrument_type"] select');
+
+  expect(tabs(container, "configuration")[0].textContent).toBe("1 · DECam");
+  expect(tabs(container, "exposure")[0].textContent).toBe("1 · r");
+
+  select.value = "BLANCO_NEWFIRM";
+  select.dispatchEvent(new window.Event("change"));
+
+  expect(tabs(container, "configuration")[0].textContent).toBe("1 · NEWFIRM");
+  // Narrowing took the filter DECam had, and the tab followed it.
+  expect(tabs(container, "exposure")[0].textContent).toBe("1 · JX");
+});
+
+test("a parameter the instrument never declared does not apply to it", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window);
+  const dither = container.querySelector('[data-field="c_1_extra_dither_value"]');
+  const select = container.querySelector('[data-field="c_1_instrument_type"] select');
+
+  // DECam does not dither at all.
+  expect(dither.className).toContain("d-none");
+
+  select.value = "BLANCO_NEWFIRM";
+  select.dispatchEvent(new window.Event("change"));
+
+  expect(dither.className).not.toContain("d-none");
+  expect(dither.querySelector("input").max).toBe("1600");
+});
+
+test("what an instrument does not take is not left chosen", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window);
+  const centering = container.querySelector(
+    '[data-field="c_1_extra_detector_centering"] select',
+  );
+  const select = container.querySelector('[data-field="c_1_instrument_type"] select');
+
+  expect(centering.value).toBe("central_gap");
+
+  select.value = "BLANCO_NEWFIRM";
+  select.dispatchEvent(new window.Event("change"));
+
+  expect(centering.value).toBe("det_1");
+  expect([...centering.options].find((o) => o.value === "central_gap").disabled).toBe(
+    true,
+  );
+});
+
+test("an exposure added later follows the instrument already chosen", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window);
+  const select = container.querySelector('[data-field="c_1_instrument_type"] select');
+  select.value = "BLANCO_NEWFIRM";
+  select.dispatchEvent(new window.Event("change"));
+
+  container.querySelector('[data-role="add-exposure"]').click();
+
+  const added = container.querySelector('[data-field="c_1_ic_2_exposure_time"] input');
+  expect(added.max).toBe("40");
+});
+
+test("a parameter that does not apply is never sent", async () => {
+  const window = buildWindow();
+  const { form } = await renderRepeated(window);
+
+  // DECam is chosen, so the dither is hidden.
+  expect(Object.keys(form.collect())).not.toContain("c_1_extra_dither_value");
+});
+
+test("a required control asks on itself until it is answered", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window);
+
+  const time = container.querySelector('[data-field="c_1_ic_1_exposure_time"] input');
+
+  expect(time.className).toContain("border-danger");
+});
+
+test("what was filled in is checked before anything is submitted", async () => {
+  const window = buildWindow();
+  window.document.body.dataset.csrfToken = "a-token";
+  const { container, posts } = await renderRepeated(window, {
+    valid: true,
+    message: "This observation is valid with a duration of 300 seconds.",
+  });
+
+  container.querySelector('[data-role="validate"]').click();
+  await settled();
+
+  expect(posts[0].url).toBe("/api/blanco/observations/");
+  expect(posts[0].options.headers["X-CSRFToken"]).toBe("a-token");
+  expect(JSON.parse(posts[0].options.body).fields.c_1_instrument_type).toBe(
+    "BLANCO_DECAM",
+  );
+  expect(container.textContent).toContain("duration of 300 seconds");
+});
+
+test("an error is put under the field it was raised on", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window, {
+    valid: false,
+    errors: { c_1_ic_1_exposure_time: ["This field is required."] },
+  });
+
+  container.querySelector('[data-role="validate"]').click();
+  await settled();
+
+  const slot = container.querySelector('[data-error-for="c_1_ic_1_exposure_time"]');
+  expect(slot.textContent).toBe("This field is required.");
+  expect(slot.className).not.toContain("d-none");
+  expect(
+    container.querySelector('[data-field="c_1_ic_1_exposure_time"] input').className,
+  ).toContain("is-invalid");
+});
+
+test("an error on a field behind a tab brings that tab to the front", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window, {
+    valid: false,
+    errors: { c_1_ic_2_exposure_time: ["This field is required."] },
+  });
+  container.querySelector('[data-role="add-exposure"]').click();
+  // Back to the first, so the error is on one nobody is looking at.
+  tabs(container, "exposure")[0].click();
+
+  container.querySelector('[data-role="validate"]').click();
+  await settled();
+
+  expect(tabs(container, "exposure")[1].className).toContain("active");
+});
+
+test("the portal's own machinery is not read out loud", async () => {
+  const window = buildWindow();
+  const BlancoObservationForm = window.eval("BlancoObservationForm");
+
+  expect(
+    BlancoObservationForm.plainly("non_field_errors: No configurations."),
+  ).toBe("No configurations.");
+  expect(BlancoObservationForm.plainly("windows: End before start.")).toBe(
+    "windows: End before start.",
+  );
+});
+
+test("a form found sound is handed to the toolkit's own view", async () => {
+  const window = buildWindow();
+  window.document.body.dataset.csrfToken = "a-token";
+  const posted = [];
+  window.HTMLFormElement.prototype.submit = function () {
+    posted.push(this);
+  };
+  const { container } = await renderRepeated(window, { valid: true, message: "" });
+
+  container.querySelector('[data-role="submit"]').click();
+  await settled();
+
+  expect(posted).toHaveLength(1);
+  const sent = Object.fromEntries(
+    [...posted[0].querySelectorAll("input")].map((input) => [input.name, input.value]),
+  );
+  expect(posted[0].method).toBe("post");
+  expect(sent.facility).toBe("BLANCO");
+  expect(sent.observation_type).toBe("IMAGING");
+  expect(sent.csrfmiddlewaretoken).toBe("a-token");
+  expect(sent.c_1_instrument_type).toBe("BLANCO_DECAM");
+});
+
+test("nothing is submitted while the form is not sound", async () => {
+  const window = buildWindow();
+  const posted = [];
+  window.HTMLFormElement.prototype.submit = function () {
+    posted.push(this);
+  };
+  const { container } = await renderRepeated(window, {
+    valid: false,
+    errors: { name: ["This field is required."] },
+  });
+
+  container.querySelector('[data-role="submit"]').click();
+  await settled();
+
+  expect(posted).toHaveLength(0);
+});
