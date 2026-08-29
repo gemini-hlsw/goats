@@ -9,7 +9,26 @@
 {% include "partials/share_observation.html" %}
 <div class="row">
   <div class="col text-center mt-5">
-    <h2>{{ object.observation_id }} @{{ object.facility }}</h2>
+    <h2 class="d-inline-block mb-0">{{ object.observation_id }} @{{ object.facility }}</h2>
+    {% comment %}
+    The share control sits with the title because it acts on the whole
+    record. Per-file sharing lives in the data product table, where the
+    files are.
+    {% endcomment %}
+    {% comment %}
+    Same icon and button styling as the target controls in
+    `tom_targets/partials/target_buttons.html`, so the two read as the same
+    action rather than as two different features.
+    {% endcomment %}
+    {% if can_share_observation %}
+    <button type="button" class="btn btn-secondary ml-2"
+            data-toggle="modal" data-target="#shareObservationModal"
+            data-bs-toggle="modal" data-bs-target="#shareObservationModal"
+            title="Share observation"
+            aria-label="Share observation">
+      <i class="fa-solid fa-share"></i>
+    </button>
+    {% endif %}
   </div>
 </div>
 <div class="row mb-2 ">
@@ -58,13 +77,19 @@
   </div>
 </div>
 <hr class="mb-5" />
-{% if object.facility == "GEM" %}
+{% comment %}
+Both panels write: the GOA form downloads new data products and the DRAGONS
+panel starts a reduction. A read-only recipient sees the observation and its
+data without them. The underlying views check for themselves as well.
+{% endcomment %}
+{% if object.facility == "GEM" and can_edit_observation %}
   {% render_goa_query_form %}
   {% render_launch_dragons %}
 {% endif %}
 <div class="row justify-content-center">
   <div class="col-md-12">
     <h4>Saved Data Products</h4>
+    {% if can_edit_observation %}
     <form method="POST" action="{% url 'tom_dataproducts:group-data' %}">
       {% csrf_token %}
       <div class="form-row">
@@ -83,7 +108,15 @@
       </div>
       {% goats_dataproduct_list_for_observation_saved data_products request object %}
     </form>
-    {% if object.facility != "GEM" %}
+    {% else %}
+    {% goats_dataproduct_list_for_observation_saved data_products request object %}
+    {% endif %}
+    {% comment %}
+    Saving pulls files from the facility into GOATS, which is a write and a
+    new set of data products. Non-GEM facilities only; for Gemini the
+    unsaved list is always empty and downloads go through GOA.
+    {% endcomment %}
+    {% if object.facility != "GEM" and can_edit_observation %}
     <form method="POST" action="{% url 'tom_dataproducts:save' object.id %}">
       {% csrf_token %}
       <input type="hidden" value="{{ object.facility }}" name="facility">

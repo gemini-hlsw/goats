@@ -60,6 +60,9 @@ from tom_dataproducts.views import (
 from tom_observations.models import ObservationGroup, ObservationRecord
 from tom_observations.views import ObservationListView
 
+from goats_tom.filters import GOATSObservationFilter
+from goats_tom.visibility import visible_data_products
+
 logger = logging.getLogger(__name__)
 
 VIEW_DATAPRODUCT = "tom_dataproducts.view_dataproduct"
@@ -71,23 +74,21 @@ CHANGE_OBSGROUP = "tom_observations.change_observationgroup"
 
 
 def _visible_data_products(user):
-    """Data products `user` may view, or all of them in target-only mode."""
-    from django.conf import settings  # noqa: PLC0415
-
-    if settings.TARGET_PERMISSIONS_ONLY:
-        return DataProduct.objects.all()
-    return get_objects_for_user(user, VIEW_DATAPRODUCT)
-
-
-def _visible_groups(user, model, permission):
-    """Selections `user` may view.
+    """Data products `user` may view.
 
     Notes
     -----
-    Falls back to everything in target-only mode, where per-object
-    permissions are not in play and filtering would hide a user's own
-    selections from them.
+    A thin alias over `goats_tom.visibility`, kept because the call sites
+    below read better with the short name. The shared module is the single
+    definition -- an earlier version of this file had its own copy, and the
+    duplicate is how the filter sidebars ended up scoped differently from
+    the views beside them.
     """
+    return visible_data_products(user)
+
+
+def _visible_groups(user, model, permission):
+    """Selections `user` holds `permission` on."""
     from django.conf import settings  # noqa: PLC0415
 
     if settings.TARGET_PERMISSIONS_ONLY:
@@ -200,7 +201,17 @@ class GOATSObservationListView(ObservationListView):
     so any observation could be added to any group by id -- including groups
     the user cannot see on the group list page, which is exactly the
     inconsistency that makes this hard to notice.
+
+    Scoping the action alone was not enough. The page also *lists* every
+    group by name, in the filter sidebar and again in the add/remove bar --
+    both of which render the same `{{ filter.form.observationgroup }}` field
+    from the FilterSet, not from anything this view controls.
+    `GOATSObservationFilter` scopes those choices; the checks below stay
+    because the ids in a query string are whatever the caller sent, not
+    whatever the dropdown offered.
     """
+
+    filterset_class = GOATSObservationFilter
 
     def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
         """Handle the add/remove action here, then defer to the list itself."""

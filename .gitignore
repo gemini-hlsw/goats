@@ -61,6 +61,14 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Matched by name anywhere in the tree, because a deployed GOATS project
+# directory is often created inside a checkout of this repository.
+# Anchored to `settings/` rather than matching `generated.py` anywhere: the
+# repo ships `settings/generated.py.jinja`, the template this is rendered
+# from, and that must stay tracked.
+settings/generated.py
+**/settings/generated.py
+
 # Flask stuff:
 instance/
 .webassets-cache

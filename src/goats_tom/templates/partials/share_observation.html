@@ -1,39 +1,152 @@
 {% comment %}
-Share this observation record with one of your groups.
+Sharing panel for an observation record, opened from the share icon beside
+the observation title.
 
-An observation and its files are private to the PI who triggered them. This
-panel shares the *record* -- that the observation exists, and its status --
-without releasing the data. Sharing the files is a separate action on the
-data product table below, deliberately: coordinating on a target should not
-require handing over proprietary data.
+The observation and its data products move together -- there is no per-file
+selection. Splitting them produced a checkbox column, a bulk row, a second
+endpoint and a second set of permission checks for a distinction nobody had
+asked for, and it was quietly broken besides: the file table ignored data
+product permissions, so "share the record only" released the data anyway.
+The unit of sharing is the observation, which is how people talk about it.
 
-Shown only to someone who may change the record, so a collaborator given
-sight of an observation cannot pass it on to a third group.
+Users and groups sit side by side because they answer the same question --
+"who should see this?" -- and splitting them into separate forms would make
+the sharer choose a mechanism before choosing a person. Both are per-object
+grants, so the distinction is one of convenience, not of kind.
+
+Rendered only for someone who may change the record, so a collaborator given
+sight of an observation cannot pass it on. That check is repeated in
+`goats_tom.views.sharing` for every posted id, because a hidden control is
+not an access check.
 {% endcomment %}
-{% if can_share_observation and shareable_groups %}
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="post" action="{% url 'share-observation-record' object.id %}"
-          class="d-flex align-items-center flex-wrap gap-2 mb-0">
-      {% csrf_token %}
-      <label for="observation-share-groups" class="mb-0 me-2">
-        Share this observation with
-      </label>
-      <select name="groups" id="observation-share-groups"
-              class="form-control form-control-sm w-auto" multiple size="1"
-              aria-label="Groups to share this observation with">
-        {% for group in shareable_groups %}
-        <option value="{{ group.pk }}">{{ group.name }}</option>
-        {% endfor %}
-      </select>
-      <button type="submit" name="action" value="share"
-              class="btn btn-sm btn-outline-primary">Share</button>
-      <button type="submit" name="action" value="unshare"
-              class="btn btn-sm btn-outline-secondary">Unshare</button>
-      <span class="text-muted small ms-2">
-        Shares the record only. Data products are shared separately.
-      </span>
-    </form>
+{% if can_share_observation %}
+<div class="modal fade" id="shareObservationModal" tabindex="-1"
+     aria-labelledby="shareObservationModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="shareObservationModalLabel">
+          Share {{ object.observation_id }}
+        </h5>
+        <button type="button" class="close" data-dismiss="modal"
+                data-bs-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <form method="post"
+            action="{% url 'share-observation-record' object.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <label for="observation-share-groups" class="font-weight-bold">
+                Groups
+              </label>
+              {% if shareable_groups %}
+              <select name="groups" id="observation-share-groups"
+                      class="form-control" multiple size="6"
+                      aria-label="Groups to share this observation with">
+                {% for group in shareable_groups %}
+                <option value="{{ group.pk }}">{{ group.name }}</option>
+                {% endfor %}
+              </select>
+              {% else %}
+              <p class="text-muted small mb-0">You are not in any group.</p>
+              {% endif %}
+            </div>
+            <div class="col-md-6">
+              <label for="observation-share-users" class="font-weight-bold">
+                People
+              </label>
+              {% if shareable_users %}
+              {% comment %}
+              Every registered user, so the list can be long. The filter box
+              narrows the options client-side; without it, picking one person
+              out of a few hundred means scrolling a select.
+              {% endcomment %}
+              <input type="text" id="observation-share-user-filter"
+                     class="form-control form-control-sm mb-1"
+                     placeholder="Filter people"
+                     aria-label="Filter the list of people">
+              <select name="users" id="observation-share-users"
+                      class="form-control" multiple size="6"
+                      aria-label="People to share this observation with">
+                {% for person in shareable_users %}
+                <option value="{{ person.pk }}">
+                  {{ person.get_full_name|default:person.username }}
+                </option>
+                {% endfor %}
+              </select>
+              {% else %}
+              <p class="text-muted small mb-0">
+                No other accounts to share with yet.
+              </p>
+              {% endif %}
+            </div>
+          </div>
+
+          <hr>
+
+          {% comment %}
+          Read-only is first and preselected. It is the safer of the two, and
+          the one that fits the common case of letting a collaborator look at
+          data without handing over the ability to change it.
+
+          Neither level grants delete. Destruction stays with the owning PI,
+          because a collaborator who removes an observation's data by
+          accident cannot undo it and the files may not be recoverable.
+          {% endcomment %}
+          <fieldset>
+            <legend class="col-form-label font-weight-bold pt-0">Access</legend>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="level"
+                     id="share-level-read" value="read" checked>
+              <label class="form-check-label" for="share-level-read">
+                <strong>Read-only.</strong>
+                They can view the observation and its data.
+              </label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="level"
+                     id="share-level-full" value="full">
+              <label class="form-check-label" for="share-level-full">
+                <strong>Full access.</strong>
+                They can also edit the observation, run reductions and
+                download new data from the archive.
+              </label>
+            </div>
+            <p class="text-muted small mt-2 mb-0">
+              Both levels cover the observation and all of its data products.
+              Only you can delete them.
+            </p>
+          </fieldset>
+        </div>
+        <div class="modal-footer justify-content-between">
+          <button type="submit" name="action" value="unshare"
+                  class="btn btn-outline-secondary">Remove access</button>
+          <button type="submit" name="action" value="share"
+                  class="btn btn-primary">Share observation</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
+
+<script>
+  (function () {
+    var box = document.getElementById("observation-share-user-filter");
+    var select = document.getElementById("observation-share-users");
+    if (!box || !select) return;
+    var options = Array.prototype.slice.call(select.options);
+    box.addEventListener("input", function () {
+      var term = box.value.toLowerCase();
+      options.forEach(function (option) {
+        // Hidden options stay selected if they already were, so filtering
+        // never silently drops somebody the user has picked.
+        option.hidden = term && option.text.toLowerCase().indexOf(term) === -1;
+      });
+    });
+  })();
+</script>
 {% endif %}

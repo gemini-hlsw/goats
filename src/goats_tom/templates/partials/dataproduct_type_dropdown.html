@@ -1,3 +1,11 @@
+{% comment %}
+Retagging needs `change_dataproduct`. Without it the type is shown as plain
+text: the API rejects the PATCH regardless, and a dropdown that always fails
+is worse than no dropdown.
+{% endcomment %}
+{% if not can_retag %}
+<span class="dataproduct-type-label">{{ label }}</span>
+{% else %}
 <div class="dropdown dataproduct-type-dropdown" data-id="{{ product.id }}">
   <button
     class="btn btn-secondary dropdown-toggle"
@@ -23,3 +31,4 @@
     {% endfor %}
   </ul>
 </div>
+{% endif %}

@@ -5,6 +5,7 @@ from .gemini import render_goa_query_form, render_launch_dragons
 from .target_navbar import render_target_navbar
 from .tom_overrides import (
     goats_dataproduct_list_for_observation_saved,
+    goats_dataproduct_list_for_target,
     goats_recent_photometry,
 )
 
@@ -13,6 +14,7 @@ __all__ = [
     "render_goa_query_form",
     "render_launch_dragons",
     "goats_dataproduct_list_for_observation_saved",
+    "goats_dataproduct_list_for_target",
     "render_target_navbar",
     "dataproduct_visualizer",
     "antares_url",

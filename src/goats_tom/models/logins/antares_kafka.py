@@ -1,6 +1,7 @@
 __all__ = ["AntaresKafkaLogin"]
 
 from django.db import models
+from goats_tom.encryption import EncryptedField
 
 from .base import BaseLogin
 
@@ -34,5 +35,5 @@ class AntaresKafkaLogin(BaseLogin):
     doesn't require re-entering API credentials each time.
     """
 
-    api_key = models.CharField(max_length=128, blank=False, null=False)
-    api_secret = models.CharField(max_length=128, blank=False, null=False)
+    api_key = EncryptedField(blank=False, null=True)
+    api_secret = EncryptedField(blank=False, null=True)

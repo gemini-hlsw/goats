@@ -33,7 +33,7 @@
           </tr>
         </thead>
         <tbody id="manageDataTBody">
-          {% for product in products %}
+          {% for product, can_delete in products %}
           <tr data-file="{{ product.product_id }}">
             <!-- {% if not product.featured %}
             <td><a href="{% url 'tom_dataproducts:feature' pk=product.id %}?target_id={{ target.id }}" title="Make Featured Image" class="btn btn-primary">Feature</a></td>
@@ -91,12 +91,19 @@
                 </p>
               {% endif %}
             </td> -->
+            {% comment %}
+            Delete is not granted by sharing at either level -- destruction
+            stays with the owning PI -- so a recipient gets an empty cell
+            rather than a button that 403s.
+            {% endcomment %}
             <td>
+              {% if can_delete %}
               <a
                 href="{% url 'tom_dataproducts:delete' product.id %}"
                 class="btn btn-danger"
                 >Delete</a
               >
+              {% endif %}
             </td>
           </tr>
           <!-- <tr id="share-{{ forloop.counter }}" class="collapse">

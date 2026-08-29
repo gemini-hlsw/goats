@@ -8,7 +8,7 @@ from goats_tom.views.groups import (
     GOATSObservationListView,
 )
 from goats_tom.views.antares import RefreshAntaresPhotometryView
-from goats_tom.views.sharing import share_data_products, share_observation_record
+from goats_tom.views.sharing import share_observation_record
 from goats_tom.views.registration import (
     decide_registration_request,
     register,
@@ -59,7 +59,9 @@ from goats_tom.views.observation_record_delete import ObservationRecordDeleteVie
 from goats_tom.views.observation_record_detail import ObservationRecordDetailView
 from goats_tom.views.observation_template_create import ObservationTemplateCreateView
 from goats_tom.views.status import status_view
+from goats_tom.views.dataproduct_list import GOATSDataProductListView
 from goats_tom.views.target_delete import TargetDeleteView
+from goats_tom.views.target_list import GOATSTargetListView
 from goats_tom.views.target_detail import TargetDetailView
 from goats_tom.views.tasks import ongoing_tasks
 from goats_tom.views.user_generate_token import UserGenerateTokenView
@@ -70,10 +72,11 @@ __all__ = [
     "GOATSDataProductGroupDeleteView",
     "GOATSDataProductGroupDetailView",
     "GOATSDataProductGroupListView",
+    "GOATSDataProductListView",
     "GOATSObservationListView",
+    "GOATSTargetListView",
     "GOATSAddExistingObservationView",
     "share_observation_record",
-    "share_data_products",
     "DRAGONSView",
     "DeleteObservationDataProductsView",
     "GOAArchiveRedirectView",

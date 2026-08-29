@@ -80,7 +80,9 @@ class Antares2GoatsViewSet(GenericViewSet, mixins.CreateModelMixin):
             target, extras, aliases = broker_class.to_target(alert)
             target.save(extras=extras, names=aliases)
             lightcurve_data = broker_class.process_lightcurve_data(alert=alert)
-            dp = broker_class.create_lightcurve_dp(target, lightcurve_data)
+            dp = broker_class.create_lightcurve_dp(
+                target, lightcurve_data, user=self.request.user
+            )
             broker_class.create_reduced_datums(dp)
 
         elif "esquery" in serializer.validated_data:

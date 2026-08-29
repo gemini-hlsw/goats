@@ -49,6 +49,14 @@ router.register(
 )
 router.register(r"targets", api_views.TargetViewSet, basename="targets")
 router.register(r"astrodatalab", api_views.AstroDatalabViewSet, basename="astrodatalab")
+# Retagging a data product's type. Written and exported but never routed,
+# so `static/js/dataproduct_type.js` PATCHed a URL that did not resolve and
+# nobody could change a file type, including on their own files.
+router.register(
+    r"dataproducttype",
+    api_views.DataProductTypeViewSet,
+    basename="dataproducttype",
+)
 router.register(r"status", api_views.StatusViewSet, basename="status")
 router.register(r"system", api_views.SystemViewSet, basename="system")
 # TODO: Add app_name and update paths and URL lookups.
@@ -76,6 +84,11 @@ urlpatterns = [
     # Overrides closing TOM's group permission bypasses -- see
     # `goats_tom.views.groups`. Declared before the tom_* includes so these
     # win.
+    path(
+        "dataproducts/data/",
+        views.GOATSDataProductListView.as_view(),
+        name="goats-dataproduct-list",
+    ),
     path(
         "dataproducts/data/group/list/",
         views.GOATSDataProductGroupListView.as_view(),
@@ -183,6 +196,10 @@ urlpatterns = [
         name="template-create",
     ),
     path("targets/<int:pk>/", views.TargetDetailView.as_view(), name="detail"),
+    # Scopes the "Add/Remove from grouping" select and the target group
+    # filter, both of which listed every PI's target groups. Declared
+    # before the tom_targets include so this wins.
+    path("targets/", views.GOATSTargetListView.as_view(), name="goats-target-list"),
     path("tns/", include(tom_tns_urls)),
     path(
         "targets/<int:target_id>/refresh-antares/",
@@ -203,11 +220,6 @@ urlpatterns = [
         "observations/<int:pk>/share/",
         views.share_observation_record,
         name="share-observation-record",
-    ),
-    path(
-        "observations/<int:pk>/share-data/",
-        views.share_data_products,
-        name="share-data-products",
     ),
     path(
         "antares/loci/remote-jobs/",

@@ -59,7 +59,11 @@ class RefreshAntaresPhotometryView(View):
             return redirect(_back(request))
 
         try:
-            dp = broker.create_lightcurve_dp(target, lightcurve_data)
+            # A refresh only re-grants if the product did not exist yet;
+            # refreshing an existing light curve never changes who owns it.
+            dp = broker.create_lightcurve_dp(
+                target, lightcurve_data, user=request.user
+            )
 
             logger.debug(
                 "ANTARES refresh: lightcurve DataProduct dp_id=%s target_id=%s",

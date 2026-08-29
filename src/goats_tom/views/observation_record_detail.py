@@ -16,8 +16,28 @@ from tom_observations.views import (
 )
 
 from goats_tom.utils import is_gpp_id
+from goats_tom.visibility import (
+    changeable_data_product_groups,
+    shareable_users,
+    visible_data_products,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _scoped_add_product_form(user) -> AddProductToGroupForm:
+    """An `AddProductToGroupForm` offering only what `user` may touch.
+
+    Notes
+    -----
+    Files are limited to those the user may view and groups to those they
+    may change: adding to a selection modifies it, so view alone is not
+    enough to be offered it as a destination.
+    """
+    form = AddProductToGroupForm()
+    form.fields["products"].queryset = visible_data_products(user)
+    form.fields["group"].queryset = changeable_data_product_groups(user)
+    return form
 
 
 class ObservationRecordDetailView(BaseObservationRecordDetailView):
@@ -26,28 +46,64 @@ class ObservationRecordDetailView(BaseObservationRecordDetailView):
     def get_context_data(self, *args, **kwargs):
         """Override for avoiding "get_preview" and creating thumbnail."""
         context = super(DetailView, self).get_context_data(*args, **kwargs)
-        context["form"] = AddProductToGroupForm()
+        # The "add to data product group" form. Upstream builds it from
+        # `DataProduct.objects.all()` and `DataProductGroup.objects.all()`,
+        # so it named every PI's selections here even though the group list
+        # page and the add endpoint were both scoped. The form's querysets
+        # are also its validators, so narrowing them is what makes a posted
+        # id from another PI's group invalid rather than merely absent from
+        # the page.
+        context["form"] = _scoped_add_product_form(self.request.user)
         facility = tom_observations_get_service_class(self.object.facility)()
         facility.set_user(self.request.user)
         observation_record = self.get_object()
 
-        # Sharing controls for the observation and its data products.
+        # Sharing and read-only mode.
         #
-        # Both templates need the same two values, so they are worked out
-        # once here rather than in each. `shareable_groups` is the user's own
-        # groups: the select element must not offer a collaboration they have
-        # nothing to do with, and the view re-checks it besides, since a
-        # select element is not a security boundary.
-        context["can_share_observation"] = (
-            self.request.user.is_superuser
-            or self.request.user.has_perm(
-                "tom_observations.change_observationrecord", observation_record
-            )
+        # `can_share_observation` gates the share modal; `can_edit_observation`
+        # gates every control that changes something -- the GOA query form,
+        # the DRAGONS panel, add-to-group, the observation id form and
+        # cancellation. Both are `change` on the record, but they are kept
+        # as separate names because they answer different questions and
+        # will not necessarily stay equal.
+        #
+        # A recipient of a read-only share still reaches this page: seeing
+        # an observation and its data is the point of sharing, and hiding
+        # the page would make the share useless. What they lose is the
+        # ability to act on it.
+        #
+        # These decide what is *rendered*. Each underlying view re-checks
+        # for itself, since a hidden form is not an access check -- see
+        # `GOAQueryFormView`.
+        can_change = self.request.user.is_superuser or self.request.user.has_perm(
+            "tom_observations.change_observationrecord", observation_record
         )
+        context["can_share_observation"] = can_change
+        context["can_edit_observation"] = can_change
         context["shareable_groups"] = self.request.user.groups.all()
+        context["shareable_users"] = shareable_users(self.request.user)
 
-        context["editable"] = isinstance(facility, BaseManualObservationFacility)
-        context["data_products"] = facility.all_data_products(self.object)
+        # Editable also requires change: it drives the observation id form,
+        # which is a write.
+        context["editable"] = (
+            isinstance(facility, BaseManualObservationFacility) and can_change
+        )
+        # Filtered by view permission. `all_data_products` resolves files
+        # straight from the observation record with no permission check, so
+        # unfiltered it hands every file on the observation to anyone who
+        # can load the page -- including the download links in the table and
+        # the hidden add-to-group inputs, which read from this same list.
+        all_products = facility.all_data_products(self.object)
+        context["data_products"] = {
+            "saved": [
+                product
+                for product in all_products.get("saved", [])
+                if self.request.user.has_perm(
+                    "tom_dataproducts.view_dataproduct", product
+                )
+            ],
+            "unsaved": all_products.get("unsaved", []),
+        }
         context["can_be_cancelled"] = (
             self.object.status not in facility.get_terminal_observing_states()
         )

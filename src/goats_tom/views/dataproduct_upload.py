@@ -9,9 +9,40 @@ from tom_dataproducts.models import DataProduct, ReducedDatum, data_product_path
 from tom_dataproducts.views import DataProductUploadView as BaseDataProductUploadView
 
 from goats_tom.processors import run_data_processor
+from goats_tom.visibility import visible_observation_records, visible_targets
 
 
 class DataProductUploadView(BaseDataProductUploadView):
+    def get_form(self, *args, **kwargs):
+        """Restrict what an upload may be attached to.
+
+        Notes
+        -----
+        `DataProductUploadForm` declares ``observation_record`` and
+        ``target`` as `ModelChoiceField` over ``objects.all()``. Both are
+        rendered as hidden inputs, which is why they are easy to overlook --
+        but hidden is a statement about rendering, not about what a client
+        may post, and for a `ModelChoiceField` the queryset *is* the
+        validator. Left unscoped, a crafted POST attaches a file to another
+        PI's observation record or target.
+
+        Scoped to view rather than change: uploading a data product does not
+        modify the observation record it hangs off, and requiring change
+        would stop a collaborator with view access from contributing to a
+        shared target -- which is the point of sharing one.
+        """
+        form = super().get_form(*args, **kwargs)
+        if settings.TARGET_PERMISSIONS_ONLY:
+            return form
+        user = self.request.user
+        if "observation_record" in form.fields:
+            form.fields["observation_record"].queryset = visible_observation_records(
+                user
+            )
+        if "target" in form.fields:
+            form.fields["target"].queryset = visible_targets(user)
+        return form
+
     def form_valid(self, form):
         """
         Override for assigning a product ID to the uploaded data.

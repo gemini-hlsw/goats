@@ -16,8 +16,19 @@ from goats_tom.serializers import DataProductTypeUpdateSerializer
 class DataProductTypeViewSet(mixins.UpdateModelMixin, GenericViewSet):
     """Allows updating just the `data_product_type` of a `DataProduct`.
 
-    Restricted to the data products the requesting user already has permission
-    to view, matching `tom_dataproducts.api_views.DataProductViewSet`.
+    Restricted to the data products the requesting user may **change**.
+
+    Notes
+    -----
+    Change rather than view, because retagging is a write with consequences
+    beyond a label: moving a file away from photometry deletes every
+    photometry `ReducedDatum` derived from it, which is destructive and not
+    obviously so from the dropdown. A read-only recipient of a shared
+    observation can read and download the file; they cannot retag it and
+    silently drop the owning PI's photometry points.
+
+    Full access does grant change, so a collaborator trusted to edit the
+    observation can retag its files.
     """
 
     queryset = DataProduct.objects.all()
@@ -37,6 +48,10 @@ class DataProductTypeViewSet(mixins.UpdateModelMixin, GenericViewSet):
         `tom_dataproducts.api_views.DataProductViewSet`, which filters by the
         target's view permission in the same branch -- the setting chooses
         *which* permission governs a data product, not whether one does.
+
+        In target-only mode the governing permission is `change_target`:
+        there are no per-object data product permissions to consult, and
+        somebody who may edit the target may edit what hangs off it.
         """
         if settings.TARGET_PERMISSIONS_ONLY:
             return (
@@ -45,13 +60,13 @@ class DataProductTypeViewSet(mixins.UpdateModelMixin, GenericViewSet):
                 .filter(
                     target__in=get_objects_for_user(
                         self.request.user,
-                        f"{Target._meta.app_label}.view_target",
+                        f"{Target._meta.app_label}.change_target",
                     )
                 )
             )
         return get_objects_for_user(
             self.request.user,
-            "tom_dataproducts.view_dataproduct",
+            "tom_dataproducts.change_dataproduct",
             klass=super().get_queryset(),
         )
 

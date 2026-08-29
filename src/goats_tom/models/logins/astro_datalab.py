@@ -1,6 +1,6 @@
 __all__ = ["AstroDatalabLogin"]
 
-from django.db import models
+from goats_tom.encryption import EncryptedField
 
 from .base import UsernamePasswordLogin
 
@@ -33,10 +33,11 @@ class AstroDatalabLogin(UsernamePasswordLogin):
     silent no-op rather than an authentication error. Minting one per launch
     from the stored password avoids a whole class of confusing failures.
 
-    Like every other credential in `goats_tom.models.logins`, this is held in
-    **plain text**. Encrypting these at rest is an outstanding requirement
-    before a shared multi-tenant deployment, where one host holds 300 PIs'
-    credentials rather than one astronomer's own.
+    Encrypted at rest, along with the `password` inherited from
+    `UsernamePasswordLogin` -- see `goats_tom.models.logins.base` for the
+    mechanism and its limits. This model is the reason the session-based
+    scheme could not be used: `executors/datalab.py` reads these credentials
+    for a subscription owner from the supervisor, where no session exists.
     """
 
-    jupyter_token = models.CharField(max_length=255, blank=True, default="")
+    jupyter_token = EncryptedField(blank=True, null=True)

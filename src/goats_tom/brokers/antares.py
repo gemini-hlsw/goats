@@ -21,6 +21,7 @@ from tom_targets.models import BaseTarget, Target, TargetName
 
 from goats_tom.antares_client.client import get_by_id, search
 from goats_tom.antares_client.config import ANTARESConfig
+from goats_tom.permissions import grant_dataproduct_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -430,7 +431,7 @@ class ANTARESBroker(GenericBroker):
 
         return lightcurve
 
-    def create_lightcurve_dp(self, target, lightcurve):
+    def create_lightcurve_dp(self, target, lightcurve, user=None, share_with_group=None):
         """
         Create or update a photometry DataProduct for a target.
 
@@ -444,11 +445,38 @@ class ANTARESBroker(GenericBroker):
             Target associated with the lightcurve.
         lightcurve : pandas.DataFrame
             Processed lightcurve data.
+        user : `django.contrib.auth.models.User`, optional
+            The user this ingestion is attributed to -- `request.user` on the
+            extension and manual-refresh paths, or the `saved_by` user on the
+            dashboard and auto-save paths. Granted permissions on the product
+            **only when it is created**. `None` leaves the product
+            unattributed and logs a warning, rather than guessing.
+        share_with_group : `django.contrib.auth.models.Group`, optional
+            The saving user's team, granted view alongside them, so the light
+            curve lands on the same terms as the target it belongs to.
 
         Returns
         -------
         tom_dataproducts.models.DataProduct
             The created or updated DataProduct instance.
+
+        Notes
+        -----
+        With ``TARGET_PERMISSIONS_ONLY = False`` a data product created
+        without per-object permissions is visible to nobody, including the
+        person whose action created it -- silently, since nothing errors and
+        the file is written to disk as normal. This method was the fifth
+        creation path in GOATS to have that bug, after Gemini triggering,
+        add-existing-observation, GOA downloads and manual uploads. It is
+        also the one `check_object_permissions --fix` cannot repair on its
+        own: these products have no observation record, so there is nothing
+        for it to infer an owner from.
+
+        Permissions are assigned on creation and never on update. A refresh
+        rewrites the file and leaves the existing holders exactly as they
+        were, because re-granting here would hand a product to whoever
+        refreshed it last -- and on a locus two PIs both subscribe to, that
+        is one PI taking over another's product simply by pressing refresh.
         """
         csv_string = lightcurve.to_csv(index=False)
 
@@ -456,6 +484,7 @@ class ANTARESBroker(GenericBroker):
         file_name = f"{target.name}_lightcurve.csv"
         data = ContentFile(csv_string.encode("utf-8"), name=file_name)
 
+        created = False
         try:
             with transaction.atomic():
                 dp, created = DataProduct.objects.get_or_create(
@@ -466,11 +495,18 @@ class ANTARESBroker(GenericBroker):
                     },
                 )
         except IntegrityError:
+            # Lost a race to another writer: the product now exists and is
+            # someone else's creation, so this is an update from here on.
             dp = DataProduct.objects.get(product_id=product_id)
+            created = False
 
         if dp.data:
             dp.data.delete(save=False)
         dp.data.save(file_name, data, save=True)
+
+        if created:
+            grant_dataproduct_permissions(dp, user, share_with_group=share_with_group)
+
         return dp
 
     def create_reduced_datums(self, dp):

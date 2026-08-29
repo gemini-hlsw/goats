@@ -433,7 +433,14 @@ def save_locus_as_target(locus_id: str, saved_by=None, share_with_group=None) ->
     # logged as a partial success.
     try:
         lightcurve_data = broker.process_lightcurve_data(alert=alert)
-        dp = broker.create_lightcurve_dp(target, lightcurve_data)
+        # Same user and group the target itself is granted to below, so the
+        # light curve is visible to exactly whoever the target is.
+        dp = broker.create_lightcurve_dp(
+            target,
+            lightcurve_data,
+            user=saved_by,
+            share_with_group=share_with_group,
+        )
         broker.create_reduced_datums(dp)
     except Exception:
         logger.exception(

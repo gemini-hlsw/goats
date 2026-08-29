@@ -14,6 +14,18 @@ without assigning permissions fails the same silent way.
 This command does not prevent that. It makes it *visible*, which is the next
 best thing: run it after adding any code that creates observations or data
 products, and it will say plainly whether they are reachable.
+
+Repairing them::
+
+    # report only
+    python manage.py check_object_permissions
+
+    # grant each to its recorded creator, where one exists
+    python manage.py check_object_permissions --fix
+
+    # one file, to a named owner, when a batch is not all one person's
+    python manage.py check_object_permissions \\
+        --fix --only ANT2020bk53s_lightcurve --assign-to jsmith
 """
 
 __all__ = ["Command"]
@@ -102,6 +114,16 @@ class Command(BaseCommand):
                 "they are all this person's."
             ),
         )
+        parser.add_argument(
+            "--only",
+            metavar="IDENTIFIER",
+            help=(
+                "Restrict to the single object with this product_id or "
+                "observation_id. Use with --fix --assign-to to repair one "
+                "file at a time when a batch of orphans does not all belong "
+                "to the same person."
+            ),
+        )
 
     def handle(self, *args, **options) -> None:
         """Scan both models, reporting or repairing what nobody can see."""
@@ -125,21 +147,42 @@ class Command(BaseCommand):
             if fallback is None:
                 raise CommandError(f"No user named {options['assign_to']!r}.")
 
+        only = options["only"]
+        matched = False
+
         orphaned_total = repaired = unresolved = 0
         for model, app_label, model_name, label_field in CHECKS:
+            candidates = model.objects.all()
+            if only:
+                # Scoped by the identifier the report prints, so an operator
+                # can paste a line straight back in. An identifier that
+                # matches neither model is an error rather than a silent
+                # no-op, since "nothing orphaned" would read as success.
+                candidates = candidates.filter(**{label_field: only})
+                if candidates.exists():
+                    matched = True
+                elif model.objects.filter(**{label_field: only}).exists():
+                    matched = True
+
             # Checked per object rather than with one query: guardian stores
             # user and group permissions in separate tables, and an object is
             # only orphaned when *both* are empty.
             orphaned = [
                 obj
-                for obj in model.objects.all()
+                for obj in candidates
                 if not get_users_with_perms(obj, with_group_users=True).exists()
             ]
             orphaned_total += len(orphaned)
-            self.stdout.write(
-                f"{model.__name__}: {len(orphaned)} of {model.objects.count()} "
-                "visible to nobody."
-            )
+            if only:
+                self.stdout.write(
+                    f"{model.__name__}: {len(orphaned)} of {candidates.count()} "
+                    f"matching {only!r} visible to nobody."
+                )
+            else:
+                self.stdout.write(
+                    f"{model.__name__}: {len(orphaned)} of {model.objects.count()} "
+                    "visible to nobody."
+                )
 
             for obj in orphaned:
                 label = getattr(obj, label_field, None) or obj.pk
@@ -163,6 +206,11 @@ class Command(BaseCommand):
                     f"    {label} -> granted to {owner.username} ({reason})"
                 )
 
+        if only and not matched:
+            raise CommandError(
+                f"No observation record or data product with the identifier "
+                f"{only!r}."
+            )
         if orphaned_total == 0:
             self.stdout.write(self.style.SUCCESS("Nothing orphaned."))
             return

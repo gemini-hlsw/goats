@@ -1,6 +1,7 @@
 __all__ = ["RSPTapLogin"]
 
 from django.db import models
+from goats_tom.encryption import EncryptedField
 
 from .base import BaseLogin
 
@@ -34,4 +35,4 @@ class RSPTapLogin(BaseLogin):
         auth session would otherwise be provisioned automatically).
     """
 
-    access_token = models.CharField(max_length=256, blank=False, null=False)
+    access_token = EncryptedField(blank=False, null=True)
