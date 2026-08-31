@@ -43,6 +43,10 @@ class BlancoObservationForm {
   #labellers = new WeakMap();
   /** The control that says which proposal buys the time. */
   #proposal = null;
+  /** The proposal the configurations on show were filled in for. */
+  #paidFor = null;
+  /** What was filled in under each proposal, so going back brings it back. */
+  #kept = new Map();
 
   /**
    * @param {HTMLElement} container Element carrying `data-target-id`.
@@ -119,7 +123,7 @@ class BlancoObservationForm {
       // The proposal is what buys the time, so it says which instruments
       // this configuration may spend it on.
       BlancoObservationForm.narrow(select.closest("[data-field]"), {
-        allowed: this.#structure.proposals?.[this.#proposal?.value] ?? [],
+        allowed: this.#instrumentsAllowed(),
       });
       const accepted = this.#structure.instruments?.[select.value] ?? {};
       pane.querySelectorAll("[data-field]").forEach((column) => {
@@ -154,6 +158,23 @@ class BlancoObservationForm {
     apply();
   }
 
+  /** The instruments the chosen proposal has time on, if it says. */
+  #instrumentsAllowed() {
+    return this.#structure.proposals?.[this.#proposal?.value] ?? [];
+  }
+
+  /**
+   * Put every configuration on show to the proposal that pays for it.
+   *
+   * @private
+   * @returns {void}
+   */
+  #settle() {
+    this.#container
+      .querySelectorAll('[data-role="configuration"]')
+      .forEach((pane) => this.#narrowers.get(pane)?.());
+  }
+
   /**
    * Keep every configuration to what the chosen proposal may observe with.
    *
@@ -166,14 +187,174 @@ class BlancoObservationForm {
    */
   #followProposal() {
     this.#proposal = this.#container.querySelector('[data-field="proposal"] select');
-    const apply = () =>
-      this.#container
-        .querySelectorAll('[data-role="configuration"]')
-        .forEach((pane) => this.#narrowers.get(pane)?.());
-    this.#proposal?.addEventListener("change", apply);
+    this.#paidFor = this.#paidFor ?? this.#proposal?.value ?? null;
+    this.#proposal?.addEventListener("change", () => this.#changeProposal());
     // The configurations were drawn before the form was put on the page, so
     // nothing had asked the proposal what it allows.
-    apply();
+    this.#settle();
+  }
+
+  /**
+   * Follow the proposal to the configurations it can pay for.
+   *
+   * Time is given on an instrument, so a proposal that has none on the one
+   * a configuration names cannot observe what was filled in for it -- and
+   * neither can the configurations beside it, which is a form to be gone
+   * through again field by field. The request starts again instead, with
+   * the one configuration a form is drawn with; what it had is put away
+   * under the proposal it was filled in for, and comes back with it.
+   *
+   * @private
+   * @returns {void}
+   */
+  #changeProposal() {
+    const now = this.#proposal.value;
+    const before = this.#paidFor;
+    this.#paidFor = now;
+    if (before === now) {
+      return;
+    }
+    if (this.#affordable()) {
+      // Every instrument on show is one this proposal has time on: there is
+      // nothing to put away, and nothing to draw again.
+      this.#settle();
+      return;
+    }
+    if (before !== null) {
+      this.#kept.set(before, this.#configurations());
+    }
+    this.#again(this.#kept.get(now) ?? null);
+  }
+
+  /** Whether this proposal has time on every instrument now on show. */
+  #affordable() {
+    const allowed = this.#instrumentsAllowed();
+    if (!allowed.length) {
+      return true;
+    }
+    return [
+      ...this.#container.querySelectorAll(
+        '[data-role="configuration"] [data-field$="_instrument_type"] select',
+      ),
+    ].every((select) => allowed.includes(select.value));
+  }
+
+  /**
+   * Draw the request again, keeping what the proposal did not pay for.
+   *
+   * @private
+   * @param {?{counts: number[], values: Object}} kept What was put away for
+   *   the proposal now chosen, or null where it has never been filled in.
+   * @returns {void}
+   */
+  #again(kept) {
+    const request = this.#request();
+    this.#draw();
+    this.#restore(request);
+    if (kept) {
+      this.#restoreConfigurations(kept);
+    }
+    this.#settle();
+  }
+
+  /**
+   * What the request asks for outside its configurations: its name, its
+   * proposal, the window it is observed in and the cadence it repeats on.
+   *
+   * @private
+   * @returns {Object}
+   */
+  #request() {
+    return this.#read((name) => !name.startsWith("c_"));
+  }
+
+  /**
+   * What every configuration on show was filled in with, and how many of
+   * them, and of the exposures each carries, there were to fill in.
+   *
+   * @private
+   * @returns {{counts: number[], values: Object}}
+   */
+  #configurations() {
+    return {
+      counts: [
+        ...this.#container.querySelectorAll('[data-role="configuration"]'),
+      ].map((pane) => pane.querySelectorAll('[data-role="exposure"]').length),
+      values: this.#read((name) => name.startsWith("c_")),
+    };
+  }
+
+  /**
+   * The value of every control the form holds, by the name it posts under.
+   *
+   * @private
+   * @param {function(string): boolean} wanted
+   * @returns {Object}
+   */
+  #read(wanted) {
+    const values = {};
+    this.#container.querySelectorAll("input, select, textarea").forEach((input) => {
+      if (input.name && wanted(input.name)) {
+        values[input.name] =
+          input.type === "checkbox" ? input.checked : input.value;
+      }
+    });
+    return values;
+  }
+
+  /**
+   * Put back what was read, into the controls that are there to take it.
+   *
+   * @private
+   * @param {Object} values
+   * @returns {void}
+   */
+  #restore(values) {
+    Object.entries(values).forEach(([name, value]) => {
+      const input = this.#container.querySelector(`[name="${name}"]`);
+      if (input) {
+        BlancoField.write(input, value);
+      }
+    });
+  }
+
+  /**
+   * Draw as many configurations, and as many exposures in each, as were put
+   * away, and fill them in again.
+   *
+   * @private
+   * @param {{counts: number[], values: Object}} kept
+   * @returns {void}
+   */
+  #restoreConfigurations({ counts, values }) {
+    this.#drawUpTo(this.#container, "configuration", counts.length);
+    [...this.#container.querySelectorAll('[data-role="configuration"]')].forEach(
+      (pane, index) => this.#drawUpTo(pane, "exposure", counts[index] ?? 1),
+    );
+    this.#restore(values);
+  }
+
+  /**
+   * Ask for as many of something as there were, one at a time.
+   *
+   * @private
+   * @param {HTMLElement} within
+   * @param {string} role
+   * @param {number} wanted
+   * @returns {void}
+   */
+  #drawUpTo(within, role, wanted) {
+    const add = within.querySelector(`[data-role="add-${role}"]`);
+    const drawn = () => within.querySelectorAll(`[data-role="${role}"]`).length;
+    while (add && drawn() < wanted) {
+      const before = drawn();
+      add.click();
+      // The facility allows only so many, and the button says so by going
+      // spent: asked past that, nothing is drawn and nothing is waited for.
+      if (drawn() === before) {
+        return;
+      }
+    }
   }
 
   /**
@@ -792,28 +973,74 @@ class BlancoObservationForm {
     // The whole answer, keys and all, for whoever is looking into it.
     console.warn("Blanco form errors", errors);
     Object.entries(errors ?? {}).forEach(([name, messages]) => {
-      const text = [].concat(messages).join(" ");
+      const said = [].concat(messages);
       const slot = this.#container.querySelector(`[data-error-for="${name}"]`);
       if (!slot) {
-        // Raised on the request as a whole, or on a field never drawn.
-        loose.push(BlancoObservationForm.plainly(text));
+        // Raised on the request as a whole, or on a field never drawn. Each
+        // is about a part of its own, and reads as one where it is listed.
+        said.forEach((message) =>
+          loose.push(BlancoObservationForm.plainly(message)),
+        );
         return;
       }
-      slot.textContent = text;
+      slot.textContent = said.join(" ");
       slot.classList.remove("d-none");
       const column = slot.closest("[data-field]");
       column?.querySelector("input, select, textarea")?.classList.add("is-invalid");
       first = first ?? column;
     });
-    const said = loose.filter(Boolean).join(" ");
+    const said = loose.filter(Boolean);
+    // Said from a toast at the foot of the page, which is nowhere near the
+    // fields it is about: what to look for, not where to look.
     this.#announce(
-      said || "Please correct the errors below.",
+      said.length
+        ? "The portal would not take this request."
+        : "Check the fields marked in red.",
       "danger",
       "Not ready",
     );
+    this.#refusal(said);
     if (first) {
       this.#reveal(first);
     }
+  }
+
+  /**
+   * What was refused of the request as a whole, kept where it can be read.
+   *
+   * A toast says one thing and goes. The portal refuses several at a time,
+   * each about a part of the request -- a configuration, an exposure, the
+   * window -- and they are worth reading one under another, beside the form
+   * they are about, for as long as they are true of it.
+   *
+   * @private
+   * @param {string[]} messages
+   * @returns {void}
+   */
+  #refusal(messages) {
+    const slot = this.#container.querySelector('[data-role="messages"]');
+    if (!slot) {
+      return;
+    }
+    slot.querySelector('[data-role="refusal"]')?.remove();
+    if (!messages.length) {
+      return;
+    }
+    const alert = document.createElement("div");
+    alert.className = "alert alert-danger mt-3";
+    alert.dataset.role = "refusal";
+    const said = document.createElement("p");
+    said.className = "fw-semibold mb-2";
+    said.textContent = "The portal would not take this request:";
+    const list = document.createElement("ul");
+    list.className = "mb-0 ps-3";
+    messages.forEach((message) => {
+      const item = document.createElement("li");
+      item.textContent = message;
+      list.append(item);
+    });
+    alert.append(said, list);
+    slot.append(alert);
   }
 
   /**

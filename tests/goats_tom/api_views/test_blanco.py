@@ -274,12 +274,12 @@ def test_a_configuration_can_be_given_a_target_of_its_own(client, target):
 
     configuration = client.get(
         reverse("blancoobservations-list"), {"target_id": target.id}
-    ).json()["sections"][1]["instances"][0]
+    ).json()["sections"][1]["instances"][1]
 
     override = next(
         field
         for field in configuration["fields"]
-        if field["name"] == "c_1_target_override"
+        if field["name"] == "c_2_target_override"
     )
 
     assert override["label"] == "Target"
@@ -290,16 +290,40 @@ def test_a_configuration_can_be_given_a_target_of_its_own(client, target):
 
 
 @pytest.mark.django_db()
+def test_the_first_configuration_observes_the_target_the_request_names(
+    client, target
+):
+    """It is what the request was opened on: there is nothing to put in its
+    place, whatever company the target keeps."""
+    from tom_targets.models import TargetList
+
+    companion = SiderealTargetFactory.create(name="the other one")
+    group = TargetList.objects.create(name="a group")
+    group.targets.set([target, companion])
+
+    configurations = client.get(
+        reverse("blancoobservations-list"), {"target_id": target.id}
+    ).json()["sections"][1]["instances"]
+
+    assert "c_1_target_override" not in [
+        field["name"] for field in configurations[0]["fields"]
+    ]
+    assert "c_2_target_override" in [
+        field["name"] for field in configurations[1]["fields"]
+    ]
+
+
+@pytest.mark.django_db()
 def test_a_target_that_keeps_no_company_is_not_asked_to_be_substituted(client, target):
     """The only target on offer would be the one the request already names."""
     names = [
         field["name"]
         for field in client.get(
             reverse("blancoobservations-list"), {"target_id": target.id}
-        ).json()["sections"][1]["instances"][0]["fields"]
+        ).json()["sections"][1]["instances"][1]["fields"]
     ]
 
-    assert "c_1_target_override" not in names
+    assert "c_2_target_override" not in names
 
 
 @pytest.mark.django_db()
@@ -316,3 +340,63 @@ def test_what_a_proposal_may_be_observed_with_reaches_the_interface(
     response = client.get(reverse("blancoobservations-list"), {"target_id": target.id})
 
     assert response.json()["proposals"] == {"1": ["BLANCO_DECAM"]}
+
+
+@pytest.mark.django_db()
+def test_the_portal_s_refusal_comes_back_saying_where_it_is_from(
+    client, target, mocker
+):
+    """It answers in the shape of what it was sent, and the interface has to
+    show a reader which configuration, and which exposure, it refused."""
+    # What is asked of the portal is not what is being tested here, and with
+    # no instruments to build it from there is no payload to ask with.
+    mocker.patch(
+        "tom_observations.facilities.ocs.OCSFullObservationForm.observation_payload",
+        return_value={},
+    )
+    mocker.patch(
+        "tom_observations.facilities.ocs.OCSFacility.validate_observation",
+        return_value={
+            "errors": {
+                "requests": [
+                    {
+                        "configurations": [
+                            {
+                                "instrument_configs": [
+                                    {
+                                        "exposure_time": [
+                                            "Ensure this value is at most 40."
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+    )
+
+    response = client.post(
+        reverse("blancoobservations-list"),
+        {
+            "target_id": target.id,
+            "fields": {
+                "name": "a request",
+                "proposal": "1",
+                "ipp_value": "1.05",
+                "observation_mode": "NORMAL",
+                "start": "2026-09-01 20:00:00",
+                "end": "2026-09-02 06:00:00",
+                "c_1_instrument_type": "",
+                "c_1_max_airmass": "1.6",
+            },
+        },
+        format="json",
+    )
+    body = response.json()
+
+    assert body["valid"] is False
+    assert body["errors"]["__all__"] == [
+        "Configuration 1, exposure 1, exposure time: Ensure this value is at most 40."
+    ]

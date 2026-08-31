@@ -114,11 +114,74 @@ PROPOSALS_URL = "/api/proposals/?limit=100"
 #: on a page never read is a proposal the form would quietly leave out.
 PROPOSAL_PAGES = 20
 
+#: What the portal calls the parts of a request, and what to call them back
+#: when it refuses one. What it answers is shaped like what it was sent, so
+#: a message means nothing until it says which part it was raised on.
+PORTAL_PLACES = {
+    "configurations": "configuration",
+    "instrument_configs": "exposure",
+    "windows": "window",
+    "constraints": "constraints",
+    "target": "target",
+    "acquisition_config": "acquisition",
+    "guiding_config": "guiding",
+    "extra_params": "instrument parameters",
+    "optical_elements": "optical elements",
+}
+
+#: The portal answers about a request group of one request, which is the one
+#: being filled in: saying so again says nothing.
+PORTAL_REQUESTS = "requests"
+
+#: What the portal raises on a part as a whole rather than on a field of it.
+PORTAL_WHOLE = "non_field_errors"
+
 #: ``c_1_ic_1_exposure_time`` is an ``exposure_time``.
 _POSITION = re.compile(r"^c_\d+_(ic_\d+_)?")
 
 #: The configuration and the exposure a field belongs to.
 _EXPOSURE = re.compile(r"^c_(?P<configuration>\d+)_ic_(?P<exposure>\d+)_")
+
+
+def _numbered(where: tuple[str, ...], index: int) -> tuple[str, ...]:
+    """The part the path ends on, said as the numbered one of several."""
+    return (*where[:-1], f"{where[-1]} {index}") if where else where
+
+
+def _sentence(where: tuple[str, ...], message: str) -> str:
+    """One of the portal's messages, said with the part it was raised on."""
+    said = ", ".join(part.replace("_", " ") for part in where)
+    return f"{said.capitalize()}: {message}" if said else message
+
+
+def _said(node: Any, where: tuple[str, ...] = ()) -> list[str]:
+    """Read the portal's answer as sentences, wherever they are buried.
+
+    It answers in the shape of what it was sent -- a request of
+    configurations of exposures -- so a message arrives under the part it
+    belongs to and nowhere else.
+    """
+    if isinstance(node, str):
+        return [_sentence(where, node)]
+    if isinstance(node, list):
+        said: list[str] = []
+        for index, item in enumerate(node, start=1):
+            # A list of parts is numbered; a list of messages about one is not.
+            said += _said(
+                item, where if isinstance(item, str) else _numbered(where, index)
+            )
+        return said
+    if isinstance(node, dict):
+        said = []
+        for key, value in node.items():
+            if key == PORTAL_REQUESTS or key == PORTAL_WHOLE:
+                # The one request being filled in, and what is wrong with a
+                # part of it as a whole: neither adds a word worth reading.
+                said += _said(value, where)
+                continue
+            said += _said(value, (*where, PORTAL_PLACES.get(key, key)))
+        return said
+    return []
 
 
 def _short(label: Any, said: set[str]) -> Any:
@@ -441,6 +504,17 @@ class GOATSBLANCOImagingObservationForm(BLANCOImagingObservationForm):
                 field.widget.attrs["data-unit"] = unit
                 # The unit is beside the control now, not inside it.
                 field.widget.attrs.pop("placeholder", None)
+
+    def _flatten_error_dict(self, error_dict: dict[str, Any]) -> list[str]:
+        """What the portal refused, in sentences rather than in punctuation.
+
+        The toolkit hands the interface the portal's nested answer flattened
+        into nested lists of ``key: message``, which reach the reader as
+        brackets and quotes around a message that never says which
+        configuration, or which exposure, it was raised on. Each one is
+        written out with where it came from instead.
+        """
+        return _said(error_dict)
 
     def _build_configuration(self, build_id: int) -> dict[str, Any] | None:
         # Skips BLANCO's version, which writes NEWFIRM's parameters whatever

@@ -496,3 +496,39 @@ def test_a_proposal_on_a_later_page_is_still_seen(form_class, portal):
 
     assert [code for code, _ in choices] == ["BLANCO-2026A"]
     assert portal.call_args_list[1].args[1] == first["next"]
+
+
+# -- what the portal refused, and how it is read back ------------------------
+
+
+PORTAL_REFUSAL = {
+    "requests": [
+        {
+            "configurations": [
+                {
+                    "instrument_configs": [
+                        {},
+                        {"exposure_time": ["Ensure this value is at most 40."]},
+                    ]
+                },
+                {"non_field_errors": ["The instrument is not schedulable."]},
+            ],
+            "windows": [{"end": ["Window ends before it starts."]}],
+        }
+    ],
+    "non_field_errors": ["The request group has no requests."],
+}
+
+
+def test_the_portal_s_refusal_says_which_part_it_was_raised_on(form_class):
+    """It answers in the shape of what it was sent, so a message on its own
+    never says which configuration, or which exposure, it is about."""
+    said = form_class()._flatten_error_dict(PORTAL_REFUSAL)
+
+    assert said == [
+        "Configuration 1, exposure 2, exposure time: "
+        "Ensure this value is at most 40.",
+        "Configuration 2: The instrument is not schedulable.",
+        "Window 1, end: Window ends before it starts.",
+        "The request group has no requests.",
+    ]

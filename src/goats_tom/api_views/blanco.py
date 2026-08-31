@@ -54,6 +54,10 @@ CONFIGURATION_FIELDS = [
 #: target keeps company: it substitutes another target of the same group.
 TARGET_OVERRIDE = "c_{index}_target_override"
 
+#: The configuration that observes the target the request was opened on. It
+#: is what the request is for, so there is nothing to substitute for it.
+FIRST = 1
+
 #: A reading order for the instrument parameters; the rest follow as declared.
 PARAMETER_ORDER = [
     "dither_sequence",
@@ -134,9 +138,10 @@ def _configuration_fields(form: Any, index: int) -> list[str]:
     """What a configuration asks for, in the order the portal asks it."""
     names = [name.format(index=index) for name in CONFIGURATION_FIELDS]
     override = TARGET_OVERRIDE.format(index=index)
-    # A target that keeps no company has nothing to be substituted by: the
-    # only target on offer would be the one the request already names.
-    if len(form.fields[override].choices) < 2:
+    # The first configuration observes the target the request was opened on,
+    # and a target that keeps no company has nothing to be substituted by:
+    # the only one on offer would be the one the request already names.
+    if index == FIRST or len(form.fields[override].choices) < 2:
         names.remove(override)
     return names
 

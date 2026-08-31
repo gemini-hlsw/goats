@@ -322,14 +322,14 @@ const REPEATED = {
 };
 
 /** Render the repeated form, with an answer waiting for a POST. */
-async function renderRepeated(window, answer) {
+async function renderRepeated(window, answer, structure = REPEATED) {
   const posts = [];
   window.fetch = (url, options = {}) => {
     if (options.method === "POST") {
       posts.push({ url, options });
       return Promise.resolve({ ok: true, json: async () => answer });
     }
-    return Promise.resolve({ ok: true, json: async () => REPEATED });
+    return Promise.resolve({ ok: true, json: async () => structure });
   };
   const BlancoObservationForm = window.eval("BlancoObservationForm");
   const container = window.document.getElementById("blancoContainer");
@@ -400,17 +400,19 @@ test("the last drawn is the one removed", async () => {
 /** The same form, with a proposal that only has time on one instrument. */
 const PROPOSED = {
   ...REPEATED,
-  proposals: { 1: ["BLANCO_DECAM"] },
+  proposals: { 1: ["BLANCO_DECAM"], 3: ["BLANCO_NEWFIRM"] },
   sections: [
     {
       title: "Details",
       open: true,
       fields: [
+        field("name", { required: true }),
         field("proposal", {
           type: "choice",
           choices: [
             { value: "1", label: "DECam time (1)" },
             { value: "2", label: "Time on both (2)" },
+            { value: "3", label: "NEWFIRM time (3)" },
           ],
         }),
       ],
@@ -418,6 +420,13 @@ const PROPOSED = {
     ...REPEATED.sections,
   ],
 };
+
+/** Change the proposal to one of the others, as a reader would. */
+function choose(window, container, proposal) {
+  const select = container.querySelector('[data-field="proposal"] select');
+  select.value = proposal;
+  select.dispatchEvent(new window.Event("change"));
+}
 
 test("a configuration is kept to what the proposal has time on", async () => {
   const window = buildWindow();
@@ -442,17 +451,85 @@ test("a proposal named by no instrument is held to none", async () => {
   expect([...select.options].every((option) => !option.disabled)).toBe(true);
 });
 
-test("a configuration drawn later follows the proposal already chosen", async () => {
+const drawn = (container, role) =>
+  container.querySelectorAll(`[data-role="${role}"]`).length;
+
+const valueOf = (container, name) =>
+  container.querySelector(`[data-field="${name}"] input, [data-field="${name}"] select`)
+    .value;
+
+test("a proposal that cannot pay for the request starts it again", async () => {
   const window = buildWindow();
   const { container } = await render(window, { structure: PROPOSED });
-
   container.querySelector('[data-role="add-configuration"]').click();
 
-  const select = container.querySelector('[data-field="c_2_instrument_type"] select');
-  expect([...select.options].find((o) => o.value === "BLANCO_NEWFIRM").disabled).toBe(
-    true,
-  );
-  expect(select.value).toBe("BLANCO_DECAM");
+  expect(drawn(container, "configuration")).toBe(2);
+
+  // Chosen for DECam, and this proposal has time on NEWFIRM alone.
+  choose(window, container, "3");
+
+  // The one configuration a form is drawn with, on an instrument this
+  // proposal can pay for.
+  expect(drawn(container, "configuration")).toBe(1);
+  expect(valueOf(container, "c_1_instrument_type")).toBe("BLANCO_NEWFIRM");
+});
+
+test("what a proposal was filled in with comes back with it", async () => {
+  const window = buildWindow();
+  const { container } = await render(window, { structure: PROPOSED });
+  container.querySelector('[data-field="c_1_ic_1_exposure_time"] input').value = "45";
+  container.querySelector('[data-role="add-configuration"]').click();
+
+  choose(window, container, "3");
+  choose(window, container, "1");
+
+  expect(drawn(container, "configuration")).toBe(2);
+  expect(valueOf(container, "c_1_instrument_type")).toBe("BLANCO_DECAM");
+  expect(valueOf(container, "c_1_ic_1_exposure_time")).toBe("45");
+});
+
+test("a proposal that can pay for what is on show leaves it alone", async () => {
+  const window = buildWindow();
+  const { container } = await render(window, { structure: PROPOSED });
+  container.querySelector('[data-field="c_1_ic_1_exposure_time"] input').value = "45";
+
+  // Time on both, so what was filled in for DECam is still paid for.
+  choose(window, container, "2");
+
+  expect(valueOf(container, "c_1_ic_1_exposure_time")).toBe("45");
+  expect(valueOf(container, "c_1_instrument_type")).toBe("BLANCO_DECAM");
+});
+
+test("the request is not what the proposal takes away", async () => {
+  const window = buildWindow();
+  const { container } = await render(window, { structure: PROPOSED });
+  container.querySelector('[data-field="name"] input').value = "a request";
+
+  choose(window, container, "3");
+
+  expect(valueOf(container, "name")).toBe("a request");
+  expect(valueOf(container, "proposal")).toBe("3");
+});
+
+test("what another proposal was filled in with is never sent", async () => {
+  const window = buildWindow();
+  const { container, posts } = await renderRepeated(window, { valid: true }, PROPOSED);
+  container.querySelector('[data-field="c_1_ic_1_exposure_time"] input').value = "45";
+  container.querySelector('[data-role="add-configuration"]').click();
+
+  choose(window, container, "3");
+  container.querySelector('[data-field="c_1_ic_1_exposure_time"] input').value = "20";
+  container.querySelector('[data-role="validate"]').click();
+  await settled();
+
+  const sent = JSON.parse(posts[0].options.body).fields;
+
+  // The one configuration this proposal pays for, and what it was filled in
+  // with. What the other holds is held in memory, and never in the form.
+  expect(sent.proposal).toBe("3");
+  expect(sent.c_1_instrument_type).toBe("BLANCO_NEWFIRM");
+  expect(sent.c_1_ic_1_exposure_time).toBe("20");
+  expect(Object.keys(sent).filter((name) => name.startsWith("c_2_"))).toEqual([]);
 });
 
 test("a tab says what is inside it", async () => {
@@ -587,6 +664,36 @@ test("an error on a field behind a tab brings that tab to the front", async () =
   await settled();
 
   expect(tabs(container, "exposure")[1].className).toContain("active");
+});
+
+test("what the portal refused is listed where it can be read", async () => {
+  const window = buildWindow();
+  const { container } = await renderRepeated(window, {
+    valid: false,
+    errors: {
+      __all__: [
+        "Configuration 1, exposure 1, exposure time: Ensure this is at most 40.",
+        "Window 1, end: The window ends before it starts.",
+      ],
+      c_1_ic_1_exposure_time: ["This field is required."],
+    },
+  });
+
+  container.querySelector('[data-role="validate"]').click();
+  await settled();
+
+  const listed = [
+    ...container.querySelectorAll('[data-role="refusal"] li'),
+  ].map((item) => item.textContent);
+
+  expect(listed).toEqual([
+    "Configuration 1, exposure 1, exposure time: Ensure this is at most 40.",
+    "Window 1, end: The window ends before it starts.",
+  ]);
+  // What was raised on a field is still said under that field.
+  expect(
+    container.querySelector('[data-error-for="c_1_ic_1_exposure_time"]').textContent,
+  ).toBe("This field is required.");
 });
 
 test("the portal's own machinery is not read out loud", async () => {
