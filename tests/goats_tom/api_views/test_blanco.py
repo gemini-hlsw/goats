@@ -1,4 +1,5 @@
 import pytest
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework.test import APIClient
 from tom_targets.tests.factories import SiderealTargetFactory
@@ -9,6 +10,8 @@ from goats_tom.tests.factories import UserFactory
 @pytest.fixture(autouse=True)
 def _portal(mocker):
     """Keep the form's lookups off the network."""
+    # The proposals are cached for an hour, and the cache outlives a test.
+    cache.clear()
     mocker.patch(
         "tom_observations.facilities.ocs.OCSBaseForm._get_instruments",
         return_value={},
@@ -297,3 +300,19 @@ def test_a_target_that_keeps_no_company_is_not_asked_to_be_substituted(client, t
     ]
 
     assert "c_1_target_override" not in names
+
+
+@pytest.mark.django_db()
+def test_what_a_proposal_may_be_observed_with_reaches_the_interface(
+    client, target, mocker
+):
+    """Time given on one instrument cannot be spent on another."""
+    mocker.patch(
+        "goats_tom.facilities.blanco.GOATSBLANCOImagingObservationForm"
+        ".instruments_by_proposal",
+        return_value={"1": ["BLANCO_DECAM"]},
+    )
+
+    response = client.get(reverse("blancoobservations-list"), {"target_id": target.id})
+
+    assert response.json()["proposals"] == {"1": ["BLANCO_DECAM"]}

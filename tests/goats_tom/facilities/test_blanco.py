@@ -8,8 +8,11 @@ else reaches the portal.
 
 import json
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
+import requests
+from django.core.cache import cache
 from tom_targets.tests.factories import SiderealTargetFactory
 
 from goats_tom.facilities import BLANCOFacility
@@ -25,6 +28,19 @@ NEWFIRM = "BLANCO_NEWFIRM"
 
 
 @pytest.fixture(autouse=True)
+def user(mocker):
+    """Whose proposals these are.
+
+    They are cached under the user who asked for them, and this test run
+    shares one cache between its workers: a test that took the same user as
+    another would be answered with what that one cached.
+    """
+    return mocker.patch(
+        "goats_tom.facilities.blanco.get_current_user_id", return_value=uuid4().hex
+    )
+
+
+@pytest.fixture(autouse=True)
 def _portal(mocker):
     """Keep the form's lookups, and its validation, off the network."""
     for name in ("_get_instruments", "get_instruments"):
@@ -32,13 +48,29 @@ def _portal(mocker):
             f"tom_observations.facilities.ocs.OCSBaseForm.{name}",
             return_value=INSTRUMENTS,
         )
-    mocker.patch(
-        "tom_observations.facilities.ocs.OCSBaseForm.proposal_choices",
-        return_value=[("1", "Test (1)")],
-    )
     # The toolkit asks the portal on every is_valid(), whatever it holds.
     mocker.patch(
         "tom_observations.facilities.ocs.OCSBaseObservationForm.validate_at_facility"
+    )
+    # The proposals come from the portal now, so every form built here would
+    # ask it. One is answered, and it is the one the payloads are filled in
+    # with; a test that cares about the answer replaces it.
+    answer = mocker.Mock()
+    answer.json.return_value = {
+        "results": [
+            {
+                "id": "1",
+                "title": "Test",
+                "active": True,
+                "sca": "BLANCO",
+                "timeallocation_set": [],
+            }
+        ]
+    }
+    mocker.patch("goats_tom.facilities.blanco.make_request", return_value=answer)
+    return mocker.patch(
+        "tom_observations.facilities.ocs.OCSBaseForm.proposal_choices",
+        return_value=[("1", "Test (1)")],
     )
 
 
@@ -278,3 +310,189 @@ def test_a_configuration_left_alone_observes_the_request_s_target(form_class, ta
     configuration = form.observation_payload()["requests"][0]["configurations"][0]
 
     assert configuration["target"]["name"] == target.name
+
+
+# -- whose proposals, and for what -------------------------------------------
+
+
+PROPOSALS = {
+    "results": [
+        {
+            "id": "BLANCO-2026A",
+            "title": "Blanco time",
+            "active": True,
+            "sca": "BLANCO",
+            "timeallocation_set": [{"instrument_types": ["BLANCO_NEWFIRM"]}],
+        },
+        {
+            "id": "BLANCO-2026B",
+            "title": "Blanco, no time yet",
+            "active": True,
+            "sca": "BLANCO",
+            "timeallocation_set": [],
+        },
+        {
+            "id": "BLANCO-2025B",
+            "title": "Blanco, closed",
+            "active": False,
+            "sca": "BLANCO",
+            "timeallocation_set": [{"instrument_types": ["BLANCO_DECAM"]}],
+        },
+        {
+            "id": "LCO-2026A",
+            "title": "Other telescope",
+            "active": True,
+            "sca": "LCO",
+            "timeallocation_set": [{"instrument_types": ["1M0-SCICAM-SINISTRO"]}],
+        },
+    ]
+}
+
+
+@pytest.fixture()
+def profile(_portal):
+    """What the toolkit would offer, asked only where the portal will not say.
+
+    The same mock the rest of the tests use: patched twice, whichever patch
+    landed last would answer, and that is not for a test to guess at.
+    """
+    _portal.return_value = [
+        ("BLANCO-2026A", "Blanco time (BLANCO-2026A)"),
+        ("LCO-2026A", "Other telescope (LCO-2026A)"),
+    ]
+    return _portal
+
+
+@pytest.fixture()
+def portal(mocker):
+    """The proposals the portal says this user has, over the default answer."""
+    answer = mocker.Mock()
+    answer.json.return_value = PROPOSALS
+    return mocker.patch(
+        "goats_tom.facilities.blanco.make_request", return_value=answer
+    )
+
+
+def test_another_telescope_s_proposal_is_not_offered(form_class, portal):
+    """The portal lists every proposal a user has, whatever telescope."""
+    choices = form_class().fields["proposal"].choices
+
+    assert [code for code, _ in choices] == ["BLANCO-2026A", "BLANCO-2026B"]
+
+
+def test_a_proposal_that_is_closed_is_not_offered(form_class, portal):
+    """Time on a proposal that is over cannot be asked for."""
+    codes = [code for code, _ in form_class().fields["proposal"].choices]
+
+    assert "BLANCO-2025B" not in codes
+
+
+def test_a_proposal_is_named_the_way_the_portal_names_it(form_class, portal):
+    """The title, and the code it is known by."""
+    choices = form_class().fields["proposal"].choices
+
+    assert ("BLANCO-2026A", "Blanco time (BLANCO-2026A)") in choices
+
+
+def test_a_proposal_is_held_to_what_it_has_time_on(form_class, portal):
+    """Time given on one instrument cannot be spent on another."""
+    assert form_class().instruments_by_proposal() == {
+        "BLANCO-2026A": ["BLANCO_NEWFIRM"]
+    }
+
+
+def test_a_proposal_with_no_time_here_is_held_to_nothing(form_class, portal):
+    """Named by no instrument, it is left every one the telescope offers."""
+    assert "BLANCO-2026B" not in form_class().instruments_by_proposal()
+
+
+def test_the_profile_is_left_alone_and_the_portal_asked_once(
+    form_class, profile, portal
+):
+    """One lookup an hour, and the toolkit's own is not one of them."""
+    form_class()
+    form_class()
+
+    assert portal.call_count == 1
+    assert profile.call_count == 0
+
+
+def test_a_portal_that_will_not_say_falls_back_on_the_toolkit(
+    form_class, profile, portal
+):
+    """An empty list would leave the form with nothing to observe on."""
+    portal.side_effect = requests.ConnectionError("no portal")
+
+    form = form_class()
+
+    assert [code for code, _ in form.fields["proposal"].choices] == [
+        "BLANCO-2026A",
+        "LCO-2026A",
+    ]
+    assert form.instruments_by_proposal() == {}
+
+
+def test_one_user_s_proposals_are_not_served_to_another(form_class, portal, user):
+    """Every user here brings their own API key."""
+    form_class()
+
+    portal.return_value.json.return_value = {
+        "results": [
+            {
+                "id": "OTHER-2026A",
+                "title": "Someone else",
+                "active": True,
+                "sca": "BLANCO",
+                "timeallocation_set": [{"instrument_types": ["BLANCO_DECAM"]}],
+            }
+        ]
+    }
+    user.return_value = uuid4().hex
+
+    choices = form_class().fields["proposal"].choices
+
+    assert [code for code, _ in choices] == ["OTHER-2026A"]
+
+
+def test_the_toolkit_s_shared_cache_is_left_empty(form_class, profile, portal):
+    """It is keyed on the facility alone: what is left there is served to
+    whoever asks next."""
+    portal.side_effect = requests.ConnectionError("no portal")
+
+    form_class()
+
+    assert cache.get("BLANCO_proposals") is None
+
+
+def test_a_proposal_on_a_later_page_is_still_seen(form_class, portal):
+    """Left on the page nobody read, it would be quietly left out."""
+    first = {
+        "results": [
+            {
+                "id": "LCO-2026A",
+                "title": "Other telescope",
+                "active": True,
+                "sca": "LCO",
+                "timeallocation_set": [{"instrument_types": ["1M0-SCICAM-SINISTRO"]}],
+            }
+        ],
+        "next": "https://observe.lco.global/api/proposals/?offset=1",
+    }
+    second = {
+        "results": [
+            {
+                "id": "BLANCO-2026A",
+                "title": "Blanco time",
+                "active": True,
+                "sca": "BLANCO",
+                "timeallocation_set": [{"instrument_types": ["BLANCO_DECAM"]}],
+            }
+        ],
+        "next": None,
+    }
+    portal.return_value.json.side_effect = [first, second]
+
+    choices = form_class().fields["proposal"].choices
+
+    assert [code for code, _ in choices] == ["BLANCO-2026A"]
+    assert portal.call_args_list[1].args[1] == first["next"]

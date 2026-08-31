@@ -41,6 +41,8 @@ class BlancoObservationForm {
   #narrowers = new WeakMap();
   /** How to label each exposure, by the pane it belongs to. */
   #labellers = new WeakMap();
+  /** The control that says which proposal buys the time. */
+  #proposal = null;
 
   /**
    * @param {HTMLElement} container Element carrying `data-target-id`.
@@ -92,6 +94,7 @@ class BlancoObservationForm {
       form,
       this.#messages(),
     );
+    this.#followProposal();
   }
 
   /**
@@ -113,9 +116,19 @@ class BlancoObservationForm {
       return;
     }
     const apply = () => {
+      // The proposal is what buys the time, so it says which instruments
+      // this configuration may spend it on.
+      BlancoObservationForm.narrow(select.closest("[data-field]"), {
+        allowed: this.#structure.proposals?.[this.#proposal?.value] ?? [],
+      });
       const accepted = this.#structure.instruments?.[select.value] ?? {};
       pane.querySelectorAll("[data-field]").forEach((column) => {
         const suffix = BlancoObservationForm.suffixOf(column.dataset.field);
+        // The instrument is not one of its own parameters: narrowed here it
+        // would be handed back every option the proposal has no time on.
+        if (suffix === "instrument_type") {
+          return;
+        }
         const spec = accepted[suffix];
         // A parameter the instrument never declared does not apply to it.
         if (suffix.startsWith("extra_")) {
@@ -138,6 +151,28 @@ class BlancoObservationForm {
     };
     select.addEventListener("change", apply);
     this.#narrowers.set(pane, apply);
+    apply();
+  }
+
+  /**
+   * Keep every configuration to what the chosen proposal may observe with.
+   *
+   * The instrument is picked one configuration at a time, and the proposal
+   * once for the whole request: changed, it has to reach the configurations
+   * drawn before it. A proposal named by no instrument holds them to none.
+   *
+   * @private
+   * @returns {void}
+   */
+  #followProposal() {
+    this.#proposal = this.#container.querySelector('[data-field="proposal"] select');
+    const apply = () =>
+      this.#container
+        .querySelectorAll('[data-role="configuration"]')
+        .forEach((pane) => this.#narrowers.get(pane)?.());
+    this.#proposal?.addEventListener("change", apply);
+    // The configurations were drawn before the form was put on the page, so
+    // nothing had asked the proposal what it allows.
     apply();
   }
 

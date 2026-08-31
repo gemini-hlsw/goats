@@ -397,6 +397,64 @@ test("the last drawn is the one removed", async () => {
   ]);
 });
 
+/** The same form, with a proposal that only has time on one instrument. */
+const PROPOSED = {
+  ...REPEATED,
+  proposals: { 1: ["BLANCO_DECAM"] },
+  sections: [
+    {
+      title: "Details",
+      open: true,
+      fields: [
+        field("proposal", {
+          type: "choice",
+          choices: [
+            { value: "1", label: "DECam time (1)" },
+            { value: "2", label: "Time on both (2)" },
+          ],
+        }),
+      ],
+    },
+    ...REPEATED.sections,
+  ],
+};
+
+test("a configuration is kept to what the proposal has time on", async () => {
+  const window = buildWindow();
+  const { container } = await render(window, { structure: PROPOSED });
+  const select = container.querySelector('[data-field="c_1_instrument_type"] select');
+  const newfirm = [...select.options].find((o) => o.value === "BLANCO_NEWFIRM");
+
+  // The proposal chosen has time on DECam and none on NEWFIRM.
+  expect(newfirm.disabled).toBe(true);
+  expect(select.value).toBe("BLANCO_DECAM");
+});
+
+test("a proposal named by no instrument is held to none", async () => {
+  const window = buildWindow();
+  const { container } = await render(window, { structure: PROPOSED });
+  const proposal = container.querySelector('[data-field="proposal"] select');
+  const select = container.querySelector('[data-field="c_1_instrument_type"] select');
+
+  proposal.value = "2";
+  proposal.dispatchEvent(new window.Event("change"));
+
+  expect([...select.options].every((option) => !option.disabled)).toBe(true);
+});
+
+test("a configuration drawn later follows the proposal already chosen", async () => {
+  const window = buildWindow();
+  const { container } = await render(window, { structure: PROPOSED });
+
+  container.querySelector('[data-role="add-configuration"]').click();
+
+  const select = container.querySelector('[data-field="c_2_instrument_type"] select');
+  expect([...select.options].find((o) => o.value === "BLANCO_NEWFIRM").disabled).toBe(
+    true,
+  );
+  expect(select.value).toBe("BLANCO_DECAM");
+});
+
 test("a tab says what is inside it", async () => {
   const window = buildWindow();
   const { container } = await renderRepeated(window);

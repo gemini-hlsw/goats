@@ -177,6 +177,9 @@ class BLANCOObservationViewSet(ViewSet):
                 # Only the chosen instrument's parameters apply, and only the
                 # values it allows; the interface narrows itself with this.
                 "instruments": form.narrowing(),
+                # A proposal is given its time on an instrument and cannot
+                # spend it on another; one named nothing here takes any.
+                "proposals": form.instruments_by_proposal(),
                 "hidden": {name: form.initial.get(name) for name in HIDDEN_FIELDS},
             }
         )

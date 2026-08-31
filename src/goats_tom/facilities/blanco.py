@@ -12,10 +12,16 @@ __all__ = ["GOATSBLANCOImagingObservationForm"]
 
 import re
 from typing import Any
+from urllib.parse import urljoin
 
+import requests
 from django import forms
+from django.core.cache import cache
+from tom_common.exceptions import ImproperCredentialsException
 from tom_observations.facilities.blanco import BLANCOImagingObservationForm
-from tom_observations.facilities.ocs import OCSFullObservationForm
+from tom_observations.facilities.ocs import OCSFullObservationForm, make_request
+
+from goats_tom.context.user_context import get_current_user_id
 
 from . import instrument_schema as schema
 
@@ -93,6 +99,18 @@ ALWAYS_REQUIRED = ("exposure_time",)
 #: what the form already says.
 _TELESCOPE = "blanco"
 
+#: For as long as the toolkit caches its own, an hour.
+PROPOSALS_CACHED_FOR = 3600
+
+#: Where the portal says what time a proposal was given, and on what. Asked
+#: in bulk: left to itself the portal answers ten at a time, and a proposal
+#: is not hidden over a page nobody read.
+PROPOSALS_URL = "/api/proposals/?limit=100"
+
+#: How many pages of them to read before giving up on the rest. A proposal
+#: on a page never read is a proposal the form would quietly leave out.
+PROPOSAL_PAGES = 20
+
 #: ``c_1_ic_1_exposure_time`` is an ``exposure_time``.
 _POSITION = re.compile(r"^c_\d+_(ic_\d+_)?")
 
@@ -168,6 +186,124 @@ class GOATSBLANCOImagingObservationForm(BLANCOImagingObservationForm):
                 for instrument in self.get_instruments().values()
             ]
         )
+
+    def proposal_choices(self) -> list[tuple[Any, str]]:
+        """The proposals this user can observe on this telescope."""
+        return self._proposals()["choices"]
+
+    def instruments_by_proposal(self) -> dict[str, list[str]]:
+        """What each proposal may be observed with, where it is held to one.
+
+        A proposal spends its time on the instrument it was given it on. One
+        with no time here is held to nothing, and is left out.
+        """
+        return self._proposals()["instruments"]
+
+    def _proposals(self) -> dict[str, Any]:
+        """The proposals on offer here, and what each is held to."""
+        key = (
+            f"{self.facility_settings.facility_name}_proposals_{get_current_user_id()}"
+        )
+        cached = cache.get(key)
+        if not isinstance(cached, dict):
+            cached = self._proposals_here()
+            cache.set(key, cached, PROPOSALS_CACHED_FOR)
+        return cached
+
+    def _proposals_here(self) -> dict[str, Any]:
+        """This telescope's active proposals, and what each is held to."""
+        here = self._proposals_on_this_telescope()
+        if here is None:
+            return {"choices": self._proposals_from_the_profile(), "instruments": {}}
+        return {
+            "choices": [(code, label) for code, label, _ in here],
+            "instruments": {code: sorted(held) for code, _, held in here if held},
+        }
+
+    def _proposals_on_this_telescope(self) -> list[tuple[str, str, set[str]]] | None:
+        """This telescope's active proposals, each with what it has time on.
+
+        A proposal comes back whether or not it was given time here; the
+        instruments are the ones it may spend that time on, and empty where
+        it has none. ``None`` when the portal will not say: a proposal is not
+        hidden over a question that went unanswered.
+        """
+        # Held by the code the interface will narrow itself by, found under
+        # the one the portal answers with, whichever way either is written.
+        offered = {str(code).upper(): code for code in self.get_instruments()}
+        if not offered:
+            return None
+
+        telescope = str(self.facility_settings.facility_name).upper()
+        here: list[tuple[str, str, set[str]]] = []
+        url = urljoin(self.facility_settings.get_setting("portal_url"), PROPOSALS_URL)
+        for _ in range(PROPOSAL_PAGES):
+            page = self._page(url)
+            if page is None:
+                return None
+            for proposal in page.get("results", []):
+                # Time on a proposal that has been closed cannot be asked for.
+                # Said nothing about, it is taken as open: a proposal is not
+                # hidden over a question that went unanswered.
+                if not proposal.get("active", True):
+                    continue
+                given = {
+                    str(instrument).upper()
+                    for allocation in proposal.get("timeallocation_set", [])
+                    for instrument in allocation.get("instrument_types", [])
+                }
+                held = {code for name, code in offered.items() if name in given}
+                # A proposal is this telescope's by what the portal calls it,
+                # and, where it is called nothing, by holding time on an
+                # instrument no other telescope has.
+                if held or str(proposal.get("sca", "")).upper() == telescope:
+                    code = str(proposal.get("id"))
+                    here.append((code, f"{proposal.get('title')} ({code})", held))
+            url = page.get("next")
+            if not url:
+                return here
+        # More pages than are worth reading: what was not read was not seen,
+        # and a proposal is not hidden over a page nobody looked at.
+        return None
+
+    def _proposals_from_the_profile(self) -> list[tuple[Any, str]]:
+        """Every proposal the user belongs to, whatever telescope it is on.
+
+        What the toolkit offers, asked for only where the portal would not
+        say which proposals are this telescope's: an empty list would leave
+        the form with nothing to observe on at all.
+        """
+        # The toolkit caches them under the facility's name alone, and in
+        # GOATS every user brings their own API key: left in that key, the
+        # first user to open the form hands their proposals to everyone else
+        # for the hour after.
+        shared = f"{self.facility_settings.facility_name}_proposals"
+        cache.delete(shared)
+        try:
+            return super().proposal_choices()
+        finally:
+            cache.delete(shared)
+
+    def _page(self, url: str) -> dict[str, Any] | None:
+        """One page of what the portal answers, or ``None`` if it will not."""
+        try:
+            page = make_request(
+                "GET",
+                url,
+                headers={
+                    "Authorization": (
+                        f"Token {self.facility_settings.get_setting('api_key')}"
+                    )
+                },
+            ).json()
+        except (
+            ImproperCredentialsException,
+            forms.ValidationError,
+            requests.RequestException,
+            ValueError,
+        ):
+            return None
+        return page if isinstance(page, dict) else None
 
     def narrowing(self) -> dict[str, dict]:
         """What each instrument accepts, for the interface to narrow itself."""
@@ -252,9 +388,11 @@ class GOATSBLANCOImagingObservationForm(BLANCOImagingObservationForm):
             for instrument in self.get_instruments().values()
             for word in str(instrument.get("name", "")).split()
         }
-        for field in self.fields.values():
+        for name, field in self.fields.items():
             choices = getattr(field, "choices", None)
-            if choices:
+            # A proposal's title is what somebody called it, not a label the
+            # portal repeats: taken apart it is no longer that proposal.
+            if choices and name != "proposal":
                 field.choices = [
                     (value, _short(label, said)) for value, label in choices
                 ]
