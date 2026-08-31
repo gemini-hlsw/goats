@@ -99,8 +99,11 @@ ALWAYS_REQUIRED = ("exposure_time",)
 #: what the form already says.
 _TELESCOPE = "blanco"
 
-#: For as long as the toolkit caches its own, an hour.
-PROPOSALS_CACHED_FOR = 3600
+#: Long enough to cover the filling in of one request, so that drawing the
+#: form, validating it and submitting it share the one lookup. The toolkit
+#: keeps its own for an hour, which is an hour a proposal made in the portal
+#: would not be offered here.
+PROPOSALS_CACHED_FOR = 300
 
 #: Where the portal says what time a proposal was given, and on what. Asked
 #: in bulk: left to itself the portal answers ten at a time, and a proposal
@@ -135,6 +138,10 @@ def _short(label: Any, said: set[str]) -> Any:
 class GOATSBLANCOImagingObservationForm(BLANCOImagingObservationForm):
     """BLANCO imaging form whose parameters follow the chosen instrument."""
 
+    #: The instruments this form was built on. Held on the class so that it
+    #: reads as unset before the form has run an ``__init__`` of its own.
+    _instruments: dict[str, dict] | None = None
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._drop_vendored_parameters()
@@ -146,6 +153,21 @@ class GOATSBLANCOImagingObservationForm(BLANCOImagingObservationForm):
         self._measure_after_the_portal()
 
     # -- what the form offers ------------------------------------------------
+
+    def get_instruments(self) -> dict[str, dict]:
+        """The instruments on offer, read once for the life of the form.
+
+        The toolkit reads them from the cache on every call, and a form is
+        built asking a hundred times over: once per configuration, once per
+        exposure, once per parameter either declares. Nothing can change
+        them in between, so they are read once and held.
+        """
+        # Held lazily, not in ``__init__``: the toolkit builds its fields
+        # inside ``super().__init__``, which asks for the instruments before
+        # this form has run a line of its own.
+        if self._instruments is None:
+            self._instruments = super().get_instruments()
+        return self._instruments
 
     def configurations(self) -> range:
         """The configurations this form can carry."""

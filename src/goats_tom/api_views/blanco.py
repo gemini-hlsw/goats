@@ -242,6 +242,9 @@ class BLANCOObservationViewSet(ViewSet):
         the first and adds the rest as they are asked for; what it never drew
         is never sent, and never built.
         """
+        # What every configuration asks for is what the instruments declare,
+        # which is the same for all of them: asked once, not once each.
+        parameters = _ordered(form.parameters(), PARAMETER_ORDER)
         return {
             "title": "Configuration",
             "open": True,
@@ -253,10 +256,7 @@ class BLANCOObservationViewSet(ViewSet):
                         form,
                         _configuration_fields(form, index)
                         + [
-                            f"c_{index}_{EXTRA}_{parameter}"
-                            for parameter in _ordered(
-                                form.parameters(), PARAMETER_ORDER
-                            )
+                            f"c_{index}_{EXTRA}_{parameter}" for parameter in parameters
                         ],
                         WIDTHS,
                     ),
@@ -274,6 +274,10 @@ class BLANCOObservationViewSet(ViewSet):
     @staticmethod
     def _exposures(form: Any, index: int) -> dict[str, Any]:
         """The section that says what the exposures of a configuration take."""
+        # The same for every exposure the configuration carries, and asked
+        # once for all of them.
+        parameters = _ordered(form.exposure_parameters(), EXPOSURE_PARAMETER_ORDER)
+        demanded = _demanded(form)
         return {
             "title": "Exposures",
             "open": True,
@@ -290,14 +294,11 @@ class BLANCOObservationViewSet(ViewSet):
                             ]
                             + [
                                 f"c_{index}_ic_{exposure}_{EXTRA}_{parameter}"
-                                for parameter in _ordered(
-                                    form.exposure_parameters(),
-                                    EXPOSURE_PARAMETER_ORDER,
-                                )
+                                for parameter in parameters
                             ],
                             WIDTHS,
                         ),
-                        _demanded(form),
+                        demanded,
                     ),
                 }
                 for exposure in form.exposures()
