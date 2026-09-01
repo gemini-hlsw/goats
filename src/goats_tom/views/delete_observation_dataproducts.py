@@ -1,10 +1,7 @@
 __all__ = ["DeleteObservationDataProductsView"]
-import logging
-
 from django.conf import settings
-from django.core.exceptions import PermissionDenied
-from guardian.shortcuts import get_users_with_perms
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.http import (
     HttpRequest,
     HttpResponse,
@@ -16,10 +13,8 @@ from tom_common.mixins import Raise403PermissionRequiredMixin
 from tom_dataproducts.models import DataProduct
 from tom_observations.models import ObservationRecord
 
+from goats_tom.permissions import undeletable_dataproducts
 from goats_tom.utils import delete_associated_data_products
-
-
-logger = logging.getLogger(__name__)
 
 
 class DeleteObservationDataProductsView(Raise403PermissionRequiredMixin, View):
@@ -103,32 +98,18 @@ class DeleteObservationDataProductsView(Raise403PermissionRequiredMixin, View):
         observation_record = get_object_or_404(
             ObservationRecord, pk=self.kwargs["pk"]
         )
-        products = DataProduct.objects.filter(
-            observation_record=observation_record
+        # One shared implementation rather than a fourth copy of the guardian
+        # call. `undeletable_dataproducts` logs the superuser refusal and
+        # handles the target-only branch; see `goats_tom.permissions`.
+        refused = undeletable_dataproducts(
+            request.user,
+            DataProduct.objects.filter(observation_record=observation_record),
         )
-        for product in products:
-            holders = get_users_with_perms(
-                product,
-                only_with_perms_in=["delete_dataproduct"],
-                with_group_users=True,
+        if refused:
+            raise PermissionDenied(
+                "You do not have permission to delete all data products "
+                "for this observation."
             )
-            if not (
-                request.user.is_authenticated
-                and holders.filter(pk=request.user.pk).exists()
-            ):
-                if request.user.is_superuser:
-                    logger.warning(
-                        "Superuser %s was refused bulk deletion on observation "
-                        "%s: no delete permission on data product %s. Use "
-                        "`manage.py grant_delete` if this is intended.",
-                        request.user.username,
-                        observation_record.pk,
-                        getattr(product, "product_id", product.pk),
-                    )
-                raise PermissionDenied(
-                    "You do not have permission to delete all data products "
-                    "for this observation."
-                )
         return False
 
     def get(self, request: HttpRequest, pk: int) -> HttpResponse:

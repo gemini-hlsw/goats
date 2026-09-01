@@ -78,7 +78,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "tom_common.middleware.Raise403Middleware",
+    "goats_tom.middleware.PermissionDeniedMiddleware",
     "tom_common.middleware.ExternalServiceMiddleware",
     "tom_common.middleware.AuthStrategyMiddleware",
 ]

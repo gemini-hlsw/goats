@@ -6,6 +6,21 @@ from tom_tns.urls import urlpatterns as tom_tns_urls
 from . import api_views, views
 
 router = SharedAPIRootRouter()
+# Claims the `dataproducts` basename before `tom_dataproducts.urls` can.
+# `SharedAPIRootRouter` declines a second registration of a basename it
+# already holds, and this module is included before `tom_common.urls` (which
+# is what imports every app's urls.py), so this registration wins and
+# upstream's is refused with a log line.
+#
+# The point is the permission check: upstream's viewset exposes DELETE with
+# no object-level check, which is why the superuser delete ban had no effect
+# on the live instance. See `GOATSDataProductViewSet`. Registered first, and
+# not down with the rest, because order is the whole mechanism here --
+# `tests/goats_tom/test_api_delete_scoping.py` asserts the route resolves to
+# the GOATS class rather than trusting that it does.
+router.register(
+    r"dataproducts", api_views.GOATSDataProductViewSet, basename="dataproducts"
+)
 router.register(r"gpp", api_views.GPPViewSet, basename="gpp")
 router.register(r"gpp/programs", api_views.GPPProgramViewSet, basename="gppprograms")
 router.register(
@@ -84,6 +99,16 @@ urlpatterns = [
     # Overrides closing TOM's group permission bypasses -- see
     # `goats_tom.views.groups`. Declared before the tom_* includes so these
     # win.
+    path(
+        "targets/targetgrouping/<int:pk>/delete/",
+        views.GOATSTargetGroupingDeleteView.as_view(),
+        name="goats-targetgrouping-delete",
+    ),
+    path(
+        "observations/groups/<int:pk>/delete/",
+        views.GOATSObservationGroupDeleteView.as_view(),
+        name="goats-observationgroup-delete",
+    ),
     path(
         "dataproducts/data/",
         views.GOATSDataProductListView.as_view(),

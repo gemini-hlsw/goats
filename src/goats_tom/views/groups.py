@@ -36,6 +36,8 @@ __all__ = [
     "GOATSAddProductToGroupView",
     "GOATSDataProductGroupCreateView",
     "GOATSDataProductGroupDeleteView",
+    "GOATSObservationGroupDeleteView",
+    "GOATSTargetGroupingDeleteView",
     "GOATSDataProductGroupDetailView",
     "GOATSDataProductGroupListView",
     "GOATSObservationListView",
@@ -49,16 +51,21 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from guardian.shortcuts import assign_perm, get_objects_for_user
-from tom_dataproducts.models import DataProduct, DataProductGroup
+from tom_dataproducts.models import DataProductGroup
 from tom_dataproducts.views import (
     DataProductGroupCreateView,
+    DataProductGroupDataView,
     DataProductGroupDeleteView,
     DataProductGroupDetailView,
-    DataProductGroupDataView,
     DataProductGroupListView,
 )
-from tom_observations.models import ObservationGroup, ObservationRecord
-from tom_observations.views import ObservationListView
+from tom_observations.models import ObservationGroup
+from tom_observations.views import (
+    ObservationGroupDeleteView,
+    ObservationListView,
+)
+from tom_targets.models import TargetList
+from tom_targets.views import TargetGroupingDeleteView
 
 from goats_tom.filters import GOATSObservationFilter
 from goats_tom.visibility import visible_data_products
@@ -71,6 +78,8 @@ CHANGE_DPGROUP = "tom_dataproducts.change_dataproductgroup"
 DELETE_DPGROUP = "tom_dataproducts.delete_dataproductgroup"
 VIEW_OBSERVATION = "tom_observations.view_observationrecord"
 CHANGE_OBSGROUP = "tom_observations.change_observationgroup"
+DELETE_OBSGROUP = "tom_observations.delete_observationgroup"
+DELETE_TARGETLIST = "tom_targets.delete_targetlist"
 
 
 def _visible_data_products(user):
@@ -87,13 +96,34 @@ def _visible_data_products(user):
     return visible_data_products(user)
 
 
-def _visible_groups(user, model, permission):
-    """Selections `user` holds `permission` on."""
+def _visible_groups(user, model, permission, *, with_superuser=True):
+    """Selections `user` holds `permission` on.
+
+    Parameters
+    ----------
+    user : `django.contrib.auth.models.User`
+        The requesting user.
+    model : type
+        The selection model -- `TargetList`, `ObservationGroup` or
+        `DataProductGroup`.
+    permission : `str`
+        Full ``app_label.codename`` permission string.
+    with_superuser : `bool`, optional
+        Whether a superuser gets every row. True for reading, which matches
+        the recorded decision that administrators keep read access. Pass
+        False for deletion, where `get_objects_for_user`'s default is itself
+        the bypass -- less visible than `has_perm`, and the same hole.
+
+    Returns
+    -------
+    `QuerySet`
+        The selections the user holds `permission` on.
+    """
     from django.conf import settings  # noqa: PLC0415
 
     if settings.TARGET_PERMISSIONS_ONLY:
         return model.objects.all()
-    return get_objects_for_user(user, permission)
+    return get_objects_for_user(user, permission, with_superuser=with_superuser)
 
 
 class GOATSDataProductGroupListView(LoginRequiredMixin, DataProductGroupListView):
@@ -168,7 +198,15 @@ class GOATSDataProductGroupDeleteView(DataProductGroupDeleteView):
         rest of GOATS handles objects a user may not see, and it avoids
         confirming that a group exists.
         """
-        return _visible_groups(self.request.user, DataProductGroup, DELETE_DPGROUP)
+        return _visible_groups(
+            self.request.user,
+            DataProductGroup,
+            DELETE_DPGROUP,
+            # A saved selection is somebody's work, and an administrator who
+            # deletes one by misreading a page cannot undo it. Reading stays
+            # open to them; deleting does not.
+            with_superuser=False,
+        )
 
 
 class GOATSAddProductToGroupView(DataProductGroupDataView):
@@ -251,3 +289,49 @@ class GOATSObservationListView(ObservationListView):
                 group.observation_records.remove(*records)
             group.save()
         return redirect(reverse("tom_observations:list"))
+
+
+class GOATSTargetGroupingDeleteView(TargetGroupingDeleteView):
+    """Delete a target list only if the user may delete that list.
+
+    Notes
+    -----
+    Upstream checks `tom_targets.delete_targetlist` through
+    `Raise403PermissionRequiredMixin`, which goes to `has_perm` and so
+    returns True for any superuser before guardian is consulted. An
+    administrator could delete any PI's saved target selections.
+
+    Enforced in the queryset rather than by fixing the mixin, matching
+    `GOATSDataProductGroupDeleteView`: an unauthorised id becomes a 404
+    rather than a 403, which is how the rest of GOATS handles objects a user
+    may not see and avoids confirming that the list exists.
+    """
+
+    def get_queryset(self):
+        """Restrict deletion to target lists the user may delete."""
+        return _visible_groups(
+            self.request.user,
+            TargetList,
+            DELETE_TARGETLIST,
+            with_superuser=False,
+        )
+
+
+class GOATSObservationGroupDeleteView(ObservationGroupDeleteView):
+    """Delete an observation group only if the user may delete that group.
+
+    Notes
+    -----
+    Same bypass as `GOATSTargetGroupingDeleteView`, in the third of the
+    three models that upstream leaks differently -- see
+    `goats_tom.permissions.may_delete_selection`.
+    """
+
+    def get_queryset(self):
+        """Restrict deletion to observation groups the user may delete."""
+        return _visible_groups(
+            self.request.user,
+            ObservationGroup,
+            DELETE_OBSGROUP,
+            with_superuser=False,
+        )

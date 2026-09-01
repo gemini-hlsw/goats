@@ -25,20 +25,16 @@ misreading a page.
 
 __all__ = ["DataProductDeleteView"]
 
-import logging
-
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.http import (
     HttpRequest,
     HttpResponseRedirect,
 )
-from guardian.shortcuts import get_users_with_perms
 from tom_dataproducts.views import DataProductDeleteView as BaseDataProductDeleteView
 
+from goats_tom.permissions import undeletable_dataproducts
 from goats_tom.utils import delete_associated_data_products
-
-logger = logging.getLogger(__name__)
 
 
 class DataProductDeleteView(BaseDataProductDeleteView):
@@ -77,25 +73,31 @@ class DataProductDeleteView(BaseDataProductDeleteView):
             return super().check_permissions(request)
 
         obj = self.get_permission_object()
-        holders = get_users_with_perms(
-            obj,
-            only_with_perms_in=["delete_dataproduct"],
-            with_group_users=True,
-        )
-        if request.user.is_authenticated and holders.filter(pk=request.user.pk).exists():
+        # One shared implementation, which also logs the superuser refusal.
+        # See `goats_tom.permissions.undeletable_dataproducts`.
+        if not undeletable_dataproducts(request.user, [obj]):
             return None
-
-        if request.user.is_superuser:
-            logger.warning(
-                "Superuser %s was refused deletion of data product %s. Deletion "
-                "is not granted by superuser status; use `manage.py "
-                "grant_delete` if this is intended.",
-                request.user.username,
-                getattr(obj, "product_id", getattr(obj, "pk", obj)),
-            )
-        # Reuse the superclass to build the 403/redirect, so the response
-        # matches every other permission failure in the application.
-        return super().check_permissions(request) or PermissionDenied()
+        # Give the superclass first refusal, so an ordinary user without the
+        # permission gets exactly the 403 or redirect they would get from
+        # any other view.
+        response = super().check_permissions(request)
+        if response:
+            return response
+        # Reached only when the superclass allowed the request and the
+        # assigned rows did not -- which in practice means a superuser,
+        # since `has_perm` returns True for one before guardian is
+        # consulted.
+        #
+        # This previously read `super().check_permissions(request) or
+        # PermissionDenied()`, which returned an *unraised exception
+        # instance*. Guardian's `dispatch` treats any truthy return as the
+        # response to send, so Django was handed an exception object where
+        # an `HttpResponse` belonged and the refusal surfaced as a 500.
+        # Raising is what `DeleteObservationDataProductsView` does, and
+        # Django turns it into the same 403 page as every other refusal.
+        raise PermissionDenied(
+            "You do not have permission to delete this data product."
+        )
 
     def form_valid(self, form):
         """Method that handles DELETE requests for this view. It performs the

@@ -78,10 +78,32 @@ def scope_to_user(
 
     Notes
     -----
-    A superuser is not exempted. Staff on a shared instance still have no
-    business reading a PI's proprietary targets by default, and an exemption
-    here would apply to every endpoint at once with no way to see it from the
-    call site.
+    **Superusers are exempted in two of the three branches, and this is not
+    obvious from reading them.** `owner_path` is a plain
+    ``filter(owner=user)`` and holds for everybody. The `target_path` and
+    `dataproduct_path` branches go through guardian's
+    `get_objects_for_user`, whose ``with_superuser`` argument defaults to
+    True -- so an administrator gets every row from those two, and nothing at
+    the call site says so.
+
+    That matches the decision recorded for this work: administrators keep
+    read access and lose delete. It is deliberate, not an oversight. The note
+    here previously claimed the opposite -- that no superuser was exempted --
+    which was true only of the `owner_path` branch, and the kind of comment
+    somebody builds on before discovering it is wrong.
+
+    If read access is ever narrowed, pass ``with_superuser=False`` to both
+    calls below. Doing it here changes every endpoint at once, which is the
+    argument for and against putting it here: consistent, and invisible from
+    the call site. `goats_tom.visibility` is the other place to look, and
+    PIs should be told what administrators can see in the meantime.
+
+    Deletion does **not** work this way and must not be made to. It reads the
+    assigned guardian rows directly through
+    `goats_tom.permissions.has_assigned_perm`, precisely because every
+    permission call that goes through Django's `ModelBackend` -- and every
+    `get_objects_for_user` call with the default above -- is already a
+    superuser bypass.
     """
     if owner_path is None and target_path is None and dataproduct_path is None:
         raise ValueError(
@@ -109,6 +131,9 @@ def scope_to_user(
         # keeps the run with the data it belongs to.
         from tom_dataproducts.models import DataProduct  # noqa: PLC0415
 
+        # `with_superuser` defaults to True here -- administrators get every
+        # data product. Deliberate, and stated because the default is
+        # invisible; see the note on this function.
         visible = get_objects_for_user(
             user, f"{DataProduct._meta.app_label}.view_dataproduct"
         )
@@ -118,6 +143,7 @@ def scope_to_user(
     # models so the two cannot disagree about who may see a target.
     from tom_targets.models import Target  # noqa: PLC0415
 
+    # `with_superuser` defaults to True here too -- see the note above.
     visible = get_objects_for_user(
         user, f"{Target._meta.app_label}.view_target"
     )

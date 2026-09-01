@@ -5,7 +5,9 @@ from goats_tom.views.groups import (
     GOATSDataProductGroupDeleteView,
     GOATSDataProductGroupDetailView,
     GOATSDataProductGroupListView,
+    GOATSObservationGroupDeleteView,
     GOATSObservationListView,
+    GOATSTargetGroupingDeleteView,
 )
 from goats_tom.views.antares import RefreshAntaresPhotometryView
 from goats_tom.views.sharing import share_observation_record
@@ -70,6 +72,8 @@ __all__ = [
     "GOATSAddProductToGroupView",
     "GOATSDataProductGroupCreateView",
     "GOATSDataProductGroupDeleteView",
+    "GOATSObservationGroupDeleteView",
+    "GOATSTargetGroupingDeleteView",
     "GOATSDataProductGroupDetailView",
     "GOATSDataProductGroupListView",
     "GOATSDataProductListView",

@@ -5,7 +5,7 @@ system, adapting the way data products are created to accommodate file paths ins
 direct file uploads.
 """
 
-__all__ = ["DataProductsViewSet"]
+__all__ = ["DataProductsViewSet", "GOATSDataProductViewSet"]
 from datetime import datetime
 
 from django.conf import settings
@@ -20,13 +20,49 @@ from tom_dataproducts.data_processor import run_data_processor
 from tom_dataproducts.models import DataProduct, ReducedDatum
 
 from goats_tom.models import DataProductMetadata
+from goats_tom.permissions import (
+    DataProductObjectPermissions,
+    has_assigned_perm,
+)
 from goats_tom.serializers import DataProductSerializer
+
+
+class GOATSDataProductViewSet(BaseDataProductViewSet):
+    """Upstream's data product API, with the missing permission check.
+
+    Notes
+    -----
+    Registered under the ``dataproducts`` basename so that it, and not
+    `tom_dataproducts.api_views.DataProductViewSet`, serves
+    ``/api/dataproducts/``. `SharedAPIRootRouter` refuses a second
+    registration of a basename it already holds, and `goats_tom.urls` is
+    included before `tom_common.urls`, so registering here wins and
+    upstream's registration is declined.
+
+    Upstream's viewset carries `DestroyModelMixin` and declares only
+    ``view_dataproduct``, which `PermissionListMixin` uses to filter the
+    *list*. Nothing checked the object on delete, and GOATS sets
+    ``DEFAULT_PERMISSION_CLASSES`` to an empty list, so the endpoint had no
+    permission check at all: any authenticated user could destroy any file
+    they could see, and a superuser can see everything. This was the reason
+    the delete guardrail added to `DataProductDeleteView` and
+    `DeleteObservationDataProductsView` had no effect on the live instance
+    -- the ban was never in this path.
+
+    Everything else -- create, list, serializer, filters -- is upstream's,
+    unchanged.
+    """
+
+    permission_classes = [DataProductObjectPermissions]
 
 
 class DataProductsViewSet(BaseDataProductViewSet):
     """Overrides the TOMToolkit view set to handle custom creation."""
 
     parser_classes = [JSONParser]
+    # Same hole as `GOATSDataProductViewSet` closes: this subclass inherits
+    # `DestroyModelMixin` too, and is routed at `dragonsdataproducts`.
+    permission_classes = [DataProductObjectPermissions]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -85,6 +121,31 @@ class DataProductsViewSet(BaseDataProductViewSet):
                 product_id = request.data.get("productId")
                 last_modified = request.data.get("last_modified")
                 dp = DataProduct.objects.get(product_id=product_id)
+
+                # `product_id` comes from the request body and was looked up
+                # across the whole table with nothing checked, while the
+                # branch below deletes every `ReducedDatum` derived from the
+                # file and re-runs the processor. Any authenticated user
+                # could therefore wipe another PI's reduced data by naming
+                # their product_id.
+                #
+                # Change rather than delete, matching
+                # `DataProductTypeViewSet`: this is a write to the file's
+                # derived data, and destroying it follows from the write the
+                # same way retagging away from photometry does. Full access
+                # grants change, so a collaborator trusted to reduce the
+                # observation can still refresh its files.
+                if not settings.TARGET_PERMISSIONS_ONLY and not has_assigned_perm(
+                    request.user, dp, ["change_dataproduct"]
+                ):
+                    return Response(
+                        {
+                            "error": "Permission denied",
+                            "detail": "You do not have permission to update "
+                            "this data product.",
+                        },
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
                 if last_modified:
                     try:

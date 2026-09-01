@@ -11,13 +11,15 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import mixins, permissions, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from tom_dataproducts.models import DataProduct
 
-from goats_tom.scoping import ScopedQuerySetMixin
 from goats_tom.models import DRAGONSRun
+from goats_tom.permissions import undeletable_dataproducts
+from goats_tom.scoping import ScopedQuerySetMixin
 from goats_tom.serializers import DRAGONSProcessedFilesSerializer, HeaderSerializer
 from goats_tom.utils import delete_associated_data_products
 
@@ -64,7 +66,34 @@ class DRAGONSProcessedFilesViewSet(
                 with transaction.atomic():
                     # Check if there is a dataproduct.
                     try:
-                        dataproduct = DataProduct.objects.get(product_id=product_id)
+                        # Scoped to the files this run reduced, not looked up
+                        # across the whole table.
+                        #
+                        # `product_id` arrives in the request body while the
+                        # permission check lives on the URL's `DRAGONSRun`,
+                        # so the two were never connected: any authenticated
+                        # user who could reach any run could name another
+                        # PI's product_id here and have it destroyed, files
+                        # and reduced data included. Nothing in the UI does
+                        # that, which is why it went unseen -- but the
+                        # queryset is the only thing standing between a
+                        # crafted payload and somebody else's data.
+                        dataproduct = DataProduct.objects.get(
+                            product_id=product_id,
+                            observation_record=serializer.instance.observation_record,
+                        )
+                        if undeletable_dataproducts(
+                            self.request.user, [dataproduct]
+                        ):
+                            # Belongs to this run and still not the caller's
+                            # to destroy -- a read-only recipient of a shared
+                            # observation, or an administrator. Sharing
+                            # grants view and, at full access, change; never
+                            # delete.
+                            raise PermissionDenied(
+                                "You do not have permission to delete this "
+                                "data product."
+                            )
                         delete_associated_data_products(dataproduct)
                         # Need to remove from caldb if it is there as well.
                         serializer.instance.check_and_remove_caldb_file(filename)
@@ -72,6 +101,11 @@ class DRAGONSProcessedFilesViewSet(
                         # Use the instance to remove the file.
                         f = Path(filepath) / filename
                         serializer.instance.remove_file(f)
+            except PermissionDenied:
+                # Must not be swallowed by the bare `except` below, which
+                # returns silently and would turn a refusal into what looks
+                # like a successful removal.
+                raise
             except Exception:
                 # TODO: Should I return something better?
                 return
