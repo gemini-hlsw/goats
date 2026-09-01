@@ -55,3 +55,21 @@ GOATS_DB_HOST = "{{ db_host }}"
 
 GOATS_DB_PORT = "{{ db_port }}"
 """Database port. Unused by SQLite."""
+
+GOATS_STREAM_EXECUTOR = "{{ stream_executor }}"
+"""Where ANTARES stream consumption runs: "local" or "datalab".
+
+Written here for the same reason as GOATS_DB_ENGINE, and with one difference
+that matters: there is no environment variable behind this setting. Every
+consumer reads it off `settings` with `getattr` -- see
+`goats_tom.executors.resolve_executor_name` -- and nothing calls `os.getenv`
+for it, so exporting GOATS_STREAM_EXECUTOR in a shell has no effect. A
+settings file is the only place it can be set.
+
+"local" runs consumers on this host and is the desktop default; the hard
+invariant is that a desktop install behaves exactly as before when this is
+"local" or absent. "datalab" launches them in each PI's Astro Data Lab
+notebook server instead.
+
+`getattr` with a default is used throughout precisely so a generated.py
+written before this key existed keeps working."""

@@ -193,6 +193,20 @@ def install(
         str,
         typer.Option("--db-port", help="Database port. PostgreSQL only."),
     ] = "",
+    stream_executor: Annotated[
+        str,
+        typer.Option(
+            "--stream-executor",
+            help=(
+                "Where ANTARES stream consumption runs: 'local' (default) or "
+                "'datalab'. Recorded in the project's settings, so it does "
+                "not need to be set again when running GOATS later. "
+                "'datalab' offloads consumption to each PI's Astro Data Lab "
+                "notebook server and is intended for shared deployments; a "
+                "desktop install must leave this at 'local'."
+            ),
+        ),
+    ] = "local",
 ):
     """
     Install a new GOATS project in the chosen directory.
@@ -301,6 +315,12 @@ def install(
         "db_password": db_password,
         "db_host": db_host,
         "db_port": db_port,
+        # Recorded for the same reason as db_engine. Unlike the GOATS_DB_*
+        # values there is no environment variable behind this one --
+        # `goats_tom.executors` reads it off `settings` with `getattr` and
+        # nothing calls `os.getenv` for it -- so a settings file is the only
+        # place it can be set at all.
+        "stream_executor": stream_executor,
     }
 
     if media_dir:

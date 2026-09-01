@@ -416,3 +416,41 @@ def test_generated_template_emits_database_settings():
 
     assert 'GOATS_DB_ENGINE = "{{ db_engine }}"' in template
     assert 'GOATS_DB_NAME = "{{ db_name }}"' in template
+
+
+def test_installer_passes_stream_executor():
+    """`goats install --stream-executor` reaches the template context.
+
+    Notes
+    -----
+    The same failure mode as the database options -- accepted on the command
+    line and silently dropped -- but with a sharper edge here: there is no
+    environment variable fallback for this setting, so an option that did not
+    reach the template would leave no way to select the executor at install
+    time at all.
+    """
+    source = (
+        Path(__file__).resolve().parents[2]
+        / "src"
+        / "goats_cli"
+        / "commands"
+        / "install.py"
+    ).read_text()
+
+    assert '"--stream-executor"' in source
+    assert '"stream_executor": stream_executor,' in source
+
+
+def test_generated_template_emits_stream_executor():
+    """generated.py records the executor choice."""
+    template = (
+        Path(__file__).resolve().parents[2]
+        / "src"
+        / "goats_cli"
+        / "goats_template"
+        / "{{ project_name }}"
+        / "settings"
+        / "generated.py.jinja"
+    ).read_text()
+
+    assert 'GOATS_STREAM_EXECUTOR = "{{ stream_executor }}"' in template
