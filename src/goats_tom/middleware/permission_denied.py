@@ -31,6 +31,37 @@ __all__ = ["PermissionDeniedMiddleware"]
 from django.http import HttpRequest, HttpResponse
 
 
+def _is_page_request(request: HttpRequest) -> bool:
+    """Whether this request is a browser navigating to a page.
+
+    Parameters
+    ----------
+    request : `HttpRequest`
+        The request that was refused.
+
+    Returns
+    -------
+    `bool`
+        True when the response will be shown to somebody, so a redirect or a
+        rendered error page is useful. False for background requests, which
+        should keep their plain 403.
+
+    Notes
+    -----
+    Two signals, both cheap. `X-Requested-With` is set by jQuery and by
+    GOATS' own polling; the `Accept` header distinguishes a browser asking
+    for a document from `fetch` asking for JSON.
+
+    Erring towards False would swallow real refusals silently. Erring towards
+    True produces the stray banner this exists to stop. Neither is
+    catastrophic, and a request that asks for HTML and is not marked as an
+    XHR is as close to "a person is looking at this" as the headers get.
+    """
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return False
+    return "text/html" in request.headers.get("Accept", "")
+
+
 class PermissionDeniedMiddleware:
     """Render `403.html` for authenticated users, redirect anonymous ones."""
 
@@ -68,13 +99,31 @@ class PermissionDeniedMiddleware:
         from django.contrib.auth.views import redirect_to_login  # noqa: PLC0415
         from django.shortcuts import render  # noqa: PLC0415
 
+        if not _is_page_request(request):
+            # A background request -- a poll, a fetch, an image, a WebSocket
+            # handshake -- refused while the session was not yet established.
+            #
+            # Left exactly as it was, for two reasons. Redirecting one to the
+            # login form is meaningless; the caller wanted JSON and gets HTML
+            # it cannot use. And queuing a message on it puts a banner in the
+            # session that surfaces on whatever page the user loads next,
+            # which is how "Please log in to access this page." kept
+            # appearing on pages the user was already logged into, sometimes
+            # several at once. The message belonged to a request the user
+            # never made and never saw.
+            return response
+
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
             # Anonymous: logging in genuinely might fix it, which is what
             # upstream assumed of everybody.
-            messages.error(
-                request, "Please log in to access this page."
-            )
+            #
+            # Redirected silently. Upstream queues "You do not have
+            # permission to access this page..." here, and on a site running
+            # `AUTH_STRATEGY = "LOCKED"` that fires the moment anyone opens
+            # the front page -- telling a first-time visitor they lack
+            # permission, on the login form, before they have done anything.
+            # The form already says what to do.
             return redirect_to_login(request.get_full_path())
 
         # Already logged in, so no amount of logging in again will help.
