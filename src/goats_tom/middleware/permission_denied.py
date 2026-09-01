@@ -99,32 +99,40 @@ class PermissionDeniedMiddleware:
         from django.contrib.auth.views import redirect_to_login  # noqa: PLC0415
         from django.shortcuts import render  # noqa: PLC0415
 
-        if not _is_page_request(request):
-            # A background request -- a poll, a fetch, an image, a WebSocket
-            # handshake -- refused while the session was not yet established.
-            #
-            # Left exactly as it was, for two reasons. Redirecting one to the
-            # login form is meaningless; the caller wanted JSON and gets HTML
-            # it cannot use. And queuing a message on it puts a banner in the
-            # session that surfaces on whatever page the user loads next,
-            # which is how "Please log in to access this page." kept
-            # appearing on pages the user was already logged into, sometimes
-            # several at once. The message belonged to a request the user
-            # never made and never saw.
-            return response
-
         user = getattr(request, "user", None)
         if user is None or not user.is_authenticated:
             # Anonymous: logging in genuinely might fix it, which is what
             # upstream assumed of everybody.
             #
-            # Redirected silently. Upstream queues "You do not have
-            # permission to access this page..." here, and on a site running
-            # `AUTH_STRATEGY = "LOCKED"` that fires the moment anyone opens
-            # the front page -- telling a first-time visitor they lack
-            # permission, on the login form, before they have done anything.
-            # The form already says what to do.
+            # Redirected silently, and redirected *whatever* was asked for --
+            # page, poll, image or fetch. Under `AUTH_STRATEGY = "LOCKED"`
+            # every request from a browser with no session is refused, so
+            # this is the common path, not the exceptional one.
+            #
+            # Passing those through as 403s instead filled the log with a
+            # warning per request, because Django logs any response of 400 or
+            # above and nothing here was left to convert them. Upstream
+            # redirected the lot, which is why it was quiet; the noise was a
+            # side effect of narrowing that, not of the narrowing's purpose.
+            #
+            # No message is queued. Upstream queues "You do not have
+            # permission to access this page..." here, and under LOCKED that
+            # fires the moment anyone opens the front page -- telling a
+            # first-time visitor they lack permission, on the login form,
+            # before they have done anything. Worse, a message queued by a
+            # background request is stored in the session and surfaces on
+            # whatever page the user loads next, which is how the banner kept
+            # appearing on pages they were already logged into. The login
+            # form already says what to do.
             return redirect_to_login(request.get_full_path())
+
+        if not _is_page_request(request):
+            # Logged in and still refused, on a request nobody is looking at
+            # -- a poll or a fetch. Keep the plain 403: the caller wanted
+            # JSON and can do nothing with an HTML error page, and unlike the
+            # anonymous case this is genuinely exceptional and worth the log
+            # line it produces.
+            return response
 
         # Already logged in, so no amount of logging in again will help.
         # Say what happened, on a page that looks like the rest of GOATS.
