@@ -274,6 +274,7 @@ DATA_PROCESSORS = {
 
 TOM_FACILITY_CLASSES = [
     "goats_tom.facilities.GOATSGEMFacility",
+    "goats_tom.facilities.BLANCOFacility",
     "tom_observations.facilities.lco.LCOFacility",
     # 'tom_observations.facilities.gemini.GEMFacility',
     "tom_observations.facilities.soar.SOARFacility",

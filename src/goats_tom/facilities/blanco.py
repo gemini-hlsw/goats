@@ -1,0 +1,641 @@
+"""GOATS-owned BLANCO observation form.
+
+Two things are put right here, on the form the facility hands out. The
+vendored form hard-codes NEWFIRM's instrument parameters and sends them
+whatever the instrument, so DECam is asked for a ``detector_centering`` it
+rejects and for a dither it does not have; those fields are rebuilt from the
+portal's own schema instead. And the fields the toolkit never labels are
+given the names the portal's form uses.
+"""
+
+__all__ = ["GOATSBLANCOImagingObservationForm"]
+
+import re
+from typing import Any
+from urllib.parse import urljoin
+
+import requests
+from django import forms
+from django.core.cache import cache
+from tom_common.exceptions import ImproperCredentialsException
+from tom_observations.facilities.blanco import BLANCOImagingObservationForm
+from tom_observations.facilities.ocs import OCSFullObservationForm, make_request
+
+from goats_tom.context.user_context import get_current_user_id
+
+from . import instrument_schema as schema
+
+#: What the portal calls the request fields. Left unnamed, Django invents a
+#: label from the field name, so ``observation_mode`` reads "Observation
+#: mode" where the portal says "Mode".
+PORTAL_LABELS = {
+    "name": "Request Name",
+    "observation_mode": "Mode",
+    "ipp_value": "IPP Factor",
+    "optimization_type": "Optimization Type",
+}
+
+#: What the toolkit says about the cadence fields is "Decimal Hours", which
+#: the unit beside the control already says. What it does not say is that a
+#: cadence is not a second window: the portal expands the request into one
+#: observation per period, and the window it was given is dropped.
+PORTAL_HELP = {
+    "period": (
+        "Hours between one observation and the next. Filling the cadence in "
+        "replaces the window: the portal expands the request into one "
+        "observation per period, each with a window of its own."
+    ),
+    "jitter": (
+        "Hours an observation may fall either side of its cadence time, when "
+        "the exact one cannot be scheduled."
+    ),
+}
+
+#: The same, for the fields a configuration carries.
+CONFIGURATION_LABELS = {
+    "instrument_type": "Instrument",
+    "configuration_type": "Type",
+    "target_override": "Target",
+    "max_airmass": "Maximum Airmass",
+    "min_lunar_distance": "Minimum Lunar Separation",
+    "max_lunar_phase": "Maximum Lunar Phase",
+}
+
+#: The parameters the vendored form adds for NEWFIRM and sends for every
+#: instrument. They come back from the schema as ``c_<n>_extra_<name>``.
+VENDORED_PARAMETERS = (
+    "dither_value",
+    "dither_sequence",
+    "detector_centering",
+    "dither_sequence_random_offset",
+)
+VENDORED_EXPOSURE_PARAMETERS = ("coadds", "sequence_repeats")
+
+#: The offsets that place an exposure, which the portal asks for and the
+#: toolkit's form has no field for.
+OFFSETS = {"ra": "Offset Right Ascension", "dec": "Offset Declination"}
+
+#: What a field is measured in, by what its name ends in. Shown beside the
+#: control, the way the GPP form shows its own.
+UNITS = {
+    "exposure_time": "s",
+    "offset_ra": "arcsec",
+    "offset_dec": "arcsec",
+    f"{schema.EXTRA}_dither_value": "arcsec",
+    "min_lunar_distance": "deg",
+    "acceptability_threshold": "%",
+    "period": "h",
+    "jitter": "h",
+}
+
+#: What the toolkit leaves optional and the request cannot do without. An
+#: exposure with no time is not refused: it is dropped, and a configuration
+#: left with no exposure is dropped after it, so a request that looked filled
+#: in comes back saying it has no configurations at all.
+ALWAYS_REQUIRED = ("exposure_time",)
+
+#: The telescope every instrument on offer here sits on. Said again on each
+#: option -- "Blanco DECam", "DECam default" -- it is width spent repeating
+#: what the form already says.
+_TELESCOPE = "blanco"
+
+#: Long enough to cover the filling in of one request, so that drawing the
+#: form, validating it and submitting it share the one lookup. The toolkit
+#: keeps its own for an hour, which is an hour a proposal made in the portal
+#: would not be offered here.
+PROPOSALS_CACHED_FOR = 300
+
+#: Where the portal says what time a proposal was given, and on what. Asked
+#: in bulk: left to itself the portal answers ten at a time, and a proposal
+#: is not hidden over a page nobody read.
+PROPOSALS_URL = "/api/proposals/?limit=100"
+
+#: How many pages of them to read before giving up on the rest. A proposal
+#: on a page never read is a proposal the form would quietly leave out.
+PROPOSAL_PAGES = 20
+
+#: What the portal calls the parts of a request, and what to call them back
+#: when it refuses one. What it answers is shaped like what it was sent, so
+#: a message means nothing until it says which part it was raised on.
+PORTAL_PLACES = {
+    "configurations": "configuration",
+    "instrument_configs": "exposure",
+    "windows": "window",
+    "constraints": "constraints",
+    "target": "target",
+    "acquisition_config": "acquisition",
+    "guiding_config": "guiding",
+    "extra_params": "instrument parameters",
+    "optical_elements": "optical elements",
+}
+
+#: The portal answers about a request group of one request, which is the one
+#: being filled in: saying so again says nothing.
+PORTAL_REQUESTS = "requests"
+
+#: What the portal raises on a part as a whole rather than on a field of it.
+PORTAL_WHOLE = "non_field_errors"
+
+#: ``c_1_ic_1_exposure_time`` is an ``exposure_time``.
+_POSITION = re.compile(r"^c_\d+_(ic_\d+_)?")
+
+#: The configuration and the exposure a field belongs to.
+_EXPOSURE = re.compile(r"^c_(?P<configuration>\d+)_ic_(?P<exposure>\d+)_")
+
+
+def _numbered(where: tuple[str, ...], index: int) -> tuple[str, ...]:
+    """The part the path ends on, said as the numbered one of several."""
+    return (*where[:-1], f"{where[-1]} {index}") if where else where
+
+
+def _sentence(where: tuple[str, ...], message: str) -> str:
+    """One of the portal's messages, said with the part it was raised on."""
+    said = ", ".join(part.replace("_", " ") for part in where)
+    return f"{said.capitalize()}: {message}" if said else message
+
+
+def _said(node: Any, where: tuple[str, ...] = ()) -> list[str]:
+    """Read the portal's answer as sentences, wherever they are buried.
+
+    It answers in the shape of what it was sent -- a request of
+    configurations of exposures -- so a message arrives under the part it
+    belongs to and nowhere else.
+    """
+    if isinstance(node, str):
+        return [_sentence(where, node)]
+    if isinstance(node, list):
+        said: list[str] = []
+        for index, item in enumerate(node, start=1):
+            # A list of parts is numbered; a list of messages about one is not.
+            said += _said(
+                item, where if isinstance(item, str) else _numbered(where, index)
+            )
+        return said
+    if isinstance(node, dict):
+        said = []
+        for key, value in node.items():
+            if key == PORTAL_REQUESTS or key == PORTAL_WHOLE:
+                # The one request being filled in, and what is wrong with a
+                # part of it as a whole: neither adds a word worth reading.
+                said += _said(value, where)
+                continue
+            said += _said(value, (*where, PORTAL_PLACES.get(key, key)))
+        return said
+    return []
+
+
+def _short(label: Any, said: set[str]) -> Any:
+    """One option's name, with what it need not say again taken off."""
+    words = str(label).split()
+    kept = list(words)
+    # Never down to nothing: what an instrument is called is its own name,
+    # and a filter is called `r`, which is the whole of what it is called.
+    while len(kept) > 1 and kept[0].lower() in said:
+        kept.pop(0)
+    if len(kept) == len(words):
+        return label
+    short = " ".join(kept)
+    return short.capitalize() if short.isalpha() and short.islower() else short
+
+
+class GOATSBLANCOImagingObservationForm(BLANCOImagingObservationForm):
+    """BLANCO imaging form whose parameters follow the chosen instrument."""
+
+    #: The instruments this form was built on. Held on the class so that it
+    #: reads as unset before the form has run an ``__init__`` of its own.
+    _instruments: dict[str, dict] | None = None
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._drop_vendored_parameters()
+        self._add_request_fields()
+        self._add_instrument_parameters()
+        self._name_after_the_portal()
+        self._shorten_after_the_portal()
+        self._explain_after_the_portal()
+        self._measure_after_the_portal()
+
+    # -- what the form offers ------------------------------------------------
+
+    def get_instruments(self) -> dict[str, dict]:
+        """The instruments on offer, read once for the life of the form.
+
+        The toolkit reads them from the cache on every call, and a form is
+        built asking a hundred times over: once per configuration, once per
+        exposure, once per parameter either declares. Nothing can change
+        them in between, so they are read once and held.
+        """
+        # Held lazily, not in ``__init__``: the toolkit builds its fields
+        # inside ``super().__init__``, which asks for the instruments before
+        # this form has run a line of its own.
+        if self._instruments is None:
+            self._instruments = super().get_instruments()
+        return self._instruments
+
+    def configurations(self) -> range:
+        """The configurations this form can carry."""
+        return range(1, self.facility_settings.get_setting("max_configurations") + 1)
+
+    def exposures(self) -> range:
+        """The exposures a configuration can carry."""
+        return range(
+            1, self.facility_settings.get_setting("max_instrument_configs") + 1
+        )
+
+    def parameters_for(self, instrument_type: str) -> dict[str, dict]:
+        """What one instrument declares its configuration accepts."""
+        return schema.configuration_parameters(
+            self.get_instruments().get(instrument_type) or {}
+        )
+
+    def exposure_parameters_for(self, instrument_type: str) -> dict[str, dict]:
+        """What one instrument declares its exposures accept."""
+        return schema.exposure_parameters(
+            self.get_instruments().get(instrument_type) or {}
+        )
+
+    def exposure_parameters(self) -> dict[str, dict]:
+        """One set of exposure parameters covering every instrument."""
+        return schema.merge(
+            [
+                schema.exposure_parameters(instrument)
+                for instrument in self.get_instruments().values()
+            ]
+        )
+
+    def parameters(self) -> dict[str, dict]:
+        """One set of parameters covering every instrument on offer."""
+        return schema.merge(
+            [
+                schema.configuration_parameters(instrument)
+                for instrument in self.get_instruments().values()
+            ]
+        )
+
+    def proposal_choices(self) -> list[tuple[Any, str]]:
+        """The proposals this user can observe on this telescope."""
+        return self._proposals()["choices"]
+
+    def instruments_by_proposal(self) -> dict[str, list[str]]:
+        """What each proposal may be observed with, where it is held to one.
+
+        A proposal spends its time on the instrument it was given it on. One
+        with no time here is held to nothing, and is left out.
+        """
+        return self._proposals()["instruments"]
+
+    def _proposals(self) -> dict[str, Any]:
+        """The proposals on offer here, and what each is held to."""
+        key = (
+            f"{self.facility_settings.facility_name}_proposals_{get_current_user_id()}"
+        )
+        cached = cache.get(key)
+        if not isinstance(cached, dict):
+            cached = self._proposals_here()
+            cache.set(key, cached, PROPOSALS_CACHED_FOR)
+        return cached
+
+    def _proposals_here(self) -> dict[str, Any]:
+        """This telescope's active proposals, and what each is held to."""
+        here = self._proposals_on_this_telescope()
+        if here is None:
+            return {"choices": self._proposals_from_the_profile(), "instruments": {}}
+        return {
+            "choices": [(code, label) for code, label, _ in here],
+            "instruments": {code: sorted(held) for code, _, held in here if held},
+        }
+
+    def _proposals_on_this_telescope(self) -> list[tuple[str, str, set[str]]] | None:
+        """This telescope's active proposals, each with what it has time on.
+
+        A proposal comes back whether or not it was given time here; the
+        instruments are the ones it may spend that time on, and empty where
+        it has none. ``None`` when the portal will not say: a proposal is not
+        hidden over a question that went unanswered.
+        """
+        # Held by the code the interface will narrow itself by, found under
+        # the one the portal answers with, whichever way either is written.
+        offered = {str(code).upper(): code for code in self.get_instruments()}
+        if not offered:
+            return None
+
+        telescope = str(self.facility_settings.facility_name).upper()
+        here: list[tuple[str, str, set[str]]] = []
+        url = urljoin(self.facility_settings.get_setting("portal_url"), PROPOSALS_URL)
+        for _ in range(PROPOSAL_PAGES):
+            page = self._page(url)
+            if page is None:
+                return None
+            for proposal in page.get("results", []):
+                # Time on a proposal that has been closed cannot be asked for.
+                # Said nothing about, it is taken as open: a proposal is not
+                # hidden over a question that went unanswered.
+                if not proposal.get("active", True):
+                    continue
+                given = {
+                    str(instrument).upper()
+                    for allocation in proposal.get("timeallocation_set", [])
+                    for instrument in allocation.get("instrument_types", [])
+                }
+                held = {code for name, code in offered.items() if name in given}
+                # A proposal is this telescope's by what the portal calls it,
+                # and, where it is called nothing, by holding time on an
+                # instrument no other telescope has.
+                if held or str(proposal.get("sca", "")).upper() == telescope:
+                    code = str(proposal.get("id"))
+                    here.append((code, f"{proposal.get('title')} ({code})", held))
+            url = page.get("next")
+            if not url:
+                return here
+        # More pages than are worth reading: what was not read was not seen,
+        # and a proposal is not hidden over a page nobody looked at.
+        return None
+
+    def _proposals_from_the_profile(self) -> list[tuple[Any, str]]:
+        """Every proposal the user belongs to, whatever telescope it is on.
+
+        What the toolkit offers, asked for only where the portal would not
+        say which proposals are this telescope's: an empty list would leave
+        the form with nothing to observe on at all.
+        """
+        # The toolkit caches them under the facility's name alone, and in
+        # GOATS every user brings their own API key: left in that key, the
+        # first user to open the form hands their proposals to everyone else
+        # for the hour after.
+        shared = f"{self.facility_settings.facility_name}_proposals"
+        cache.delete(shared)
+        try:
+            return super().proposal_choices()
+        finally:
+            cache.delete(shared)
+
+    def _page(self, url: str) -> dict[str, Any] | None:
+        """One page of what the portal answers, or ``None`` if it will not."""
+        try:
+            page = make_request(
+                "GET",
+                url,
+                headers={
+                    "Authorization": (
+                        f"Token {self.facility_settings.get_setting('api_key')}"
+                    )
+                },
+            ).json()
+        except (
+            ImproperCredentialsException,
+            forms.ValidationError,
+            requests.RequestException,
+            ValueError,
+        ):
+            return None
+        return page if isinstance(page, dict) else None
+
+    def narrowing(self) -> dict[str, dict]:
+        """What each instrument accepts, for the interface to narrow itself."""
+        return {
+            code: schema.narrowing(instrument)
+            for code, instrument in self.get_instruments().items()
+        }
+
+    # -- building the form ---------------------------------------------------
+
+    def _drop_vendored_parameters(self) -> None:
+        for index in self.configurations():
+            for name in VENDORED_PARAMETERS:
+                self.fields.pop(f"c_{index}_{name}", None)
+            for exposure in self.exposures():
+                for name in VENDORED_EXPOSURE_PARAMETERS:
+                    self.fields.pop(f"c_{index}_ic_{exposure}_{name}", None)
+
+    def _add_request_fields(self) -> None:
+        """Add what the portal asks for above the configurations."""
+        self.fields["acceptability_threshold"] = forms.FloatField(
+            required=False,
+            min_value=0,
+            max_value=100,
+            initial=self._threshold_on_offer(),
+            label="Acceptability Threshold",
+            help_text=(
+                "The percentage of the observation that must be completed to "
+                "mark the request as complete and avert rescheduling."
+            ),
+            widget=forms.TextInput(attrs={"placeholder": "Percent"}),
+        )
+
+    def _threshold_on_offer(self) -> float | None:
+        """What the instruments settle for, when they all settle for the same."""
+        thresholds = {
+            instrument.get("default_acceptability_threshold")
+            for instrument in self.get_instruments().values()
+        }
+        return thresholds.pop() if len(thresholds) == 1 else None
+
+    def _add_instrument_parameters(self) -> None:
+        """Add a field per parameter any instrument on offer declares."""
+        parameters = self.parameters()
+        exposure_parameters = self.exposure_parameters()
+        for index in self.configurations():
+            for name, spec in parameters.items():
+                self.fields[f"c_{index}_{schema.EXTRA}_{name}"] = schema.build_field(
+                    name, spec
+                )
+            for exposure in self.exposures():
+                prefix = f"c_{index}_ic_{exposure}"
+                for name, spec in exposure_parameters.items():
+                    self.fields[f"{prefix}_{schema.EXTRA}_{name}"] = schema.build_field(
+                        name, spec
+                    )
+                for axis, label in OFFSETS.items():
+                    self.fields[f"{prefix}_offset_{axis}"] = forms.FloatField(
+                        required=False,
+                        label=label,
+                        help_text=(
+                            "Offset this exposure from the configuration's "
+                            "target, in arcseconds. Used for dithering."
+                        ),
+                        widget=forms.TextInput(attrs={"placeholder": "Arc seconds"}),
+                    )
+
+    def _name_after_the_portal(self) -> None:
+        """Give the fields the names the portal's own form uses."""
+        labels = dict(PORTAL_LABELS)
+        for index in self.configurations():
+            for suffix, label in CONFIGURATION_LABELS.items():
+                labels[f"c_{index}_{suffix}"] = label
+        for name, label in labels.items():
+            if name in self.fields:
+                self.fields[name].label = label
+
+    def _shorten_after_the_portal(self) -> None:
+        """Drop from every option what naming it again does not tell anyone."""
+        said = {_TELESCOPE} | {
+            word.lower()
+            for instrument in self.get_instruments().values()
+            for word in str(instrument.get("name", "")).split()
+        }
+        for name, field in self.fields.items():
+            choices = getattr(field, "choices", None)
+            # A proposal's title is what somebody called it, not a label the
+            # portal repeats: taken apart it is no longer that proposal.
+            if choices and name != "proposal":
+                field.choices = [
+                    (value, _short(label, said)) for value, label in choices
+                ]
+
+    def _explain_after_the_portal(self) -> None:
+        """Say what the toolkit's own help leaves unsaid."""
+        for name, help_text in PORTAL_HELP.items():
+            if name in self.fields:
+                self.fields[name].help_text = help_text
+
+    # -- building the payload ------------------------------------------------
+
+    def _instrument_for(self, configuration_id: int) -> str:
+        """The instrument chosen in one configuration."""
+        return self.cleaned_data.get(
+            f"c_{configuration_id}_instrument_type"
+        ) or self.data.get(f"c_{configuration_id}_instrument_type", "")
+
+    def _measure_after_the_portal(self) -> None:
+        """Say what each field is measured in, beside the control."""
+        for name, field in self.fields.items():
+            unit = UNITS.get(_POSITION.sub("", name))
+            if unit:
+                field.widget.attrs["data-unit"] = unit
+                # The unit is beside the control now, not inside it.
+                field.widget.attrs.pop("placeholder", None)
+
+    def _flatten_error_dict(self, error_dict: dict[str, Any]) -> list[str]:
+        """What the portal refused, in sentences rather than in punctuation.
+
+        The toolkit hands the interface the portal's nested answer flattened
+        into nested lists of ``key: message``, which reach the reader as
+        brackets and quotes around a message that never says which
+        configuration, or which exposure, it was raised on. Each one is
+        written out with where it came from instead.
+        """
+        return _said(error_dict)
+
+    def _build_configuration(self, build_id: int) -> dict[str, Any] | None:
+        # Skips BLANCO's version, which writes NEWFIRM's parameters whatever
+        # the instrument, and fills them from the chosen instrument instead.
+        configuration = OCSFullObservationForm._build_configuration(self, build_id)
+        if configuration is None:
+            return None
+        configuration["extra_params"] = self._parameters_sent(build_id)
+        return configuration
+
+    def _parameters_sent(self, configuration_id: int) -> dict[str, Any]:
+        """Gather what the chosen instrument takes, falling back to defaults."""
+        return self._sent(
+            f"c_{configuration_id}",
+            self.parameters_for(self._instrument_for(configuration_id)),
+        )
+
+    def _sent(self, prefix: str, parameters: dict[str, dict]) -> dict[str, Any]:
+        """The values one set of parameters carries, defaults filled in."""
+        sent: dict[str, Any] = {}
+        for name, spec in parameters.items():
+            value = self.cleaned_data.get(f"{prefix}_{schema.EXTRA}_{name}")
+            if value in (None, ""):
+                if "default" not in spec:
+                    continue
+                value = spec["default"]
+            sent[name] = schema.cast(value, spec)
+        return sent
+
+    def _build_instrument_config(
+        self, instrument_type: str, configuration_id: int, instrument_config_id: int
+    ) -> dict[str, Any] | None:
+        # Skips BLANCO's version, which sends NEWFIRM's coadds and repeats
+        # whatever the instrument.
+        instrument_config = OCSFullObservationForm._build_instrument_config(
+            self, instrument_type, configuration_id, instrument_config_id
+        )
+        if instrument_config is None:
+            return None
+        prefix = f"c_{configuration_id}_ic_{instrument_config_id}"
+        instrument_config["extra_params"] = self._sent(
+            prefix, self.exposure_parameters_for(instrument_type)
+        )
+        for axis in OFFSETS:
+            offset = self.cleaned_data.get(f"{prefix}_offset_{axis}")
+            # Left out when blank, so an unoffset exposure is unchanged.
+            if offset is not None:
+                instrument_config[f"offset_{axis}"] = offset
+        return instrument_config
+
+    def observation_payload(self) -> dict[str, Any]:
+        payload = super().observation_payload()
+        threshold = self.cleaned_data.get("acceptability_threshold")
+        if threshold is not None:
+            for request in payload.get("requests", []):
+                request["acceptability_threshold"] = threshold
+        return payload
+
+    # -- checking what was entered -------------------------------------------
+
+    def clean(self) -> dict[str, Any]:
+        """Refuse what the instrument chosen for a configuration will not take."""
+        cleaned_data = super().clean()
+        self._require_what_cannot_be_left_out()
+        for index in self.configurations():
+            instrument_type = self._instrument_for(index)
+            if not instrument_type:
+                continue
+            instrument = self.get_instruments().get(instrument_type) or {}
+            self._refuse(
+                f"c_{index}", self.parameters_for(instrument_type), schema.EXTRA
+            )
+            for exposure in self.exposures():
+                prefix = f"c_{index}_ic_{exposure}"
+                self._refuse(
+                    prefix, self.exposure_parameters_for(instrument_type), schema.EXTRA
+                )
+                self._refuse(prefix, schema.base_bounds(instrument), None)
+        return cleaned_data
+
+    def _require_what_cannot_be_left_out(self) -> None:
+        """Ask again for what only the exposures that were drawn have to answer.
+
+        The field itself cannot be required: one is declared for every
+        exposure the facility allows, and a request that draws one would be
+        refused on behalf of the ones it never drew. Nor can a parameter be,
+        since whether it is asked for at all is the chosen instrument's to
+        say -- NEWFIRM insists on its coadds, DECam has none.
+        """
+        for index, exposure in self._exposures_asked_for():
+            prefix = f"c_{index}_ic_{exposure}"
+            for suffix in ALWAYS_REQUIRED:
+                self._insist(f"{prefix}_{suffix}")
+            parameters = self.exposure_parameters_for(self._instrument_for(index))
+            for name, spec in parameters.items():
+                if spec.get("required"):
+                    self._insist(f"{prefix}_{schema.EXTRA}_{name}")
+
+    def _insist(self, name: str) -> None:
+        """Report a field left empty that had to be answered."""
+        if name in self.fields and self.cleaned_data.get(name) in (None, ""):
+            self.add_error(name, "This field is required.")
+
+    def _exposures_asked_for(self) -> set[tuple[int, int]]:
+        """The exposures the interface drew, which are the ones it sent."""
+        asked: set[tuple[int, int]] = set()
+        for name in self.data:
+            match = _EXPOSURE.match(name)
+            if match:
+                asked.add((int(match["configuration"]), int(match["exposure"])))
+        return asked
+
+    def _refuse(
+        self, prefix: str, parameters: dict[str, dict], marker: str | None
+    ) -> None:
+        """Report the values this instrument will not take."""
+        for name, spec in parameters.items():
+            field_name = f"{prefix}_{marker}_{name}" if marker else f"{prefix}_{name}"
+            value = self.cleaned_data.get(field_name)
+            if field_name not in self.fields or value in (None, ""):
+                continue
+            refusal = schema.check(value, spec)
+            if refusal:
+                self.add_error(field_name, refusal)

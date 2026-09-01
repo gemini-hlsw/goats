@@ -18,6 +18,11 @@ router.register(
     basename="gppfindercharts",
 )
 router.register(
+    r"blanco/observations",
+    api_views.BLANCOObservationViewSet,
+    basename="blancoobservations",
+)
+router.register(
     r"reduceddatums", api_views.ReducedDatumViewSet, basename="reduceddatums"
 )
 router.register(r"dragonsruns", api_views.DRAGONSRunsViewSet, basename="dragonsruns")
