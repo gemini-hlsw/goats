@@ -1,4 +1,7 @@
 __all__ = ["GOAQueryFormView"]
+
+import logging
+
 from django.contrib import messages
 from django.http import (
     HttpRequest,
@@ -13,7 +16,10 @@ from tom_observations.models import ObservationRecord
 from goats_tom.astroquery import Observations as GOA
 from goats_tom.forms import GOAQueryForm
 from goats_tom.models import GOALogin
+from goats_tom.datalab_jobs import DataLabJobLauncher, datalab_mode_enabled
 from goats_tom.tasks import download_goa_files
+
+logger = logging.getLogger(__name__)
 
 
 class GOAQueryFormView(LoginRequiredMixin, View):
@@ -85,13 +91,34 @@ class GOAQueryFormView(LoginRequiredMixin, View):
 
             query_params = form.cleaned_data["query_params"]
 
-            # Download in background.
-            download_goa_files.send(
-                observation_record.id,
-                query_params,
-                request.user.id,
-            )
-            messages.info(request, "Downloading data in background. Check back soon!")
+            if datalab_mode_enabled():
+                # Data Lab mode: the download runs in the PI's notebook
+                # server and writes into their VOSpace. It cannot run here --
+                # GOA ships tarballs, which have to be untarred and
+                # decompressed on a filesystem, and doing that on this host
+                # is exactly what `datalab` mode exists to prevent.
+                try:
+                    self._launch_on_datalab(request, observation_record, query_params)
+                except Exception as exc:
+                    logger.exception(
+                        "Could not launch Data Lab download for observation %s.",
+                        observation_record.pk,
+                    )
+                    messages.error(
+                        request,
+                        f"Could not start the download on Astro Data Lab: {exc}",
+                    )
+                    return redirect(observation_detail_url)
+            else:
+                # Download in background.
+                download_goa_files.send(
+                    observation_record.id,
+                    query_params,
+                    request.user.id,
+                )
+                messages.info(
+                    request, "Downloading data in background. Check back soon!"
+                )
 
         else:
             # Pass the form with errors to the template
@@ -101,3 +128,35 @@ class GOAQueryFormView(LoginRequiredMixin, View):
                     messages.error(request, msg)
 
         return redirect(observation_detail_url)
+
+    def _launch_on_datalab(self, request, observation_record, query_params) -> None:
+        """Start the download as a job on the PI's Data Lab account.
+
+        Parameters
+        ----------
+        request : `django.http.HttpRequest`
+            The request, for messages and the acting user.
+        observation_record : `tom_observations.models.ObservationRecord`
+            What is being downloaded.
+        query_params : dict
+            The form's GOA query, unchanged.
+
+        Notes
+        -----
+        The URL is built with the **same** `url_helper` the local task uses,
+        from the **same** ``query_params``. Building it differently here
+        would mean the two modes could return different files for the same
+        form, and nothing would report that they had.
+        """
+        args = query_params.get("args", ())
+        kwargs = query_params.get("kwargs", {})
+        goa_url = GOA.url_helper.get_tar_file_url(*args, **kwargs)
+
+        launcher = DataLabJobLauncher(request.user)
+        job = launcher.launch_download(observation_record, goa_url)
+
+        messages.info(
+            request,
+            "Downloading data on Astro Data Lab into your VOSpace "
+            f"(job {job.job_id}). Check back soon!",
+        )

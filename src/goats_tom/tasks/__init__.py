@@ -4,6 +4,7 @@ from .download_goa_files import download_goa_files
 from .run_dragons_reduce import run_dragons_reduce
 from .cleanup_stale_antares_loci import cleanup_stale_antares_loci
 from .ingest_antares_stream import ingest_antares_stream
+from .supervise_datalab_jobs import supervise_datalab_jobs
 from .supervise_remote_jobs import supervise_remote_jobs
 
 
@@ -14,5 +15,6 @@ __all__ = [
     "check_version",
     "ingest_antares_stream",
     "cleanup_stale_antares_loci",
+    "supervise_datalab_jobs",
     "supervise_remote_jobs",
 ]

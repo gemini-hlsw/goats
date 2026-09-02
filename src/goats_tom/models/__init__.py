@@ -7,6 +7,7 @@ from goats_tom.models.antares_pi_group import AntaresPIGroup
 from goats_tom.models.gemini_trigger_record import GeminiTriggerRecord
 from goats_tom.models.personal_group import PersonalGroup
 from goats_tom.models.registration_request import RegistrationRequest
+from goats_tom.models.datalab_job import DataLabJob
 from goats_tom.models.remote_job import RemoteJob
 from goats_tom.models.antares_stream_subscription import AntaresStreamSubscription
 from goats_tom.models.antares_target_save import AntaresTargetSave
@@ -36,6 +37,7 @@ __all__ = [
     "GeminiTriggerRecord",
     "PersonalGroup",
     "RegistrationRequest",
+    "DataLabJob",
     "RemoteJob",
     "AntaresStreamSubscription",
     "AntaresTargetSave",

@@ -8,7 +8,6 @@ import subprocess
 from importlib import metadata
 from pathlib import Path
 
-from django.conf import settings
 from django.core.files.storage import default_storage
 from django.db import models
 from recipe_system import cal_service
@@ -99,6 +98,21 @@ class DRAGONSRun(models.Model):
         blank=True,
         editable=False,
     )
+    #: When each output file was written, as ``{storage name: unix time}``.
+    #:
+    #: Only used when the storage backend cannot answer the question itself.
+    #: `FileSystemStorage` knows a file's mtime, so locally this stays empty
+    #: and nothing reads it; `VOSpaceStorage` cannot -- ``/storage/ls`` does
+    #: not report timestamps -- and without this a file the reduction had
+    #: just rewritten would be labelled "unchanged" in the processed-files
+    #: panel. Telling a PI a file is unchanged when it was overwritten is
+    #: worse than telling them nothing.
+    #:
+    #: Per file rather than per run, because a run is not one reduction. A
+    #: recipe can be rerun repeatedly within the same run; each rerun
+    #: rewrites some outputs and leaves others alone, and entries the newest
+    #: job did not touch keep the time they already had.
+    output_written_at = models.JSONField(default=dict, blank=True, editable=False)
     cal_manager_filename = models.CharField(max_length=30, default="cal_manager.db")
     log_filename = models.CharField(max_length=30, default="log.log", editable=False)
     created = models.DateTimeField(auto_now_add=True)
@@ -332,7 +346,9 @@ class DRAGONSRun(models.Model):
                         "name": f.name,
                         "path": str(relative_path.parent),
                         "is_user_uploaded": Path(f.path).name == "uploaded",
-                        "url": f"{settings.MEDIA_URL}{relative_path}",
+                        # Through the backend, not MEDIA_URL, which is a
+                        # local path that serves nothing in `datalab` mode.
+                        "url": default_storage.url(str(relative_path)),
                     }
                 )
         finally:
@@ -391,6 +407,22 @@ class DRAGONSRun(models.Model):
 
         return f.suffix.lower() in valid_extensions
 
+    def get_output_prefix(self) -> str:
+        """Return the storage-relative prefix this run writes outputs under.
+
+        Returns
+        -------
+        `str`
+            e.g. ``"M31/GEM/GS-2026A-Q-1-1/my_run/outputs"``.
+
+        Notes
+        -----
+        The name counterpart to `get_output_dir`. A storage backend is asked
+        for names, not paths, and a remote run has no local directory to
+        glob at all.
+        """
+        return str(self.get_output_dir().relative_to(storage.working_root()))
+
     def get_processed_files(self) -> list[dict]:
         """Returns all the processed output files of the output directory, combined
         with any additional `DataProducts` that are processed but not in the output
@@ -400,9 +432,29 @@ class DRAGONSRun(models.Model):
         -------
         `list[dict]`
             A list of file information dictionaries.
-        """
 
-        output_dir = self.get_output_dir()
+        Notes
+        -----
+        **Listed through the storage backend, not by globbing a directory.**
+        This is the panel a PI uses to choose which reduction outputs become
+        data products, and that choice is deliberately manual -- the local
+        reduction records nothing itself, and neither does the remote one.
+        Nothing here promotes a file automatically.
+
+        A remote run has no local output directory, so `Path.glob` would
+        return nothing and the panel would sit empty after a reduction that
+        worked. Asking `default_storage` gives the same answer in both modes.
+
+        **Modification times come from the backend when it can answer, and
+        from `output_written_at` when it cannot.** `FileSystemStorage` knows
+        a file's mtime; `VOSpaceStorage` does not, because ``/storage/ls``
+        does not report one. Falling back to "unchanged" there was wrong,
+        not merely imprecise: a file the reduction had just overwritten
+        would be labelled unchanged, which tells the PI something false.
+        So the reduction runner records the time it wrote each file and the
+        supervisor merges those into `output_written_at`.
+        """
+        prefix = self.get_output_prefix()
         output_files = []
 
         # Query all processed DataProducts
@@ -412,35 +464,64 @@ class DRAGONSRun(models.Model):
         data_products = {dp.product_id: dp for dp in data_products_qs}
         processed_product_ids: set[str] = set()
 
-        # Iterate over files in output directory
-        for f in output_dir.glob("*"):
-            if f.is_file() and self.is_valid_file(f):
-                file_mtime = datetime.datetime.fromtimestamp(
-                    f.stat().st_mtime, datetime.timezone.utc
-                )
-                last_modified = file_mtime.strftime("%Y-%m-%d %H:%M:%S")
-                potential_product_id = str(f.relative_to(storage.working_root()))
-                dp = data_products.get(potential_product_id)
-                is_dataproduct = dp is not None
+        try:
+            _, names = default_storage.listdir(prefix)
+        except (FileNotFoundError, NotADirectoryError, OSError):
+            # No outputs yet, which is the normal state before a run has
+            # produced anything. Not an error, and the panel should show the
+            # data products below rather than fail.
+            names = []
 
-                if is_dataproduct:
-                    processed_product_ids.add(potential_product_id)
-                    status = "updated" if file_mtime > dp.modified else "unchanged"
-                else:
-                    status = "new"
+        for name in names:
+            if not self.is_valid_file(Path(name)):
+                continue
 
-                output_files.append(
-                    {
-                        "name": f.name,
-                        "path": str(f.parent.relative_to(storage.working_root())),
-                        "last_modified": last_modified,
-                        "is_dataproduct": is_dataproduct,
-                        "dataproduct_id": dp.id if dp else None,
-                        "product_id": potential_product_id,
-                        "url": f"{settings.MEDIA_URL}{potential_product_id}",
-                        "status": status,
-                    }
+            potential_product_id = f"{prefix}/{name}"
+            dp = data_products.get(potential_product_id)
+            is_dataproduct = dp is not None
+
+            file_mtime = None
+            try:
+                file_mtime = default_storage.get_modified_time(potential_product_id)
+            except (NotImplementedError, OSError):
+                # The backend cannot answer, so use what the runner recorded
+                # when it wrote the file -- the only record that exists.
+                recorded = (self.output_written_at or {}).get(potential_product_id)
+                if recorded:
+                    file_mtime = datetime.datetime.fromtimestamp(
+                        recorded, datetime.timezone.utc
+                    )
+
+            if is_dataproduct:
+                processed_product_ids.add(potential_product_id)
+                status = (
+                    "updated"
+                    if file_mtime is not None and file_mtime > dp.modified
+                    else "unchanged"
                 )
+            else:
+                status = "new"
+
+            output_files.append(
+                {
+                    "name": name,
+                    "path": prefix,
+                    "last_modified": (
+                        file_mtime.strftime("%Y-%m-%d %H:%M:%S")
+                        if file_mtime is not None
+                        else None
+                    ),
+                    "is_dataproduct": is_dataproduct,
+                    "dataproduct_id": dp.id if dp else None,
+                    "product_id": potential_product_id,
+                    # Asked of the backend rather than built from MEDIA_URL,
+                    # which is a local path that no longer serves anything
+                    # in `datalab` mode. The data product branch below
+                    # already did this correctly; these two disagreed.
+                    "url": default_storage.url(potential_product_id),
+                    "status": status,
+                }
+            )
 
         # Add remaining DataProducts not in output_dir
         for product_id, dp in data_products.items():
