@@ -10,7 +10,7 @@ from typing import Any, List
 
 from asgiref.sync import async_to_sync
 from gpp_client import GPPClient
-from gpp_client.generated.enums import AttachmentType
+from gpp_client.generated.enums import AttachmentType, ObservationWorkflowState
 from gpp_client.generated.input_types import (
     CloneObservationInput,
     TargetEnvironmentInput,
@@ -437,7 +437,7 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 data = payload.model_dump(by_alias=True)["observations"]
                 # Filter the observations into too and normal categories.
                 matches = data.get("matches", [])
-                too_obs = [o for o in matches if self.is_too(o)]
+                too_obs = [o for o in matches if self.is_too(o) and self.is_approved(o)]
                 normal_obs = [o for o in matches if not self.is_too(o)]
 
                 # Build the custom data response.
@@ -484,6 +484,26 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         if not asterisms:
             return False
         return bool(asterisms[0].get("opportunity"))
+
+    def is_approved(self, obs: dict) -> bool:
+        """Return whether the observation has been approved.
+
+        Parameters
+        ----------
+        obs : dict
+            The observation payload returned from GPP. This may or may not
+            contain the ``workflow`` key.
+
+        Returns
+        -------
+        bool
+            ``True`` if the observation workflow state is ``DEFINED``, ``False``
+            otherwise.
+        """
+        # ``workflow`` is nullable and may be absent while GPP recalculates it.
+        workflow = obs.get("workflow") or {}
+        value = workflow.get("value") or {}
+        return value.get("state") == ObservationWorkflowState.DEFINED
 
     def retrieve(self, request: Request, *args, **kwargs) -> Response:
         """Return details for a specific GPP observation by observation ID.
