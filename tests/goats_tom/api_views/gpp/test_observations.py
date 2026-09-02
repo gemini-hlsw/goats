@@ -690,6 +690,7 @@ class TestGPPObservationViewSet:
                     {"id": "t-1", "opportunity": {"__typename": "Opportunity"}}
                 ]
             },
+            "workflow": {"value": {"state": "DEFINED"}},
         }
         normal_obs = {
             "id": "o-norm",
@@ -721,6 +722,43 @@ class TestGPPObservationViewSet:
         mock_client.return_value.goats.get_observations_by_program_id.assert_called_once_with(
             program_id="p-1"
         )
+
+    def test_list_observations_excludes_unapproved_too(self, mocker):
+        unapproved_too_obs = {
+            "id": "o-too-unapproved",
+            "targetEnvironment": {
+                "asterism": [
+                    {"id": "t-1", "opportunity": {"__typename": "Opportunity"}}
+                ]
+            },
+            "workflow": {"value": {"state": "UNAPPROVED"}},
+        }
+        normal_obs = {
+            "id": "o-norm",
+            "targetEnvironment": {"asterism": [{"id": "t-2", "opportunity": None}]},
+        }
+        mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
+        mock_payload = mocker.Mock()
+        mock_payload.model_dump.return_value = {
+            "observations": {
+                "matches": [unapproved_too_obs, normal_obs],
+                "hasMore": False,
+            }
+        }
+        mock_client.return_value.goats.get_observations_by_program_id = AsyncMock(
+            return_value=mock_payload
+        )
+
+        request = self.factory.get(self.observations_url, {"program_id": "p-1"})
+        force_authenticate(request, user=self.user_with_login)
+
+        response = self.list_view(request)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["matches"]["too"]["count"] == 0
+        assert response.data["matches"]["too"]["results"] == []
+        assert response.data["matches"]["normal"]["count"] == 1
+        assert response.data["matches"]["normal"]["results"] == [normal_obs]
 
     def test_list_observations_handles_client_exception(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
@@ -814,6 +852,30 @@ class TestGPPObservationViewSet:
     def test_target_environment_none(self):
         obs = {"targetEnvironment": None}
         assert self.viewset.is_too(obs) is False
+
+    def test_approved_observation(self):
+        obs = {"workflow": {"value": {"state": "DEFINED"}}}
+        assert self.viewset.is_approved(obs) is True
+
+    def test_approved_observation_with_enum_state(self):
+        obs = {"workflow": {"value": {"state": ObservationWorkflowState.DEFINED}}}
+        assert self.viewset.is_approved(obs) is True
+
+    def test_unapproved_observation(self):
+        obs = {"workflow": {"value": {"state": "UNAPPROVED"}}}
+        assert self.viewset.is_approved(obs) is False
+
+    def test_approved_observation_workflow_none(self):
+        obs = {"workflow": None}
+        assert self.viewset.is_approved(obs) is False
+
+    def test_approved_observation_missing_workflow(self):
+        obs = {}
+        assert self.viewset.is_approved(obs) is False
+
+    def test_approved_observation_value_none(self):
+        obs = {"workflow": {"value": None}}
+        assert self.viewset.is_approved(obs) is False
 
     def test_normalize_finder_charts_without_payload_returns_empty_structure(self):
         data = {}
