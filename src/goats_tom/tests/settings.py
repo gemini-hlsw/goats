@@ -79,6 +79,12 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "goats_tom.middleware.PermissionDeniedMiddleware",
+    # Present in the deployed settings template and previously absent here,
+    # so nothing exercised it. `custom_data_product_path` reads the id it
+    # stores to decide whose VOSpace a manual upload belongs in, which makes
+    # this the difference between a correct name and a refusal in tests that
+    # go through a request.
+    "goats_tom.middleware.UserContextMiddleware",
     "tom_common.middleware.ExternalServiceMiddleware",
     "tom_common.middleware.AuthStrategyMiddleware",
 ]

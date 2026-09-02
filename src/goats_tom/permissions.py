@@ -20,8 +20,11 @@ observation outside the form must call `grant_observation_permissions`.
 """
 
 __all__ = [
+    "DRAGONSRunObjectPermissions",
     "DataProductObjectPermissions",
     "ReducedDatumObjectPermissions",
+    "TargetObjectPermissions",
+    "may_reduce_observation",
     "grant_dataproduct_permissions",
     "grant_observation_permissions",
     "has_assigned_perm",
@@ -142,8 +145,48 @@ def undeletable_dataproducts(user, products) -> list:
 OBSERVATION_ACTIONS = ("view", "change", "delete")
 
 
+def _record_observation_owner(record, user) -> None:
+    """Set `record.user` if it is not already set.
+
+    Parameters
+    ----------
+    record : `tom_observations.models.ObservationRecord`
+        The record to stamp.
+    user : `django.contrib.auth.models.User` or None
+        The creator.
+
+    Notes
+    -----
+    Does not overwrite an existing owner. `ObservationCreateView` already
+    sets one upstream, and re-stamping it here would silently reassign an
+    observation if this function were ever called on an existing record.
+
+    Saves only the one field, so nothing else on a record another request
+    may be holding gets written back.
+
+    Failures are logged, never raised. By the time this runs the observation
+    may already be scheduled at the observatory; losing that over a database
+    write would be far worse than an unstamped row an administrator can
+    repair.
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return
+    if getattr(record, "user_id", None) is not None:
+        return
+
+    try:
+        record.user = user
+        record.save(update_fields=["user"])
+    except Exception:
+        logger.exception(
+            "Could not record %s as the owner of observation %s.",
+            getattr(user, "username", None),
+            getattr(record, "observation_id", record),
+        )
+
+
 def grant_observation_permissions(record, user) -> None:
-    """Give `user` full per-object permissions on an observation record.
+    """Record `user` as the owner of an observation and grant them access.
 
     Parameters
     ----------
@@ -156,8 +199,31 @@ def grant_observation_permissions(record, user) -> None:
 
     Notes
     -----
+    **Two things, deliberately in one place.** It sets `record.user` and it
+    assigns the guardian rows. They were separate, and drifted: every caller
+    assigned permissions and none set the field, so records were visible and
+    manageable by the right person while their `user` column stayed NULL.
+
+    Nothing read it, which is why that went unnoticed for so long. Scoping
+    goes through guardian; `may_reduce_observation` goes through guardian.
+    `VOSpaceStorage` is the first thing that has to *name* an owner rather
+    than test one -- it needs a username to build a VOSpace path -- and a
+    NULL there has no safe default, because guessing writes a PI's
+    proprietary data into somebody else's account.
+
+    Upstream is inconsistent about this and that is the root of it.
+    `ObservationCreateView` sets `user=self.request.user`;
+    `AddExistingObservationView` does not; and
+    `ObservationRecordSerializer.create` passes ``**validated_data``
+    straight through without ever reading `request.user`, which is the path
+    `gemini_trigger` uses. Setting it here covers all of them, because every
+    GOATS creation path already calls this function.
+
     No-op when ``TARGET_PERMISSIONS_ONLY`` is True, where the target governs
-    everything beneath it and these rows would be unused.
+    everything beneath it and these rows would be unused. **The owner is
+    still recorded**, before that check: it is a fact about who made the
+    observation, not a permission, and the storage layer needs it in either
+    mode.
 
     Granted to the user alone, not to their groups. Sharing is theirs to
     decide afterwards from the observation page; doing it here would make
@@ -168,6 +234,8 @@ def grant_observation_permissions(record, user) -> None:
     manage what they made. Recipients of a share get view only, which is
     what stops access being passed on further.
     """
+    _record_observation_owner(record, user)
+
     if settings.TARGET_PERMISSIONS_ONLY:
         return
     if user is None or not getattr(user, "is_authenticated", False):
@@ -604,3 +672,170 @@ def may_delete_selection(user, selection, permission) -> bool:
     if settings.TARGET_PERMISSIONS_ONLY:
         return True
     return has_assigned_perm(user, selection, [permission])
+
+
+def may_reduce_observation(user, observation_record) -> bool:
+    """Whether `user` may run or destroy a reduction on `observation_record`.
+
+    Parameters
+    ----------
+    user : `django.contrib.auth.models.User`
+        The user attempting the action.
+    observation_record : `tom_observations.models.ObservationRecord`
+        The record the reduction belongs to.
+
+    Returns
+    -------
+    `bool`
+        True when the action may proceed.
+
+    Notes
+    -----
+    **One predicate for starting a reduction and for deleting one**, which is
+    the point of it existing. A run belongs to whoever could have created it;
+    asking a different question on the way out is how a rule drifts.
+
+    The condition is full access to the observation --
+    ``change_observationrecord`` -- because that is what the observation
+    detail page already uses to decide whether to render the DRAGONS panel at
+    all. Sharing grants view, and at full access change; a read-only
+    recipient sees the observation and its data and cannot act on it. That
+    was already the intended rule and was enforced only by hiding the panel,
+    which is not an access check -- the same gap `GOAQueryFormView` closes on
+    the GOA side.
+
+    Uses `has_perm`, not `has_assigned_perm`, and so **admits superusers**.
+    That is the settled decision, not an inherited default: administrators
+    may reduce, and may delete the runs they can start.
+
+    It does not contradict the delete ban, which is about *data products*.
+    Destroying a run removes its own output directory -- the reduction's
+    own output -- and does not touch the PI's raw files, which
+    `DataProductObjectPermissions` still governs with no superuser bypass.
+    Reduction is not destructive to the data it reads, so it sits outside
+    that ban rather than against it.
+
+    `can_edit_observation` on the observation detail page is computed the
+    same way, so the panel a superuser can see and the actions behind it
+    now agree. They did not before: the panel was visible and nothing
+    behind it checked anything.
+
+    Inert in target-only mode, as every check in this module is.
+    """
+    if settings.TARGET_PERMISSIONS_ONLY:
+        return True
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return bool(
+        getattr(user, "is_superuser", False)
+        or user.has_perm(
+            "tom_observations.change_observationrecord", observation_record
+        )
+    )
+
+
+class DRAGONSRunObjectPermissions(AssignedObjectPermissions):
+    """Object permissions for the DRAGONS run endpoints.
+
+    Notes
+    -----
+    Subclasses `AssignedObjectPermissions` for its anonymous refusal and its
+    target-only branch, but answers the question with
+    `may_reduce_observation` rather than by reading assigned rows -- see that
+    function for why, and for the superuser note.
+
+    `DRAGONSRunsViewSet` previously declared only
+    `permissions.IsAuthenticated`, so `DELETE /api/dragonsruns/<pk>/` removed
+    a reduction's output directory with `shutil.rmtree` for any authenticated
+    caller. `ScopedQuerySetMixin` narrows the *list*, which is a different
+    question, and is inert unless ``GOATS_ENFORCE_SCOPING`` is set -- so on a
+    default install nothing stood in the way at all.
+    """
+
+    perms_map = {
+        "PUT": ["change_observationrecord"],
+        "PATCH": ["change_observationrecord"],
+        "DELETE": ["change_observationrecord"],
+    }
+
+    def has_object_permission(self, request, view, obj) -> bool:
+        """Check `obj`'s observation record rather than assigned rows."""
+        if settings.TARGET_PERMISSIONS_ONLY:
+            return True
+        if not self.perms_map.get(request.method):
+            return True
+
+        record = getattr(obj, "observation_record", None)
+        if record is None:
+            logger.warning(
+                "Refused %s on DRAGONS run %s: no observation record to read "
+                "permissions from.",
+                request.method,
+                getattr(obj, "pk", obj),
+            )
+            return False
+
+        if may_reduce_observation(request.user, record):
+            return True
+
+        logger.warning(
+            "%s was refused %s on DRAGONS run %s: no change_observationrecord "
+            "on observation %s.",
+            getattr(request.user, "username", request.user),
+            request.method,
+            getattr(obj, "pk", obj),
+            getattr(record, "pk", record),
+        )
+        return False
+
+
+class TargetObjectPermissions(AssignedObjectPermissions):
+    """Object permissions for the target API endpoints.
+
+    Notes
+    -----
+    Delegates to `may_delete_target`, so the API and
+    `goats_tom.views.target_delete` answer with the same code. Writing the
+    two target rules a second time is how they drift, and this pair is
+    subtle enough that a drifted copy would not look wrong.
+
+    Closes two holes at once, which is why it matters. `TargetViewSet`
+    declared only `permissions.IsAuthenticated`, leaving upstream's
+    `get_queryset` as the sole guard -- and that calls
+    `get_objects_for_user`, whose ``with_superuser`` default this document
+    already names as "the same bypass wearing different clothes". So:
+
+    - a **superuser** could delete any PI's target over the API, which the
+      ordinary rule forbids; and
+    - **any registered user** could delete a *public* target, since the
+      ``Public`` group grants ``delete_target`` to every member -- the exact
+      outcome the public-target inversion exists to prevent.
+
+    Both rules were enforced on the web view and neither on the API beside
+    it. That is the display/enforcement split again, on a different axis.
+
+    Change is not listed. Editing a target is not destructive and upstream's
+    ``change_target`` scoping already covers it; only deletion is narrowed
+    here.
+    """
+
+    perms_map = {
+        "DELETE": ["delete_target"],
+    }
+
+    def has_object_permission(self, request, view, obj) -> bool:
+        """Apply both target rules, via `may_delete_target`."""
+        if settings.TARGET_PERMISSIONS_ONLY:
+            return True
+        if request.method != "DELETE":
+            return True
+
+        if may_delete_target(request.user, obj):
+            return True
+
+        logger.warning(
+            "%s was refused DELETE on target %s.",
+            getattr(request.user, "username", request.user),
+            getattr(obj, "pk", obj),
+        )
+        return False

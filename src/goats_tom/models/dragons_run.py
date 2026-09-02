@@ -15,6 +15,7 @@ from recipe_system import cal_service
 from tom_dataproducts.models import DataProduct
 from tom_observations.models import ObservationRecord
 
+from goats_tom import storage
 from goats_tom.models import DRAGONSRecipe
 
 
@@ -233,7 +234,7 @@ class DRAGONSRun(models.Model):
 
         """
         raw_dir = (
-            settings.MEDIA_ROOT
+            storage.working_root()
             / f"{self.observation_record.target.name}"
             / f"{self.observation_record.facility}"
             / f"{self.observation_record.observation_id}"
@@ -324,7 +325,7 @@ class DRAGONSRun(models.Model):
         try:
             for f in caldb.list_files():
                 relative_path = (
-                    Path(f.path).joinpath(f.name).relative_to(settings.MEDIA_ROOT)
+                    Path(f.path).joinpath(f.name).relative_to(storage.working_root())
                 )
                 files.append(
                     {
@@ -418,7 +419,7 @@ class DRAGONSRun(models.Model):
                     f.stat().st_mtime, datetime.timezone.utc
                 )
                 last_modified = file_mtime.strftime("%Y-%m-%d %H:%M:%S")
-                potential_product_id = str(f.relative_to(settings.MEDIA_ROOT))
+                potential_product_id = str(f.relative_to(storage.working_root()))
                 dp = data_products.get(potential_product_id)
                 is_dataproduct = dp is not None
 
@@ -431,7 +432,7 @@ class DRAGONSRun(models.Model):
                 output_files.append(
                     {
                         "name": f.name,
-                        "path": str(f.parent.relative_to(settings.MEDIA_ROOT)),
+                        "path": str(f.parent.relative_to(storage.working_root())),
                         "last_modified": last_modified,
                         "is_dataproduct": is_dataproduct,
                         "dataproduct_id": dp.id if dp else None,

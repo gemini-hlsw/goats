@@ -1,6 +1,10 @@
 """Handles grabbing observations and observation details from GPP."""
 
-__all__ = ["GPPObservationViewSet"]
+__all__ = [
+    "GPPObservationViewSet",
+    "build_goats_subtitle",
+    "normalize_discovery_survey",
+]
 
 import json
 import logging
@@ -78,6 +82,70 @@ def _format_workflow_state(workflow_state) -> str:
     state = getattr(workflow_state, "state", None)
     value = getattr(state, "value", None)
     return value or "unknown"
+
+
+def normalize_discovery_survey(raw: Any) -> str:
+    """Clean a discovery-survey value for use in an observation subtitle.
+
+    Parameters
+    ----------
+    raw : Any
+        The value as supplied. Anything that is not a string is discarded.
+
+    Returns
+    -------
+    str
+        The trimmed survey name, or ``""`` when there is nothing usable.
+
+    Notes
+    -----
+    Colons are removed rather than escaped, because they delimit the fields
+    of the subtitle `build_goats_subtitle` produces -- a survey name
+    containing one would silently add a field and make the subtitle
+    unparseable by anything reading it back.
+
+    Non-strings return ``""`` instead of raising: this value arrives from a
+    request payload, and a subtitle is not worth failing an observation
+    over.
+    """
+    if not isinstance(raw, str):
+        return ""
+    return raw.replace(":", "").strip()
+
+
+def build_goats_subtitle(discovery_survey: str = "") -> str:
+    """Build the subtitle stamped on observations GOATS creates.
+
+    Parameters
+    ----------
+    discovery_survey : str, optional
+        An already-normalized survey name, or ``""`` for none.
+
+    Returns
+    -------
+    str
+        ``"GOATS:<version>"``, with ``":<survey>"`` appended when one is
+        given, or a bare ``"GOATS"`` if the version cannot be read.
+
+    Notes
+    -----
+    Extracted from two identical inline copies in this module. They are the
+    same duplication as the ingestion banner recorded in *Known
+    duplication*, and the same risk: a change made to one and not the other.
+
+    The bare ``except`` around the version lookup is deliberate and is kept
+    from the original. `get_goats_version` reads installed package metadata,
+    which can fail in ways not worth enumerating, and a missing version
+    should cost the subtitle its version rather than cost the caller their
+    observation.
+    """
+    try:
+        subtitle = f"GOATS:{get_goats_version()}"
+    except Exception:
+        return "GOATS"
+    if discovery_survey:
+        subtitle = f"{subtitle}:{discovery_survey}"
+    return subtitle
 
 
 def build_failure_response(
@@ -589,12 +657,13 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 observation_serializer.is_valid(raise_exception=True)
                 observation_properties = observation_serializer.to_pydantic()
 
-                # Set subtitle to a GOATS identifier for easier tracking.
-                try:
-                    subtitle = f"GOATS:{get_goats_version()}"
-                except Exception:
-                    subtitle = "GOATS"
-                observation_properties.subtitle = subtitle
+                # Set subtitle to a GOATS identifier for easier tracking,
+                # carrying the discovery survey when the form supplied one.
+                observation_properties.subtitle = build_goats_subtitle(
+                    normalize_discovery_survey(
+                        normalized_data.get("discoverySurveyInput")
+                    )
+                )
             else:
                 # Only the observation ID is needed to update the workflow state.
                 gpp_observation_id = normalized_data.get("hiddenObservationIdInput")
@@ -1005,12 +1074,13 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             observation_serializer.is_valid(raise_exception=True)
             observation_properties = observation_serializer.to_pydantic()
 
-            # Set subtitle to a GOATS identifier for easier tracking.
-            try:
-                subtitle = f"GOATS:{get_goats_version()}"
-            except Exception:
-                subtitle = "GOATS"
-            observation_properties.subtitle = subtitle
+            # Set subtitle to a GOATS identifier for easier tracking,
+            # carrying the discovery survey when the form supplied one.
+            observation_properties.subtitle = build_goats_subtitle(
+                normalize_discovery_survey(
+                    normalized_data.get("discoverySurveyInput")
+                )
+            )
 
             # Serialize and validate workflow state.
             workflow_state_serializer = WorkflowStateSerializer(data=normalized_data)

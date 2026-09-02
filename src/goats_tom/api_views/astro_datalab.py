@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, mixins
 from tom_dataproducts.models import DataProduct
 
+from goats_tom import storage
 from goats_tom.astro_data_lab import AstroDataLabClient
 from goats_tom.serializers import AstroDatalabSerializer
 
@@ -83,4 +84,5 @@ class AstroDatalabViewSet(GenericViewSet, mixins.CreateModelMixin):
             except FileExistsError:
                 pass
 
-            client.upload_file(data_product.data.path, overwrite=True)
+            with storage.local_path(data_product) as path:
+                client.upload_file(path, overwrite=True)

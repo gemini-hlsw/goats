@@ -12,10 +12,30 @@ from tom_targets.api_views import TargetViewSet as BaseTargetViewSet
 from tom_targets.models import Target
 
 from goats_tom.astroquery import Observations as GOA
+from goats_tom.permissions import TargetObjectPermissions
 
 
 class TargetViewSet(BaseTargetViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    """Upstream's target API, with the two target delete rules applied.
+
+    Notes
+    -----
+    `permissions.IsAuthenticated` alone left upstream's `get_queryset` as
+    the only guard on ``DELETE /api/targets/<pk>/``. That method looks like
+    a delete check -- it maps ``DELETE`` to ``delete_target`` and calls
+    `get_objects_for_user` -- but that function's ``with_superuser``
+    argument defaults to True, so an administrator's queryset contains every
+    target and `get_object` succeeds. Nothing else ran.
+
+    The result broke both documented target rules through one endpoint, in
+    opposite directions: a superuser could delete a PI's private target,
+    and any registered user could delete a *public* one, because the
+    ``Public`` group grants ``delete_target`` to all its members.
+    `TargetObjectPermissions` applies `may_delete_target`, which is the same
+    function `TargetDeleteView` uses.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, TargetObjectPermissions]
 
     @action(detail=True, methods=["get"], url_path="observations-in-radius")
     def observations_in_radius(

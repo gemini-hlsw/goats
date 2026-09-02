@@ -8,6 +8,8 @@ from rest_framework.test import APIRequestFactory, APITestCase, force_authentica
 from tom_observations.tests.factories import ObservingRecordFactory
 from tom_targets.tests.factories import SiderealTargetFactory
 
+from guardian.shortcuts import assign_perm
+
 from goats_tom.api_views import DRAGONSRunsViewSet
 from goats_tom.models import DRAGONSRun
 from goats_tom.tests.factories import DataProductFactory, DRAGONSRunFactory, UserFactory
@@ -28,6 +30,28 @@ class TestDRAGONSRunViewSet(APITestCase):
     def authenticate(self, request):
         """Helper method to authenticate requests."""
         force_authenticate(request, user=self.user)
+
+    def grant_reduce(self, observation_record):
+        """Give the test user full access to `observation_record`.
+
+        Notes
+        -----
+        Reducing an observation requires ``change_observationrecord`` on it,
+        the same permission the detail page uses to decide whether to render
+        the DRAGONS panel at all. These tests previously authenticated as a
+        user with no relationship to the record and expected the write to
+        succeed, which is precisely the hole `DRAGONSRunObjectPermissions`
+        closes: any authenticated user could start a reduction on another
+        PI's observation, and destroy one, by naming a pk.
+
+        Granting here keeps each test asserting what it meant to assert --
+        that the action works for someone entitled to it.
+        """
+        assign_perm(
+            "tom_observations.change_observationrecord",
+            self.user,
+            observation_record,
+        )
 
     def test_list_runs(self):
         """Test listing all DRAGONS runs."""
@@ -54,8 +78,9 @@ class TestDRAGONSRunViewSet(APITestCase):
         self.assertEqual(response.data["run_id"], dragons_run.run_id)
 
     def test_delete_run(self):
-        """Test deleting a DRAGONS run."""
+        """Test deleting a DRAGONS run the user may reduce."""
         dragons_run = DRAGONSRunFactory()
+        self.grant_reduce(dragons_run.observation_record)
 
         request = self.factory.delete(
             reverse("dragonsruns-detail", args=[dragons_run.id]),
@@ -118,6 +143,7 @@ class TestDRAGONSRunViewSet(APITestCase):
         target = SiderealTargetFactory.create()
         observation_record = ObservingRecordFactory.create(target_id=target.id)
         DataProductFactory.create(observation_record=observation_record)
+        self.grant_reduce(observation_record)
         data = {
             "observation_record": observation_record.id,
             "run_id": "test-run",
@@ -145,6 +171,7 @@ class TestDRAGONSRunViewSet(APITestCase):
         target = SiderealTargetFactory.create()
         observation_record = ObservingRecordFactory.create(target_id=target.id)
         DataProductFactory.create(observation_record=observation_record)
+        self.grant_reduce(observation_record)
         data = {
             "observation_record": observation_record.id,
             "run_id": "test-run",

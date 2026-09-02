@@ -5,6 +5,7 @@ __all__ = ["SpectroscopyProcessor"]
 import logging
 import mimetypes
 from datetime import datetime
+from pathlib import Path
 from typing import Final
 
 import numpy as np
@@ -18,6 +19,7 @@ from tom_dataproducts.processors.spectroscopy_processor import (
     SpectroscopyProcessor as BaseSpectroscopyProcessor,
 )
 
+from goats_tom import storage
 from goats_tom.processors import fits_utils
 from goats_tom.serializers import SpectrumSerializer
 
@@ -39,9 +41,11 @@ class SpectroscopyProcessor(BaseSpectroscopyProcessor):
         self, data_product: DataProduct
     ) -> list[tuple[datetime, dict, str]]:
         """Route processing based on file type and serialize resulting spectrum(s)."""
-        path = data_product.data.path
-        mimetype = mimetypes.guess_type(path)[0]
-        logger.debug("process_data: path=%s mimetype=%r", path, mimetype)
+        # The name, not a local path: only the suffix matters here, and
+        # resolving the file would fetch bytes this branch may never read.
+        name = storage.name_of(data_product)
+        mimetype = mimetypes.guess_type(name)[0]
+        logger.debug("process_data: name=%s mimetype=%r", name, mimetype)
 
         if mimetype in self.FITS_MIMETYPES:
             extracted = self._process_spectrum_from_fits(
@@ -73,8 +77,13 @@ class SpectroscopyProcessor(BaseSpectroscopyProcessor):
         self, data_product: DataProduct
     ) -> list[tuple[datetime, Spectrum1D, str]]:
         """Extract one or more 1D spectra (flux + wavelength) from a FITS file."""
-        path = data_product.data.path
+        with storage.local_path(data_product) as path:
+            return self._read_fits(data_product, path)
 
+    def _read_fits(
+        self, data_product: DataProduct, path: Path
+    ) -> list[tuple[datetime, Spectrum1D, str]]:
+        """Read `path`, which is guaranteed to exist on this filesystem."""
         file_source_id, obs_date, facility_flux_unit = fits_utils.detect_facility(path)
         if not file_source_id:
             file_source_id = self.DEFAULT_SOURCE_ID

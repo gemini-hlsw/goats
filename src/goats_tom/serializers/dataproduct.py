@@ -25,6 +25,7 @@ from tom_dataproducts.serializers import (
     DataProductSerializer as BaseDataProductSerializer,
 )
 
+from goats_tom import storage
 from goats_tom.models import DRAGONSRun
 
 
@@ -49,9 +50,13 @@ class DataProductSerializer(BaseDataProductSerializer):
         )
 
     def validate(self, data):
-        # Construct full path using MEDIA_ROOT and provided path
-        full_path = settings.MEDIA_ROOT / data["filepath"] / data["filename"]
-        if not default_storage.exists(full_path):
+        # A storage-relative name, not an absolute local path. The old form
+        # joined onto MEDIA_ROOT and handed the result to `exists`, which
+        # wants a name -- it worked only because `FileSystemStorage` calls
+        # `safe_join(location, name)` and an absolute name already under the
+        # location survives that check. Nothing else would.
+        name = storage.storage_name(data["filepath"], data["filename"])
+        if not default_storage.exists(name):
             raise serializers.ValidationError(
                 "The specified file does not exist at the provided location."
             )

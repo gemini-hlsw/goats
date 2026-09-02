@@ -115,6 +115,18 @@ urlpatterns = [
         name="goats-dataproduct-list",
     ),
     path(
+        # `<path:name>` rather than `<str:name>`: a storage name contains
+        # separators -- `users/<username>/goats/<target>/...` -- and `str`
+        # stops at the first one.
+        #
+        # Answers what `VOSpaceStorage.url` returns. Nothing routes here on
+        # a desktop install, where `FileSystemStorage` serves files from
+        # MEDIA_URL directly.
+        "dataproducts/stream/<path:name>",
+        views.DataProductStreamView.as_view(),
+        name="dataproduct-stream",
+    ),
+    path(
         "dataproducts/data/group/list/",
         views.GOATSDataProductGroupListView.as_view(),
         name="goats-dataproduct-group-list",

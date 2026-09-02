@@ -40,6 +40,7 @@ from goats_tom.views.antares_stream_subscribe import (
 from goats_tom.views.astro_datalab import AstroDatalabView
 from goats_tom.views.brokerquery_name import update_brokerquery_name
 from goats_tom.views.dataproduct_delete import DataProductDeleteView
+from goats_tom.views.dataproduct_stream import DataProductStreamView
 from goats_tom.views.dataproduct_upload import DataProductUploadView
 from goats_tom.views.delete_observation_dataproducts import (
     DeleteObservationDataProductsView,
@@ -87,6 +88,7 @@ __all__ = [
     "GOALoginView",
     "GOAQueryFormView",
     "DataProductDeleteView",
+    "DataProductStreamView",
     "ObservationRecordDetailView",
     "TargetDeleteView",
     "UserGenerateTokenView",

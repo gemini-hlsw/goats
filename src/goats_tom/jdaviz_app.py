@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from concurrent.futures import TimeoutError as _FuturesTimeoutError
 from pathlib import Path
 from typing import Any, Callable
@@ -38,6 +39,8 @@ from astropy.io import fits
 from astropy.wcs import WCS
 from jdaviz.app import custom_components
 from specutils import Spectrum
+
+from goats_tom import storage
 
 __all__ = ["Page"]
 
@@ -205,6 +208,7 @@ def _read_processor_spectra(dataproduct: Any) -> list:
 
 def _resolve_spectra(
     pk: str | None,
+    stack: ExitStack,
 ) -> tuple[Path | None, list | None, str | None]:
     """Resolve a DataProduct primary key to spectra (or a path) for jdaviz.
 
@@ -217,6 +221,17 @@ def _resolve_spectra(
     ----------
     pk : str or None
         The DataProduct primary key from the URL.
+    stack : `contextlib.ExitStack`
+        Owns the file for as long as the caller needs it. The returned path
+        stays valid until this stack is closed.
+
+        Required because the path outlives this function: `Page` builds the
+        viewer in a `use_effect`, a render later. A `with` block here would
+        be correct locally -- the file is the real one and deleting nothing
+        -- and would delete the fetched copy out from under jdaviz under a
+        remote backend. Passing the stack in makes the lifetime the
+        caller's, which is where it belongs and where it can be tied to
+        unmount.
 
     Returns
     -------
@@ -241,8 +256,9 @@ def _resolve_spectra(
     if not dataproduct.data:
         return None, None, f"Data product {pk} has no associated file."
 
-    path = Path(dataproduct.data.path)
-    if not path.exists():
+    try:
+        path = stack.enter_context(storage.local_path(dataproduct))
+    except FileNotFoundError:
         return None, None, f"File for data product {pk} is missing on disk."
 
     # DRAGONS MEF: read every SCI extension directly to keep its real (nm)
@@ -570,6 +586,7 @@ def _inject_jdaviz_styles() -> None:
 
 def _resolve_spectra_timed(
     pk: str | None,
+    stack: ExitStack,
 ) -> tuple[Path | None, list | None, str | None]:
     """Run :func:`_resolve_spectra` under a timeout, degrading to a message.
 
@@ -590,7 +607,7 @@ def _resolve_spectra_timed(
     from django.db import OperationalError  # noqa: PLC0415
 
     try:
-        return _call_off_event_loop(lambda: _resolve_spectra(pk))
+        return _call_off_event_loop(lambda: _resolve_spectra(pk, stack))
     except _FuturesTimeoutError:
         logger.warning("Data resolution timed out for data product %r.", pk)
         return None, None, "Timed out loading the data product — please try again."
@@ -622,7 +639,14 @@ def Page() -> None:
 
     # Resolve the spectra (data only, no widgets) during render. This touches the
     # Django ORM and the file system, so it runs off the event loop under a timeout.
-    path, spectra, error = solara.use_memo(lambda: _resolve_spectra_timed(pk), [pk])
+    # One stack per data product, closed when the viewer unmounts. Nothing
+    # is copied under local storage, so the desktop path is unchanged; under
+    # a remote backend this is what keeps the fetched file alive from
+    # resolution until jdaviz has finished with it.
+    stack = solara.use_memo(ExitStack, [pk])
+    path, spectra, error = solara.use_memo(
+        lambda: _resolve_spectra_timed(pk, stack), [pk]
+    )
 
     # Build the jdaviz app *after* the initial render, in a use_effect. jdaviz
     # instantiates internal Solara components (file_drop, file_browser) when its
@@ -639,8 +663,14 @@ def Page() -> None:
         viz, load_error = _build_specviz(path, spectra)
         set_viz_state((viz, load_error))
         # Unmounting (closing the tab, or the kernel being culled) is the only
-        # chance to prune jdaviz's registry -- see :func:`_forget_app`.
-        return lambda: _forget_app(viz)
+        # chance to prune jdaviz's registry -- see :func:`_forget_app`. It is
+        # also the only chance to release the file: proprietary data must not
+        # outlive the viewer that fetched it.
+        def cleanup() -> None:
+            _forget_app(viz)
+            stack.close()
+
+        return cleanup
 
     solara.use_effect(build_viewer, [pk])
 

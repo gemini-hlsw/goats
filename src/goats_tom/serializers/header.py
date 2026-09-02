@@ -1,8 +1,6 @@
 __all__ = ["HeaderSerializer"]
 
-from pathlib import Path
-
-from django.conf import settings
+from django.core.files.storage import default_storage
 from rest_framework import serializers
 
 
@@ -17,8 +15,16 @@ class HeaderSerializer(serializers.Serializer):
     )
 
     def validate_filepath(self, value: str) -> str:
-        """Validate that the provided filepath exists."""
-        full_path = Path(settings.MEDIA_ROOT) / value
-        if not full_path.exists():
+        """Validate that the provided filepath exists.
+
+        Notes
+        -----
+        Asks the storage backend rather than joining onto
+        ``settings.MEDIA_ROOT`` and calling `Path.exists`. The value is
+        already a storage-relative name, which is what `exists` wants; the
+        old form built an absolute local path and so could only ever have
+        answered for the control-plane disk.
+        """
+        if not default_storage.exists(value):
             raise serializers.ValidationError("The specified file does not exist.")
         return value

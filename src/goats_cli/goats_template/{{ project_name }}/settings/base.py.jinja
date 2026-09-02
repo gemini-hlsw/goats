@@ -339,12 +339,32 @@ STATICFILES_DIRS = [(BASE_DIR / "static")]
 """Additional directories for static files."""
 
 STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "default": {"BACKEND": os.getenv(
+        "GOATS_FILE_STORAGE",
+        "django.core.files.storage.FileSystemStorage",
+    )},
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
-"""Storage backends. WhiteNoise serves static files when DEBUG is False."""
+"""Storage backends. WhiteNoise serves static files when DEBUG is False.
+
+Where data product files live. The default is local disk and is what a
+desktop install must keep: files land under MEDIA_ROOT exactly as they
+always have, and nothing pays for a feature it does not use.
+
+`GOATS_FILE_STORAGE` can select
+``goats_tom.astro_data_lab.VOSpaceStorage``, which puts each PI's files in
+their own Astro Data Lab VOSpace instead of on this machine's disk.
+
+**Do not set it yet.** The backend is built and tested but not finished:
+GOA downloads still stage on this host, DRAGONS reduction still needs local
+files, and the DRAGONS calibration database records absolute paths that a
+remote backend cannot keep valid -- reductions would fail to find their
+calibrations with nothing in the error saying why. Those are Phases 3 and 4
+of *Remaining Data Lab work*, and this setting is the switch to throw once
+they land, not before.
+"""
 
 MEDIA_URL = "/data/"
 """URL to use for media files."""

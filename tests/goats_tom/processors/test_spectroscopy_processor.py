@@ -6,6 +6,8 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+from pathlib import Path
+
 import pytest
 from astropy import units as u
 from astropy.io import fits
@@ -31,10 +33,32 @@ def _hdu(data, header=None):
 
 
 @pytest.fixture
-def mock_dataproduct():
+def mock_dataproduct(tmp_path):
+    """A data product whose file really exists under the test storage.
+
+    Notes
+    -----
+    Used to set ``dp.data.path`` on a mock, which stopped meaning anything
+    when the processor moved to `goats_tom.storage`. The seam asks the
+    storage backend for the file and refuses a name it does not hold, so a
+    fabricated path now fails where a mocked attribute used to pass -- which
+    is the point of the seam, and worth keeping rather than mocking around.
+
+    ``data.name`` is a storage-relative name and the file is written under
+    ``MEDIA_ROOT``, so `local_path` resolves it exactly as it would in
+    production.
+    """
     dp = MagicMock(spec=DataProduct)
-    dp.data.path = "/path/to/test.fits"
+    dp.data.name = "spectra/test.fits"
+    (tmp_path / "spectra").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "spectra" / "test.fits").write_bytes(b"")
     return dp
+
+
+@pytest.fixture(autouse=True)
+def _media_root(tmp_path, settings):
+    """Point storage at the per-test directory `mock_dataproduct` writes to."""
+    settings.MEDIA_ROOT = tmp_path
 
 
 @pytest.fixture
@@ -84,7 +108,14 @@ class TestSpectroscopyProcessor:
         assert out[0][1] == {"ok": True}
         assert out[0][2] == "TestFacility:hdu=1:SCI"
 
-        mock_fits_open.assert_called_once_with("/path/to/test.fits")
+        # Resolved through `goats_tom.storage`, so the path is wherever the
+        # backend put the file rather than a literal. Asserting the filename
+        # keeps what this test was checking -- that the file it was handed is
+        # the one opened -- without pinning it to a local layout that no
+        # longer holds under a remote backend.
+        (opened,), _ = mock_fits_open.call_args
+        assert Path(opened).name == "test.fits"
+        assert Path(opened).exists()
         mock_utils.reduce_flux_array.assert_called_once()
         mock_utils.fix_header_cunit1.assert_called_once()
 

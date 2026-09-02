@@ -54,6 +54,27 @@ OPEN_URLS = [
     # Served by the reverse proxy in a real deployment, but Django handles it
     # when running without one -- and a login page with no CSS looks broken.
     "/static/*",
+    # The antares2goats browser extension.
+    #
+    # This is not an access exemption. `AuthStrategyMiddleware` reads
+    # `request.user`, which `AuthenticationMiddleware` fills from the
+    # *session* -- but DRF's `TokenAuthentication` runs inside the view,
+    # after all middleware. A request carrying a valid token is therefore
+    # still anonymous when the middleware looks, so under `LOCKED` it was
+    # refused before the token was ever read, and the extension could not
+    # work on a server deployment at all.
+    #
+    # Opening this one path hands the decision to DRF, which *can* see the
+    # token: `Antares2GoatsViewSet` declares its own `TokenAuthentication`
+    # and `IsAuthenticated`, so an anonymous POST is still refused -- just
+    # by the layer equipped to judge it.
+    #
+    # Deliberately this path and no other. `/api/*` would exempt every
+    # endpoint from the middleware and leave per-view permissions as the
+    # only check, which is the arrangement that let
+    # `DELETE /api/dataproducts/<pk>/` ship unguarded, and the next viewset
+    # added would inherit the exemption silently.
+    "/api/antares2goats/*",
 ]
 
 # The hostname this server answers to.

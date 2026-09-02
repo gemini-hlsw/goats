@@ -22,12 +22,16 @@ from typing import Any
 
 import astrodata
 from astropy.table import Table
+from django.core.exceptions import SuspiciousFileOperation
 from django.http import JsonResponse
 from recipe_system.mappers.recipeMapper import RecipeMapper
 from recipe_system.utils.errors import ModeError, RecipeNotFound
 from rest_framework import status
 from tom_dataproducts.models import DataProduct, ReducedDatum
 from tom_observations.models import ObservationRecord
+
+from goats_tom import storage
+from goats_tom.context.user_context import get_current_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +90,78 @@ def create_name_reduction_map(file_list: Table) -> dict[str, str]:
     return {row["name"]: "fits_file" for row in file_list}
 
 
+def _datalab_storage_enabled() -> bool:
+    """Whether data product files are stored in VOSpace rather than locally.
+
+    Returns
+    -------
+    bool
+
+    Notes
+    -----
+    Asks the configured backend what it *is*, rather than reading a settings
+    flag. `custom_data_product_path` and `VOSpaceStorage` have to agree
+    about which naming scheme is in force, and two independent reads of a
+    flag can disagree -- during a test that overrides one and not the other,
+    for instance. The backend is the single fact both depend on.
+    """
+    from django.core.files.storage import default_storage  # noqa: PLC0415
+
+    from goats_tom.astro_data_lab import VOSpaceStorage  # noqa: PLC0415
+
+    backend = getattr(default_storage, "_wrapped", default_storage)
+    return isinstance(backend, VOSpaceStorage)
+
+
+def _data_product_owner(data_product: DataProduct):
+    """Return the user whose storage `data_product` belongs in.
+
+    Parameters
+    ----------
+    data_product : `DataProduct`
+        The product being saved.
+
+    Returns
+    -------
+    `django.contrib.auth.models.User` or None
+        The owner, or `None` when it cannot be determined.
+
+    Notes
+    -----
+    Two sources, in order.
+
+    The **observation record's owner** is preferred, because it is durable:
+    it is stored on the row and gives the same answer whenever it is asked.
+    It is populated on every creation path -- see
+    `grant_observation_permissions`, which sets it alongside the guardian
+    rows.
+
+    The **request user** is the fallback, for manually uploaded products
+    that have no observation record. `custom_data_product_path` is called by
+    Django during `save()` and receives only the instance and a filename, so
+    there is no request to read; `UserContextMiddleware` puts the id in a
+    `ContextVar` for exactly this kind of lookup.
+
+    That order matters. Preferring the request user would file a co-I's
+    upload into their own storage when the observation belongs to the PI,
+    splitting one observation's data across two accounts.
+
+    Returns `None` rather than guessing. The caller decides what to do with
+    that, and in `datalab` mode the answer is to refuse.
+    """
+    record = data_product.observation_record
+    if record is not None and getattr(record, "user_id", None) is not None:
+        return record.user
+
+    user_id = get_current_user_id()
+    if user_id is None:
+        return None
+
+    from django.contrib.auth import get_user_model  # noqa: PLC0415
+
+    return get_user_model().objects.filter(pk=user_id).first()
+
+
 def custom_data_product_path(data_product: DataProduct, filename: str) -> str:
     """Override where data products are saved. This is set in "settings.py"
 
@@ -101,14 +177,60 @@ def custom_data_product_path(data_product: DataProduct, filename: str) -> str:
     `str`
         The path to the data product.
 
+    Raises
+    ------
+    SuspiciousFileOperation
+        In ``datalab`` mode only, when the owner cannot be determined.
+
+    Notes
+    -----
+    **The local path is unchanged.** With `GOATS_FILE_STORAGE` unset this
+    returns exactly what it always did, so a desktop install writes to the
+    same places and nothing pays for a feature it does not use.
+
+    In ``datalab`` mode it prefixes ``users/<username>/goats/``, because a
+    Django storage backend is handed a name and nothing else -- no request,
+    no user -- so `VOSpaceStorage` can only learn whose VOSpace to write to
+    by reading it out of the name. Without this prefix that backend refuses
+    every file GOATS creates.
+
+    The username is the **Data Lab** one, taken from the owner's linked
+    account, not their GOATS username. `VOSpaceStorage` resolves credentials
+    the same way, and the two must agree or files would be written under one
+    name and looked for under another.
+
+    **Refuses rather than guesses** when there is no owner. A rejected write
+    fails loudly and stops a download; a guessed one puts a PI's proprietary
+    data in somebody else's Data Lab account, silently, and nothing in GOATS
+    would notice.
     """
     if data_product.observation_record is not None:
-        return (
+        suffix = (
             f"{data_product.target.name}/{data_product.observation_record.facility}"
             f"/{data_product.observation_record.observation_id}/{filename}"
         )
+    else:
+        suffix = f"{data_product.target.name}/none/none/{filename}"
 
-    return f"{data_product.target.name}/none/none/{filename}"
+    if not _datalab_storage_enabled():
+        return suffix
+
+    owner = _data_product_owner(data_product)
+    if owner is None:
+        raise SuspiciousFileOperation(
+            f"Cannot determine who {filename} belongs to, so there is no "
+            "VOSpace to store it in. A data product needs either an "
+            "observation record with an owner or an authenticated uploader."
+        )
+
+    credentials = getattr(owner, "astrodatalablogin", None)
+    if credentials is None or not credentials.username:
+        raise SuspiciousFileOperation(
+            f"{owner.username} has no linked Astro Data Lab account, so "
+            f"{filename} has nowhere to live. Link one in Settings."
+        )
+
+    return f"users/{credentials.username}/goats/{suffix}"
 
 
 def build_json_response(
@@ -222,7 +344,8 @@ def get_astrodata_header(data_product: DataProduct) -> dict[str, Any]:
         Header payload from astrodata.
 
     """
-    ad = astrodata.open(data_product.data.path)
+    with storage.local_path(data_product) as path:
+        ad = astrodata.open(path)
     # Prepare the header information.
     header = {}
     for descriptor in ad.descriptors:

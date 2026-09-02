@@ -17,6 +17,7 @@ from requests.exceptions import HTTPError
 from tom_dataproducts.models import DataProduct
 from tom_observations.models import ObservationRecord
 
+from goats_tom import storage
 from goats_tom.astroquery import Observations as GOA
 from goats_tom.models import DataProductMetadata, Download, GOALogin
 from goats_tom.realtime import DownloadState, NotificationInstance
@@ -126,7 +127,7 @@ def download_goa_files(
 
         # Get target path.
         target_facility_path = (
-            settings.MEDIA_ROOT / target.name / facility / observation_id
+            storage.working_root() / target.name / facility / observation_id
         )
         logger.debug("Target facility path: %s", target_facility_path)
 
@@ -251,7 +252,7 @@ def download_goa_files(
                 )
                 continue
 
-            product_id = str(file_path.relative_to(settings.MEDIA_ROOT))
+            product_id = str(file_path.relative_to(storage.working_root()))
 
             # Spectra follow the _1D/_2D naming convention; otherwise use the
             # reduction mapping, defaulting to calibration ("fits_file").
@@ -286,7 +287,8 @@ def download_goa_files(
                     _grant_dataproduct_permissions(dp, user)
                     # TODO: Do we need to add the hook after?
                     # Now create the metadata.
-                    ad = astrodata.open(dp.data.path)
+                    with storage.local_path(dp) as dp_path:
+                        ad = astrodata.open(dp_path)
                     tags = ad.tags
                     processed = False
                     if "PREPARED" in tags or "PROCESSED" in tags:

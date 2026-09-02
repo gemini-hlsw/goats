@@ -13,6 +13,8 @@ from pathlib import Path
 
 import astropy.units as u
 import numpy as np
+from contextlib import ExitStack
+
 import pytest
 from astropy.io import fits
 from astropy.nddata import StdDevUncertainty
@@ -217,45 +219,61 @@ class TestReadDragonsSpectra:
 
 
 class TestResolveSpectra:
-    def test_no_pk_returns_all_none(self):
-        assert _resolve_spectra(None) == (None, None, None)
+    """`_resolve_spectra` now takes the stack that owns the resolved file.
+
+    Notes
+    -----
+    The path outlives the call -- `Page` builds the viewer a render later
+    -- so the lifetime belongs to the caller. `contextlib.ExitStack` is the
+    real thing here rather than a mock: under local storage nothing is
+    copied and closing it is a no-op, which is the behaviour under test.
+    """
+
+    @pytest.fixture
+    def stack(self):
+        """Own any file the call resolves, and release it afterwards."""
+        with ExitStack() as stack:
+            yield stack
+
+    def test_no_pk_returns_all_none(self, stack):
+        assert _resolve_spectra(None, stack) == (None, None, None)
 
     @pytest.mark.django_db
-    def test_unknown_pk_returns_error(self):
-        path, spectra, error = _resolve_spectra("999999")
+    def test_unknown_pk_returns_error(self, stack):
+        path, spectra, error = _resolve_spectra("999999", stack)
         assert path is None and spectra is None
         assert "not found" in error
 
     @pytest.mark.django_db
-    def test_non_numeric_pk_returns_error(self):
-        path, spectra, error = _resolve_spectra("not-a-pk")
+    def test_non_numeric_pk_returns_error(self, stack):
+        path, spectra, error = _resolve_spectra("not-a-pk", stack)
         assert path is None and spectra is None
         assert "not found" in error
 
     @pytest.mark.django_db
-    def test_missing_file_on_disk_returns_error(self, monkeypatch):
+    def test_missing_file_on_disk_returns_error(self, stack, monkeypatch):
         from goats_tom.tests.factories import DataProductFactory
 
         dp = DataProductFactory()
         # Remove the backing file so the on-disk existence check fails.
         Path(dp.data.path).unlink()
-        path, spectra, error = _resolve_spectra(str(dp.pk))
+        path, spectra, error = _resolve_spectra(str(dp.pk), stack)
         assert path is None and spectra is None
         assert "missing on disk" in error
 
     @pytest.mark.django_db
-    def test_dataproduct_without_file_returns_error(self):
+    def test_dataproduct_without_file_returns_error(self, stack):
         from goats_tom.tests.factories import DataProductFactory
 
         dp = DataProductFactory()
         dp.data = ""
         dp.save()
-        path, spectra, error = _resolve_spectra(str(dp.pk))
+        path, spectra, error = _resolve_spectra(str(dp.pk), stack)
         assert path is None and spectra is None
         assert "no associated file" in error
 
     @pytest.mark.django_db
-    def test_processor_error_falls_back_to_path(self, monkeypatch):
+    def test_processor_error_falls_back_to_path(self, stack, monkeypatch):
         from goats_tom.tests.factories import DataProductFactory
 
         dp = DataProductFactory()
@@ -266,41 +284,41 @@ class TestResolveSpectra:
 
         monkeypatch.setattr(jdaviz_app, "_read_processor_spectra", boom)
 
-        path, spectra, error = _resolve_spectra(str(dp.pk))
+        path, spectra, error = _resolve_spectra(str(dp.pk), stack)
         # A processor crash is not fatal: jdaviz's own loaders get to try path.
         assert error is None
         assert spectra is None
         assert path is not None
 
     @pytest.mark.django_db
-    def test_dragons_reader_result_is_returned(self, monkeypatch):
+    def test_dragons_reader_result_is_returned(self, stack, monkeypatch):
         from goats_tom.tests.factories import DataProductFactory
 
         dp = DataProductFactory()
         labelled = [("lbl", _spectrum(1))]
         monkeypatch.setattr(jdaviz_app, "_read_dragons_spectra", lambda p: labelled)
 
-        path, spectra, error = _resolve_spectra(str(dp.pk))
+        path, spectra, error = _resolve_spectra(str(dp.pk), stack)
         assert error is None
         assert spectra is labelled
         assert path is not None
 
     @pytest.mark.django_db
-    def test_falls_back_to_path_when_no_reader_handles_file(self, monkeypatch):
+    def test_falls_back_to_path_when_no_reader_handles_file(self, stack, monkeypatch):
         from goats_tom.tests.factories import DataProductFactory
 
         dp = DataProductFactory()
         monkeypatch.setattr(jdaviz_app, "_read_dragons_spectra", lambda p: None)
         monkeypatch.setattr(jdaviz_app, "_read_processor_spectra", lambda dp: [])
 
-        path, spectra, error = _resolve_spectra(str(dp.pk))
+        path, spectra, error = _resolve_spectra(str(dp.pk), stack)
         # No reader handled it: caller is told to try jdaviz's own loaders on path.
         assert error is None
         assert spectra is None
         assert path is not None
 
     @pytest.mark.django_db
-    def test_processor_spectra_get_indexed_labels_when_multiple(self, monkeypatch):
+    def test_processor_spectra_get_indexed_labels_when_multiple(self, stack, monkeypatch):
         from goats_tom.tests.factories import DataProductFactory
 
         dp = DataProductFactory()
@@ -311,14 +329,14 @@ class TestResolveSpectra:
             lambda dp: [_spectrum(1), _spectrum(1)],
         )
 
-        path, spectra, error = _resolve_spectra(str(dp.pk))
+        path, spectra, error = _resolve_spectra(str(dp.pk), stack)
         assert error is None
         assert len(spectra) == 2
         labels = [label for label, _ in spectra]
         assert labels == [f"{path.stem} [0]", f"{path.stem} [1]"]
 
     @pytest.mark.django_db
-    def test_single_processor_spectrum_uses_stem_label(self, monkeypatch):
+    def test_single_processor_spectrum_uses_stem_label(self, stack, monkeypatch):
         from goats_tom.tests.factories import DataProductFactory
 
         dp = DataProductFactory()
@@ -327,7 +345,7 @@ class TestResolveSpectra:
             jdaviz_app, "_read_processor_spectra", lambda dp: [_spectrum(1)]
         )
 
-        path, spectra, error = _resolve_spectra(str(dp.pk))
+        path, spectra, error = _resolve_spectra(str(dp.pk), stack)
         assert error is None
         assert len(spectra) == 1
         assert spectra[0][0] == path.stem

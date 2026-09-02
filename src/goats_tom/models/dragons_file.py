@@ -11,6 +11,8 @@ from gempy.scripts import showpars
 from numpydoc.docscrape import NumpyDocString
 from tom_dataproducts.models import DataProduct
 
+from goats_tom import storage
+
 
 class DRAGONSFile(models.Model):
     """Represents a file associated with a DRAGONS run.
@@ -61,14 +63,45 @@ class DRAGONSFile(models.Model):
 
     @property
     def file_path(self) -> str:
-        """Gets the file path from the data product.
+        """Gets the local file path from the data product.
 
         Returns
         -------
         `str`
-            The file path.
+            The file path on this machine.
+
+        Raises
+        ------
+        NotImplementedError
+            If the storage backend is not a local filesystem.
+
+        Notes
+        -----
+        **Local-only, and the last such caller.** Reduction hands this to
+        `Reduce.files`, which needs every input present on one filesystem
+        for the length of the run -- not one file at a time, which is all
+        `local_path` can promise. Moving reduction to Data Lab compute is
+        what removes the need, so this stays as it is until then and is
+        listed in *Remaining Data Lab work*.
+
+        Anything reading a single file should use `local_path` instead.
         """
-        return self.data_product.data.path
+        return storage.default_storage.path(storage.name_of(self.data_product))
+
+    def local_path(self):
+        """Yield a real filesystem path to this file's bytes.
+
+        Returns
+        -------
+        context manager yielding `pathlib.Path`
+            Valid for the duration of the ``with`` block.
+
+        Notes
+        -----
+        The single-file counterpart to `file_path`, and the one to reach
+        for. Works under any storage backend.
+        """
+        return storage.local_path(self.data_product)
 
     @property
     def observation_id(self) -> str:
@@ -94,7 +127,8 @@ class DRAGONSFile(models.Model):
 
         """
         data = {}
-        primitive_obj, _ = showpars.get_pars(self.file_path)
+        with self.local_path() as path:
+            primitive_obj, _ = showpars.get_pars(str(path))
 
         for item in dir(primitive_obj):
             if not item.startswith("_") and inspect.ismethod(
@@ -139,5 +173,6 @@ class DRAGONSFile(models.Model):
             A list of groups aka descriptors for the file.
 
         """
-        ad = astrodata.open(self.file_path)
-        return list(ad.descriptors)
+        with self.local_path() as path:
+            ad = astrodata.open(path)
+            return list(ad.descriptors)

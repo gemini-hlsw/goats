@@ -20,6 +20,7 @@ from dramatiq.middleware import TimeLimitExceeded
 from gempy.utils import logutils
 from recipe_system.reduction.coreReduce import Reduce
 
+from goats_tom import storage
 from goats_tom.context.user_context import get_current_user_id
 from goats_tom.logging_extensions.handlers import DRAGONSHandler
 from goats_tom.models import DRAGONSFile, DRAGONSReduce
@@ -163,7 +164,7 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
             parsed_ucals = _safe_literal(recipe.ucals, "ucals", dict)
             # Update paths to be absolute.
             for cal_type, path in parsed_ucals.items():
-                full_path = str(settings.MEDIA_ROOT / path)
+                full_path = str(storage.working_root() / path)
                 parsed_ucals[cal_type] = full_path
             r.ucals = parsed_ucals
 
@@ -173,7 +174,7 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
             )
             # Convert each to an absolute path.
             additional_file_paths = [
-                str(settings.MEDIA_ROOT / path) for path in parsed_files
+                str(storage.working_root() / path) for path in parsed_files
             ]
             file_paths.extend(additional_file_paths)
 

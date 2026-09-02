@@ -6,7 +6,6 @@ import datetime
 from pathlib import Path
 
 import astrodata
-from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import mixins, permissions, status
@@ -17,6 +16,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from tom_dataproducts.models import DataProduct
 
+from goats_tom import storage
 from goats_tom.models import DRAGONSRun
 from goats_tom.permissions import undeletable_dataproducts
 from goats_tom.scoping import ScopedQuerySetMixin
@@ -129,7 +129,7 @@ class DRAGONSProcessedFilesViewSet(
         serializer.is_valid(raise_exception=True)
 
         filepath = serializer.validated_data["filepath"]
-        full_path = Path(settings.MEDIA_ROOT) / filepath
+        full_path = storage.working_root() / filepath
         filename = full_path.name
 
         try:

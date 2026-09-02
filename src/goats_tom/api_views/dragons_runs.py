@@ -9,11 +9,12 @@ from django.db.models import QuerySet
 from django.http import HttpRequest
 from recipe_system import cal_service
 from rest_framework import mixins, permissions
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from tom_dataproducts.models import DataProduct
 
+from goats_tom import storage
 from goats_tom.scoping import ScopedQuerySetMixin
 from goats_tom.models import (
     BaseRecipe,
@@ -21,6 +22,10 @@ from goats_tom.models import (
     DRAGONSRecipe,
     DRAGONSRun,
     RecipesModule,
+)
+from goats_tom.permissions import (
+    DRAGONSRunObjectPermissions,
+    may_reduce_observation,
 )
 from goats_tom.serializers import DRAGONSRunFilterSerializer, DRAGONSRunSerializer
 from goats_tom.utils import get_recipes_and_primitives
@@ -48,7 +53,10 @@ class DRAGONSRunsViewSet(
     dataproduct_path = "observation_record__dataproduct"
     queryset = DRAGONSRun.objects.all()
     serializer_class = DRAGONSRunSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # `IsAuthenticated` alone left DELETE unguarded: `perform_destroy` calls
+    # `remove_output_dir`, which is `shutil.rmtree` on the reduction folder,
+    # for any authenticated caller who could name a run pk.
+    permission_classes = [permissions.IsAuthenticated, DRAGONSRunObjectPermissions]
     filter_serializer_class = DRAGONSRunFilterSerializer
 
     def get_queryset(self) -> QuerySet:
@@ -85,6 +93,30 @@ class DRAGONSRunsViewSet(
             The serializer containing the validated data for creating a `DRAGONSRun`.
 
         """
+        # Creation cannot be checked by an object permission -- there is no
+        # object yet -- so it is checked here, against the observation record
+        # named in the payload.
+        #
+        # `DRAGONSRunSerializer` sets `fields = "__all__"`, which makes
+        # `observation_record` a `PrimaryKeyRelatedField` over the whole
+        # table. That is the `DataProductUploadForm` shape recorded in
+        # STATUS.md: for a serializer the queryset *is* the validator, so
+        # any authenticated user could POST another PI's observation record
+        # pk and start a reduction on their data. The DRAGONS panel is hidden
+        # from a read-only recipient by `can_edit_observation`, but hiding a
+        # panel is not an access check -- exactly what `GOAQueryFormView`
+        # already says on the GOA side of the same page.
+        record = serializer.validated_data.get("observation_record")
+        if record is None or not may_reduce_observation(self.request.user, record):
+            logger.warning(
+                "%s was refused a DRAGONS run on observation %s.",
+                getattr(self.request.user, "username", self.request.user),
+                getattr(record, "pk", record),
+            )
+            raise PermissionDenied(
+                "You do not have permission to reduce this observation."
+            )
+
         with transaction.atomic():
             dragons_run = serializer.save()
             try:
@@ -146,116 +178,128 @@ class DRAGONSRunsViewSet(
         processible_files = 0
 
         for data_product in data_products:
-            logger.debug("Processing data product: %s", data_product.get_file_name())
-            recipes_module_for_file = None
-            # Get the tags and instrument.
-            ad = astrodata.open(data_product.data.path)
-            tags = set(ad.tags)
-            # TODO: Should we store lowercase for instrument and observation_type?
-            instrument = ad.instrument(generic=True)
-            # TODO: Is there a better place for this?
-            descriptors = ad.descriptors
+            # One context around the whole body. `ad` reads lazily, so the file
+            # must stay present for every descriptor call below, not only for
+            # `astrodata.open`. Under a remote backend it also means one fetch
+            # per product instead of three.
+            #
+            # NOTE: `cal_db.add_cal` records this path *into the calibration
+            # database*, which outlives the block. That is correct while
+            # storage is local and wrong the moment it is not -- the caldb
+            # would hold a path to a deleted temporary file. Phase 4 moves the
+            # caldb into the remote reduction folder, which is what resolves
+            # it; until then this is a known blocker on switching backends.
+            with storage.local_path(data_product) as product_path:
+                logger.debug("Processing data product: %s", data_product.get_file_name())
+                recipes_module_for_file = None
+                # Get the tags and instrument.
+                ad = astrodata.open(product_path)
+                tags = set(ad.tags)
+                # TODO: Should we store lowercase for instrument and observation_type?
+                instrument = ad.instrument(generic=True)
+                # TODO: Is there a better place for this?
+                descriptors = ad.descriptors
 
-            # Skip if file is prepared or processed, unless it's a BPM file.
-            if "BPM" in tags:
-                logger.debug("Adding BPM to calibration database.")
-                cal_db.add_cal(data_product.data.path)
-                continue
-            if "PROCESSED" in tags and "CAL" in tags:
-                logger.debug("Adding procssed cal to calibration database.")
-                cal_db.add_cal(data_product.data.path)
-                continue
+                # Skip if file is prepared or processed, unless it's a BPM file.
+                if "BPM" in tags:
+                    logger.debug("Adding BPM to calibration database.")
+                    cal_db.add_cal(str(product_path))
+                    continue
+                if "PROCESSED" in tags and "CAL" in tags:
+                    logger.debug("Adding procssed cal to calibration database.")
+                    cal_db.add_cal(str(product_path))
+                    continue
 
-            metadata = getattr(data_product, "metadata", None)
-            if metadata and metadata.processed:
-                logger.debug("Skipping prepared or processed file.")
-                continue
+                metadata = getattr(data_product, "metadata", None)
+                if metadata and metadata.processed:
+                    logger.debug("Skipping prepared or processed file.")
+                    continue
 
-            # Hook to check if PINHOLE is in the tags to change the OBSTYPE.
-            if "PINHOLE" in tags:
-                logger.debug("PINHOLE found in tags, setting OBSTYPE to 'PINHOLE'")
-                observation_type = "PINHOLE"
-            # Hook to check if RONCHI is in the tags to change the OBSTYPE.
-            elif "RONCHI" in tags:
-                logger.debug("RONCHI found in tags, setting OBSTYPE to 'RONCHI'")
-                observation_type = "RONCHI"
-            # Otherwise, use the standard method.
-            else:
-                observation_type = ad.observation_type()
-            # Get the file type and the object name if applicable.
-            object_name = ad.object()
-            observation_class = ad.observation_class()
-            # if observation_type not in processed_base_recipe_observation_types:
-            recipes_and_primitives = get_recipes_and_primitives(
-                tags, instrument.lower()
-            )
-
-            # Check if any recipes were found.
-            if not recipes_and_primitives["recipes"]:
-                logger.warning(
-                    "Skipping file %s, as it is not supported by DRAGONS and no "
-                    "recipes were found. ",
-                    data_product.get_file_name(),
-                )
-                continue
-
-            # Create or update recipes in the database.
-            for recipe_name, details in recipes_and_primitives["recipes"].items():
-                recipes_module_for_file, _ = RecipesModule.objects.get_or_create(
-                    name=details["recipes_module"],
-                    instrument=instrument,
-                    version=dragons_run.version,
+                # Hook to check if PINHOLE is in the tags to change the OBSTYPE.
+                if "PINHOLE" in tags:
+                    logger.debug("PINHOLE found in tags, setting OBSTYPE to 'PINHOLE'")
+                    observation_type = "PINHOLE"
+                # Hook to check if RONCHI is in the tags to change the OBSTYPE.
+                elif "RONCHI" in tags:
+                    logger.debug("RONCHI found in tags, setting OBSTYPE to 'RONCHI'")
+                    observation_type = "RONCHI"
+                # Otherwise, use the standard method.
+                else:
+                    observation_type = ad.observation_type()
+                # Get the file type and the object name if applicable.
+                object_name = ad.object()
+                observation_class = ad.observation_class()
+                # if observation_type not in processed_base_recipe_observation_types:
+                recipes_and_primitives = get_recipes_and_primitives(
+                    tags, instrument.lower()
                 )
 
-                # Create or fetch the base recipe.
-                base_recipe, _ = BaseRecipe.objects.get_or_create(
-                    name=recipe_name,
-                    recipes_module=recipes_module_for_file,
-                    defaults={"function_definition": details["function_definition"]},
-                )
+                # Check if any recipes were found.
+                if not recipes_and_primitives["recipes"]:
+                    logger.warning(
+                        "Skipping file %s, as it is not supported by DRAGONS and no "
+                        "recipes were found. ",
+                        data_product.get_file_name(),
+                    )
+                    continue
 
-                DRAGONSRecipe.objects.get_or_create(
+                # Create or update recipes in the database.
+                for recipe_name, details in recipes_and_primitives["recipes"].items():
+                    recipes_module_for_file, _ = RecipesModule.objects.get_or_create(
+                        name=details["recipes_module"],
+                        instrument=instrument,
+                        version=dragons_run.version,
+                    )
+
+                    # Create or fetch the base recipe.
+                    base_recipe, _ = BaseRecipe.objects.get_or_create(
+                        name=recipe_name,
+                        recipes_module=recipes_module_for_file,
+                        defaults={"function_definition": details["function_definition"]},
+                    )
+
+                    DRAGONSRecipe.objects.get_or_create(
+                        dragons_run=dragons_run,
+                        recipe=base_recipe,
+                        object_name=object_name,
+                        observation_type=observation_type,
+                        observation_class=observation_class,
+                        defaults={
+                            "is_default": details["is_default"],
+                        },
+                    )
+
+                # Build the astrodata descriptors to save.
+                astrodata_descriptors = {}
+                for descriptor in descriptors:
+                    if hasattr(ad, descriptor):
+                        try:
+                            value = getattr(ad, descriptor)()
+                            # Check for unsupported types and convert them.
+                            if isinstance(value, (datetime.date, datetime.datetime)):
+                                # Convert datetime or date to ISO formatted string.
+                                value = value.isoformat()
+                            elif not isinstance(value, (str, int, float, bool, type(None))):
+                                # Convert any other unsupported types to string.
+                                value = str(value)
+                            astrodata_descriptors[descriptor] = value
+                        except Exception:
+                            logger.warning("Error accessing descriptor %s", descriptor)
+                            pass
+
+                # Create a file for this run using the recipes module last retrieved.
+                DRAGONSFile.objects.create(
                     dragons_run=dragons_run,
-                    recipe=base_recipe,
-                    object_name=object_name,
+                    data_product=data_product,
+                    recipes_module=recipes_module_for_file,
                     observation_type=observation_type,
+                    object_name=object_name,
                     observation_class=observation_class,
-                    defaults={
-                        "is_default": details["is_default"],
-                    },
+                    astrodata_descriptors=astrodata_descriptors,
+                    product_id=data_product.get_file_name(),
+                    url=data_product.data.url,
                 )
-
-            # Build the astrodata descriptors to save.
-            astrodata_descriptors = {}
-            for descriptor in descriptors:
-                if hasattr(ad, descriptor):
-                    try:
-                        value = getattr(ad, descriptor)()
-                        # Check for unsupported types and convert them.
-                        if isinstance(value, (datetime.date, datetime.datetime)):
-                            # Convert datetime or date to ISO formatted string.
-                            value = value.isoformat()
-                        elif not isinstance(value, (str, int, float, bool, type(None))):
-                            # Convert any other unsupported types to string.
-                            value = str(value)
-                        astrodata_descriptors[descriptor] = value
-                    except Exception:
-                        logger.warning("Error accessing descriptor %s", descriptor)
-                        pass
-
-            # Create a file for this run using the recipes module last retrieved.
-            DRAGONSFile.objects.create(
-                dragons_run=dragons_run,
-                data_product=data_product,
-                recipes_module=recipes_module_for_file,
-                observation_type=observation_type,
-                object_name=object_name,
-                observation_class=observation_class,
-                astrodata_descriptors=astrodata_descriptors,
-                product_id=data_product.get_file_name(),
-                url=data_product.data.url,
-            )
-            processible_files += 1
+                processible_files += 1
 
         if processible_files == 0:
             raise RuntimeError(
