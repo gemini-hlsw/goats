@@ -1,0 +1,1 @@
+Fixed ToO configurations to exclude non-accepted templates
