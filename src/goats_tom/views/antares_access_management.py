@@ -10,6 +10,7 @@ __all__ = [
 import logging
 
 from django.contrib import messages
+from django.db import transaction
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -21,6 +22,10 @@ from goats_tom.antares_membership import (
     create_join_request,
     deny_join_request,
     revoke_membership,
+)
+from goats_tom.emails import (
+    notify_pi_of_join_request,
+    notify_user_of_join_decision,
 )
 from goats_tom.forms import AntaresJoinRequestForm
 from goats_tom.models import (
@@ -85,13 +90,19 @@ def antares_request_access(request: HttpRequest) -> HttpResponse:
         form = AntaresJoinRequestForm(request.POST, user=request.user)
         if form.is_valid():
             try:
-                create_join_request(
+                join_request = create_join_request(
                     request.user,
                     form.cleaned_data["pi_group"],
                     request_save_targets=form.cleaned_data[
                         "request_save_targets"
                     ],
                     message=form.cleaned_data["message"],
+                )
+                # On commit, so a PI is never told about a request that then
+                # rolled back. The toast reaches only a PI who is signed in;
+                # this is what reaches one who is observing.
+                transaction.on_commit(
+                    lambda: notify_pi_of_join_request(join_request)
                 )
             except JoinRequestError as exc:
                 messages.error(request, str(exc))
@@ -233,12 +244,23 @@ def antares_decide_join_request(
                 grant_view=bool(request.POST.get("grant_view", True)),
                 grant_save=bool(request.POST.get("grant_save")),
             )
+            # After `approve_join_request`, so the membership row exists:
+            # the email reports what was *granted*, read from that row,
+            # rather than what was asked for. A PI may grant less, and
+            # telling somebody they can save targets when they cannot sends
+            # them to a button that refuses them.
+            transaction.on_commit(
+                lambda: notify_user_of_join_decision(join_request)
+            )
             messages.success(
                 request,
                 f"Approved access for {join_request.requester.username}.",
             )
         elif action == "deny":
             deny_join_request(join_request, decided_by=request.user)
+            transaction.on_commit(
+                lambda: notify_user_of_join_decision(join_request)
+            )
             messages.info(
                 request,
                 f"Declined access for {join_request.requester.username}.",

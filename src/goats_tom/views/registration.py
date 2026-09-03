@@ -18,6 +18,10 @@ from django.views.decorators.http import require_POST
 
 from goats_tom.forms import RegistrationForm, selectable_groups
 from goats_tom.models import RegistrationRequest
+from goats_tom.emails import (
+    notify_admins_of_registration,
+    notify_user_of_registration_decision,
+)
 from goats_tom.realtime import NotificationInstance
 
 logger = logging.getLogger(__name__)
@@ -65,6 +69,17 @@ def _notify_admins_of_registration(registration) -> None:
                     admin.username,
                     username,
                 )
+
+        # Email as well, on the same commit. The toast reaches only
+        # administrators who happen to be signed in; the queue can sit
+        # unattended for days otherwise. Both channels, because the toast is
+        # immediate and the mail is durable.
+        try:
+            notify_admins_of_registration(registration)
+        except Exception:
+            logger.exception(
+                "Failed to email admins about registration by %s.", username
+            )
 
     transaction.on_commit(_send)
 
@@ -245,6 +260,12 @@ def decide_registration_request(request: HttpRequest, pk: int) -> HttpResponse:
             )
             for group in granted:
                 registration.user.groups.add(group)
+
+    # After the transaction, so nobody is told they were approved by a
+    # decision that then rolled back.
+    transaction.on_commit(
+        lambda: notify_user_of_registration_decision(registration)
+    )
 
     username = registration.user.username
     logger.info(

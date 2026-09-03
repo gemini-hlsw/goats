@@ -1,4 +1,5 @@
-from django.urls import include, path
+from django.contrib.auth import views as auth_views
+from django.urls import include, path, reverse_lazy
 from tom_alerts.views import BrokerQueryListView
 from tom_common.api_router import SharedAPIRootRouter
 from tom_tns.urls import urlpatterns as tom_tns_urls
@@ -177,6 +178,52 @@ urlpatterns = [
         name="delete",
     ),
     path("brokers/list/", BrokerQueryListView.as_view(), name="list"),
+    path(
+        # Password reset, Django's built-in views.
+        #
+        # Not reimplemented: token generation, expiry, one-time use and the
+        # constant-time user lookup are all subtly easy to get wrong, and
+        # Django's implementation is audited. Only the templates are ours.
+        #
+        # These must also be in `OPEN_URLS` on a server install -- a
+        # locked-out user is signed out by definition, so
+        # `AuthStrategyMiddleware` would bounce them to the one page they
+        # cannot get past.
+        "accounts/password_reset/",
+        # GOATS subclass, not Django's view directly: it reports an SMTP
+        # failure on the form instead of raising into a 500, which a
+        # locked-out user cannot act on. Everything else -- tokens, expiry,
+        # one-time use, the constant-time lookup -- is Django's, unchanged.
+        views.GOATSPasswordResetView.as_view(
+            template_name="registration/password_reset_form.html",
+            email_template_name="registration/password_reset_email.txt",
+            subject_template_name="registration/password_reset_subject.txt",
+            success_url=reverse_lazy("password_reset_done"),
+        ),
+        name="password_reset",
+    ),
+    path(
+        "accounts/password_reset/done/",
+        auth_views.PasswordResetDoneView.as_view(
+            template_name="registration/password_reset_done.html",
+        ),
+        name="password_reset_done",
+    ),
+    path(
+        "accounts/reset/<uidb64>/<token>/",
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name="registration/password_reset_confirm.html",
+            success_url=reverse_lazy("password_reset_complete"),
+        ),
+        name="password_reset_confirm",
+    ),
+    path(
+        "accounts/reset/done/",
+        auth_views.PasswordResetCompleteView.as_view(
+            template_name="registration/password_reset_complete.html",
+        ),
+        name="password_reset_complete",
+    ),
     path(
         "users/<int:pk>/generate_token/",
         views.UserGenerateTokenView.as_view(),

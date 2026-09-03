@@ -338,6 +338,92 @@ STATIC_ROOT = BASE_DIR / "_static"
 STATICFILES_DIRS = [(BASE_DIR / "static")]
 """Additional directories for static files."""
 
+# --- Email -------------------------------------------------------------------
+
+EMAIL_BACKEND = os.getenv(
+    "GOATS_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+"""How mail is sent.
+
+The console backend is the default so that a desktop install prints messages
+to the terminal instead of failing on a missing SMTP server. A single
+astronomer running GOATS on a laptop has no administrators to notify and no
+password to recover by mail.
+
+For a shared server set this to
+``django.core.mail.backends.smtp.EmailBackend`` and fill in the host settings
+below. **Password reset does not work without it**: unlike the notification
+emails, which are a second channel onto a queue that is already the source of
+truth, a reset token has no fallback -- a user who does not receive it is
+locked out.
+"""
+
+EMAIL_HOST = os.getenv("GOATS_EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.getenv("GOATS_EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("GOATS_EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("GOATS_EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("GOATS_EMAIL_USE_TLS", "true").lower() == "true"
+"""Port and TLS default to 587 and on, together.
+
+They were 25 and off, which is a trap: setting only `GOATS_EMAIL_HOST` --
+the obvious thing to do -- produced a plaintext connection on port 25 to a
+relay listening on 587 with STARTTLS, and the send hung until it timed out
+with nothing explaining why. Almost every relay worth pointing at today wants
+587 and TLS, so those are the defaults and port 25 is the thing you opt in
+to."""
+
+GOATS_EMAIL_HELO_DOMAIN = os.getenv("GOATS_EMAIL_HELO_DOMAIN", "")
+"""Domain announced in the SMTP ``EHLO`` greeting.
+
+Needed by relays that identify a sender by domain rather than by credentials
+-- Google Workspace's SMTP relay is one. It checks both that the connecting
+address is allowlisted *and* that the greeting names a domain it recognises;
+Django announces the machine's own hostname, which for a server is something
+it has never heard of, and the message is refused::
+
+    550 5.7.1 ... you must configure your mail server either to use SMTP AUTH
+    to identify the sending domain or to present one of your domain names in
+    the HELO or EHLO command.
+
+Set this to a domain the relay knows -- for NOIRLab, ``noirlab.edu`` -- and
+set `EMAIL_BACKEND` to ``goats_tom.email_backends.HeloEmailBackend``, which
+is the only backend that reads it. Nothing about the network or the
+allowlist changes; only the name announced.
+
+Empty by default, and ignored entirely by relays that do not care."""
+EMAIL_TIMEOUT = int(os.getenv("GOATS_EMAIL_TIMEOUT", "10"))
+"""A timeout, deliberately short.
+
+Notification mail is sent inside the request that created the request it
+describes. Without a timeout an unreachable SMTP server holds that request
+open until the socket gives up, which turns a slow mail server into a slow
+registration form.
+"""
+
+DEFAULT_FROM_EMAIL = os.getenv("GOATS_DEFAULT_FROM_EMAIL", "goats@noirlab.edu")
+GOATS_ADMIN_EMAILS = [
+    address.strip()
+    for address in os.getenv("GOATS_ADMIN_EMAILS", "goats@noirlab.edu").split(",")
+    if address.strip()
+]
+"""Where administrator notifications go.
+
+A configured address rather than every superuser: superuser accounts change,
+a shared server should not mail whoever currently holds the flag, and a group
+address survives people leaving.
+"""
+
+GOATS_EMAIL_SUBJECT_PREFIX = os.getenv("GOATS_EMAIL_SUBJECT_PREFIX", "[GOATS] ")
+
+GOATS_SITE_URL = os.getenv("GOATS_SITE_URL", "")
+"""Absolute base URL, used to build links in emails.
+
+Empty by default, which produces relative links. Deliberate: a background
+send has no request to derive a host from, and a link to the wrong host is
+worse than no link -- it may point at somebody else's instance.
+"""
+
 STORAGES = {
     "default": {"BACKEND": os.getenv(
         "GOATS_FILE_STORAGE",

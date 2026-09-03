@@ -41,6 +41,7 @@ from goats_tom.views.astro_datalab import AstroDatalabView
 from goats_tom.views.brokerquery_name import update_brokerquery_name
 from goats_tom.views.dataproduct_delete import DataProductDeleteView
 from goats_tom.views.dataproduct_stream import DataProductStreamView
+from goats_tom.views.password_reset import GOATSPasswordResetView
 from goats_tom.views.dataproduct_upload import DataProductUploadView
 from goats_tom.views.delete_observation_dataproducts import (
     DeleteObservationDataProductsView,
@@ -89,6 +90,7 @@ __all__ = [
     "GOAQueryFormView",
     "DataProductDeleteView",
     "DataProductStreamView",
+    "GOATSPasswordResetView",
     "ObservationRecordDetailView",
     "TargetDeleteView",
     "UserGenerateTokenView",

@@ -22,6 +22,9 @@ block, so extending it could only replace the whole thing anyway.
       {% endbuttons %}
     </form>
     <hr>
+    <p class="small mb-1">
+      <a href="{% url 'password_reset' %}">Forgotten your password?</a>
+    </p>
     <p class="small mb-0">
       No account? <a href="{% url 'register' %}">Request one</a>.
       An administrator reviews every request.

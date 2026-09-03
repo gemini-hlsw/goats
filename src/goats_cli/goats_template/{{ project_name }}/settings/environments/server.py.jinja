@@ -75,6 +75,12 @@ OPEN_URLS = [
     # `DELETE /api/dataproducts/<pk>/` ship unguarded, and the next viewset
     # added would inherit the exemption silently.
     "/api/antares2goats/*",
+    # Password reset. A locked-out user is signed out by definition, so
+    # `AuthStrategyMiddleware` would bounce them to the login page -- the one
+    # page they cannot get past. All four steps are needed: the form, the
+    # "check your email" page, the link from the email, and the confirmation.
+    "/accounts/password_reset*",
+    "/accounts/reset/*",
 ]
 
 # The hostname this server answers to.
