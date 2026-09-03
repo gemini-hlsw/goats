@@ -116,19 +116,19 @@ class ProgramObservationsPanel {
    * @param {!Array<Object>} programs - Array of program objects.
    */
   updatePrograms(programs) {
-    this.#fillSelect(
-      this.#programSelect,
-      programs,
+    this.#fillSelect(this.#programSelect, programs, {
       // Use program reference label if available, else ID.
-      (p) => `${p.reference?.label ?? p.id} - ${p.name ?? p.title ?? ""}`,
-    );
+      getLabel: (p) => `${p.reference?.label ?? p.id} - ${p.name ?? p.title ?? ""}`,
+    });
   }
   /**
    * Populate the normal observations <select>.
    * @param {!Array<Object>} observations - Array of observation objects.
    */
   updateNormalObservations(observations) {
-    this.#fillSelect(this.#normalSelect, observations);
+    this.#fillSelect(this.#normalSelect, observations, {
+      isCalibration: (o) => Boolean(o?.calibrationRole),
+    });
   }
   /**
    * Populate the ToO observations <select>.
@@ -406,12 +406,18 @@ class ProgramObservationsPanel {
    * @private
    * @param {!HTMLSelectElement} selectEl - The select element to populate.
    * @param {!Array<Object>} options - Array of objects with `id` and `name` or `title` properties.
-   * @param {function(Object): string} [getLabel] - Optional label resolver.
+   * @param {Object} [opts] - Optional behaviour overrides.
+   * @param {function(Object): string} [opts.getLabel] - Label resolver.
+   * @param {function(Object): boolean} [opts.isCalibration] - Predicate deciding whether
+   *     an entry belongs in the "Calibrations" group. Defaults to no grouping.
    */
     #fillSelect(
       selectEl,
       options,
-      getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`
+      {
+        getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`,
+        isCalibration = () => false,
+      } = {}
     ) {
       while (selectEl.options.length > 1) selectEl.remove(1);
       Array.from(selectEl.querySelectorAll("optgroup")).forEach(g => g.remove());
@@ -427,15 +433,11 @@ class ProgramObservationsPanel {
       calGroup.label = "Calibrations";
     
       options.forEach((o) => {
-        const hasProposalStatus = Boolean(o?.proposalStatus);
-        const hasMode = Boolean(o?.scienceRequirements?.mode);
-        const isCalibration = !hasMode && !hasProposalStatus;
-    
         const opt = Utils.createElement("option");
         opt.value = o.id;
         opt.textContent = getLabel(o);
     
-        if (isCalibration) {
+        if (isCalibration(o)) {
           calGroup.appendChild(opt);
         } else {
           frag.appendChild(opt);
