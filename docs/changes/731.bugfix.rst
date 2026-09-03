@@ -1,1 +1,0 @@
-Fixed broker link not redirecting to the correct ANTARES page for targets with an ANTARES alias

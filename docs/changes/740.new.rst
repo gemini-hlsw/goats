@@ -1,1 +1,0 @@
-Integrated Blanco/DECam observation form into GOATS

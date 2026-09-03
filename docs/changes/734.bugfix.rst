@@ -1,1 +1,0 @@
-Restored GOA download restriction when the observation status has not been updated

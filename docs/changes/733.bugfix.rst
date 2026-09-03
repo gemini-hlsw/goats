@@ -1,1 +1,0 @@
-Fixed the light curve legend overlapping the plot
