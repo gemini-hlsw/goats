@@ -122,12 +122,17 @@ class ProgramObservationsPanel {
     });
   }
   /**
-   * Populate the normal observations <select>.
+   * Populate the observations <select> with every observation of the program,
+   * split into normal, ToO and calibration groups.
    * @param {!Array<Object>} observations - Array of observation objects.
    */
   updateNormalObservations(observations) {
     this.#fillSelect(this.#normalSelect, observations, {
-      isCalibration: (o) => Boolean(o?.calibrationRole),
+      groups: ["Normal", "ToO", "Calibrations"],
+      getGroup: (o) => {
+        if (o?.calibrationRole) return "Calibrations";
+        return o?.isToo ? "ToO" : "Normal";
+      },
     });
   }
   /**
@@ -408,46 +413,56 @@ class ProgramObservationsPanel {
    * @param {!Array<Object>} options - Array of objects with `id` and `name` or `title` properties.
    * @param {Object} [opts] - Optional behaviour overrides.
    * @param {function(Object): string} [opts.getLabel] - Label resolver.
-   * @param {function(Object): boolean} [opts.isCalibration] - Predicate deciding whether
-   *     an entry belongs in the "Calibrations" group. Defaults to no grouping.
+   * @param {function(Object): ?string} [opts.getGroup] - Resolver returning the
+   *     <optgroup> an entry belongs to, or null to leave it ungrouped.
+   * @param {!Array<string>} [opts.groups] - Group labels, in the order they are rendered.
    */
-    #fillSelect(
-      selectEl,
-      options,
-      {
-        getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`,
-        isCalibration = () => false,
-      } = {}
-    ) {
-      while (selectEl.options.length > 1) selectEl.remove(1);
-      Array.from(selectEl.querySelectorAll("optgroup")).forEach(g => g.remove());
-    
-      if (!options || options.length === 0) {
-        this.#showEmpty(selectEl);
-        return;
-      }
-    
-      const frag = document.createDocumentFragment();
-    
-      const calGroup = document.createElement("optgroup");
-      calGroup.label = "Calibrations";
-    
-      options.forEach((o) => {
-        const opt = Utils.createElement("option");
-        opt.value = o.id;
-        opt.textContent = getLabel(o);
-    
-        if (isCalibration(o)) {
-          calGroup.appendChild(opt);
-        } else {
-          frag.appendChild(opt);
-        }
-      });
-    
-      if (calGroup.children.length) frag.appendChild(calGroup);
-    
-      selectEl.appendChild(frag);
-      selectEl.disabled = false;
-      this.#logDebug(`Filled select: ${selectEl.id} with ${options.length} items.`);
+  #fillSelect(
+    selectEl,
+    options,
+    {
+      getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`,
+      getGroup = () => null,
+      groups = [],
+    } = {},
+  ) {
+    while (selectEl.options.length > 1) selectEl.remove(1);
+    Array.from(selectEl.querySelectorAll("optgroup")).forEach((g) => g.remove());
+
+    if (!options || options.length === 0) {
+      this.#showEmpty(selectEl);
+      return;
     }
+
+    const frag = document.createDocumentFragment();
+    const optgroups = new Map(
+      groups.map((label) => {
+        const group = document.createElement("optgroup");
+        group.label = label;
+        return [label, group];
+      }),
+    );
+
+    options.forEach((o) => {
+      const opt = Utils.createElement("option");
+      opt.value = o.id;
+      opt.textContent = getLabel(o);
+
+      const group = optgroups.get(getGroup(o));
+      if (group) {
+        group.appendChild(opt);
+      } else {
+        frag.appendChild(opt);
+      }
+    });
+
+    // Keep the requested group order and drop the ones that stayed empty.
+    optgroups.forEach((group) => {
+      if (group.children.length) frag.appendChild(group);
+    });
+
+    selectEl.appendChild(frag);
+    selectEl.disabled = false;
+    this.#logDebug(`Filled select: ${selectEl.id} with ${options.length} items.`);
+  }
 }

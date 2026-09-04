@@ -435,17 +435,21 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                     program_id=program_id
                 )
                 data = payload.model_dump(by_alias=True)["observations"]
-                # Filter the observations into too and normal categories.
                 matches = data.get("matches", [])
                 too_obs = [o for o in matches if self.is_too(o) and self.is_approved(o)]
-                normal_obs = [o for o in matches if not self.is_too(o)]
+                # The observations select lists them all, flagged so it can group
+                # them by type.
+                observations = [{**o, "isToo": self.is_too(o)} for o in matches]
 
                 # Build the custom data response.
                 return Response(
                     {
                         "matches": {
                             "too": {"count": len(too_obs), "results": too_obs},
-                            "normal": {"count": len(normal_obs), "results": normal_obs},
+                            "all": {
+                                "count": len(observations),
+                                "results": observations,
+                            },
                         },
                         "hasMore": data.get("hasMore", False),
                     }
