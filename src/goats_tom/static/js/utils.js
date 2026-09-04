@@ -198,4 +198,54 @@ class Utils {
     );
     return Promise.all([operationPromise, minDurationPromise]);
   }
+
+  /**
+   * Ask for a control that has to be answered, and keep asking until it is.
+   *
+   * The control is outlined while it is empty, the way the Blanco form does it.
+   *
+   * @param {HTMLElement} input - The control that has to be filled in.
+   * @returns {void}
+   */
+  static markRequired(input) {
+    if (!input) return;
+    // A control can be asked for again, such as when a mode is switched back
+    // and forth, and it only needs listening to once.
+    const alreadyAsked = input.getAttribute("aria-required") === "true";
+    // Colour is not something a screen reader can read out.
+    input.setAttribute("aria-required", "true");
+    if (!alreadyAsked) {
+      ["input", "change", "blur"].forEach((event) =>
+        input.addEventListener(event, () => Utils.recheckRequired(input))
+      );
+    }
+    Utils.recheckRequired(input);
+  }
+
+  /**
+   * Look again at whether a required control is still empty.
+   *
+   * A value can be filled in without anybody typing it, and no event is raised
+   * for that, so whoever writes the value says when to look again.
+   *
+   * @param {HTMLElement} input - The control to look at.
+   * @returns {void}
+   */
+  static recheckRequired(input) {
+    if (!input || input.getAttribute("aria-required") !== "true") return;
+    const empty = !String(input.value ?? "").trim();
+    input.classList.toggle("border-danger", empty);
+  }
+
+  /**
+   * Stop asking for a control, such as one that is no longer on show.
+   *
+   * @param {HTMLElement} input - The control to leave alone.
+   * @returns {void}
+   */
+  static clearRequired(input) {
+    if (!input) return;
+    input.removeAttribute("aria-required");
+    input.classList.remove("border-danger");
+  }
 }

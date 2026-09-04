@@ -12,6 +12,9 @@ from .dragons_recipes import DRAGONSRecipesViewSet
 from .dragons_reduce import DRAGONSReduceViewSet
 from .dragons_runs import DRAGONSRunsViewSet
 from .gpp import (
+    GPPConfigOptionsViewSet,
+    GPPConfigurationRequestViewSet,
+    GPPEnumsViewSet,
     GPPFinderChartViewSet,
     GPPObservationViewSet,
     GPPProgramViewSet,
@@ -45,6 +48,9 @@ __all__ = [
     "GPPProgramViewSet",
     "GPPObservationViewSet",
     "GPPFinderChartViewSet",
+    "GPPConfigurationRequestViewSet",
+    "GPPConfigOptionsViewSet",
+    "GPPEnumsViewSet",
     "TargetViewSet",
     "StatusViewSet",
     "SystemViewSet",

@@ -554,3 +554,13 @@ select.form-control[multiple] {
 .pointer {
   cursor: pointer;
 }
+
+/*
+ * A required control is outlined while it is still empty. Inside an input group
+ * the neighbouring controls overlap it by a border width, so without a stacking
+ * order only the top and bottom edges of the outline show. Bootstrap raises
+ * .is-invalid to z-index 4 for the same reason, and keeps 5 for focus.
+ */
+.input-group > .border-danger {
+  z-index: 4;
+}

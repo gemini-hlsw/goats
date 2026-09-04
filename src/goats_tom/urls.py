@@ -18,6 +18,17 @@ router.register(
     basename="gppfindercharts",
 )
 router.register(
+    r"gpp/configuration-requests",
+    api_views.GPPConfigurationRequestViewSet,
+    basename="gppconfigurationrequests",
+)
+router.register(
+    r"gpp/config-options",
+    api_views.GPPConfigOptionsViewSet,
+    basename="gppconfigoptions",
+)
+router.register(r"gpp/enums", api_views.GPPEnumsViewSet, basename="gppenums")
+router.register(
     r"blanco/observations",
     api_views.BLANCOObservationViewSet,
     basename="blancoobservations",

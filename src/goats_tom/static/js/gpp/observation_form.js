@@ -10,6 +10,8 @@ class ObservationForm {
   #mode;
   #callbacks;
   #target;
+  #fieldOptions;
+  #sections = [];
   #schedulingWindowsEditor;
   #finderChartEditor;
   #offsetVariantEditor;
@@ -25,6 +27,9 @@ class ObservationForm {
    *   field editable even when the form is read-only.
    * @param {Object=} options.target - Selected target info ({name, ra, dec}) used
    *   by override fields to display the target's value when locked.
+   * @param {Object=} options.fieldOptions - Choices for the fields declaring
+   *   `optionsFrom`, keyed by that name. Used when creating an observation from
+   *   an approved configuration, where the instrument options come from GPP.
    */
   constructor(
     parentElement,
@@ -34,6 +39,7 @@ class ObservationForm {
       readOnly = false,
       allowStateEdit = false,
       target = null,
+      fieldOptions = {},
       callbacks = {},
     } = {},
   ) {
@@ -44,6 +50,7 @@ class ObservationForm {
     //this.#readOnly = true;
     this.#mode = mode;
     this.#target = target ?? {};
+    this.#fieldOptions = fieldOptions ?? {};
     this.#callbacks = callbacks ?? {};
 
     // Register special handlers like brightness, sourceProfile etc.
@@ -63,7 +70,8 @@ class ObservationForm {
         new ExposureModeEditor(div, {
           data: raw ?? {},
           mode: meta.mode,
-          readOnly: this.#readOnly || meta.readOnly,
+          // `meta.readOnly` names the mode it applies to, like any other field.
+          readOnly: this.#readOnly || this.#appliesToMode(meta.readOnly),
         });
         return [div];
       },
@@ -88,6 +96,9 @@ class ObservationForm {
         const div = Utils.createElement("div", "mt-3");
         new BrightnessesEditor(div, {
           data: raw ?? [],
+          // What GPP accepts, when the form was given it.
+          bands: this.#fieldOptions.bands,
+          units: this.#fieldOptions.units,
           readOnly: this.#readOnly,
         });
         return [div];
@@ -160,7 +171,56 @@ class ObservationForm {
     const allFields = this.#getMergedFields(observation);
     this.#appendFields(form, allFields, observation);
 
+    // A section is collapsed by default, so it says for itself when something
+    // inside it is still missing. Field events bubble up to the form; a click
+    // covers the editors that fill a value in without anybody typing it.
+    ["input", "change", "click"].forEach((event) =>
+      form.addEventListener(event, () => this.#refreshSectionWarnings()),
+    );
+    this.#refreshSectionWarnings();
+
     this.#container.appendChild(form);
+  }
+
+  /**
+   * Flag the sections still holding a required field that has not been answered.
+   * @private
+   */
+  #refreshSectionWarnings() {
+    this.#sections.forEach(({ body, warning }) => {
+      const missing = Array.from(
+        body.querySelectorAll('[aria-required="true"].border-danger'),
+      );
+      warning.classList.toggle("d-none", missing.length === 0);
+      // Name what is missing: a collapsed section shows none of it.
+      const names = missing.map((input) => this.#labelFor(input));
+      warning.title = names.length ? `Still to fill in: ${names.join(", ")}` : "";
+    });
+  }
+
+  /**
+   * Whether a field setting naming a mode applies to the one the form is in.
+   *
+   * `readOnly`, `required`, `showIfMode` and `lockOverrideInMode` are all
+   * written the same way: the mode they apply to, or "both".
+   *
+   * @param {string=} spec - The mode the setting names.
+   * @returns {boolean}
+   * @private
+   */
+  #appliesToMode(spec) {
+    return spec === "both" || spec === this.#mode;
+  }
+
+  /**
+   * The label a control is known by, for the section warning to name it.
+   * @param {!HTMLElement} input - The control to name.
+   * @returns {string}
+   * @private
+   */
+  #labelFor(input) {
+    const label = input.labels?.[0]?.textContent;
+    return (label ?? input.getAttribute("aria-label") ?? input.name ?? "").trim();
   }
 
   /**
@@ -169,6 +229,7 @@ class ObservationForm {
   clear() {
     this.#container.innerHTML = "";
     this.#form = null;
+    this.#sections = [];
     // Only imaging modes build this editor, so drop the stale reference or a
     // later long-slit form would still submit the previous offset variant.
     this.#offsetVariantEditor = null;
@@ -208,20 +269,17 @@ class ObservationForm {
 
     fields.forEach((meta) => {
       // Skip field if showIfMode is incompatible with current mode.
-      if (
-        meta.showIfMode &&
-        meta.showIfMode !== "both" &&
-        meta.showIfMode !== this.#mode
-      ) {
+      if (meta.showIfMode && !this.#appliesToMode(meta.showIfMode)) {
         return;
       }
 
       // Handle section headers: create header + collapsible body.
       if (meta.section) {
-        const { header, body } = this.#createSectionWithBody(
+        const { header, body, warning } = this.#createSectionWithBody(
           meta.section,
           form,
         );
+        this.#sections.push({ body, warning });
         form.append(header);
         form.append(body);
 
@@ -243,11 +301,23 @@ class ObservationForm {
       }
 
       let value = raw;
-      // Assign raw value from lookup or format if applicable.
+      // Assign raw value from lookup or format if applicable. A field may be
+      // empty when it comes from an approved configuration, and a formatter has
+      // nothing to format then.
       if (meta.lookup) value = meta.lookup[raw] ?? raw ?? "";
-      if (meta.formatter) value = meta.formatter(value);
+      if (meta.formatter) value = value == null ? "" : meta.formatter(value);
 
-      currentSectionBody.append(this.#createFormField({ ...meta, value }));
+      // Fields whose choices GPP decides, such as the FPUs that go with an
+      // approved disperser. An empty list means they never arrived, so the
+      // form falls back to the choices it ships with.
+      const given = meta.optionsFrom
+        ? this.#fieldOptions[meta.optionsFrom]
+        : null;
+      const options = given?.length ? given : meta.options;
+
+      currentSectionBody.append(
+        this.#createFormField({ ...meta, value, options }),
+      );
     });
   }
   /**
@@ -258,7 +328,7 @@ class ObservationForm {
    * belonging to this section.
    *
    * @param {string} text - Section title.
-   * @returns {{ header: HTMLElement, body: HTMLElement }}
+   * @returns {{header: HTMLElement, body: HTMLElement, warning: HTMLElement}}
    * @private
    */
   #createSectionWithBody(text, form) {
@@ -274,8 +344,15 @@ class ObservationForm {
       "mb-0",
     ]);
 
-    const h = Utils.createElement("h5", ["mb-0"]);
+    const h = Utils.createElement("h5", ["mb-0", "d-flex", "align-items-center"]);
     h.textContent = text;
+
+    // Font Awesome swaps every <i> for an <svg> of its own, so the element
+    // handed out here is a wrapper it leaves alone: hiding the icon by its own
+    // class would be toggling a node no longer in the page.
+    const warning = Utils.createElement("span", ["ms-2", "text-warning", "d-none"]);
+    warning.innerHTML = '<i class="fa-solid fa-triangle-exclamation fa-sm"></i>';
+    h.append(warning);
 
     const toggleBtn = Utils.createElement("button", ["btn", "p-0"]);
     toggleBtn.type = "button";
@@ -319,7 +396,7 @@ class ObservationForm {
       toggleBtn.click();
     });
 
-    return { header, body };
+    return { header, body, warning };
   }
   /**
    * Create a form field from metadata.
@@ -333,6 +410,8 @@ class ObservationForm {
    * @param {string=} field.type - Input type (e.g., "number", "text").
    * @param {string=} field.colSize - Bootstrap column class.
    * @param {string=} field.readOnly - Whether the field is read-only in what mode.
+   * @param {string=} field.required - Mode ("normal", "too" or "both") in which the
+   *     field has to be filled in. It is outlined while it is empty.
    * @param {boolean=} field.hasOverride - If true, field has a "target" (bullseye)
    *     button inside the input group. When active (locked), the field shows the
    *     selected target's value but stays disabled, so it is not submitted and the
@@ -362,6 +441,7 @@ class ObservationForm {
     type = "text",
     colSize = "col-md-6",
     readOnly = undefined,
+    required = undefined,
     hasOverride = false,
     overridePlaceholder = "Using selected target's value",
     lockOverrideInMode = undefined,
@@ -391,22 +471,22 @@ class ObservationForm {
     // Apply read-only state if applicable.
     const isReadOnly =
       (this.#readOnly && !(this.#allowStateEdit && labelText === "State")) ||
-      (typeof readOnly === "string" &&
-        (readOnly === "both" || readOnly === this.#mode));
+      this.#appliesToMode(readOnly);
+    const isRequired = this.#appliesToMode(required);
 
     // Whether the override should start locked (using the target's value) for the
     // current mode. The toggle still lets the user unlock and re-lock afterwards.
     const startLocked =
-      hasOverride &&
-      !isReadOnly &&
-      typeof lockOverrideInMode === "string" &&
-      (lockOverrideInMode === "both" || lockOverrideInMode === this.#mode);
+      hasOverride && !isReadOnly && this.#appliesToMode(lockOverrideInMode);
 
     // Create label (the override toggle lives inside the input group instead).
     if (labelText) {
       const label = Utils.createElement("label", ["form-label", "mb-1"]);
       label.htmlFor = elementId;
       label.textContent = labelText;
+      if (isRequired) {
+        label.title = "Required";
+      }
       col.append(label);
     }
 
@@ -425,7 +505,16 @@ class ObservationForm {
       control.value = value;
     } else if (element === "select") {
       control = Utils.createElement("select", ["form-select"]);
-      options.forEach((opt) => {
+      const items = [...options];
+      // Keep a stored value the options do not carry, so an existing
+      // observation never renders as a different setup than it has.
+      const hasValue = items.some(
+        (opt) => (typeof opt === "string" ? opt : opt.value) === value,
+      );
+      if (value !== "" && value != null && !hasValue) {
+        items.unshift({ value, labelText: String(value) });
+      }
+      items.forEach((opt) => {
         const optionEl = Utils.createElement("option");
         if (typeof opt === "string") {
           optionEl.value = opt;
@@ -450,6 +539,11 @@ class ObservationForm {
     control.id = elementId;
     control.name = elementId;
     control.disabled = isReadOnly;
+
+    // Ask for what has to be answered, but never for what cannot be typed.
+    if (isRequired && !isReadOnly) {
+      Utils.markRequired(control);
+    }
 
     // Suggested values that still allow typing an arbitrary one.
     let datalistEl = null;
