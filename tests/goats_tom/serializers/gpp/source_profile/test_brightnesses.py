@@ -184,14 +184,6 @@ class TestBrightnessesSerializer:
     @pytest.mark.parametrize(
         "input_data, expected_message",
         [
-            # Missing value.
-            (
-                {
-                    "brightnessBandSelect1": Band.SLOAN_G.value,
-                    "brightnessUnitsSelect1": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
-                },
-                "A Brightness value is not a valid number.",
-            ),
             # Missing band.
             (
                 {
@@ -224,6 +216,38 @@ class TestBrightnessesSerializer:
         serializer = BrightnessesSerializer()
         with pytest.raises(ValidationError, match=expected_message):
             serializer.to_internal_value(input_data)
+
+    @pytest.mark.parametrize("value", ["", None])
+    def test_a_brightness_without_a_value_is_skipped(self, value):
+        """Test that the empty row the editor always draws is not an error."""
+        serializer = BrightnessesSerializer()
+
+        result = serializer.to_internal_value(
+            {
+                "brightnessValueInput0": value,
+                "brightnessBandSelect0": Band.SLOAN_G.value,
+                "brightnessUnitsSelect0": BrightnessIntegratedUnits.AB_MAGNITUDE.value,
+            }
+        )
+
+        assert result == {"brightnesses": None}
+
+    def test_an_invalid_brightness_reports_the_field(self):
+        """Test that the error is a mapping, so DRF can render it."""
+        serializer = BrightnessesSerializer()
+
+        with pytest.raises(ValidationError) as exc_info:
+            serializer.to_internal_value(
+                {
+                    "brightnessValueInput0": "bad",
+                    "brightnessBandSelect0": Band.SLOAN_G.value,
+                    "brightnessUnitsSelect0": (
+                        BrightnessIntegratedUnits.AB_MAGNITUDE.value
+                    ),
+                }
+            )
+
+        assert "brightnesses" in exc_info.value.detail
 
     def test_format_gpp_with_validated_data(self):
         """Test that format_gpp returns brightnesses correctly."""
