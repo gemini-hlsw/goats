@@ -136,11 +136,37 @@ class ProgramObservationsPanel {
     });
   }
   /**
-   * Populate the ToO observations <select>.
-   * @param {!Array<Object>} observations - Array of observation objects.
+   * Populate the approved ToO configurations <select>.
+   * @param {!Array<Object>} configurations - Array of configuration requests.
    */
-  updateTooObservations(observations) {
-    this.#fillSelect(this.#tooSelect, observations);
+  updateTooConfigurations(configurations) {
+    this.#fillSelect(this.#tooSelect, configurations, {
+      getLabel: (c) => ProgramObservationsPanel.configurationLabel(c),
+    });
+  }
+  /**
+   * Build a readable label for an approved configuration request.
+   * @param {!Object} configuration - Configuration request object.
+   * @returns {string}
+   */
+  static configurationLabel(configuration) {
+    const mode = configuration?.configuration?.observingMode ?? {};
+    const conditions = configuration?.configuration?.conditions ?? {};
+    const instrument = Lookups.instrument[mode.instrument] ?? mode.instrument ?? "";
+    // An approved configuration fixes the disperser, or the filters.
+    const optics =
+      mode.gmosNorthLongSlit?.grating ??
+      mode.gmosSouthLongSlit?.grating ??
+      (mode.gmosNorthImaging?.filters ?? mode.gmosSouthImaging?.filters ?? []).join(
+        ", ",
+      );
+    const iq = Lookups.imageQuality[conditions.imageQuality] ?? "";
+    const cc = Lookups.cloudExtinction[conditions.cloudExtinction] ?? "";
+    const setup = [instrument, optics && Formatters.replaceUnderscore(optics)]
+      .filter(Boolean)
+      .join(" ");
+    const seeing = iq && cc ? ` (IQ ${iq}, CC ${cc})` : "";
+    return `${configuration.id} - ${setup}${seeing}`;
   }
   /**
    * Show or hide loading state for programs.

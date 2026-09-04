@@ -412,6 +412,16 @@ class ExposureModeEditor {
    */
   #toggleField(col, show) {
     col.classList.toggle("d-none", !show);
+
+    // Both modes keep their inputs in the DOM, so only the ones on show are
+    // asked for: the chosen mode needs all of its numbers.
+    const input = col.querySelector("input");
+    if (!input || this.#readOnly) return;
+    if (show) {
+      Utils.markRequired(input);
+    } else {
+      Utils.clearRequired(input);
+    }
   }
 
   /**
