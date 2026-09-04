@@ -9,9 +9,14 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, mixins
 
+from ._credentials import GPPCredentialsMixin
+
 
 class GPPProgramViewSet(
-    GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin
+    GPPCredentialsMixin,
+    GenericViewSet,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
 ):
     serializer_class = None
     permission_classes = [permissions.IsAuthenticated]
@@ -35,11 +40,8 @@ class GPPProgramViewSet(
         PermissionDenied
             If the authenticated user has not configured GPP login credentials.
         """
-        if not hasattr(request.user, "gpplogin"):
-            return Response(
-                {"detail": "GPP login credentials are not configured for this user."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if (denied := self.missing_credentials(request)) is not None:
+            return denied
         credentials = request.user.gpplogin
 
         # Setup client to communicate with GPP.
@@ -73,11 +75,8 @@ class GPPProgramViewSet(
         """
         program_id = kwargs["pk"]
 
-        if not hasattr(request.user, "gpplogin"):
-            return Response(
-                {"detail": "GPP login credentials are not configured for this user."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if (denied := self.missing_credentials(request)) is not None:
+            return denied
         credentials = request.user.gpplogin
 
         # Setup client to communicate with GPP.
