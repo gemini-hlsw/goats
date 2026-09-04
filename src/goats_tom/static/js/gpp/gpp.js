@@ -64,11 +64,19 @@ class GPPModel {
   #gppCreateTooObservationUrl = `${this.#gppObservationsUrl}create-and-save/`;
   #gppUpdateNormalObservationUrl = `${this.#gppObservationsUrl}update-only/`;
   #gppFinderChartsUrl = `${this.#gppUrl}finder-charts/`;
+  #gppConfigurationRequestsUrl = `${this.#gppUrl}configuration-requests/`;
+  #gppConfigOptionsUrl = `${this.#gppUrl}config-options/`;
+  #gppEnumsUrl = `${this.#gppUrl}enums/`;
   #gppPingUrl = `${this.#gppUrl}ping/`;
 
   // Data-storing maps.
   #normalObservations = new Map();
-  #tooObservations = new Map();
+  #tooConfigurations = new Map();
+  // Instrument -> {spectroscopy, imaging}; the observatory options rarely
+  // change, so they are fetched once per instrument.
+  #configOptions = new Map();
+  // What GPP accepts in each choice, generated from its schema.
+  #enums = {};
   #programs = new Map();
   #activeObservation;
   #activeProgram;
@@ -84,7 +92,7 @@ class GPPModel {
   /** Clears every cached observation and active observation. */
   clearObservations() {
     this.#normalObservations.clear();
-    this.#tooObservations.clear();
+    this.#tooConfigurations.clear();
     this.#activeObservation = null;
   }
 
@@ -245,26 +253,247 @@ class GPPModel {
         `${this.#gppObservationsUrl}?program_id=${programId}`,
       );
 
-      const tooResults = matches?.too?.results ?? [];
-      // Every observation of the program, ToO ones included.
-      const normalResults = matches?.all?.results ?? [];
-
-      // Helper to bulk-fill a map from results.
-      const fillMap = (map, results) => {
-        for (const obs of results) {
-          map.set(obs.id, obs);
-        }
-      };
-
-      fillMap(this.#tooObservations, tooResults);
-      fillMap(this.#normalObservations, normalResults);
+      // One list holds every observation of the program, ToO ones included.
+      for (const obs of matches?.results ?? []) {
+        this.#normalObservations.set(obs.id, obs);
+      }
     } catch (error) {
       console.error("Error fetching observations:", error);
     }
   }
 
-  get tooObservationsCount() {
-    return this.#tooObservations.size;
+  /**
+   * Fetch the approved configuration requests of a program and cache them.
+   * @async
+   * @param {string} programId  Program identifier.
+   * @returns {Promise<void>}
+   */
+  async fetchTooConfigurations(programId) {
+    this.#tooConfigurations.clear();
+
+    try {
+      const { matches } = await this.#api.get(
+        `${this.#gppConfigurationRequestsUrl}?program_id=${encodeURIComponent(programId)}`,
+      );
+      for (const configuration of matches ?? []) {
+        this.#tooConfigurations.set(configuration.id, configuration);
+      }
+    } catch (error) {
+      console.error("Error fetching configuration requests:", error);
+    }
+  }
+
+  /**
+   * Fetch the values GPP accepts in each form choice. Fetched once: they only
+   * change when GPP itself changes.
+   * @async
+   * @returns {Promise<void>}
+   */
+  async fetchEnums() {
+    try {
+      this.#enums = (await this.#api.get(this.#gppEnumsUrl)) ?? {};
+    } catch (error) {
+      // The form falls back to the choices it ships with.
+      console.error("Error fetching GPP enums:", error);
+      this.#enums = {};
+    }
+  }
+
+  /**
+   * The form choices GPP defines, labelled for display.
+   *
+   * A value GOATS has no label for is shown as its own name, so a preset added
+   * to GPP is offered rather than silently missing.
+   *
+   * @returns {!Object<string, !Array<{value: string, labelText: string}>>}
+   */
+  enumFieldOptions() {
+    const labelled = (values, lookup) =>
+      (values ?? []).map((value) => ({
+        value,
+        labelText:
+          lookup?.[value] ?? Formatters.titleCaseFromUnderscore(value),
+      }));
+
+    return {
+      imageQuality: labelled(this.#enums.imageQuality, Lookups.imageQuality),
+      cloudExtinction: labelled(
+        this.#enums.cloudExtinction,
+        Lookups.cloudExtinction,
+      ),
+      skyBackground: labelled(this.#enums.skyBackground),
+      waterVapor: labelled(this.#enums.waterVapor),
+      // The brightness editor takes plain values, not labelled options.
+      bands: this.#enums.band,
+      units: this.#enums.brightnessUnits,
+    };
+  }
+
+  /**
+   * Fetch the configuration options an instrument supports, once per instrument.
+   * @async
+   * @param {string} instrument  Instrument name, e.g. "GMOS_NORTH".
+   * @returns {Promise<{spectroscopy: !Array<Object>, imaging: !Array<Object>}>}
+   */
+  async fetchConfigOptions(instrument) {
+    if (!instrument) return { spectroscopy: [], imaging: [] };
+    if (this.#configOptions.has(instrument)) {
+      return this.#configOptions.get(instrument);
+    }
+
+    try {
+      const options = await this.#api.get(
+        `${this.#gppConfigOptionsUrl}?instrument=${encodeURIComponent(instrument)}`,
+      );
+      const value = {
+        spectroscopy: options?.spectroscopy ?? [],
+        imaging: options?.imaging ?? [],
+      };
+      this.#configOptions.set(instrument, value);
+      return value;
+    } catch (error) {
+      console.error("Error fetching config options:", error);
+      return { spectroscopy: [], imaging: [] };
+    }
+  }
+
+  /**
+   * Build what the observation form is populated with for an approved
+   * configuration: the setup the observatory approved, the wavelength it
+   * recommends for it, and the choices left open to the user.
+   *
+   * @param {!Object} configurationRequest - Approved configuration request.
+   * @param {{spectroscopy: !Array<Object>, imaging: !Array<Object>}} configOptions
+   *     Options the instrument supports.
+   * @returns {{observation: !Object, fieldOptions: !Object}}
+   */
+  buildConfigurationObservation(configurationRequest, configOptions) {
+    const configuration = configurationRequest?.configuration ?? {};
+    const mode = configuration.observingMode ?? {};
+    const observingMode = { instrument: mode.instrument, mode: mode.mode };
+    const fieldOptions = {};
+
+    // Long slit: the configuration fixes the disperser, and the observatory
+    // options say which FPUs and filters go with it, and at what wavelength.
+    for (const key of ["gmosNorthLongSlit", "gmosSouthLongSlit"]) {
+      const grating = mode[key]?.grating;
+      if (!grating) continue;
+
+      // An option carries the arm it belongs to, and only one of the two.
+      const arm = (option) => option.gmosNorth ?? option.gmosSouth;
+      const matching = (configOptions?.spectroscopy ?? []).filter(
+        (o) => arm(o)?.grating === grating,
+      );
+      observingMode[key] = {
+        grating,
+        centralWavelength: {
+          nanometers: matching[0]?.wavelengthOptimal?.nanometers ?? null,
+        },
+      };
+      // Left unset on purpose: the slit width is the user's call, and an
+      // approved configuration does not fix it.
+      fieldOptions.fpu = [
+        { value: "", labelText: "Choose an FPU..." },
+        ...GPPModel.#uniqueOptions(
+          matching.map((o) => ({
+            value: arm(o)?.fpu,
+            labelText: o.fpuLabel,
+          })),
+        ),
+      ];
+      fieldOptions.filter = [
+        { value: "", labelText: "None" },
+        ...GPPModel.#uniqueOptions(
+          matching.map((o) => ({
+            value: arm(o)?.filter,
+            labelText: o.filterLabel,
+          })),
+        ),
+      ];
+    }
+
+    // Imaging: the configuration fixes the filters themselves.
+    for (const key of ["gmosNorthImaging", "gmosSouthImaging"]) {
+      const filters = mode[key]?.filters ?? [];
+      if (filters.length) {
+        observingMode[key] = { filters: filters.map((filter) => ({ filter })) };
+      }
+    }
+
+    return {
+      observation: {
+        instrument: mode.instrument,
+        constraintSet: {
+          ...(configuration.conditions ?? {}),
+          // A configuration approves the conditions, not the elevation range,
+          // so the observation starts on the range GPP itself defaults to.
+          elevationRange: { airMass: { min: 1.0, max: 2.0 } },
+        },
+        // Likewise for the position angle: fixed at zero until told otherwise.
+        posAngleConstraint: { mode: "FIXED", angle: { degrees: 0 } },
+        // An approved configuration is ready to be observed, so the new
+        // observation starts defined rather than undefined.
+        workflow: { value: { state: "DEFINED" } },
+        targetEnvironment: {
+          firstScienceTarget: {
+            // Black body is the only SED GOATS builds, so it is the one the
+            // form opens on, at the temperature its editor suggests.
+            sourceProfile: {
+              point: { bandNormalized: { sed: { blackBodyTempK: {} } } },
+            },
+          },
+        },
+        observingMode,
+        // The science band editor needs the program allocations, which only
+        // ride along with the observations of the program.
+        program: this.#programAllocations(),
+      },
+      fieldOptions,
+    };
+  }
+
+  /**
+   * Drop the options without a value and the repeated ones, keeping order.
+   * @param {!Array<{value: ?string, labelText: ?string}>} options
+   * @returns {!Array<{value: string, labelText: string}>}
+   * @private
+   */
+  static #uniqueOptions(options) {
+    const seen = new Map();
+    for (const { value, labelText } of options) {
+      if (value && !seen.has(value)) seen.set(value, labelText ?? value);
+    }
+    return Array.from(seen, ([value, labelText]) => ({ value, labelText }));
+  }
+
+  /**
+   * Get the program allocations and time charge carried by the cached
+   * observations, needed by the science band editor.
+   * @returns {Object|undefined}
+   * @private
+   */
+  #programAllocations() {
+    for (const observation of this.#normalObservations.values()) {
+      if (observation.program?.allocations) return observation.program;
+    }
+    return undefined;
+  }
+
+  /**
+   * Get an approved configuration request that is already in the cache.
+   * @param {string} configurationId
+   * @returns {Object|undefined}
+   */
+  getTooConfiguration(configurationId) {
+    return this.#tooConfigurations.get(configurationId);
+  }
+
+  /**
+   * All cached approved configuration requests as an array.
+   * @type {!Array<!Object>}
+   */
+  get tooConfigurationsList() {
+    return Array.from(this.#tooConfigurations.values());
   }
 
   get normalObservationsCount() {
@@ -281,18 +510,6 @@ class GPPModel {
     const program = this.#programs.get(programId);
     this.#activeProgram = program || null;
     return program;
-  }
-
-  /**
-   * Get a too observation object that is already in the cache. Also sets the active
-   * observation to track the last retrieved.
-   * @param {string} observationId
-   * @returns {Object|undefined}
-   */
-  getTooObservation(observationId) {
-    const obs = this.#tooObservations.get(observationId);
-    this.#activeObservation = obs || null;
-    return obs;
   }
 
   /**
@@ -321,22 +538,6 @@ class GPPModel {
    */
   get activeProgram() {
     return this.#activeProgram;
-  }
-
-  /**
-   * All cached too observations as an array.
-   * @type {!Array<!Object>}
-   */
-  get tooObservationsList() {
-    return Array.from(this.#tooObservations.values());
-  }
-
-  /**
-   * All cached too observation IDs.
-   * @type {!Array<string>}
-   */
-  get tooObservationsIds() {
-    return Array.from(this.#tooObservations.keys());
   }
 
   /**
@@ -428,7 +629,7 @@ class GPPView {
    * @param {Object} observation
    * @private
    */
-  #updateNormalObservation(observation) {
+  #updateNormalObservation(observation, fieldOptions) {
     const isCalibration = Boolean(observation?.calibrationRole);
     const isLocked =
       observation?.workflow?.value?.state === "COMPLETED" ||
@@ -440,22 +641,24 @@ class GPPView {
       readOnly: isCalibration || isLocked,
       allowStateEdit: isCalibration && !isLocked,
       target: this.#targetInfo(),
+      fieldOptions,
       callbacks: this.#buildObservationFormCallbacks(),
     });
   }
 
   /**
-   * Update the observation form with a ToO observation.
-   * @param {Object} observation
+   * Update the observation form with an approved ToO configuration.
+   * @param {Object} observation - Observation shaped data for the form.
+   * @param {Object} fieldOptions - Choices left open by the configuration.
    * @private
    */
-  #updateTooObservation(observation) {
-
+  #updateTooConfiguration(observation, fieldOptions) {
     this.#form = new ObservationForm(this.#formContainer, {
       observation: observation,
       mode: "too",
       readOnly: false,
       target: this.#targetInfo(),
+      fieldOptions,
       callbacks: this.#buildObservationFormCallbacks(),
     });
   }
@@ -472,6 +675,23 @@ class GPPView {
       ra: this.#options.targetRa,
       dec: this.#options.targetDec,
     };
+  }
+
+  /**
+   * Show that the form is being put together, since the configuration options
+   * are fetched from GPP before it can be rendered.
+   * @private
+   */
+  #showObservationFormLoading() {
+    this.#form = null;
+    this.#formContainer.innerHTML = `
+      <div class="d-flex justify-content-center align-items-center gap-2 py-5 my-3 text-body-secondary">
+        <div class="spinner-border" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <span class="fst-italic">Loading the approved configuration...</span>
+      </div>
+    `;
   }
 
   /**
@@ -555,12 +775,12 @@ class GPPView {
         this.#poPanel.toggleNormalLoading(false);
         break;
       case "updateNormalObservation":
-        this.#updateNormalObservation(parameter.observation);
+        this.#updateNormalObservation(parameter.observation, parameter.fieldOptions);
         break;
 
       // ToO observation renders.
-      case "updateTooObservations":
-        this.#poPanel.updateTooObservations(parameter.observations);
+      case "updateTooConfigurations":
+        this.#poPanel.updateTooConfigurations(parameter.configurations);
         break;
       case "showCreateNewObservation":
         this.#showCreateNewObservation();
@@ -575,8 +795,8 @@ class GPPView {
       case "tooObservationsLoaded":
         this.#poPanel.toggleTooLoading(false);
         break;
-      case "updateTooObservation":
-        this.#updateTooObservation(parameter.observation);
+      case "updateTooConfiguration":
+        this.#updateTooConfiguration(parameter.observation, parameter.fieldOptions);
         break;
 
       // Observation helpers.
@@ -586,10 +806,19 @@ class GPPView {
       case "enableObservationButtons":
         this.#poPanel.toggleAllButtons(false);
         break;
+      case "disableTooButtons":
+        this.#poPanel.toggleTooButtons(true);
+        break;
+      case "enableTooButtons":
+        this.#poPanel.toggleTooButtons(false);
+        break;
 
       // Form renders.
       case "clearObservationForm":
         this.#clearObservationForm();
+        break;
+      case "observationFormLoading":
+        this.#showObservationFormLoading();
         break;
       case "getFormData":
         return this.#getFormData();
@@ -614,8 +843,8 @@ class GPPView {
       case "selectNormalObservation":
         this.#poPanel.onNormalSelect((id) => handler({ observationId: id }));
         break;
-      case "selectTooObservation":
-        this.#poPanel.onTooSelect((id) => handler({ observationId: id }));
+      case "selectTooConfiguration":
+        this.#poPanel.onTooSelect((id) => handler({ configurationId: id }));
         break;
       case "updateObservation":
         this.#poPanel.onUpdate(handler);
@@ -682,8 +911,8 @@ class GPPController {
     this.#view.bindCallback("saveObservation", () => this.#saveObservation());
 
     // ToO observation callbacks.
-    this.#view.bindCallback("selectTooObservation", (item) => {
-      this.#selectTooObservation(item.observationId);
+    this.#view.bindCallback("selectTooConfiguration", (item) => {
+      this.#selectTooConfiguration(item.configurationId);
     });
     this.#view.bindCallback("createAndSaveTooObservation", () =>
       this.#createAndSaveTooObservation(),
@@ -1117,15 +1346,16 @@ class GPPController {
     this.#view.render("normalObservationsLoading");
     this.#view.render("tooObservationsLoading");
 
-    // Fetch observations again.
+    // Fetch observations and approved configurations again.
     await this.#model.fetchObservations(programId);
+    await this.#model.fetchTooConfigurations(programId);
 
     // Update both lists in one go.
     this.#view.render("updateNormalObservations", {
       observations: this.#model.normalObservationsList,
     });
-    this.#view.render("updateTooObservations", {
-      observations: this.#model.tooObservationsList,
+    this.#view.render("updateTooConfigurations", {
+      configurations: this.#model.tooConfigurationsList,
     });
 
     // Remove loading states.
@@ -1187,6 +1417,7 @@ class GPPController {
       return;
     }
     this.#view.render("programsLoading");
+    await this.#model.fetchEnums();
     await this.#model.fetchPrograms();
 
     // Check if programs are available.
@@ -1208,13 +1439,41 @@ class GPPController {
   #selectNormalObservation(observationId) {
     this.#view.render("clearObservationForm");
     const observation = this.#model.getNormalObservation(observationId);
-    this.#view.render("updateNormalObservation", { observation });
+    this.#view.render("updateNormalObservation", {
+      observation,
+      fieldOptions: this.#model.enumFieldOptions(),
+    });
   }
 
-  #selectTooObservation(observationId) {
-    this.#view.render("clearObservationForm");
-    const observation = this.#model.getTooObservation(observationId);
-    this.#view.render("updateTooObservation", { observation });
+  /**
+   * Fired when the user picks an approved ToO configuration. The form is filled
+   * with what was approved, and the choices the configuration leaves open are
+   * narrowed down to what the instrument actually supports.
+   * @param {string} configurationId
+   * @private
+   */
+  async #selectTooConfiguration(configurationId) {
+    const configurationRequest = this.#model.getTooConfiguration(configurationId);
+    const instrument =
+      configurationRequest?.configuration?.observingMode?.instrument;
+
+    // The options come from GPP, so nothing can be created until they land.
+    this.#view.render("observationFormLoading");
+    this.#view.render("disableTooButtons");
+    try {
+      const configOptions = await this.#model.fetchConfigOptions(instrument);
+      const { observation, fieldOptions } = this.#model.buildConfigurationObservation(
+        configurationRequest,
+        configOptions,
+      );
+      // The instrument options narrow down what the enums offer.
+      this.#view.render("updateTooConfiguration", {
+        observation,
+        fieldOptions: { ...this.#model.enumFieldOptions(), ...fieldOptions },
+      });
+    } finally {
+      this.#view.render("enableTooButtons");
+    }
   }
 }
 

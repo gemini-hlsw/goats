@@ -13,17 +13,17 @@ class Lookups {
     POINT_SIX: "< 0.60",
     POINT_EIGHT: "< 0.80",
     ONE_POINT_ZERO: "< 1.00",
+    ONE_POINT_TWO: "< 1.20",
     ONE_POINT_FIVE: "< 1.50",
     TWO_POINT_ZERO: "< 2.00",
-    THREE_POINT_ZERO: "< 3.00",
   };
 
   static cloudExtinction = {
+    ZERO: "0.00 mag",
     POINT_ONE: "< 0.10 mag",
     POINT_THREE: "< 0.30 mag",
     POINT_FIVE: "< 0.50 mag",
     ONE_POINT_ZERO: "< 1.00 mag",
-    ONE_POINT_FIVE: "< 1.50 mag",
     TWO_POINT_ZERO: "< 2.00 mag",
     THREE_POINT_ZERO: "< 3.00 mag",
   };
