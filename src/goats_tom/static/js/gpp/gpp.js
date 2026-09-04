@@ -246,7 +246,8 @@ class GPPModel {
       );
 
       const tooResults = matches?.too?.results ?? [];
-      const normalResults = matches?.normal?.results ?? [];
+      // Every observation of the program, ToO ones included.
+      const normalResults = matches?.all?.results ?? [];
 
       // Helper to bulk-fill a map from results.
       const fillMap = (map, results) => {
@@ -428,9 +429,7 @@ class GPPView {
    * @private
    */
   #updateNormalObservation(observation) {
-    const hasProposalStatus = Boolean(observation?.proposalStatus);
-    const hasMode = Boolean(observation?.scienceRequirements?.mode);
-    const isCalibration = !hasMode && !hasProposalStatus;
+    const isCalibration = Boolean(observation?.calibrationRole);
     const isLocked =
       observation?.workflow?.value?.state === "COMPLETED" ||
       observation?.workflow?.value?.state === "ONGOING";

@@ -682,7 +682,9 @@ class TestGPPObservationViewSet:
             == "GPP login credentials are not configured for this user."
         )
 
-    def test_list_observations_with_program_id_splits_too_and_normal(self, mocker):
+    def test_list_observations_with_program_id_lists_all_and_splits_too(
+        self, mocker
+    ):
         too_obs = {
             "id": "o-too",
             "targetEnvironment": {
@@ -716,8 +718,12 @@ class TestGPPObservationViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["matches"]["too"]["count"] == 1
         assert response.data["matches"]["too"]["results"] == [too_obs]
-        assert response.data["matches"]["normal"]["count"] == 1
-        assert response.data["matches"]["normal"]["results"] == [normal_obs]
+        # Every observation is listed, flagged so the UI can group them by type.
+        assert response.data["matches"]["all"]["count"] == 2
+        assert response.data["matches"]["all"]["results"] == [
+            {**too_obs, "isToo": True},
+            {**normal_obs, "isToo": False},
+        ]
         assert response.data["hasMore"] is True
         mock_client.return_value.goats.get_observations_by_program_id.assert_called_once_with(
             program_id="p-1"
@@ -757,8 +763,12 @@ class TestGPPObservationViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["matches"]["too"]["count"] == 0
         assert response.data["matches"]["too"]["results"] == []
-        assert response.data["matches"]["normal"]["count"] == 1
-        assert response.data["matches"]["normal"]["results"] == [normal_obs]
+        # It is kept out of the ToO select, but still listed as an observation.
+        assert response.data["matches"]["all"]["count"] == 2
+        assert response.data["matches"]["all"]["results"] == [
+            {**unapproved_too_obs, "isToo": True},
+            {**normal_obs, "isToo": False},
+        ]
 
     def test_list_observations_handles_client_exception(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
