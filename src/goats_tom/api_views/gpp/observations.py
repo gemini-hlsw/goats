@@ -10,10 +10,13 @@ from typing import Any, List
 
 from asgiref.sync import async_to_sync
 from gpp_client import GPPClient
-from gpp_client.generated.enums import AttachmentType, ObservationWorkflowState
+from gpp_client.generated.enums import AttachmentType
 from gpp_client.generated.input_types import (
-    CloneObservationInput,
+    CreateObservationInput,
+    ScienceRequirementsInput,
+    SpectroscopyScienceRequirementsInput,
     TargetEnvironmentInput,
+    WavelengthInput,
 )
 from rest_framework import permissions, status
 from rest_framework.decorators import action
@@ -27,10 +30,16 @@ from tom_observations.models import ObservationRecord
 from goats_tom.context_processors.goats_version_processor import get_goats_version
 from goats_tom.serializers.gpp import (
     ContextSerializer,
+    CreateContextSerializer,
     ObservationSerializer,
     TargetSerializer,
     WorkflowStateSerializer,
 )
+from goats_tom.serializers.gpp.instruments.gmos.exposure_mode import (
+    ExposureModeSerializer,
+)
+
+from ._credentials import GPPCredentialsMixin
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +192,7 @@ def build_failure_response(
     )
 
 
-class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
+class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListModelMixin):
     serializer_class = None
     permission_classes = [permissions.IsAuthenticated]
     queryset = None
@@ -304,59 +313,133 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             if str(a["id"]) not in removed
         ]
         # add new finder charts to program
-        if to_add:
-            program_charts = self._get_program_finder_charts(client, program_id)
+        return self._upload_finder_charts(
+            client=client,
+            program_id=program_id,
+            to_add=to_add,
+            current_ids=currentIds,
+        )
 
-            for item in to_add:
-                description = item.get("description", "")
-                file = item.get("file")
+    def _upload_finder_charts(
+        self,
+        client: GPPClient,
+        program_id: str,
+        to_add: list[dict[str, Any]],
+        current_ids: list[str] | None = None,
+    ) -> list[str]:
+        """Upload finder charts to a program and return the attachment IDs.
 
-                if not file:
-                    continue
+        Parameters
+        ----------
+        client : GPPClient
+            The client used to talk to GPP.
+        program_id : str
+            The program the charts are stored in.
+        to_add : list[dict[str, Any]]
+            The charts to upload, as normalized by the form.
+        current_ids : list[str] | None, optional
+            Attachment IDs the observation already references.
 
-                file.seek(0)
-                # GPP rejects duplicate file names within a program, so a chart
-                # already stored under the same name is reused, keeping its id so
-                # other observations referencing it stay valid.
-                existing_id = program_charts.get(file.name.lower())
+        Returns
+        -------
+        list[str]
+            The attachment IDs the observation should reference.
+        """
+        attachment_ids = list(current_ids or [])
 
-                if existing_id is not None:
-                    # Replacing the stored content needs the confirmation the
-                    # editor asks for; otherwise the chart is simply attached.
-                    if item.get("overwrite"):
-                        try:
-                            async_to_sync(client.attachment.update_by_id)(
-                                attachment_id=existing_id,
-                                file_name=file.name,
-                                description=description or None,
-                                content=file.read(),
-                            )
-                        except Exception as e:
-                            raise ValueError(
-                                f"Failed to overwrite finder chart '{file.name}': {e}"
-                            ) from e
+        if not to_add:
+            return attachment_ids
 
-                    if existing_id not in currentIds:
-                        currentIds.append(existing_id)
-                    continue
+        program_charts = self._get_program_finder_charts(client, program_id)
 
-                try:
-                    newId = async_to_sync(client.attachment.upload)(
-                        program_id=program_id,
-                        attachment_type=AttachmentType("FINDER"),
-                        file_name=file.name,
-                        description=description,
-                        content=file.read(),
-                    )
-                except Exception as e:
-                    raise ValueError(
-                        f"Failed to upload finder chart '{file.name}': {e}"
-                    ) from e
+        for item in to_add:
+            description = item.get("description", "")
+            file = item.get("file")
 
-                currentIds.append(newId)
-                program_charts[file.name.lower()] = str(newId)
+            if not file:
+                continue
 
-        return currentIds
+            file.seek(0)
+            # GPP rejects duplicate file names within a program, so a chart
+            # already stored under the same name is reused, keeping its id so
+            # other observations referencing it stay valid.
+            existing_id = program_charts.get(file.name.lower())
+
+            if existing_id is not None:
+                # Replacing the stored content needs the confirmation the
+                # editor asks for; otherwise the chart is simply attached.
+                if item.get("overwrite"):
+                    try:
+                        async_to_sync(client.attachment.update_by_id)(
+                            attachment_id=existing_id,
+                            file_name=file.name,
+                            description=description or None,
+                            content=file.read(),
+                        )
+                    except Exception as e:
+                        raise ValueError(
+                            f"Failed to overwrite finder chart '{file.name}': {e}"
+                        ) from e
+
+                if existing_id not in attachment_ids:
+                    attachment_ids.append(existing_id)
+                continue
+
+            try:
+                newId = async_to_sync(client.attachment.upload)(
+                    program_id=program_id,
+                    attachment_type=AttachmentType("FINDER"),
+                    file_name=file.name,
+                    description=description,
+                    content=file.read(),
+                )
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to upload finder chart '{file.name}': {e}"
+                ) from e
+
+            attachment_ids.append(newId)
+            program_charts[file.name.lower()] = str(newId)
+
+        return attachment_ids
+
+    def _build_science_requirements(
+        self, data: dict[str, Any], observing_mode: str
+    ) -> ScienceRequirementsInput | None:
+        """Build the science requirements of an observation created from scratch.
+
+        Parameters
+        ----------
+        data : dict[str, Any]
+            The normalized form data.
+        observing_mode : str
+            The observing mode of the new observation.
+
+        Returns
+        -------
+        ScienceRequirementsInput | None
+            The science requirements, or ``None`` if the form carried none.
+        """
+        exposure_time_mode = None
+        if data.get("exposureModeSelect"):
+            exposure_mode_serializer = ExposureModeSerializer(data=data)
+            exposure_mode_serializer.is_valid(raise_exception=True)
+            exposure_time_mode = exposure_mode_serializer.to_pydantic()
+
+        spectroscopy = None
+        central_wavelength = data.get("centralWavelengthInput")
+        if observing_mode.endswith("LONG_SLIT") and central_wavelength:
+            spectroscopy = SpectroscopyScienceRequirementsInput(
+                wavelength=WavelengthInput(nanometers=float(central_wavelength))
+            )
+
+        if exposure_time_mode is None and spectroscopy is None:
+            return None
+
+        return ScienceRequirementsInput(
+            exposure_time_mode=exposure_time_mode,
+            spectroscopy=spectroscopy,
+        )
 
     def _normalize_form_data(self, request: Request) -> dict[str, Any]:
         """
@@ -411,15 +494,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         PermissionDenied
             If the authenticated user has not configured GPP login credentials.
         """
-        if not hasattr(request.user, "gpplogin"):
-            logger.error(
-                "GPP login credentials are not configured for user: %s",
-                request.user,
-            )
-            return Response(
-                {"detail": "GPP login credentials are not configured for this user."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if (denied := self.missing_credentials(request)) is not None:
+            return denied
 
         credentials = request.user.gpplogin
         program_id = request.query_params.get("program_id")
@@ -435,21 +511,18 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                     program_id=program_id
                 )
                 data = payload.model_dump(by_alias=True)["observations"]
+                # One list with every observation, each flagged so the select
+                # can group them by type. The ToO select is fed by the approved
+                # configuration requests, not by observations.
                 matches = data.get("matches", [])
-                too_obs = [o for o in matches if self.is_too(o) and self.is_approved(o)]
-                # The observations select lists them all, flagged so it can group
-                # them by type.
                 observations = [{**o, "isToo": self.is_too(o)} for o in matches]
 
                 # Build the custom data response.
                 return Response(
                     {
                         "matches": {
-                            "too": {"count": len(too_obs), "results": too_obs},
-                            "all": {
-                                "count": len(observations),
-                                "results": observations,
-                            },
+                            "count": len(observations),
+                            "results": observations,
                         },
                         "hasMore": data.get("hasMore", False),
                     }
@@ -489,26 +562,6 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             return False
         return bool(asterisms[0].get("opportunity"))
 
-    def is_approved(self, obs: dict) -> bool:
-        """Return whether the observation has been approved.
-
-        Parameters
-        ----------
-        obs : dict
-            The observation payload returned from GPP. This may or may not
-            contain the ``workflow`` key.
-
-        Returns
-        -------
-        bool
-            ``True`` if the observation workflow state is ``DEFINED``, ``False``
-            otherwise.
-        """
-        # ``workflow`` is nullable and may be absent while GPP recalculates it.
-        workflow = obs.get("workflow") or {}
-        value = workflow.get("value") or {}
-        return value.get("state") == ObservationWorkflowState.DEFINED
-
     def retrieve(self, request: Request, *args, **kwargs) -> Response:
         """Return details for a specific GPP observation by observation ID.
 
@@ -532,15 +585,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         # This is not in-use for right now but keeping it as a placeholder.
         observation_id = kwargs["pk"]
 
-        if not hasattr(request.user, "gpplogin"):
-            logger.error(
-                "GPP login credentials are not configured for user: %s",
-                request.user,
-            )
-            return Response(
-                {"detail": "GPP login credentials are not configured for this user."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if (denied := self.missing_credentials(request)) is not None:
+            return denied
         credentials = request.user.gpplogin
 
         # Setup client to communicate with GPP.
@@ -966,10 +1012,8 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             client = GPPClient(token=credentials.token)
 
             # Validate and extract required IDs for observation creation.
-            context_serializer = ContextSerializer(data=normalized_data)
+            context_serializer = CreateContextSerializer(data=normalized_data)
             context_serializer.is_valid(raise_exception=True)
-            gpp_target_id = context_serializer.gpp_target_id
-            gpp_observation_id = context_serializer.gpp_observation_id
             gpp_program_id = context_serializer.gpp_program_id
             goats_target = context_serializer.goats_target
             instrument = context_serializer.instrument
@@ -989,6 +1033,15 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
             # Set subtitle to a GOATS identifier for easier tracking.
             apply_goats_subtitle(observation_properties, normalized_data)
 
+            # Nothing is cloned, so the science requirements are built from what
+            # the form submitted. GPP derives binning, ROI, read mode and the
+            # dithers from the setup itself, so those are left out.
+            science_requirements = self._build_science_requirements(
+                normalized_data, instrument
+            )
+            if science_requirements is not None:
+                observation_properties.science_requirements = science_requirements
+
             # Serialize and validate workflow state.
             workflow_state_serializer = WorkflowStateSerializer(data=normalized_data)
             workflow_state_serializer.is_valid(raise_exception=True)
@@ -1007,16 +1060,16 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
         # Create target.
         logger.debug("Creating sidereal target in GPP")
         try:
-            clone_target_result = async_to_sync(client.target.clone)(
-                gpp_target_id, properties=target_properties
+            create_target_result = async_to_sync(client.target.create_by_program_id)(
+                gpp_program_id, properties=target_properties
             )
-            clone_target_dump = clone_target_result.model_dump(by_alias=True)
+            create_target_dump = create_target_result.model_dump(by_alias=True)
             new_target_id = (
-                clone_target_dump.get("cloneTarget", {}).get("newTarget", {}).get("id")
+                create_target_dump.get("createTarget", {}).get("target", {}).get("id")
             )
 
             if new_target_id is None:
-                raise ValueError("Failed to retrieve new target ID from clone result.")
+                raise ValueError("Failed to retrieve new target ID from create result.")
 
             messages.append(
                 StageMessage(
@@ -1036,51 +1089,40 @@ class GPPObservationViewSet(GenericViewSet, mixins.ListModelMixin):
                 asterism=[new_target_id]
             )
 
+            # The observation is new, so only the charts the user added apply:
+            # there is no source observation to inherit or unassign from.
             finder_charts = normalized_data.get("finderCharts") or {}
-            if any(finder_charts.get(k) for k in ("toAdd", "toDelete", "toUnassign")):
-                # Creating clones another observation, so the attachments read
-                # here belong to the clone source. Removals can only mean "do not
-                # inherit"; deleting would destroy the source observation's chart.
-                finder_charts = {
-                    **finder_charts,
-                    "toDelete": [],
-                    "toUnassign": [
-                        *finder_charts.get("toUnassign", []),
-                        *finder_charts.get("toDelete", []),
-                    ],
-                }
-                finder_chart_ids = self._process_finder_charts(
+            if finder_charts.get("toAdd"):
+                observation_properties.attachments = self._upload_finder_charts(
                     client=client,
-                    observation_id=gpp_observation_id,
                     program_id=gpp_program_id,
-                    finder_charts=finder_charts,
+                    to_add=finder_charts["toAdd"],
                 )
-                observation_properties.attachments = finder_chart_ids
 
-            clone_input = CloneObservationInput(
-                observation_id=gpp_observation_id,
+            create_input = CreateObservationInput(
+                program_id=gpp_program_id,
                 set_=observation_properties,
             )
             try:
-                clone_observation_result = async_to_sync(client.observation.clone)(
-                    input=clone_input,
+                create_observation_result = async_to_sync(client.observation.create)(
+                    input=create_input,
                 )
-                clone_observation_dump = clone_observation_result.model_dump(
+                create_observation_dump = create_observation_result.model_dump(
                     by_alias=True
                 )
-            except Exception as error_clone:
-                if "background calculation" not in str(error_clone):
+            except Exception as error_create:
+                if "background calculation" not in str(error_create):
                     raise
-                clone_observation_dump = error_clone.data or {}
+                create_observation_dump = error_create.data or {}
 
-            new_observation = clone_observation_dump.get("cloneObservation", {}).get(
-                "newObservation", {}
+            new_observation = create_observation_dump.get("createObservation", {}).get(
+                "observation", {}
             )
             new_observation_id = new_observation.get("id")
 
             if new_observation_id is None:
                 raise ValueError(
-                    "Failed to retrieve new observation ID from clone result."
+                    "Failed to retrieve new observation ID from create result."
                 )
 
             messages.append(

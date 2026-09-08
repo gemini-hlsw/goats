@@ -8,6 +8,11 @@ __all__ = ["GMOSSouthLongSlitSerializer"]
 
 from typing import Any
 
+from gpp_client.generated.enums import (
+    GmosSouthBuiltinFpu,
+    GmosSouthFilter,
+    GmosSouthGrating,
+)
 from gpp_client.generated.input_types import GmosSouthLongSlitInput
 from rest_framework import serializers
 
@@ -19,6 +24,26 @@ class GMOSSouthLongSlitSerializer(_BaseGMOSSerializer):
     """Serializer for GMOS-South long slit input data."""
 
     centralWavelengthInput = serializers.FloatField(required=False, allow_null=True)
+    # Only sent when creating from an approved configuration; updating an
+    # existing observation leaves the optics alone.
+    hiddenGratingInput = serializers.ChoiceField(
+        choices=[g.value for g in GmosSouthGrating],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    fpuSelect = serializers.ChoiceField(
+        choices=[f.value for f in GmosSouthBuiltinFpu],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    filterSelect = serializers.ChoiceField(
+        choices=[f.value for f in GmosSouthFilter],
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
     spatialOffsetsInput = CommaSeparatedFloatField(required=False, allow_null=True)
     wavelengthDithersInput = CommaSeparatedFloatField(required=False, allow_null=True)
 
@@ -36,6 +61,15 @@ class GMOSSouthLongSlitSerializer(_BaseGMOSSerializer):
         """
         data = self.validated_data
         result: dict[str, Any] = {}
+
+        if grating := data.get("hiddenGratingInput"):
+            result["grating"] = grating
+
+        if fpu := data.get("fpuSelect"):
+            result["fpu"] = fpu
+
+        if filter_ := data.get("filterSelect"):
+            result["filter"] = filter_
 
         if (cw := data.get("centralWavelengthInput")) is not None:
             result["centralWavelength"] = {"nanometers": cw}

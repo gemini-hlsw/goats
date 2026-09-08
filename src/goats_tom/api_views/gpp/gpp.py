@@ -11,8 +11,10 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from ._credentials import GPPCredentialsMixin
 
-class GPPViewSet(viewsets.GenericViewSet):
+
+class GPPViewSet(GPPCredentialsMixin, viewsets.GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     @action(detail=False, methods=["get"])
@@ -28,11 +30,8 @@ class GPPViewSet(viewsets.GenericViewSet):
             If the endpoint is unreachable, returns HTTP 502.
             Otherwise, returns HTTP 200 with success detail.
         """
-        if not hasattr(request.user, "gpplogin"):
-            return Response(
-                {"detail": "GPP login credentials are not configured for this user."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if (denied := self.missing_credentials(request)) is not None:
+            return denied
 
         credentials = request.user.gpplogin
         client = GPPClient(token=credentials.token)
