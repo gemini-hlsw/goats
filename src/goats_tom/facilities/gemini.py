@@ -144,6 +144,44 @@ class GMOSNorthLongSlitForm(GEMObservationForm):
     }
 
 
+class GMOSImagingFiltersField(forms.CharField):
+    """Char field that flattens the GPP list of imaging filters into a string."""
+
+    def to_python(self, value: Any) -> str | None:
+        # GPP returns `filters` as a list of ``{"filter": <name>}`` entries.
+        if isinstance(value, list):
+            value = ", ".join(
+                str(item.get("filter")) if isinstance(item, dict) else str(item)
+                for item in value
+                if item is not None
+            )
+        return super().to_python(value)
+
+
+class GMOSSouthImagingForm(GEMObservationForm):
+    """
+    Form for GMOS South Imaging instrument.
+    """
+
+    filters = GMOSImagingFiltersField(required=False)
+
+    FIELD_MAP = {
+        "filters": "observingMode.gmosSouthImaging.filters",
+    }
+
+
+class GMOSNorthImagingForm(GEMObservationForm):
+    """
+    Form for GMOS North Imaging instrument.
+    """
+
+    filters = GMOSImagingFiltersField(required=False)
+
+    FIELD_MAP = {
+        "filters": "observingMode.gmosNorthImaging.filters",
+    }
+
+
 class GOATSGEMFacility(BaseRoboticObservationFacility):
     """The ``GEMFacility`` is the interface to the Gemini Telescope. For
     information regarding Gemini observing and the available parameters, please
@@ -154,6 +192,8 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
     observation_forms = {
         ObservingModeType.GMOS_SOUTH_LONG_SLIT.value: GMOSSouthLongSlitForm,
         ObservingModeType.GMOS_NORTH_LONG_SLIT.value: GMOSNorthLongSlitForm,
+        ObservingModeType.GMOS_SOUTH_IMAGING.value: GMOSSouthImagingForm,
+        ObservingModeType.GMOS_NORTH_IMAGING.value: GMOSNorthImagingForm,
     }
 
     def get_form(self, observation_type):

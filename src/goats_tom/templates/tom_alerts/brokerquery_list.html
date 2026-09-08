@@ -1,5 +1,5 @@
 {% extends 'tom_common/base.html' %}
-{% load bootstrap4 static %}
+{% load bootstrap4 static sorting %}
 {% block title %}Query List{% endblock %}
 {% block content %}
 <h3>Query a Broker</h3>
@@ -12,7 +12,16 @@
       {% endfor %}
     </p>
     <table class="table table-striped">
-      <thead><tr><th>Name</th><th>Broker</th><th>Created</th><th>Last Run</th><th>Run</th><th>Delete</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Broker</th>
+          {% sortable_header "created" "Created" %}
+          {% sortable_header "last_run" "Last Run" %}
+          <th>Run</th>
+          <th>Delete</th>
+        </tr>
+      </thead>
       <tbody id="queryTable">
         {% for query in filter.qs %}
         <tr>

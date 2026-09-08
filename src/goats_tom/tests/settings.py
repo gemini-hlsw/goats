@@ -76,6 +76,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Required by the TOM list views, which read `request.htmx`.
+    "django_htmx.middleware.HtmxMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "goats_tom.middleware.PermissionDeniedMiddleware",
@@ -306,6 +308,7 @@ DATA_PROCESSORS = {
 
 TOM_FACILITY_CLASSES = [
     "goats_tom.facilities.GOATSGEMFacility",
+    "goats_tom.facilities.BLANCOFacility",
     "tom_observations.facilities.lco.LCOFacility",
     # 'tom_observations.facilities.gemini.GEMFacility',
     "tom_observations.facilities.soar.SOARFacility",

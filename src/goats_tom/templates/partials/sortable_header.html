@@ -1,0 +1,12 @@
+<th>
+  <a href="{{ url }}" class="text-reset text-decoration-none" title="Sort by {{ label }}">
+    {{ label }}
+    {% if ascending %}
+    <i class="fa-solid fa-arrow-up-short-wide"></i>
+    {% elif descending %}
+    <i class="fa-solid fa-arrow-down-wide-short"></i>
+    {% else %}
+    <i class="fa-solid fa-sort text-muted"></i>
+    {% endif %}
+  </a>
+</th>

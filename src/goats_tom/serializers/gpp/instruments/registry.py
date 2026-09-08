@@ -11,7 +11,9 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from goats_tom.serializers.gpp.instruments import (
+    GMOSNorthImagingSerializer,
     GMOSNorthLongSlitSerializer,
+    GMOSSouthImagingSerializer,
     GMOSSouthLongSlitSerializer,
 )
 
@@ -26,6 +28,10 @@ class InstrumentRegistry:
         ObservingModeType.GMOS_SOUTH_LONG_SLIT.value: GMOSSouthLongSlitSerializer,
         # GMOS North Long Slit.
         ObservingModeType.GMOS_NORTH_LONG_SLIT.value: GMOSNorthLongSlitSerializer,
+        # GMOS South Imaging.
+        ObservingModeType.GMOS_SOUTH_IMAGING.value: GMOSSouthImagingSerializer,
+        # GMOS North Imaging.
+        ObservingModeType.GMOS_NORTH_IMAGING.value: GMOSNorthImagingSerializer,
     }
     """
     Defines the mapping from observing mode type keys to their corresponding serializer

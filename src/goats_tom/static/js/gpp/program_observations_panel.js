@@ -116,26 +116,57 @@ class ProgramObservationsPanel {
    * @param {!Array<Object>} programs - Array of program objects.
    */
   updatePrograms(programs) {
-    this.#fillSelect(
-      this.#programSelect,
-      programs,
+    this.#fillSelect(this.#programSelect, programs, {
       // Use program reference label if available, else ID.
-      (p) => `${p.reference?.label ?? p.id} - ${p.name ?? p.title ?? ""}`,
-    );
+      getLabel: (p) => `${p.reference?.label ?? p.id} - ${p.name ?? p.title ?? ""}`,
+    });
   }
   /**
-   * Populate the normal observations <select>.
+   * Populate the observations <select> with every observation of the program,
+   * split into normal, ToO and calibration groups.
    * @param {!Array<Object>} observations - Array of observation objects.
    */
   updateNormalObservations(observations) {
-    this.#fillSelect(this.#normalSelect, observations);
+    this.#fillSelect(this.#normalSelect, observations, {
+      groups: ["Normal", "ToO", "Calibrations"],
+      getGroup: (o) => {
+        if (o?.calibrationRole) return "Calibrations";
+        return o?.isToo ? "ToO" : "Normal";
+      },
+    });
   }
   /**
-   * Populate the ToO observations <select>.
-   * @param {!Array<Object>} observations - Array of observation objects.
+   * Populate the approved ToO configurations <select>.
+   * @param {!Array<Object>} configurations - Array of configuration requests.
    */
-  updateTooObservations(observations) {
-    this.#fillSelect(this.#tooSelect, observations);
+  updateTooConfigurations(configurations) {
+    this.#fillSelect(this.#tooSelect, configurations, {
+      getLabel: (c) => ProgramObservationsPanel.configurationLabel(c),
+    });
+  }
+  /**
+   * Build a readable label for an approved configuration request.
+   * @param {!Object} configuration - Configuration request object.
+   * @returns {string}
+   */
+  static configurationLabel(configuration) {
+    const mode = configuration?.configuration?.observingMode ?? {};
+    const conditions = configuration?.configuration?.conditions ?? {};
+    const instrument = Lookups.instrument[mode.instrument] ?? mode.instrument ?? "";
+    // An approved configuration fixes the disperser, or the filters.
+    const optics =
+      mode.gmosNorthLongSlit?.grating ??
+      mode.gmosSouthLongSlit?.grating ??
+      (mode.gmosNorthImaging?.filters ?? mode.gmosSouthImaging?.filters ?? []).join(
+        ", ",
+      );
+    const iq = Lookups.imageQuality[conditions.imageQuality] ?? "";
+    const cc = Lookups.cloudExtinction[conditions.cloudExtinction] ?? "";
+    const setup = [instrument, optics && Formatters.replaceUnderscore(optics)]
+      .filter(Boolean)
+      .join(" ");
+    const seeing = iq && cc ? ` (IQ ${iq}, CC ${cc})` : "";
+    return `${configuration.id} - ${setup}${seeing}`;
   }
   /**
    * Show or hide loading state for programs.
@@ -406,46 +437,58 @@ class ProgramObservationsPanel {
    * @private
    * @param {!HTMLSelectElement} selectEl - The select element to populate.
    * @param {!Array<Object>} options - Array of objects with `id` and `name` or `title` properties.
-   * @param {function(Object): string} [getLabel] - Optional label resolver.
+   * @param {Object} [opts] - Optional behaviour overrides.
+   * @param {function(Object): string} [opts.getLabel] - Label resolver.
+   * @param {function(Object): ?string} [opts.getGroup] - Resolver returning the
+   *     <optgroup> an entry belongs to, or null to leave it ungrouped.
+   * @param {!Array<string>} [opts.groups] - Group labels, in the order they are rendered.
    */
-    #fillSelect(
-      selectEl,
-      options,
-      getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`
-    ) {
-      while (selectEl.options.length > 1) selectEl.remove(1);
-      Array.from(selectEl.querySelectorAll("optgroup")).forEach(g => g.remove());
-    
-      if (!options || options.length === 0) {
-        this.#showEmpty(selectEl);
-        return;
-      }
-    
-      const frag = document.createDocumentFragment();
-    
-      const calGroup = document.createElement("optgroup");
-      calGroup.label = "Calibrations";
-    
-      options.forEach((o) => {
-        const hasProposalStatus = Boolean(o?.proposalStatus);
-        const hasMode = Boolean(o?.scienceRequirements?.mode);
-        const isCalibration = !hasMode && !hasProposalStatus;
-    
-        const opt = Utils.createElement("option");
-        opt.value = o.id;
-        opt.textContent = getLabel(o);
-    
-        if (isCalibration) {
-          calGroup.appendChild(opt);
-        } else {
-          frag.appendChild(opt);
-        }
-      });
-    
-      if (calGroup.children.length) frag.appendChild(calGroup);
-    
-      selectEl.appendChild(frag);
-      selectEl.disabled = false;
-      this.#logDebug(`Filled select: ${selectEl.id} with ${options.length} items.`);
+  #fillSelect(
+    selectEl,
+    options,
+    {
+      getLabel = (o) => `${o.id} - ${o.name ?? o.title ?? ""}`,
+      getGroup = () => null,
+      groups = [],
+    } = {},
+  ) {
+    while (selectEl.options.length > 1) selectEl.remove(1);
+    Array.from(selectEl.querySelectorAll("optgroup")).forEach((g) => g.remove());
+
+    if (!options || options.length === 0) {
+      this.#showEmpty(selectEl);
+      return;
     }
+
+    const frag = document.createDocumentFragment();
+    const optgroups = new Map(
+      groups.map((label) => {
+        const group = document.createElement("optgroup");
+        group.label = label;
+        return [label, group];
+      }),
+    );
+
+    options.forEach((o) => {
+      const opt = Utils.createElement("option");
+      opt.value = o.id;
+      opt.textContent = getLabel(o);
+
+      const group = optgroups.get(getGroup(o));
+      if (group) {
+        group.appendChild(opt);
+      } else {
+        frag.appendChild(opt);
+      }
+    });
+
+    // Keep the requested group order and drop the ones that stayed empty.
+    optgroups.forEach((group) => {
+      if (group.children.length) frag.appendChild(group);
+    });
+
+    selectEl.appendChild(frag);
+    selectEl.disabled = false;
+    this.#logDebug(`Filled select: ${selectEl.id} with ${options.length} items.`);
+  }
 }

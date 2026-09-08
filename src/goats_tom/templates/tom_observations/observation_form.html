@@ -44,6 +44,15 @@
     <div class="tab-content">
       <div id="gppContainer" class="mt-4" data-user-id="{{ user.id }}" data-facility="{{ form.facility.value }}" data-target-id="{{ target.id }}" data-target-name="{{ target.name }}"{% if target.ra is not None %} data-target-ra="{{ target.ra|deg_to_sexigesimal:'hms' }}"{% endif %}{% if target.dec is not None %} data-target-dec="{{ target.dec|deg_to_sexigesimal:'dms' }}"{% endif %}></div>
     </div>
+    {% elif form.facility.value == "BLANCO" %}
+    <ul class="nav nav-tabs" id="tabs">
+      <li class="nav-item">
+        <span class="nav-link active" aria-current="true">Imaging</span>
+      </li>
+    </ul>
+    <div class="tab-content">
+      <div id="blancoContainer" class="mt-4" data-target-id="{{ target.id }}"></div>
+    </div>
     {% else %}
     <ul class="nav nav-tabs" id="tabs">
       {% for observation_type, observation_form in observation_type_choices %}
@@ -67,6 +76,10 @@
 {% endblock %}
 {% block javascript %}
 {{ block.super }}
+{% if form.facility.value == "BLANCO" %}
+<script src="{% static 'js/blanco/field.js' %}" defer></script>
+<script src="{% static 'js/blanco/observation_form.js' %}" defer></script>
+{% endif %}
 {% if form.facility.value == "GEM" %}
 <script src="{% static 'js/utils.js' %}" defer></script>
 <script src="{% static 'js/api.js' %}" defer></script>

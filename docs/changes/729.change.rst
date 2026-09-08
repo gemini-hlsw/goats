@@ -1,1 +1,0 @@
-Migrated the embedded spectrum viewer to JDaviz's deconfigured app

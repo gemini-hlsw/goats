@@ -1,6 +1,7 @@
 from .antares2goats import Antares2GoatsViewSet
 from .astro_datalab import AstroDatalabViewSet
 from .base_recipe import BaseRecipeViewSet
+from .blanco import BLANCOObservationViewSet
 from .dataproduct_type import DataProductTypeViewSet
 from .dataproducts import DataProductsViewSet, GOATSDataProductViewSet
 from .dragons_caldb import DRAGONSCaldbViewSet
@@ -11,6 +12,9 @@ from .dragons_recipes import DRAGONSRecipesViewSet
 from .dragons_reduce import DRAGONSReduceViewSet
 from .dragons_runs import DRAGONSRunsViewSet
 from .gpp import (
+    GPPConfigOptionsViewSet,
+    GPPConfigurationRequestViewSet,
+    GPPEnumsViewSet,
     GPPFinderChartViewSet,
     GPPObservationViewSet,
     GPPProgramViewSet,
@@ -24,6 +28,7 @@ from .system import SystemViewSet
 from .target import TargetViewSet
 
 __all__ = [
+    "BLANCOObservationViewSet",
     "DRAGONSRecipesViewSet",
     "DRAGONSFilesViewSet",
     "DRAGONSCaldbViewSet",
@@ -44,6 +49,9 @@ __all__ = [
     "GPPProgramViewSet",
     "GPPObservationViewSet",
     "GPPFinderChartViewSet",
+    "GPPConfigurationRequestViewSet",
+    "GPPConfigOptionsViewSet",
+    "GPPEnumsViewSet",
     "TargetViewSet",
     "StatusViewSet",
     "SystemViewSet",

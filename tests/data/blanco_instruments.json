@@ -1,0 +1,351 @@
+{
+ "BLANCO_DECAM": {
+  "camera_type": {
+   "autoguider_field_of_view": 1247.8590222109035,
+   "orientation": 0.0,
+   "pixel_scale": 0.2637,
+   "pixels_x": 126976,
+   "pixels_y": 253952,
+   "science_field_of_view": 1247.8590222109035
+  },
+  "class": "4m0",
+  "configuration_types": {
+   "EXPOSE": {
+    "code": "EXPOSE",
+    "config_change_overhead": 0.0,
+    "force_acquisition_off": false,
+    "name": "Exposure",
+    "requires_optical_elements": true,
+    "schedulable": true,
+    "validation_schema": {}
+   }
+  },
+  "default_acceptability_threshold": 90.0,
+  "default_configuration_type": "EXPOSE",
+  "modes": {
+   "acquisition": {
+    "default": "OFF",
+    "id": 372,
+    "modes": [
+     {
+      "code": "OFF",
+      "id": 37,
+      "name": "Acquire Off",
+      "overhead": 0.0,
+      "schedulable": true,
+      "validation_schema": {}
+     }
+    ],
+    "type": "acquisition"
+   },
+   "guiding": {
+    "default": "ON",
+    "id": 371,
+    "modes": [
+     {
+      "code": "ON",
+      "id": 83,
+      "name": "Guide On",
+      "overhead": 0.0,
+      "schedulable": true,
+      "validation_schema": {}
+     }
+    ],
+    "type": "guiding"
+   },
+   "readout": {
+    "default": "default",
+    "id": 373,
+    "modes": [
+     {
+      "code": "default",
+      "id": 815,
+      "name": "DECam default",
+      "overhead": 22.0,
+      "schedulable": true,
+      "validation_schema": {}
+     }
+    ],
+    "type": "readout"
+   }
+  },
+  "name": "Blanco DECam",
+  "optical_elements": {
+   "filters": [
+    {
+     "code": "r",
+     "default": true,
+     "id": 312,
+     "name": "r",
+     "schedulable": true
+    },
+    {
+     "code": "g",
+     "default": false,
+     "id": 313,
+     "name": "g",
+     "schedulable": true
+    },
+    {
+     "code": "i",
+     "default": false,
+     "id": 314,
+     "name": "i",
+     "schedulable": true
+    },
+    {
+     "code": "z",
+     "default": false,
+     "id": 315,
+     "name": "z",
+     "schedulable": true
+    }
+   ]
+  },
+  "type": "IMAGE",
+  "validation_schema": {
+   "extra_params": {
+    "default": {},
+    "required": true,
+    "schema": {
+     "detector_centering": {
+      "allowed": [
+       "central_gap",
+       "N4",
+       "S4"
+      ],
+      "default": "central_gap",
+      "description": "Which detector to center target on",
+      "type": "string"
+     }
+    },
+    "type": "dict"
+   }
+  }
+ },
+ "BLANCO_NEWFIRM": {
+  "camera_type": {
+   "autoguider_field_of_view": 38.61745834320132,
+   "orientation": 0.0,
+   "pixel_scale": 0.4,
+   "pixels_x": 4096,
+   "pixels_y": 4096,
+   "science_field_of_view": 38.61745834320132
+  },
+  "class": "4m0",
+  "configuration_types": {
+   "DARK": {
+    "code": "DARK",
+    "config_change_overhead": 0.0,
+    "force_acquisition_off": true,
+    "name": "DARK",
+    "requires_optical_elements": false,
+    "schedulable": true,
+    "validation_schema": {}
+   },
+   "EXPOSE": {
+    "code": "EXPOSE",
+    "config_change_overhead": 0.0,
+    "force_acquisition_off": false,
+    "name": "Exposure",
+    "requires_optical_elements": true,
+    "schedulable": true,
+    "validation_schema": {}
+   },
+   "SKY": {
+    "code": "SKY",
+    "config_change_overhead": 0.0,
+    "force_acquisition_off": false,
+    "name": "SKY",
+    "requires_optical_elements": true,
+    "schedulable": true,
+    "validation_schema": {}
+   },
+   "SKY_FLAT": {
+    "code": "SKY_FLAT",
+    "config_change_overhead": 0.0,
+    "force_acquisition_off": false,
+    "name": "SKY_FLAT",
+    "requires_optical_elements": true,
+    "schedulable": true,
+    "validation_schema": {}
+   },
+   "STANDARD": {
+    "code": "STANDARD",
+    "config_change_overhead": 0.0,
+    "force_acquisition_off": false,
+    "name": "STANDARD",
+    "requires_optical_elements": true,
+    "schedulable": true,
+    "validation_schema": {}
+   }
+  },
+  "default_acceptability_threshold": 90.0,
+  "default_configuration_type": "EXPOSE",
+  "modes": {
+   "acquisition": {
+    "default": "MANUAL",
+    "id": 338,
+    "modes": [
+     {
+      "code": "MANUAL",
+      "id": 715,
+      "name": "Acquire Manual Blanco",
+      "overhead": 30.0,
+      "schedulable": true,
+      "validation_schema": {}
+     }
+    ],
+    "type": "acquisition"
+   },
+   "guiding": {
+    "default": "ON",
+    "id": 337,
+    "modes": [
+     {
+      "code": "ON",
+      "id": 83,
+      "name": "Guide On",
+      "overhead": 0.0,
+      "schedulable": true,
+      "validation_schema": {}
+     }
+    ],
+    "type": "guiding"
+   },
+   "readout": {
+    "default": "fowler1",
+    "id": 336,
+    "modes": [
+     {
+      "code": "fowler1",
+      "id": 680,
+      "name": "NewFirm  Fowler-1",
+      "overhead": 2.4,
+      "schedulable": true,
+      "validation_schema": {}
+     },
+     {
+      "code": "fowler2",
+      "id": 781,
+      "name": "NewFirm  Fowler-2",
+      "overhead": 4.8,
+      "schedulable": true,
+      "validation_schema": {}
+     }
+    ],
+    "type": "readout"
+   }
+  },
+  "name": "Blanco NEWFIRM",
+  "optical_elements": {
+   "filters": [
+    {
+     "code": "JX",
+     "default": true,
+     "id": 269,
+     "name": "JX",
+     "schedulable": true
+    },
+    {
+     "code": "HX",
+     "default": false,
+     "id": 270,
+     "name": "HX",
+     "schedulable": true
+    },
+    {
+     "code": "KXs",
+     "default": false,
+     "id": 271,
+     "name": "KXs",
+     "schedulable": true
+    }
+   ]
+  },
+  "type": "IMAGE",
+  "validation_schema": {
+   "extra_params": {
+    "default": {},
+    "required": true,
+    "schema": {
+     "detector_centering": {
+      "allowed": [
+       "none",
+       "det_1",
+       "det_2",
+       "det_3",
+       "det_4"
+      ],
+      "default": "det_1",
+      "description": "Place my target in the center of this detector",
+      "type": "string"
+     },
+     "dither_sequence": {
+      "allowed": [
+       "2x2",
+       "3x3",
+       "4x4",
+       "5-point"
+      ],
+      "default": "2x2",
+      "description": "The pattern to execute your dither points with",
+      "label": "Dither Pattern",
+      "type": "string"
+     },
+     "dither_sequence_random_offset": {
+      "allowed": [
+       true,
+       false
+      ],
+      "default": true,
+      "description": "Implements a random offset between dither patterns if repeating the dither pattern, i.e. when sequence repeats > 1",
+      "type": "boolean"
+     },
+     "dither_value": {
+      "default": 80,
+      "description": "The amount in arc seconds between dither points",
+      "max": 1600,
+      "min": 0,
+      "type": "integer"
+     }
+    },
+    "type": "dict"
+   },
+   "instrument_configs": {
+    "schema": {
+     "schema": {
+      "exposure_time": {
+       "max": 40,
+       "type": "float"
+      },
+      "extra_params": {
+       "default": {},
+       "required": true,
+       "schema": {
+        "coadds": {
+         "default": 1,
+         "description": "This reduces data volume with short integration times necessary for broadband H and Ks observations. Coadding is digital summation of the images to avoid long integrations that could cause saturation of the detector.",
+         "max": 100,
+         "min": 1,
+         "required": true,
+         "type": "integer"
+        },
+        "sequence_repeats": {
+         "default": 1,
+         "description": "The number of times to repeat the dither sequence",
+         "max": 500,
+         "min": 1,
+         "type": "integer"
+        }
+       },
+       "type": "dict"
+      }
+     },
+     "type": "dict"
+    },
+    "type": "list"
+   }
+  }
+ }
+}

@@ -10,6 +10,21 @@ function parseFloatSafe(text) {
 }
 
 /**
+ * Parse a float from a string, returning null when there is nothing to parse.
+ *
+ * Distinguishes "the field is empty" from "the field holds a zero", so an offset
+ * the payload never carried is not submitted as a real value.
+ *
+ * @param {string} text
+ * @returns {number|null}
+ */
+function parseFloatOrNull(text) {
+  if (text == null || String(text).trim() === "") return null;
+  const value = parseFloat(text);
+  return Number.isFinite(value) ? value : null;
+}
+
+/**
  * Parse an integer from a string, returning 0 if invalid.
  *
  * @param {string} text
@@ -174,7 +189,6 @@ class OffsetVariantEditor {
         colClass: "col-12",
         label: "Offset Variant",
         id: `${this.#idPrefix}-variant`,
-        name: "offsetVariant",
         options: Object.values(Lookups.gmosImagingOffsetVariant),
         value: this.#currentVariant,
       }),
@@ -247,7 +261,6 @@ class OffsetVariantEditor {
         colClass: "col-6",
         label: "Offsets",
         id: `${this.#idPrefix}-offsets`,
-        name: "offsets",
         options: Object.values(Lookups.gmosImagingOffsets),
         value: Lookups.gmosImagingOffsets[generatorType] ?? generatorType,
       }),
@@ -261,7 +274,6 @@ class OffsetVariantEditor {
           colClass: "col-6",
           label: "Wavelength Order",
           id: `${this.#idPrefix}-wavelength-order`,
-          name: "wavelengthOrder",
           options: Object.values(Lookups.gmosImagingWavelengthOrder),
           value: Lookups.gmosImagingWavelengthOrder[wavelengthOrder] ?? wavelengthOrder,
         }),
@@ -289,10 +301,8 @@ class OffsetVariantEditor {
       wrapper.append(
         this.#buildPQInputRow({
           pId: `${this.#idPrefix}-offset-${index + 1}-p`,
-          pName: `offset-p-${index + 1}`,
           pValue: offset.p,
           qId: `${this.#idPrefix}-offset-${index + 1}-q`,
-          qName: `offset-q-${index + 1}`,
           qValue: offset.q,
         }),
       );
@@ -321,7 +331,6 @@ class OffsetVariantEditor {
       colClass: "col-6",
       label: "Sky Offset Count",
       id: `${this.#idPrefix}-sky-offset-count`,
-      name: "skyOffsetCount",
       value: skyCount,
       min: 0,
     });
@@ -349,7 +358,6 @@ class OffsetVariantEditor {
         colClass: "col-6",
         label: "Sky Offsets",
         id: `${this.#idPrefix}-sky-offsets`,
-        name: "skyOffsets",
         options: Object.values(Lookups.gmosImagingOffsets),
         value: skyOffsetsLabel,
         // Picking a generator only makes sense once a sky offset is requested.
@@ -445,7 +453,6 @@ class OffsetVariantEditor {
       colClass: "col-5",
       axis: "p",
       id: `${this.#idPrefix}-sky-explicit-p-${index}`,
-      name: `sky-explicit-p-${index}`,
       value: offset.p,
     });
     pField.querySelector("input").addEventListener("change", (event) => {
@@ -457,7 +464,6 @@ class OffsetVariantEditor {
       colClass: "col-5",
       axis: "q",
       id: `${this.#idPrefix}-sky-explicit-q-${index}`,
-      name: `sky-explicit-q-${index}`,
       value: offset.q,
     });
     qField.querySelector("input").addEventListener("change", (event) => {
@@ -568,10 +574,8 @@ class OffsetVariantEditor {
         rowLabel,
         this.#buildPQInputRow({
           pId: `${this.#idPrefix}-${pKey}`,
-          pName: pKey,
           pValue,
           qId: `${this.#idPrefix}-${qKey}`,
-          qName: qKey,
           qValue,
         }),
       );
@@ -614,7 +618,6 @@ class OffsetVariantEditor {
           colClass: "col-4",
           label: "Size",
           id: `${this.#idPrefix}-sky-spiral-size`,
-          name: "skySpiralSize",
           value: spiralSize,
           min: 0,
           step: 0.01,
@@ -624,7 +627,6 @@ class OffsetVariantEditor {
           colClass: "col-4",
           axis: "p",
           id: `${this.#idPrefix}-sky-spiral-center-p`,
-          name: "skySpiralCenterP",
           value: centerP,
           label: "Center P",
         }),
@@ -632,7 +634,6 @@ class OffsetVariantEditor {
           colClass: "col-4",
           axis: "q",
           id: `${this.#idPrefix}-sky-spiral-center-q`,
-          name: "skySpiralCenterQ",
           value: centerQ,
           label: "Center Q",
         }),
@@ -674,7 +675,6 @@ class OffsetVariantEditor {
           colClass: "col-4",
           label: "Size",
           id: `${this.#idPrefix}-sky-random-size`,
-          name: "skyRandomSize",
           value: randomSize,
           min: 0,
           step: 0.01,
@@ -684,7 +684,6 @@ class OffsetVariantEditor {
           colClass: "col-4",
           axis: "p",
           id: `${this.#idPrefix}-sky-random-center-p`,
-          name: "skyRandomCenterP",
           value: centerP,
           label: "Center P",
         }),
@@ -692,7 +691,6 @@ class OffsetVariantEditor {
           colClass: "col-4",
           axis: "q",
           id: `${this.#idPrefix}-sky-random-center-q`,
-          name: "skyRandomCenterQ",
           value: centerQ,
           label: "Center Q",
         }),
@@ -709,7 +707,7 @@ class OffsetVariantEditor {
    * @param {Object} options
    * @returns {HTMLElement}
    */
-  #buildSkySizeBlock({ data, mode, id, name, value }) {
+  #buildSkySizeBlock({ data, mode, id, value }) {
     const block = this.#createElement("div", [
       "d-flex",
       "flex-column",
@@ -726,7 +724,6 @@ class OffsetVariantEditor {
         colClass: "col-4",
         label: "Size",
         id,
-        name,
         value,
         min: 0,
         step: 0.01,
@@ -833,7 +830,6 @@ class OffsetVariantEditor {
       colClass: "col-5",
       axis: "p",
       id: `${this.#idPrefix}-explicit-p-${index}`,
-      name: `explicit-p-${index}`,
       value: offset.p,
     });
     pField.querySelector("input").addEventListener("change", (event) => {
@@ -845,7 +841,6 @@ class OffsetVariantEditor {
       colClass: "col-5",
       axis: "q",
       id: `${this.#idPrefix}-explicit-q-${index}`,
-      name: `explicit-q-${index}`,
       value: offset.q,
     });
     qField.querySelector("input").addEventListener("change", (event) => {
@@ -956,10 +951,8 @@ class OffsetVariantEditor {
         rowLabel,
         this.#buildPQInputRow({
           pId: `${this.#idPrefix}-${pKey}`,
-          pName: pKey,
           pValue,
           qId: `${this.#idPrefix}-${qKey}`,
-          qName: qKey,
           qValue,
         }),
       );
@@ -999,7 +992,6 @@ class OffsetVariantEditor {
         colClass: "col-4",
         label: "Size",
         id: `${this.#idPrefix}-spiral-size`,
-        name: "spiralSize",
         value: spiralSize,
         min: 0,
         step: 0.01,
@@ -1039,7 +1031,6 @@ class OffsetVariantEditor {
         colClass: "col-4",
         label: "Size",
         id: `${this.#idPrefix}-random-size`,
-        name: "randomSize",
         value: randomSize,
         min: 0,
         step: 0.01,
@@ -1057,7 +1048,7 @@ class OffsetVariantEditor {
    * @param {Object} options
    * @returns {HTMLElement}
    */
-  #buildSizeBlock({ data, mode, id, name, value }) {
+  #buildSizeBlock({ data, mode, id, value }) {
     const block = this.#createElement("div", [
       "d-flex",
       "flex-column",
@@ -1074,7 +1065,6 @@ class OffsetVariantEditor {
         colClass: "col-4",
         label: "Size",
         id,
-        name,
         value,
         min: 0,
         step: 0.01,
@@ -1150,14 +1140,12 @@ class OffsetVariantEditor {
     colClass = "col-12",
     label,
     id,
-    name,
     options = [],
     value = "",
     disabled = false,
   }) {
     const select = this.#createElement("select", ["form-select"]);
     select.id = id;
-    select.name = name;
     select.disabled = disabled;
 
     options.forEach((optionValue) => {
@@ -1187,7 +1175,6 @@ class OffsetVariantEditor {
     colClass = "col-12",
     label,
     id,
-    name,
     value = 0,
     min = null,
     step = null,
@@ -1197,7 +1184,6 @@ class OffsetVariantEditor {
     const input = this.#createElement("input", ["form-control"]);
     input.type = "number";
     input.id = id;
-    input.name = name;
     input.value = value;
     input.disabled = disabled;
 
@@ -1248,10 +1234,8 @@ class OffsetVariantEditor {
    */
   #buildPQInputRow({
     pId,
-    pName,
     pValue = 0,
     qId,
-    qName,
     qValue = 0,
   }) {
     return this.#buildRow([
@@ -1259,14 +1243,12 @@ class OffsetVariantEditor {
         colClass: "col-6",
         axis: "p",
         id: pId,
-        name: pName,
         value: pValue,
       }),
       this.#buildPQField({
         colClass: "col-6",
         axis: "q",
         id: qId,
-        name: qName,
         value: qValue,
       }),
     ]);
@@ -1286,12 +1268,11 @@ class OffsetVariantEditor {
    * @param {Object} config
    * @returns {HTMLElement}
    */
-  #buildPQField({ colClass = "col-6", axis, id, name, value = 0, label = null }) {
+  #buildPQField({ colClass = "col-6", axis, id, value = 0, label = null }) {
     const input = this.#createElement("input", ["form-control"]);
     input.type = "number";
     input.step = "0.01";
     input.id = id;
-    input.name = name;
     // A null value means the payload carried no offset; leave the field empty
     // rather than showing a zero the origin never sent.
     input.value =
@@ -1330,9 +1311,7 @@ class OffsetVariantEditor {
    * @returns {HTMLElement}
    */
   #buildPQInlineGroup({
-    pName,
     pValue = 0,
-    qName,
     qValue = 0,
     onPChange,
     onQChange,
@@ -1340,7 +1319,6 @@ class OffsetVariantEditor {
     const pInput = this.#createElement("input", ["form-control"]);
     pInput.type = "number";
     pInput.step = "0.01";
-    pInput.name = pName;
     pInput.value = Number(pValue).toFixed(2);
     pInput.addEventListener("change", (event) => {
       onPChange(parseFloatSafe(event.target.value));
@@ -1349,7 +1327,6 @@ class OffsetVariantEditor {
     const qInput = this.#createElement("input", ["form-control"]);
     qInput.type = "number";
     qInput.step = "0.01";
-    qInput.name = qName;
     qInput.value = Number(qValue).toFixed(2);
     qInput.addEventListener("change", (event) => {
       onQChange(parseFloatSafe(event.target.value));
@@ -1447,10 +1424,11 @@ class OffsetVariantEditor {
    * @private
    */
   #bindOffsetsChange() {
-    this.#container.querySelectorAll('[name="offsets"]').forEach((select) => {
-      select.addEventListener("change", (event) => {
-        this.#toggleOffsetBlocks(event.target.value);
-      });
+    const select = this.#container.querySelector(`#${this.#idPrefix}-offsets`);
+    if (!select) return;
+
+    select.addEventListener("change", (event) => {
+      this.#toggleOffsetBlocks(event.target.value);
     });
   }
 
@@ -1460,16 +1438,19 @@ class OffsetVariantEditor {
    * @private
    */
   #bindSkyOffsetsChange() {
-    this.#container.querySelectorAll('[name="skyOffsets"]').forEach((select) => {
-      select.addEventListener("change", (event) => {
-        // No generator means no sky offsets at all, so clear the count too.
-        if (event.target.value === Lookups.gmosImagingOffsets.NONE) {
-          this.#clearSkyOffsets();
-          return;
-        }
+    const select = this.#container.querySelector(
+      `#${this.#idPrefix}-sky-offsets`,
+    );
+    if (!select) return;
 
-        this.#toggleSkyOffsetBlocks(event.target.value);
-      });
+    select.addEventListener("change", (event) => {
+      // No generator means no sky offsets at all, so clear the count too.
+      if (event.target.value === Lookups.gmosImagingOffsets.NONE) {
+        this.#clearSkyOffsets();
+        return;
+      }
+
+      this.#toggleSkyOffsetBlocks(event.target.value);
     });
   }
 
@@ -1530,22 +1511,31 @@ class OffsetVariantEditor {
       Lookups.gmosImagingOffsetVariant.GROUPED;
 
     if (variant === Lookups.gmosImagingOffsetVariant.PRE_IMAGING) {
-      const offsets = Array.from({ length: 4 }, (_, index) => ({
-        p: parseFloatSafe(
-          this.#container.querySelector(
-            `#${this.#idPrefix}-offset-${index + 1}-p`,
-          )?.value ?? "",
-        ),
-        q: parseFloatSafe(
-          this.#container.querySelector(
-            `#${this.#idPrefix}-offset-${index + 1}-q`,
-          )?.value ?? "",
-        ),
-      }));
+      // Named `preImagingOffsets` so the field never collides with the generator
+      // enum that `offsets` carries for the other variants. Wrapped in
+      // `arcseconds` to match how every other offset leaves this editor.
+      const preImagingOffsets = Lookups.gmosImagingPreImagingOffsetKeys.map(
+        (_, index) => ({
+          p: {
+            arcseconds: parseFloatOrNull(
+              this.#container.querySelector(
+                `#${this.#idPrefix}-offset-${index + 1}-p`,
+              )?.value ?? "",
+            ),
+          },
+          q: {
+            arcseconds: parseFloatOrNull(
+              this.#container.querySelector(
+                `#${this.#idPrefix}-offset-${index + 1}-q`,
+              )?.value ?? "",
+            ),
+          },
+        }),
+      );
 
       return {
-        variant,
-        offsets,
+        variant: Utils.enumForLabel(Lookups.gmosImagingOffsetVariant, variant),
+        preImagingOffsets,
       };
     }
 
@@ -1688,11 +1678,26 @@ class OffsetVariantEditor {
     }
 
     if (variant === Lookups.gmosImagingOffsetVariant.GROUPED) {
-      values.wavelengthOrder =
-        this.#container.querySelector(
-          `#${this.#idPrefix}-wavelength-order`,
-        )?.value ?? null;
+      values.wavelengthOrder = Utils.enumForLabel(
+        Lookups.gmosImagingWavelengthOrder,
+        this.#container.querySelector(`#${this.#idPrefix}-wavelength-order`)
+          ?.value ?? null,
+      );
     }
+
+    // Everything above compares display labels; the payload carries GPP enums.
+    values.variant = Utils.enumForLabel(
+      Lookups.gmosImagingOffsetVariant,
+      values.variant,
+    );
+    values.offsets = Utils.enumForLabel(
+      Lookups.gmosImagingOffsets,
+      values.offsets,
+    );
+    values.skyOffsets = Utils.enumForLabel(
+      Lookups.gmosImagingOffsets,
+      values.skyOffsets,
+    );
 
     return values;
   }

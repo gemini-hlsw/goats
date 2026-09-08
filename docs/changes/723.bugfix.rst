@@ -1,1 +1,0 @@
-Fixed error when triggering a cloned GPP observation

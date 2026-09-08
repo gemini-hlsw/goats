@@ -4,6 +4,10 @@ import pytest
 import requests
 
 from goats_tom.facilities import GEMObservationForm, GOATSGEMFacility
+from goats_tom.facilities.gemini import (
+    GMOSNorthImagingForm,
+    GMOSSouthImagingForm,
+)
 from goats_tom.tests.factories import GPPLoginFactory, UserFactory
 
 
@@ -194,3 +198,75 @@ class TestGOATSGEMFacility:
         state = self.facility._state_from_archive("G-2024A-Q-100-1")
 
         assert state == "Error"
+
+
+@pytest.mark.django_db()
+class TestGMOSImagingForms:
+    """Test cases for the GMOS imaging observation forms."""
+
+    @pytest.fixture()
+    def observation(self):
+        return {
+            "id": "o-123",
+            "reference": {"label": "GN-2024A-Q-1-1"},
+            "instrument": "GMOS_NORTH",
+            "title": "M31",
+            "constraintSet": {
+                "imageQuality": "POINT_ONE",
+                "cloudExtinction": "POINT_ONE",
+                "skyBackground": "DARKEST",
+                "waterVapor": "DRY",
+            },
+            "program": {"id": "p-456"},
+            "observingMode": {
+                "gmosNorthImaging": {
+                    "filters": [{"filter": "R_PRIME"}, {"filter": "G_PRIME"}],
+                    "bin": "TWO",
+                },
+                "gmosSouthImaging": {
+                    "filters": [{"filter": "I_PRIME"}],
+                    "bin": "TWO",
+                },
+            },
+            "target_id": 1,
+            "facility": "GEM",
+        }
+
+    @pytest.mark.parametrize(
+        ("observation_type", "form_class"),
+        [
+            ("GMOS_NORTH_IMAGING", GMOSNorthImagingForm),
+            ("GMOS_SOUTH_IMAGING", GMOSSouthImagingForm),
+        ],
+    )
+    def test_imaging_forms_are_registered(self, observation_type, form_class):
+        """The facility exposes a form for each GMOS imaging mode."""
+        facility = GOATSGEMFacility()
+
+        assert facility.get_form_classes_for_display()[observation_type] is form_class
+        assert facility.get_form(observation_type) is form_class
+
+    @pytest.mark.parametrize(
+        ("form_class", "expected"),
+        [
+            (GMOSNorthImagingForm, "R_PRIME, G_PRIME"),
+            (GMOSSouthImagingForm, "I_PRIME"),
+        ],
+    )
+    def test_filters_are_flattened(self, observation, form_class, expected):
+        """The GPP list of filters is stored as a comma-separated string."""
+        form = form_class(observation)
+
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["filters"] == expected
+        assert form.cleaned_data["gpp_id"] == "o-123"
+        assert form.cleaned_data["gpp_program_id"] == "p-456"
+
+    def test_missing_observing_mode_leaves_filters_empty(self, observation):
+        """An observation without an observing mode still validates."""
+        observation["observingMode"] = None
+
+        form = GMOSNorthImagingForm(observation)
+
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["filters"] == ""

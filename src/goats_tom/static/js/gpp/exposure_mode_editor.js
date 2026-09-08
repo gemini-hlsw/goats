@@ -134,9 +134,9 @@ class ExposureModeEditor {
     const filterLabel = this.#createLabel("Select Filter", "filter-selector");
     
     const filterSelect = Utils.createElement("select", "form-select");
+    // No name: this only navigates between filters, it is not part of the payload.
     filterSelect.id = "filter-selector";
-    filterSelect.name = "filter-selector";
-    
+
     this.#exposures.forEach((exposure, index) => {
       const opt = Utils.createElement("option");
       opt.value = index;
@@ -412,6 +412,16 @@ class ExposureModeEditor {
    */
   #toggleField(col, show) {
     col.classList.toggle("d-none", !show);
+
+    // Both modes keep their inputs in the DOM, so only the ones on show are
+    // asked for: the chosen mode needs all of its numbers.
+    const input = col.querySelector("input");
+    if (!input || this.#readOnly) return;
+    if (show) {
+      Utils.markRequired(input);
+    } else {
+      Utils.clearRequired(input);
+    }
   }
 
   /**
