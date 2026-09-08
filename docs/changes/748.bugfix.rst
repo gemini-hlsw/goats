@@ -1,0 +1,1 @@
+Fixed missing Rust dependency in the conda environment
