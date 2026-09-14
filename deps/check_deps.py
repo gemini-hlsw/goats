@@ -749,6 +749,7 @@ def resolve_transitive(
     roots: list[tuple[str, str | None]],
     max_depth: int,
     workers: int = DEFAULT_WORKERS,
+    exclude: set[str] | None = None,
 ) -> list[tuple[str, str]]:
     """Expand the dependency tree breadth-first via PyPI.
 
@@ -759,12 +760,16 @@ def resolve_transitive(
     Breadth-first with one shared `seen` set means each package is fetched once
     and is always reached at its shallowest depth; the previous depth-first walk
     re-fetched packages and pruned subtrees depending on traversal order.
+
+    Names in `exclude` are never looked up and never become edges: they are
+    conda-only packages whose names belong to unrelated projects on PyPI.
     """
     if max_depth <= 0:
         return []
 
+    excluded = exclude or set()
     edges: list[tuple[str, str]] = []
-    seen: set[str] = set()
+    seen: set[str] = set(excluded)
     frontier = [(name.lower(), version) for name, version in roots]
     seen.update(name for name, _ in frontier)
 
@@ -792,6 +797,8 @@ def resolve_transitive(
             # Markers are evaluated here so we never spend a request resolving a
             # dependency that does not apply to the target environment.
             for name, spec, _marker in parse_requirements(deps):
+                if name in excluded:
+                    continue
                 edges.append((parent, f"{name}{spec}"))
                 if name in seen:
                     continue
@@ -1350,8 +1357,13 @@ def _fetch_dragons_deps(version: str) -> list[str]:
 
 def collect_goats_deps(
     goats_ref: str, goats_path: str | None
-) -> tuple[list[str], dict[str, str]]:
-    """Return (requirement strings, versions pinned via uv git tags)."""
+) -> tuple[list[str], dict[str, str], set[str]]:
+    """Return (requirement strings, versions pinned via uv git tags, conda-only names).
+
+    A name declared only in the conda environment file has no PyPI counterpart;
+    the index may still serve an unrelated project under that name (`rust` is
+    a Ribo-Seq tool there, not the toolchain), so callers must not resolve it.
+    """
     if goats_path:
         root = Path(goats_path)
         pyproject = fetch_local_file(root / "pyproject.toml")
@@ -1362,13 +1374,23 @@ def collect_goats_deps(
 
     if not pyproject:
         die("Could not fetch GOATS pyproject.toml")
-    deps = parse_pyproject(pyproject) + (parse_ci_environment(ci) if ci else [])
-    return deps, parse_uv_git_pins(pyproject)
+
+    pyproject_deps = parse_pyproject(pyproject)
+    conda_deps = parse_ci_environment(ci) if ci else []
+    conda_only = {name for name, _, _ in parse_requirements(conda_deps)} - {
+        name for name, _, _ in parse_requirements(pyproject_deps)
+    }
+    return pyproject_deps + conda_deps, parse_uv_git_pins(pyproject), conda_only
 
 
-def collect_sources(goats_ref: str, goats_path: str | None) -> dict[str, list[SpecSource]]:
-    """Merge the dependency declarations of every upstream project."""
-    goats_deps, uv_pins = collect_goats_deps(goats_ref, goats_path)
+def collect_sources(
+    goats_ref: str, goats_path: str | None
+) -> tuple[dict[str, list[SpecSource]], set[str]]:
+    """Merge the dependency declarations of every upstream project.
+
+    Returns the merged specs and the names that exist only as conda packages.
+    """
+    goats_deps, uv_pins, conda_only = collect_goats_deps(goats_ref, goats_path)
     goats_dict = build_source_dict(parse_requirements(goats_deps), "goats")
 
     def upstream_version(name: str) -> str | None:
@@ -1411,16 +1433,33 @@ def collect_sources(goats_ref: str, goats_path: str | None) -> dict[str, list[Sp
     for d in (goats_dict, tom_dict, dragons_dict, jdaviz_dict):
         for k, v in d.items():
             global_dict.setdefault(k, []).extend(v)
-    return global_dict
+
+    # An upstream project requiring the name proves it is a real PyPI package
+    # (bqplot reaches us from both the conda file and JDAViz).
+    conda_only -= set(tom_dict) | set(dragons_dict) | set(jdaviz_dict)
+    if conda_only:
+        logger.info(
+            "Conda-only packages (never resolved via PyPI): %s",
+            ", ".join(sorted(conda_only)),
+        )
+    return global_dict, conda_only
 
 
 def add_transitive_deps(
-    global_dict: dict[str, list[SpecSource]], max_depth: int, workers: int
+    global_dict: dict[str, list[SpecSource]],
+    max_depth: int,
+    workers: int,
+    conda_only: set[str] | None = None,
 ) -> int:
     """Expand `global_dict` with transitive deps. Returns how many were added."""
-    roots = [(pkg, get_pinned_version(global_dict, pkg)[0]) for pkg in list(global_dict)]
+    excluded = conda_only or set()
+    roots = [
+        (pkg, get_pinned_version(global_dict, pkg)[0])
+        for pkg in list(global_dict)
+        if pkg not in excluded
+    ]
     direct_count = len(global_dict)
-    for parent, requirement in resolve_transitive(roots, max_depth, workers):
+    for parent, requirement in resolve_transitive(roots, max_depth, workers, excluded):
         for name, spec, marker in parse_requirements([requirement]):
             global_dict.setdefault(name, []).append((spec, parent, marker))
     return len(global_dict) - direct_count
@@ -1456,14 +1495,14 @@ def main(
         print(f"{colored('Python:', Color.BLUE, bold=True)} {colored(python_version, Color.CYAN, bold=True)}")
         print(f"{colored('Depth:', Color.BLUE, bold=True)}  {colored(str(max_depth), Color.CYAN, bold=True)}\n")
 
-    global_dict = collect_sources(goats_ref, goats_path)
+    global_dict, conda_only = collect_sources(goats_ref, goats_path)
 
     if max_depth > 0:
         print(
             colored(f"Resolving transitive deps (depth={max_depth})...", Color.DIM),
             file=sys.stderr,
         )
-        added = add_transitive_deps(global_dict, max_depth, workers)
+        added = add_transitive_deps(global_dict, max_depth, workers, conda_only)
         print(
             colored(f"Done — {added} new packages found", Color.GREEN, bold=True),
             file=sys.stderr,
