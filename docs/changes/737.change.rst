@@ -1,1 +1,0 @@
-Added confirmation prompt before deleting a shared finder chart

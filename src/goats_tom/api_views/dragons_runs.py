@@ -38,7 +38,7 @@ class DRAGONSRunsViewSet(
     reduction run.
     """
 
-    queryset = DRAGONSRun.objects.all()
+    queryset = DRAGONSRun.objects.all().order_by("-created", "-pk")
     serializer_class = DRAGONSRunSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_serializer_class = DRAGONSRunFilterSerializer

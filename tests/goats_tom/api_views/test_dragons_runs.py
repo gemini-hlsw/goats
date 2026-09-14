@@ -1,5 +1,6 @@
 """Test module for a DRAGONS run."""
 
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from django.urls import reverse
@@ -40,6 +41,22 @@ class TestDRAGONSRunViewSet(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data.get("results")), 3)
+
+    def test_list_runs_newest_first(self):
+        """Test the run list defaults to newest first."""
+        older, newer = DRAGONSRunFactory.create_batch(2)
+        DRAGONSRun.objects.filter(pk=older.pk).update(
+            created=datetime(2020, 1, 1, tzinfo=timezone.utc)
+        )
+
+        request = self.factory.get(reverse("dragonsruns-list"))
+        self.authenticate(request)
+
+        response = self.list_view(request)
+
+        self.assertEqual(
+            [run["id"] for run in response.data["results"]], [newer.pk, older.pk]
+        )
 
     def test_retrieve_run(self):
         """Test retrieving a single DRAGONS run."""

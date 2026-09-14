@@ -7,3 +7,7 @@ from goats_tom.filters import ReducedDatumFilter
 
 class ReducedDatumViewSet(BaseReducedDatumViewSet):
     filterset_class = ReducedDatumFilter
+
+    def get_queryset(self):
+        """Return the reduced datums newest first."""
+        return super().get_queryset().order_by("-timestamp", "-pk")

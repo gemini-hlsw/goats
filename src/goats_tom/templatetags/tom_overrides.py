@@ -1,4 +1,5 @@
 from datetime import datetime
+from operator import attrgetter
 
 import plotly.graph_objs as go
 from django import forms, template
@@ -6,11 +7,31 @@ from django.conf import settings
 from django.core.paginator import Paginator
 from guardian.shortcuts import get_objects_for_user
 from plotly import offline
+from tom_common.templatetags.user_extras import user_list
 from tom_dataproducts.forms import DataShareForm
 from tom_dataproducts.models import ReducedDatum
 from tom_dataproducts.processors.data_serializers import SpectrumSerializer
+from tom_dataproducts.templatetags.dataproduct_extras import dataproduct_list_for_target
+from tom_observations.templatetags.observation_extras import observation_list
+from tom_targets.templatetags.targets_extras import target_table
+
+from goats_tom.views.ordering import date_ordering, resolve_date_order
 
 register = template.Library()
+
+
+def _photometry_sort_key(row: dict, field: str, descending: bool) -> tuple:
+    """Sort key for a photometry row, keeping rows without a value last."""
+    value = row.get(field)
+    if field == "mjd":
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            value = None
+    present = value is not None and value != ""
+    # ``sorted(reverse=True)`` flips the ranks, so missing rows stay last either
+    # way; ``id`` keeps rows with the same value in a stable order.
+    return (present if descending else not present, value if present else 0, row["id"])
 
 
 @register.inclusion_tag("partials/dataproduct_type_dropdown.html")
@@ -63,12 +84,70 @@ def goats_dataproduct_list_for_observation_saved(
     data_products, request, observation_record
 ):
     page = request.GET.get("page_saved")
-    paginator = Paginator(data_products["saved"], 25)
+    order = resolve_date_order(request, ("created",), "-created", param="order_saved")
+    # ``all_data_products`` returns a plain list, so sort in Python.
+    saved = sorted(
+        data_products["saved"],
+        key=attrgetter(order.removeprefix("-"), "pk"),
+        reverse=order.startswith("-"),
+    )
+    paginator = Paginator(saved, 25)
     products_page = _define_data_product_type(paginator.get_page(page))
     return {
         "products_page": products_page,
         "observation_record": observation_record,
+        "request": request,
+        "current_order_saved": order,
     }
+
+
+@register.inclusion_tag(
+    "tom_dataproducts/partials/dataproduct_list_for_target.html", takes_context=True
+)
+def goats_dataproduct_list_for_target(context, target):
+    """
+    Override for TOMToolkit method. Lists a target's data products newest first.
+    """
+    context_data = dataproduct_list_for_target(context, target)
+    context_data["products"] = context_data["products"].order_by("-created", "-pk")
+    return context_data
+
+
+@register.inclusion_tag(
+    "tom_observations/partials/observation_list.html", takes_context=True
+)
+def goats_observation_list(context, target=None):
+    """
+    Override for TOMToolkit method. Lists observations newest first.
+    """
+    context_data = observation_list(context, target)
+    context_data["observations"] = context_data["observations"].order_by(
+        "-created", "-pk"
+    )
+    return context_data
+
+
+@register.inclusion_tag("tom_targets/partials/target_table.html", takes_context=True)
+def goats_target_table(context, targets, all_checked=False):
+    """Keep the effective order available inside TOMToolkit's target table."""
+    context_data = target_table(context, targets, all_checked)
+    context_data["request"] = context["request"]
+    context_data["current_order"] = context.get("current_order", "")
+    return context_data
+
+
+@register.inclusion_tag("auth/partials/user_list.html", takes_context=True)
+def goats_user_list(context):
+    """
+    Override for TOMToolkit method. Orders users by join date via ``?order=``.
+    """
+    context_data = user_list(context)
+    ordering = date_ordering(context["request"], ("date_joined",), "-date_joined")
+    context_data["users"] = context_data["users"].order_by(*ordering)
+    context_data["current_order"] = resolve_date_order(
+        context["request"], ("date_joined",), "-date_joined"
+    )
+    return context_data
 
 
 @register.inclusion_tag(
@@ -153,9 +232,17 @@ def get_photometry_data(context, target, target_share=False):
     """
     Displays a table of the all photometric points for a target.
     """
-    photometry = ReducedDatum.objects.filter(
-        data_type="photometry", target=target
-    ).order_by("-timestamp")
+    order = resolve_date_order(
+        context["request"], ("timestamp", "mjd"), "-timestamp", param="order_photometry"
+    )
+    field = order.removeprefix("-")
+    descending = order.startswith("-")
+    photometry = ReducedDatum.objects.filter(data_type="photometry", target=target)
+    if field == "timestamp":
+        photometry = photometry.order_by(order, "-pk" if descending else "pk")
+    else:
+        # MJD values can be strings or numbers; normalize and sort them in Python.
+        photometry = photometry.order_by()
 
     data = []
     for reduced_datum in photometry:
@@ -179,6 +266,12 @@ def get_photometry_data(context, target, target_share=False):
             rd_data["limit"] = False
         data.append(rd_data)
 
+    if field == "mjd":
+        data.sort(
+            key=lambda row: _photometry_sort_key(row, field, descending),
+            reverse=descending,
+        )
+
     initial = {
         "submitter": context["request"].user,
         "target": target,
@@ -199,5 +292,7 @@ def get_photometry_data(context, target, target_share=False):
         "sharing_destinations": form.fields["share_destination"].choices,
         "hermes_sharing": hermes_sharing,
         "target_share": target_share,
+        "request": context["request"],
+        "current_order_photometry": order,
     }
     return context

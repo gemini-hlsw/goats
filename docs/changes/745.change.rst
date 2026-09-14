@@ -1,0 +1,1 @@
+Updated program observations list to show all observations grouped by type: normal, ToO, and calibrations

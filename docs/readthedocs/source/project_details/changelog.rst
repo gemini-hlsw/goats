@@ -3,6 +3,41 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.9.0 (2026-09-03)
+===========================
+
+New Features
+------------
+
+- Added support for sending GMOS imaging observing mode data to GPP (`PR #730 <https://github.com/gemini-hlsw/goats/pull/730>`_)
+- Added date-based sorting to Targets, Observation Templates, and Saved Queries lists (`PR #738 <https://github.com/gemini-hlsw/goats/pull/738>`_)
+- Integrated Blanco/DECam observation form into GOATS (`PR #740 <https://github.com/gemini-hlsw/goats/pull/740>`_)
+
+
+Changes
+-------
+
+- Migrated the embedded spectrum viewer to JDaviz's deconfigured app (`PR #729 <https://github.com/gemini-hlsw/goats/pull/729>`_)
+- Improved the Photometry data table with scrolling, better layout fit, search functionality, and enhanced visualization (`PR #732 <https://github.com/gemini-hlsw/goats/pull/732>`_)
+- Added confirmation prompt before deleting a shared finder chart (`PR #737 <https://github.com/gemini-hlsw/goats/pull/737>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed GOATS hanging when reloading JDaviz. (`PR #717 <https://github.com/gemini-hlsw/goats/pull/717>`_)
+- Fixed error when triggering a cloned GPP observation (`PR #723 <https://github.com/gemini-hlsw/goats/pull/723>`_)
+- Fixed the offset editor behavior in the GMOS imaging observation form (`PR #726 <https://github.com/gemini-hlsw/goats/pull/726>`_)
+- Fixed line list and unit conversion issues in JDaviz by setting spectrum units before loading (`PR #728 <https://github.com/gemini-hlsw/goats/pull/728>`_)
+- Fixed broker link not redirecting to the correct ANTARES page for targets with an ANTARES alias (`PR #731 <https://github.com/gemini-hlsw/goats/pull/731>`_)
+- Fixed the light curve legend overlapping the plot (`PR #733 <https://github.com/gemini-hlsw/goats/pull/733>`_)
+- Restored GOA download restriction when the observation status has not been updated (`PR #734 <https://github.com/gemini-hlsw/goats/pull/734>`_)
+- Fixed observation creation failing when a duplicate finder chart exists in GPP (`PR #736 <https://github.com/gemini-hlsw/goats/pull/736>`_)
+- Fixed the GPP observations list failing after GPP removed long slit offsets (`PR #739 <https://github.com/gemini-hlsw/goats/pull/739>`_)
+- Fixed ToO configurations to exclude non-accepted templates (`PR #743 <https://github.com/gemini-hlsw/goats/pull/743>`_)
+- Fixed normal and ToO observations incorrectly appearing under Calibrations (`PR #744 <https://github.com/gemini-hlsw/goats/pull/744>`_)
+
+
 Version 26.8.0 (2026-08-11)
 ===========================
 

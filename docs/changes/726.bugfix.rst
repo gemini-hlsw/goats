@@ -1,1 +1,0 @@
-Fixed the offset editor behavior in the GMOS imaging observation form

@@ -32,3 +32,4 @@ dependencies:
   - redis-server>=7.4.0,<8
   - uv>=0.9.10
   - bqplot>0.12.37
+  - rust>=1.80.0

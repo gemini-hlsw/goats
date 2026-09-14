@@ -18,6 +18,17 @@ router.register(
     basename="gppfindercharts",
 )
 router.register(
+    r"gpp/configuration-requests",
+    api_views.GPPConfigurationRequestViewSet,
+    basename="gppconfigurationrequests",
+)
+router.register(
+    r"gpp/config-options",
+    api_views.GPPConfigOptionsViewSet,
+    basename="gppconfigoptions",
+)
+router.register(r"gpp/enums", api_views.GPPEnumsViewSet, basename="gppenums")
+router.register(
     r"blanco/observations",
     api_views.BLANCOObservationViewSet,
     basename="blancoobservations",
@@ -156,6 +167,21 @@ urlpatterns = [
         "observations/template/list/",
         views.ObservationTemplateListView.as_view(),
         name="observation-template-list",
+    ),
+    path(
+        "observations/list/",
+        views.ObservationListView.as_view(),
+        name="observation-list",
+    ),
+    path(
+        "observations/groups/list/",
+        views.ObservationGroupListView.as_view(),
+        name="observation-group-list",
+    ),
+    path(
+        "dataproducts/data/",
+        views.DataProductListView.as_view(),
+        name="dataproduct-list",
     ),
     path("tns/", include(tom_tns_urls)),
     path(

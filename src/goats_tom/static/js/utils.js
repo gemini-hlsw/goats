@@ -2,6 +2,56 @@
  * Provides static utility functions for DOM manipulation and general utility tasks.
  */
 class Utils {
+  /** Parse API dates and legacy UTC dates, retaining sub-millisecond precision. */
+  static utcDateValue(value) {
+    if (!value) return NaN;
+    let text = String(value).replace(" ", "T");
+    if (!/(Z|[+-]\d{2}:\d{2})$/i.test(text)) text += "Z";
+    const fraction = text.match(/\.(\d+)/)?.[1] ?? "";
+    return Date.parse(text) + Number(`0.${fraction.slice(3) || "0"}`);
+  }
+
+  /** Sort dated items without mutation; missing dates stay last, ties by name. */
+  static sortByDate(items, direction, dateOf, nameOf) {
+    if (!direction) return items;
+    const factor = direction === "desc" ? -1 : 1;
+    return [...items].sort((a, b) => {
+      const left = Utils.utcDateValue(dateOf(a));
+      const right = Utils.utcDateValue(dateOf(b));
+      if (Number.isNaN(left) !== Number.isNaN(right)) {
+        return Number.isNaN(left) ? 1 : -1;
+      }
+      return (left - right) * factor || nameOf(a).localeCompare(nameOf(b));
+    });
+  }
+
+  /** Move existing rows so sorting preserves checkboxes, listeners and tooltips. */
+  static sortTableRowsByDate(tbody, direction) {
+    const rows = Utils.sortByDate(
+      Array.from(tbody.rows), direction,
+      (row) => row.dataset.sortDate, (row) => row.dataset.sortName ?? ""
+    );
+    rows.forEach((row) => tbody.appendChild(row));
+  }
+
+  /** Update only the direction classes, preserving icon identifiers. */
+  static updateDateSortIcon(icon, direction) {
+    if (!icon || !direction) return;
+    icon.classList.remove(
+      "fa-sort", "text-muted", "fa-arrow-up-short-wide", "fa-arrow-down-wide-short"
+    );
+    icon.classList.add(
+      direction === "asc" ? "fa-arrow-up-short-wide" : "fa-arrow-down-wide-short"
+    );
+  }
+
+  /** Format an API timestamp for a column labelled UTC. */
+  static formatUTCDate(value) {
+    const timestamp = Utils.utcDateValue(value);
+    return Number.isNaN(timestamp) ? "" :
+      new Date(timestamp).toISOString().slice(0, 19).replace("T", " ");
+  }
+
   /**
    * Returns the first element within the document that matches the specified selector.
    * @param {string} selector - The CSS selector to match elements against.
@@ -197,5 +247,55 @@ class Utils {
       setTimeout(resolve, minDuration)
     );
     return Promise.all([operationPromise, minDurationPromise]);
+  }
+
+  /**
+   * Ask for a control that has to be answered, and keep asking until it is.
+   *
+   * The control is outlined while it is empty, the way the Blanco form does it.
+   *
+   * @param {HTMLElement} input - The control that has to be filled in.
+   * @returns {void}
+   */
+  static markRequired(input) {
+    if (!input) return;
+    // A control can be asked for again, such as when a mode is switched back
+    // and forth, and it only needs listening to once.
+    const alreadyAsked = input.getAttribute("aria-required") === "true";
+    // Colour is not something a screen reader can read out.
+    input.setAttribute("aria-required", "true");
+    if (!alreadyAsked) {
+      ["input", "change", "blur"].forEach((event) =>
+        input.addEventListener(event, () => Utils.recheckRequired(input))
+      );
+    }
+    Utils.recheckRequired(input);
+  }
+
+  /**
+   * Look again at whether a required control is still empty.
+   *
+   * A value can be filled in without anybody typing it, and no event is raised
+   * for that, so whoever writes the value says when to look again.
+   *
+   * @param {HTMLElement} input - The control to look at.
+   * @returns {void}
+   */
+  static recheckRequired(input) {
+    if (!input || input.getAttribute("aria-required") !== "true") return;
+    const empty = !String(input.value ?? "").trim();
+    input.classList.toggle("border-danger", empty);
+  }
+
+  /**
+   * Stop asking for a control, such as one that is no longer on show.
+   *
+   * @param {HTMLElement} input - The control to leave alone.
+   * @returns {void}
+   */
+  static clearRequired(input) {
+    if (!input) return;
+    input.removeAttribute("aria-required");
+    input.classList.remove("border-danger");
   }
 }

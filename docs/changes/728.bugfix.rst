@@ -1,1 +1,0 @@
-Fixed line list and unit conversion issues in JDaviz by setting spectrum units before loading

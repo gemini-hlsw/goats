@@ -1,4 +1,4 @@
-<th>
+<th{% if css_class %} class="{{ css_class }}"{% endif %}>
   <a href="{{ url }}" class="text-reset text-decoration-none" title="Sort by {{ label }}">
     {{ label }}
     {% if ascending %}

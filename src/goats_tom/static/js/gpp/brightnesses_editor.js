@@ -164,6 +164,8 @@ class BrightnessesEditor {
     const brightnessValueId = `brightnessValueInput${uniqueId}`;
     valueInput.name = brightnessValueId;
     valueInput.id = brightnessValueId;
+    // The row has no label of its own, so it says what it is for.
+    valueInput.setAttribute("aria-label", "Brightness");
     valueInput.value = value;
 
     const unitSelect = this.#createSelect(
@@ -183,6 +185,9 @@ class BrightnessesEditor {
       bandSelect.disabled = true;
       valueInput.disabled = true;
       unitSelect.disabled = true;
+    } else {
+      // A row is only a brightness once it has a value; GPP needs at least one.
+      Utils.markRequired(valueInput);
     }
 
     inputGroup.append(bandSelect, valueInput, unitSelect, removeBtn);

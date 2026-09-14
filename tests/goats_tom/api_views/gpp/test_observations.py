@@ -331,6 +331,17 @@ class TestGPPObservationViewSet:
         context_inst.gpp_observation_id = "o-1"
         context_inst.gpp_program_id = "p-1"
         context_inst.goats_target = goats_target
+
+        # Creating from an approved configuration uses its own context.
+        create_context = mocker.patch(
+            "goats_tom.api_views.gpp.observations.CreateContextSerializer"
+        )
+        create_context_inst = create_context.return_value
+        create_context_inst.is_valid.return_value = True
+        create_context_inst.gpp_program_id = "p-1"
+        create_context_inst.goats_target = goats_target
+        create_context_inst.instrument = "GMOS_SOUTH_LONG_SLIT"
+
         if with_instrument:
             context_inst.instrument = "GMOS_SOUTH_LONG_SLIT"
             context_inst.format_observation.return_value = {
@@ -477,27 +488,29 @@ class TestGPPObservationViewSet:
         # CloneObservationInput is a pydantic model that rejects Mock objects for
         # `set_`, so stub it out — observation_properties comes from a mocked
         # serializer.
-        mocker.patch("goats_tom.api_views.gpp.observations.CloneObservationInput")
+        mocker.patch("goats_tom.api_views.gpp.observations.CreateObservationInput")
 
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
         client = mock_client.return_value
 
-        clone_target_result = mocker.Mock()
-        clone_target_result.model_dump.return_value = {
-            "cloneTarget": {"newTarget": {"id": "t-new"}}
+        create_target_result = mocker.Mock()
+        create_target_result.model_dump.return_value = {
+            "createTarget": {"target": {"id": "t-new"}}
         }
-        client.target.clone = AsyncMock(return_value=clone_target_result)
+        client.target.create_by_program_id = AsyncMock(
+            return_value=create_target_result
+        )
 
-        clone_obs_result = mocker.Mock()
-        clone_obs_result.model_dump.return_value = {
-            "cloneObservation": {
-                "newObservation": {
+        create_obs_result = mocker.Mock()
+        create_obs_result.model_dump.return_value = {
+            "createObservation": {
+                "observation": {
                     "id": "o-new",
                     "reference": {"label": "obs-ref-new"},
                 }
             }
         }
-        client.observation.clone = AsyncMock(return_value=clone_obs_result)
+        client.observation.create = AsyncMock(return_value=create_obs_result)
         client.workflow_state.update_by_id_with_retry = AsyncMock(
             return_value=_mock_workflow_state_result("INACTIVE")
         )
@@ -520,8 +533,8 @@ class TestGPPObservationViewSet:
         assert response.data["status"] == "Success"
         assert response.data["data"]["newTargetId"] == "t-new"
         assert response.data["data"]["newObservationId"] == "o-new"
-        client.target.clone.assert_called_once()
-        client.observation.clone.assert_called_once()
+        client.target.create_by_program_id.assert_called_once()
+        client.observation.create.assert_called_once()
 
     def test_update_only_skips_finder_charts_processing_when_empty(self, mocker):
         """No _process_finder_charts call when toAdd/toDelete are empty."""
@@ -630,16 +643,18 @@ class TestGPPObservationViewSet:
         stages = {m["stage"]: m["message"] for m in response.data["messages"]}
         assert stages["Update Workflow State"] == "Workflow state set to unknown."
 
-    def test_create_and_save_clone_target_returns_no_id(self, mocker):
-        """create_and_save fails fast when the cloned target has no id."""
+    def test_create_and_save_create_target_returns_no_id(self, mocker):
+        """create_and_save fails fast when the created target has no id."""
         self._mock_validated_serializers(mocker, with_instrument=True)
 
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
         client = mock_client.return_value
 
-        clone_target_result = mocker.Mock()
-        clone_target_result.model_dump.return_value = {"cloneTarget": {"newTarget": {}}}
-        client.target.clone = AsyncMock(return_value=clone_target_result)
+        create_target_result = mocker.Mock()
+        create_target_result.model_dump.return_value = {"createTarget": {"target": {}}}
+        client.target.create_by_program_id = AsyncMock(
+            return_value=create_target_result
+        )
 
         request = self.factory.post(
             self.observation_create_and_save_url, {"finderCharts": "{}"}
@@ -682,7 +697,7 @@ class TestGPPObservationViewSet:
             == "GPP login credentials are not configured for this user."
         )
 
-    def test_list_observations_with_program_id_splits_too_and_normal(self, mocker):
+    def test_list_observations_with_program_id_flags_the_toos(self, mocker):
         too_obs = {
             "id": "o-too",
             "targetEnvironment": {
@@ -690,6 +705,7 @@ class TestGPPObservationViewSet:
                     {"id": "t-1", "opportunity": {"__typename": "Opportunity"}}
                 ]
             },
+            "workflow": {"value": {"state": "DEFINED"}},
         }
         normal_obs = {
             "id": "o-norm",
@@ -713,14 +729,56 @@ class TestGPPObservationViewSet:
         response = self.list_view(request)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["matches"]["too"]["count"] == 1
-        assert response.data["matches"]["too"]["results"] == [too_obs]
-        assert response.data["matches"]["normal"]["count"] == 1
-        assert response.data["matches"]["normal"]["results"] == [normal_obs]
+        # Every observation is listed, flagged so the UI can group them by type.
+        assert response.data["matches"]["count"] == 2
+        assert response.data["matches"]["results"] == [
+            {**too_obs, "isToo": True},
+            {**normal_obs, "isToo": False},
+        ]
         assert response.data["hasMore"] is True
         mock_client.return_value.goats.get_observations_by_program_id.assert_called_once_with(
             program_id="p-1"
         )
+
+    def test_list_observations_includes_unapproved_too(self, mocker):
+        unapproved_too_obs = {
+            "id": "o-too-unapproved",
+            "targetEnvironment": {
+                "asterism": [
+                    {"id": "t-1", "opportunity": {"__typename": "Opportunity"}}
+                ]
+            },
+            "workflow": {"value": {"state": "UNAPPROVED"}},
+        }
+        normal_obs = {
+            "id": "o-norm",
+            "targetEnvironment": {"asterism": [{"id": "t-2", "opportunity": None}]},
+        }
+        mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
+        mock_payload = mocker.Mock()
+        mock_payload.model_dump.return_value = {
+            "observations": {
+                "matches": [unapproved_too_obs, normal_obs],
+                "hasMore": False,
+            }
+        }
+        mock_client.return_value.goats.get_observations_by_program_id = AsyncMock(
+            return_value=mock_payload
+        )
+
+        request = self.factory.get(self.observations_url, {"program_id": "p-1"})
+        force_authenticate(request, user=self.user_with_login)
+
+        response = self.list_view(request)
+
+        assert response.status_code == status.HTTP_200_OK
+        # Approval no longer decides what is listed; the ToO select is fed by
+        # the approved configuration requests instead.
+        assert response.data["matches"]["count"] == 2
+        assert response.data["matches"]["results"] == [
+            {**unapproved_too_obs, "isToo": True},
+            {**normal_obs, "isToo": False},
+        ]
 
     def test_list_observations_handles_client_exception(self, mocker):
         mock_client = mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")

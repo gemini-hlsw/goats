@@ -2,6 +2,7 @@
 
 __all__ = ["DRAGONSFileSerializer", "DRAGONSFileFilterSerializer"]
 
+from datetime import timezone
 from urllib.parse import unquote
 
 from rest_framework import serializers
@@ -11,6 +12,13 @@ from goats_tom.models import DRAGONSFile
 
 class DRAGONSFileSerializer(serializers.ModelSerializer):
     """Serializer for `DRAGONSFile` model."""
+
+    created = serializers.DateTimeField(
+        source="data_product.created",
+        read_only=True,
+        format="iso-8601",
+        default_timezone=timezone.utc,
+    )
 
     class Meta:
         model = DRAGONSFile
@@ -23,6 +31,7 @@ class DRAGONSFileSerializer(serializers.ModelSerializer):
             "observation_type",
             "object_name",
             "observation_class",
+            "created",
         ]
         read_only_fields = [
             "id",
@@ -33,6 +42,7 @@ class DRAGONSFileSerializer(serializers.ModelSerializer):
             "observation_type",
             "object_name",
             "observation_class",
+            "created",
         ]
 
 

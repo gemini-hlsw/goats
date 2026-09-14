@@ -1,1 +1,0 @@
-Fixed observation creation failing when a duplicate finder chart exists in GPP

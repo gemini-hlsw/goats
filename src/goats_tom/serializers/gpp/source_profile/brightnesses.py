@@ -83,11 +83,20 @@ class BrightnessesSerializer(_BaseGPPSerializer):
         # Normalize values.
         parsed: list[dict[str, Any]] = []
         for _, entry in sorted(brightnesses_data.items()):
+            raw_value = entry.get("ValueInput")
+
+            # The editor always draws a row, so one left blank means no
+            # brightness was entered rather than an invalid one.
+            if raw_value in (None, ""):
+                continue
+
             try:
-                value = float(entry["ValueInput"])
-            except (KeyError, TypeError, ValueError):
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                # Raised from `to_internal_value`, so the detail has to be a
+                # mapping: a bare string cannot be rendered as an error dict.
                 raise serializers.ValidationError(
-                    "A Brightness value is not a valid number."
+                    {"brightnesses": ["A Brightness value is not a valid number."]}
                 )
 
             band = entry.get("BandSelect")
@@ -97,7 +106,7 @@ class BrightnessesSerializer(_BaseGPPSerializer):
             # Ensure band and unit are provided.
             if not band or not units:
                 raise serializers.ValidationError(
-                    "A Brightness is missing a band or units."
+                    {"brightnesses": ["A Brightness is missing a band or units."]}
                 )
 
             # Put in parsed format expected by BrightnessSerializer.

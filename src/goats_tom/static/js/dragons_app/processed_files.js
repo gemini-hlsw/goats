@@ -242,10 +242,24 @@ class ProcessedFilesTemplate {
     thName.textContent = `Filename ${Utils.getFileCountLabel(data.length)}`;
     thName.id = `thName${this.options.id}`;
 
-    // Create a cell for last modified.
+    // Create a cell for last modified; clicking it sorts the table by date.
     const thLastModified = Utils.createElement("th", ["fw-normal"]);
     thLastModified.setAttribute("scope", "col");
-    thLastModified.textContent = "Last Modified (UTC)";
+    const sortButton = Utils.createElement("button", [
+      "btn",
+      "btn-link",
+      "p-0",
+      "text-reset",
+      "text-decoration-none",
+    ]);
+    sortButton.type = "button";
+    sortButton.dataset.action = "sortByDate";
+    sortButton.title = "Sort by Last Modified";
+    sortButton.textContent = "Last Modified (UTC) ";
+    const sortIcon = Utils.createElement("i", ["fa-solid", "fa-sort", "text-muted"]);
+    sortIcon.id = `sortIcon${this.options.id}`;
+    sortButton.appendChild(sortIcon);
+    thLastModified.appendChild(sortButton);
 
     // Create cell for actions.
     const thActions = Utils.createElement("th", ["fw-normal"]);
@@ -295,6 +309,8 @@ class ProcessedFilesTemplate {
       tr.dataset.productId = item.product_id;
       tr.dataset.fileUrl = item.url;
       tr.dataset.lastModified = item.last_modified;
+      tr.dataset.sortDate = item.last_modified ?? "";
+      tr.dataset.sortName = item.name;
       // Create the filename cell with a data attribute.
       const tdFilename = Utils.createElement("td");
       tdFilename.textContent = `${item.path}/${item.name}`;
@@ -434,8 +450,43 @@ class ProcessedFilesView {
     this.toolbar = null;
     this.parentElement = null;
 
+    // `null` keeps the order the server sent; "asc"/"desc" sort by date.
+    this.sortDirection = null;
+
     this.render = this.render.bind(this);
     this.bindCallback = this.bindCallback.bind(this);
+    this._toggleSort = this._toggleSort.bind(this);
+  }
+
+  /**
+   * Returns the rows in the requested order, leaving the given array untouched.
+   * @param {Array} data - The rows to order.
+   * @returns {Array} The ordered rows.
+   * @private
+   */
+  _sorted(data) {
+    return Utils.sortByDate(
+      data, this.sortDirection, (file) => file.last_modified, (file) => file.name
+    );
+  }
+
+  /**
+   * Toggles the date order by moving existing rows, preserving their state.
+   * @private
+   */
+  _toggleSort() {
+    this.sortDirection = this.sortDirection === "desc" ? "asc" : "desc";
+    Utils.sortTableRowsByDate(this.tbody, this.sortDirection);
+    this._updateSortIcon();
+  }
+
+  /**
+   * Reflects the active direction on the date column's icon.
+   * @private
+   */
+  _updateSortIcon() {
+    const icon = this.thead?.querySelector(`#sortIcon${this.options.id}`);
+    Utils.updateDateSortIcon(icon, this.sortDirection);
   }
 
   /**
@@ -456,6 +507,10 @@ class ProcessedFilesView {
     this.toolbar = this.card.querySelector(`#toolbar${this.options.id}`);
 
     this.parentElement.appendChild(this.container);
+
+    this.thead
+      .querySelector('[data-action="sortByDate"]')
+      ?.addEventListener("click", this._toggleSort);
   }
 
   /**
@@ -469,9 +524,10 @@ class ProcessedFilesView {
       const tooltip = bootstrap.Tooltip.getInstance(el);
       tooltip?.dispose();
     });
-    const newTbody = this.template.createTBody(data);
+    const newTbody = this.template.createTBody(this._sorted(data));
     this.table.replaceChild(newTbody, this.tbody);
     this.tbody = newTbody;
+    this._updateSortIcon();
 
     // Update the file count.
     this.thead.querySelector(`#thName${this.options.id}`).textContent =

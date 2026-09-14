@@ -1,3 +1,6 @@
+from .config_options import GPPConfigOptionsViewSet
+from .configuration_requests import GPPConfigurationRequestViewSet
+from .enums import GPPEnumsViewSet
 from .finder_chart import GPPFinderChartViewSet
 from .gpp import GPPViewSet
 from .observations import GPPObservationViewSet
@@ -8,4 +11,7 @@ __all__ = [
     "GPPObservationViewSet",
     "GPPViewSet",
     "GPPFinderChartViewSet",
+    "GPPConfigurationRequestViewSet",
+    "GPPConfigOptionsViewSet",
+    "GPPEnumsViewSet",
 ]

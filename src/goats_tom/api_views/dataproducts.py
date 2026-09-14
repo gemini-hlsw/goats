@@ -28,6 +28,10 @@ class DataProductsViewSet(BaseDataProductViewSet):
 
     parser_classes = [JSONParser]
 
+    def get_queryset(self):
+        """Return the data products newest first."""
+        return super().get_queryset().order_by("-created", "-pk")
+
     def get_serializer_class(self):
         if self.action == "create":
             return DataProductSerializer

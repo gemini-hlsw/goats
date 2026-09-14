@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -205,10 +206,18 @@ LOGGING = {
 # Caching
 # https://docs.djangoproject.com/en/dev/topics/cache/#filesystem-caching
 
+# The suite runs under xdist, and a directory every worker shares is a cache
+# every worker can wipe: ``cache.clear()`` empties the whole of it, whoever
+# wrote what is in there. One directory per worker keeps a test to its own.
+CACHE_DIR = (
+    Path(tempfile.gettempdir())
+    / f"goats-test-cache-{os.environ.get('PYTEST_XDIST_WORKER', 'main')}"
+)
+
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
-        "LOCATION": tempfile.gettempdir(),
+        "LOCATION": str(CACHE_DIR),
     },
     "redis": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",

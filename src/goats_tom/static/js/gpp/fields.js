@@ -220,6 +220,8 @@ const SHARED_FIELDS = [
     labelText: "Image Quality",
     path: "constraintSet.imageQuality",
     id: "imageQuality",
+    // Offered by GPP; the list below is what the form falls back to.
+    optionsFrom: "imageQuality",
     element: "select",
     options: [
       { value: "POINT_ONE", labelText: "< 0.10" },
@@ -229,21 +231,23 @@ const SHARED_FIELDS = [
       { value: "POINT_SIX", labelText: "< 0.60" },
       { value: "POINT_EIGHT", labelText: "< 0.80" },
       { value: "ONE_POINT_ZERO", labelText: "< 1.00" },
+      { value: "ONE_POINT_TWO", labelText: "< 1.20" },
       { value: "ONE_POINT_FIVE", labelText: "< 1.50" },
       { value: "TWO_POINT_ZERO", labelText: "< 2.00" },
-      { value: "THREE_POINT_ZERO", labelText: "< 3.00" },
     ],
   },
   {
     labelText: "Cloud Extinction",
     path: "constraintSet.cloudExtinction",
     id: "cloudExtinction",
+    // Offered by GPP; the list below is what the form falls back to.
+    optionsFrom: "cloudExtinction",
     options: [
+      { value: "ZERO", labelText: "0.00 mag" },
       { value: "POINT_ONE", labelText: "< 0.10 mag" },
       { value: "POINT_THREE", labelText: "< 0.30 mag" },
       { value: "POINT_FIVE", labelText: "< 0.50 mag" },
       { value: "ONE_POINT_ZERO", labelText: "< 1.00 mag" },
-      { value: "ONE_POINT_FIVE", labelText: "< 1.50 mag" },
       { value: "TWO_POINT_ZERO", labelText: "< 2.00 mag" },
       { value: "THREE_POINT_ZERO", labelText: "< 3.00 mag" },
     ],
@@ -253,6 +257,8 @@ const SHARED_FIELDS = [
     labelText: "Sky Background",
     path: "constraintSet.skyBackground",
     id: "skyBackground",
+    // Offered by GPP; the list below is what the form falls back to.
+    optionsFrom: "skyBackground",
     options: [
       { value: "DARK", labelText: "Dark" },
       { value: "GRAY", labelText: "Gray" },
@@ -265,6 +271,8 @@ const SHARED_FIELDS = [
     labelText: "Water Vapor",
     path: "constraintSet.waterVapor",
     id: "waterVapor",
+    // Offered by GPP; the list below is what the form falls back to.
+    optionsFrom: "waterVapor",
     options: [
       { value: "DRY", labelText: "Dry" },
       { value: "MEDIAN", labelText: "Median" },
@@ -310,15 +318,37 @@ const SHARED_FIELDS = [
 ];
 
 /**
+ * Turn a lookup map into `<select>` options.
+ * @param {!Object<string, string>} lookup - Map of enum value to display label.
+ * @returns {!Array<{value: string, labelText: string}>}
+ */
+function lookupOptions(lookup) {
+  return Object.entries(lookup ?? {}).map(([value, labelText]) => ({
+    value,
+    labelText,
+  }));
+}
+
+/**
  * Generate imaging fields for GMOS North/South.
  * @param {string} site - "North" or "South"
  * @returns {array} Field definitions for imaging mode
  */
 function generateGmosImagingFields(site) {
   const obsPath = `observingMode.gmos${site}Imaging`;
-  const fpuLookup = Lookups[`gmos${site}BuiltinFpu`];
 
   return [
+    {
+      // The filters the approved configuration fixed, as a comma separated
+      // list: the exposure mode editor only carries the one on screen.
+      path: `${obsPath}.filters`,
+      element: "input",
+      type: "hidden",
+      id: "hiddenImagingFilters",
+      showIfMode: "too",
+      formatter: (filters) =>
+        (filters ?? []).map((f) => f?.filter ?? f).join(","),
+    },
     {
       labelText: "Instrument",
       path: "instrument",
@@ -344,7 +374,9 @@ function generateGmosImagingFields(site) {
       id: "exposureMode",
       handler: "handleExposureMode",
       mode: "imaging",
-      readOnly: true, /**only when handler is present  */
+      // Editable only when creating a ToO: the exposure mode is then applied to
+      // every filter of the approved configuration.
+      readOnly: "normal",
     },
     {
       labelText: "Binning",
@@ -352,6 +384,8 @@ function generateGmosImagingFields(site) {
       id: "bin",
       lookup: Lookups.gmosBinning,
       readOnly: "both",
+      // GPP works this out from the configuration, so a ToO never asks for it.
+      showIfMode: "normal",
     },
     {
       labelText: "Read Mode",
@@ -359,6 +393,8 @@ function generateGmosImagingFields(site) {
       id: "ampReadMode",
       formatter: Formatters.capitalizeFirstLetter,
       readOnly: "both",
+      // GPP works this out from the configuration, so a ToO never asks for it.
+      showIfMode: "normal",
     },
     {
       labelText: "ROI",
@@ -366,6 +402,8 @@ function generateGmosImagingFields(site) {
       id: "roi",
       lookup: Lookups.gmosRoi,
       readOnly: "both",
+      // GPP works this out from the configuration, so a ToO never asks for it.
+      showIfMode: "normal",
     },
   ];
 }
@@ -380,6 +418,15 @@ function generateGmosLongSlitFields(site) {
   const fpuLookup = Lookups[`gmos${site}BuiltinFpu`];
 
   return [
+    {
+      // Creating from an approved configuration sends the disperser it fixed;
+      // the visible field stays read-only, so it never travels on its own.
+      path: `${obsPath}.grating`,
+      element: "input",
+      type: "hidden",
+      id: "hiddenGrating",
+      showIfMode: "too",
+    },
     {
       labelText: "Instrument",
       path: "instrument",
@@ -406,15 +453,23 @@ function generateGmosLongSlitFields(site) {
       labelText: "Filter",
       path: `${obsPath}.filter`,
       id: "filter",
-      readOnly: "both",
+      element: "select",
+      // The filters GPP offers with the approved disperser.
+      optionsFrom: "filter",
+      readOnly: "normal",
     },
     {
       labelText: "FPU",
       path: `${obsPath}.fpu`,
       id: "fpu",
-      lookup: fpuLookup,
+      element: "select",
+      // The FPUs GPP offers with the approved disperser; updating an existing
+      // observation falls back to the full list, just to display its value.
+      optionsFrom: "fpu",
+      options: lookupOptions(fpuLookup),
       colSize: "col-lg-6",
-      readOnly: "both",
+      readOnly: "normal",
+      required: "too",
     },
     {
       labelText: "Spatial Offsets",
@@ -437,6 +492,7 @@ function generateGmosLongSlitFields(site) {
       path: `${obsPath}.centralWavelength.nanometers`,
       id: "centralWavelength",
       suffix: "nm",
+      required: "too",
     },
     {
       labelText: "Exposure Mode",
@@ -451,6 +507,8 @@ function generateGmosLongSlitFields(site) {
       id: "xBin",
       lookup: Lookups.gmosBinning,
       readOnly: "both",
+      // GPP works this out from the configuration, so a ToO never asks for it.
+      showIfMode: "normal",
     },
     {
       labelText: "Y Binning",
@@ -458,6 +516,8 @@ function generateGmosLongSlitFields(site) {
       id: "yBin",
       lookup: Lookups.gmosBinning,
       readOnly: "both",
+      // GPP works this out from the configuration, so a ToO never asks for it.
+      showIfMode: "normal",
     },
     {
       labelText: "Read Mode",
@@ -465,6 +525,8 @@ function generateGmosLongSlitFields(site) {
       id: "ampReadMode",
       formatter: Formatters.capitalizeFirstLetter,
       readOnly: "both",
+      // GPP works this out from the configuration, so a ToO never asks for it.
+      showIfMode: "normal",
     },
     {
       labelText: "ROI",
@@ -472,6 +534,8 @@ function generateGmosLongSlitFields(site) {
       id: "roi",
       lookup: Lookups.gmosRoi,
       readOnly: "both",
+      // GPP works this out from the configuration, so a ToO never asks for it.
+      showIfMode: "normal",
     },
   ];
 }
