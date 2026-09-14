@@ -2,6 +2,56 @@
  * Provides static utility functions for DOM manipulation and general utility tasks.
  */
 class Utils {
+  /** Parse API dates and legacy UTC dates, retaining sub-millisecond precision. */
+  static utcDateValue(value) {
+    if (!value) return NaN;
+    let text = String(value).replace(" ", "T");
+    if (!/(Z|[+-]\d{2}:\d{2})$/i.test(text)) text += "Z";
+    const fraction = text.match(/\.(\d+)/)?.[1] ?? "";
+    return Date.parse(text) + Number(`0.${fraction.slice(3) || "0"}`);
+  }
+
+  /** Sort dated items without mutation; missing dates stay last, ties by name. */
+  static sortByDate(items, direction, dateOf, nameOf) {
+    if (!direction) return items;
+    const factor = direction === "desc" ? -1 : 1;
+    return [...items].sort((a, b) => {
+      const left = Utils.utcDateValue(dateOf(a));
+      const right = Utils.utcDateValue(dateOf(b));
+      if (Number.isNaN(left) !== Number.isNaN(right)) {
+        return Number.isNaN(left) ? 1 : -1;
+      }
+      return (left - right) * factor || nameOf(a).localeCompare(nameOf(b));
+    });
+  }
+
+  /** Move existing rows so sorting preserves checkboxes, listeners and tooltips. */
+  static sortTableRowsByDate(tbody, direction) {
+    const rows = Utils.sortByDate(
+      Array.from(tbody.rows), direction,
+      (row) => row.dataset.sortDate, (row) => row.dataset.sortName ?? ""
+    );
+    rows.forEach((row) => tbody.appendChild(row));
+  }
+
+  /** Update only the direction classes, preserving icon identifiers. */
+  static updateDateSortIcon(icon, direction) {
+    if (!icon || !direction) return;
+    icon.classList.remove(
+      "fa-sort", "text-muted", "fa-arrow-up-short-wide", "fa-arrow-down-wide-short"
+    );
+    icon.classList.add(
+      direction === "asc" ? "fa-arrow-up-short-wide" : "fa-arrow-down-wide-short"
+    );
+  }
+
+  /** Format an API timestamp for a column labelled UTC. */
+  static formatUTCDate(value) {
+    const timestamp = Utils.utcDateValue(value);
+    return Number.isNaN(timestamp) ? "" :
+      new Date(timestamp).toISOString().slice(0, 19).replace("T", " ");
+  }
+
   /**
    * Returns the first element within the document that matches the specified selector.
    * @param {string} selector - The CSS selector to match elements against.

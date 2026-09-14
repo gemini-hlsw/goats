@@ -1,3 +1,4 @@
+{% load sorting %}
 <h4>Active Users</h4>
 <div class="row">
   <div class="col-md-12">
@@ -15,6 +16,7 @@
           <th>Username</th>
           <th>Name</th>
           <th>Email</th>
+          {% sortable_header "date_joined" "Joined (UTC)" %}
           <th>Admin</th>
           <th>
             Credential Manager
@@ -50,6 +52,7 @@
           <td>{{ user.username }}</td>
           <td>{{ user.first_name }} {{ user.last_name }}</td>
           <td>{{ user.email }}</td>
+          <td>{{ user.date_joined }}</td>
           <td>{% if user.is_superuser %} yes {% endif %}</td>
           <td>
             <div class="dropdown">

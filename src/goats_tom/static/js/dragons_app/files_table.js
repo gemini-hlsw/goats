@@ -123,6 +123,26 @@ class FilesTableTemplate {
     selectTh.appendChild(select);
     tr.append(selectTh);
 
+    // Label for the created column; clicking it sorts the files by date.
+    const createdTh = Utils.createElement("th", "fw-normal");
+    createdTh.setAttribute("scope", "col");
+    const sortButton = Utils.createElement("button", [
+      "btn",
+      "btn-link",
+      "p-0",
+      "text-reset",
+      "text-decoration-none",
+    ]);
+    sortButton.type = "button";
+    sortButton.dataset.action = "sortByDate";
+    sortButton.title = "Sort by Created";
+    sortButton.textContent = "Created (UTC) ";
+    const sortIcon = Utils.createElement("i", ["fa-solid", "fa-sort", "text-muted"]);
+    sortIcon.classList.add("files-table-sort-icon");
+    sortButton.appendChild(sortIcon);
+    createdTh.appendChild(sortButton);
+    tr.append(createdTh);
+
     thead.appendChild(tr);
     return thead;
   }
@@ -149,7 +169,7 @@ class FilesTableTemplate {
       // Handle the case where no files are present
       const tr = Utils.createElement("tr");
       const td = Utils.createElement("td", ["text-center"]);
-      td.setAttribute("colspan", "2");
+      td.setAttribute("colspan", "3");
       td.textContent = "No files found...";
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -174,6 +194,8 @@ class FilesTableTemplate {
     const tr = Utils.createElement("tr", "align-middle");
     tr.dataset.fileId = file.id;
     tr.dataset.fileUrl = file.url;
+    tr.dataset.sortDate = file.created ?? "";
+    tr.dataset.sortName = file.product_id;
 
     const tdCheckbox = Utils.createElement("td", ["py-0", "mb-0"]);
     const checkbox = Utils.createElement("input", [
@@ -197,6 +219,11 @@ class FilesTableTemplate {
     div.appendChild(label);
     tdCheckbox.appendChild(div);
     tr.appendChild(tdCheckbox);
+
+    // Show when the file was added to GOATS; the API sorts on this date.
+    const tdCreated = Utils.createElement("td", ["py-0", "mb-0"]);
+    tdCreated.textContent = Utils.formatUTCDate(file.created);
+    tr.appendChild(tdCreated);
 
     // Build the view dropdown.
     const tdViewer = Utils.createElement("td", ["py-0", "mb-0", "text-end"]);
@@ -311,9 +338,43 @@ class FilesTableView {
     this.modal = window.modal;
 
     this.parentElement = null;
+    // `null` keeps the order the server sent; "asc"/"desc" sort by date.
+    this.sortDirection = null;
 
     this.render = this.render.bind(this);
     this.bindCallback = this.bindCallback.bind(this);
+    this._toggleSort = this._toggleSort.bind(this);
+  }
+
+  /**
+   * Returns the files in the requested order, leaving the given array untouched.
+   * @param {Array} files - The files to order.
+   * @returns {Array} The ordered files.
+   * @private
+   */
+  _sorted(data) {
+    return Utils.sortByDate(
+      data, this.sortDirection, (file) => file.created, (file) => file.product_id
+    );
+  }
+
+  /**
+   * Toggles the date order by moving existing rows, preserving their state.
+   * @private
+   */
+  _toggleSort() {
+    this.sortDirection = this.sortDirection === "desc" ? "asc" : "desc";
+    Utils.sortTableRowsByDate(this.tbody, this.sortDirection);
+    this._updateSortIcon();
+  }
+
+  /**
+   * Reflects the active direction on the date column's icon.
+   * @private
+   */
+  _updateSortIcon() {
+    const icon = this.thead?.querySelector(".files-table-sort-icon");
+    Utils.updateDateSortIcon(icon, this.sortDirection);
   }
 
   /**
@@ -366,6 +427,10 @@ class FilesTableView {
 
     // Append the container to the parent element.
     this.parentElement.appendChild(this.container);
+
+    this.thead
+      .querySelector('[data-action="sortByDate"]')
+      ?.addEventListener("click", this._toggleSort);
   }
 
   /**
@@ -423,9 +488,10 @@ class FilesTableView {
    * @private
    */
   _updateFiles(data) {
-    const tbody = this.template.createTbody(data);
+    const tbody = this.template.createTbody(this._sorted(data));
     this.table.replaceChild(tbody, this.tbody);
     this.tbody = tbody;
+    this._updateSortIcon();
   }
 
   /**

@@ -168,6 +168,21 @@ urlpatterns = [
         views.ObservationTemplateListView.as_view(),
         name="observation-template-list",
     ),
+    path(
+        "observations/list/",
+        views.ObservationListView.as_view(),
+        name="observation-list",
+    ),
+    path(
+        "observations/groups/list/",
+        views.ObservationGroupListView.as_view(),
+        name="observation-group-list",
+    ),
+    path(
+        "dataproducts/data/",
+        views.DataProductListView.as_view(),
+        name="dataproduct-list",
+    ),
     path("tns/", include(tom_tns_urls)),
     path(
         "targets/<int:target_id>/refresh-antares/",
