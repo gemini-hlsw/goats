@@ -3,6 +3,7 @@ from goats_tom.views.astro_datalab import AstroDatalabView
 from goats_tom.views.brokerquery_list import BrokerQueryListView
 from goats_tom.views.brokerquery_name import update_brokerquery_name
 from goats_tom.views.dataproduct_delete import DataProductDeleteView
+from goats_tom.views.dataproduct_list import DataProductListView
 from goats_tom.views.dataproduct_upload import DataProductUploadView
 from goats_tom.views.delete_observation_dataproducts import (
     DeleteObservationDataProductsView,
@@ -18,6 +19,8 @@ from goats_tom.views.logins import (
     LCOLoginView,
     TNSLoginView,
 )
+from goats_tom.views.observation_group_list import ObservationGroupListView
+from goats_tom.views.observation_list import ObservationListView
 from goats_tom.views.observation_record_delete import ObservationRecordDeleteView
 from goats_tom.views.observation_record_detail import ObservationRecordDetailView
 from goats_tom.views.observation_template_create import ObservationTemplateCreateView
@@ -56,4 +59,7 @@ __all__ = [
     "TargetListView",
     "BrokerQueryListView",
     "ObservationTemplateListView",
+    "ObservationListView",
+    "ObservationGroupListView",
+    "DataProductListView",
 ]

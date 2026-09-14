@@ -24,7 +24,7 @@ class DRAGONSReduceViewSet(
     mixins.UpdateModelMixin,
     GenericViewSet,
 ):
-    queryset = DRAGONSReduce.objects.all()
+    queryset = DRAGONSReduce.objects.all().order_by("-created_at", "-pk")
     permission_classes = [permissions.IsAuthenticated]
     filter_serializer_class = DRAGONSReduceFilterSerializer
     serializer_classes = {

@@ -1,4 +1,4 @@
-{% load bootstrap4 %}
+{% load bootstrap4 sorting %}
 {% load tom_common_extras tom_overrides %}
 <form method="POST" action="{% url 'tom_dataproducts:share_all' tg_pk=target.id %}" enctype="multipart/form-data" id="photometry-data-share-form">
     {% csrf_token %}
@@ -25,8 +25,8 @@
                               <label class="form-check-label" for="share-all-phot">Share</label>
                           </div>
                       </th>
-                      <th class="sticky-top bg-body-secondary">Timestamp</th>
-                      <th class="sticky-top bg-body-secondary text-end">MJD</th>
+                      {% sortable_header "timestamp" "Timestamp" suffix="_photometry" css_class="sticky-top bg-body-secondary" %}
+                      {% sortable_header "mjd" "MJD" suffix="_photometry" css_class="sticky-top bg-body-secondary text-end" %}
                       <th class="sticky-top bg-body-secondary">Telescope</th>
                       <th class="sticky-top bg-body-secondary">Filter</th>
                       <th class="sticky-top bg-body-secondary text-end">Magnitude</th>

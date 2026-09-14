@@ -37,8 +37,10 @@ class DummyData:
 
 @dataclass
 class DummyProduct:
+    pk: int = 1
     data: Any = None
     data_product_type: str | None = None
+    created: datetime = datetime(2020, 1, 1, tzinfo=timezone.utc)
 
 
 @dataclass
@@ -69,7 +71,13 @@ def _make_rd(pk=1, timestamp="2024-01-01", source_name="ZTF", value=None):
 
 
 def _call_get_photometry_data(
-    mocker, mod, target, photometry_qs=None, target_share=False, data_sharing=None
+    mocker,
+    mod,
+    target,
+    photometry_qs=None,
+    target_share=False,
+    data_sharing=None,
+    query=None,
 ):
     photometry_qs = photometry_qs or []
     fake_qs = SimpleNamespace(order_by=lambda *a: photometry_qs)
@@ -82,7 +90,11 @@ def _call_get_photometry_data(
     )
     mocker.patch(f"{MODULE}.DataShareForm", return_value=form_instance)
     mocker.patch(f"{MODULE}.settings.DATA_SHARING", data_sharing, create=True)
-    context = {"request": SimpleNamespace(user=SimpleNamespace(username="tester"))}
+    context = {
+        "request": SimpleNamespace(
+            user=SimpleNamespace(username="tester"), GET=query or {}
+        )
+    }
     return mod.get_photometry_data(context, target, target_share=target_share)
 
 
@@ -502,10 +514,168 @@ def test_get_photometry_data_empty_returns_empty_list(
 
 @pytest.mark.parametrize("pks", [[1, 2, 3], [10, 20, 30], [5]])
 def test_get_photometry_data_preserves_order(mocker, mod, target, pks):
-    rds = [_make_rd(pk=pk, value={"magnitude": 18.0 + i}) for i, pk in enumerate(pks)]
+    # Newest first, matching the order the queryset is fetched in.
+    rds = [
+        _make_rd(
+            pk=pk, timestamp=f"2024-01-{10 - i:02d}", value={"magnitude": 18.0 + i}
+        )
+        for i, pk in enumerate(pks)
+    ]
     assert [
         e["id"]
         for e in _call_get_photometry_data(mocker, mod, target, photometry_qs=rds)[
             "data"
         ]
     ] == pks
+
+
+def _request(user):
+    return SimpleNamespace(user=user, GET={})
+
+
+def test_goats_dataproduct_list_for_target_orders_newest_first(mod, db, target):
+    from goats_tom.tests.factories import DataProductFactory, UserFactory
+    from tom_dataproducts.models import DataProduct
+
+    older = DataProductFactory.create(target=target)
+    newer = DataProductFactory.create(target=target)
+    DataProduct.objects.filter(pk=older.pk).update(
+        created=datetime(2020, 1, 1, tzinfo=timezone.utc)
+    )
+
+    context = {"request": _request(UserFactory())}
+    products = mod.goats_dataproduct_list_for_target(context, target)["products"]
+
+    assert [p.pk for p in products] == [newer.pk, older.pk]
+
+
+def test_goats_observation_list_orders_newest_first(mod, db, target):
+    from goats_tom.tests.factories import UserFactory
+    from tom_observations.models import ObservationRecord
+    from tom_observations.tests.factories import ObservingRecordFactory
+
+    older = ObservingRecordFactory.create(target_id=target.id)
+    newer = ObservingRecordFactory.create(target_id=target.id)
+    ObservationRecord.objects.filter(pk=older.pk).update(
+        created=datetime(2020, 1, 1, tzinfo=timezone.utc)
+    )
+
+    context = {"request": _request(UserFactory())}
+    observations = mod.goats_observation_list(context, target)["observations"]
+
+    assert [o.pk for o in observations] == [newer.pk, older.pk]
+
+
+def test_goats_dataproduct_list_for_observation_saved_orders_newest_first(mod):
+    older = DummyProduct(created=datetime(2020, 1, 1, tzinfo=timezone.utc))
+    newer = DummyProduct(created=datetime(2024, 1, 1, tzinfo=timezone.utc))
+    ctx = mod.goats_dataproduct_list_for_observation_saved(
+        data_products={"saved": [older, newer]},
+        request=SimpleNamespace(GET={}),
+        observation_record=SimpleNamespace(pk=1),
+    )
+    assert list(ctx["products_page"].object_list) == [newer, older]
+
+
+def test_saved_products_break_date_ties_before_pagination(mod):
+    products = [DummyProduct(pk=pk) for pk in range(1, 27)]
+    ctx = mod.goats_dataproduct_list_for_observation_saved(
+        {"saved": products}, SimpleNamespace(GET={"page_saved": 2}),
+        SimpleNamespace(pk=1),
+    )
+    assert [product.pk for product in ctx["products_page"]] == [1]
+
+
+@pytest.mark.parametrize(
+    "order,expected", [("created", "ascending"), ("-created", "descending")]
+)
+def test_saved_products_honour_requested_order(mod, order, expected):
+    older = DummyProduct(pk=1, created=datetime(2020, 1, 1, tzinfo=timezone.utc))
+    newer = DummyProduct(pk=2, created=datetime(2024, 1, 1, tzinfo=timezone.utc))
+    ctx = mod.goats_dataproduct_list_for_observation_saved(
+        {"saved": [older, newer]},
+        SimpleNamespace(GET={"order_saved": order}),
+        SimpleNamespace(pk=1),
+    )
+    products = list(ctx["products_page"].object_list)
+    assert products == ([older, newer] if expected == "ascending" else [newer, older])
+    assert ctx["current_order_saved"] == order
+
+
+@pytest.mark.parametrize("order", [None, "timestamp", "-timestamp"])
+def test_get_photometry_data_orders_timestamps_and_ties_in_database(mod, target, order):
+    from goats_tom.tests.factories import ReducedDatumFactory, UserFactory
+    newer_date = datetime(2024, 1, 2, tzinfo=timezone.utc)
+    first = ReducedDatumFactory(
+        target=target, timestamp=newer_date, value={"magnitude": 18.0}
+    )
+    second = ReducedDatumFactory(
+        target=target, timestamp=newer_date, value={"magnitude": 19.0}
+    )
+    older = ReducedDatumFactory(target=target, timestamp=newer_date - timedelta(days=1))
+    request = _request(UserFactory())
+    request.GET = {"order_photometry": order} if order else {}
+    result = mod.get_photometry_data({"request": request}, target)
+    expected = [older.pk, first.pk, second.pk] if order == "timestamp" else [second.pk, first.pk, older.pk]
+    assert [row["id"] for row in result["data"]] == expected
+
+
+@pytest.mark.parametrize(
+    "order,expected",
+    [("mjd", [3, 1, 2]), ("-mjd", [2, 1, 3]), ("timestamp", [1, 2, 3])],
+)
+def test_get_photometry_data_orders_by_requested_field(
+    mocker, mod, target, order, expected
+):
+    rds = [
+        _make_rd(pk=1, value={"magnitude": 18.0, "time": 60000.5}),
+        _make_rd(pk=2, value={"magnitude": 18.0, "time": 60001.5}),
+        _make_rd(pk=3, value={"magnitude": 18.0, "time": 59999.5}),
+    ]
+    data = _call_get_photometry_data(
+        mocker, mod, target, photometry_qs=rds, query={"order_photometry": order}
+    )["data"]
+    assert [row["id"] for row in data] == expected
+
+
+@pytest.mark.parametrize("order", ["mjd", "-mjd"])
+def test_get_photometry_data_sorts_rows_without_mjd_last(mocker, mod, target, order):
+    rds = [
+        _make_rd(pk=1, value={"magnitude": 18.0}),
+        _make_rd(pk=2, value={"magnitude": 18.0, "time": 60000.5}),
+    ]
+    data = _call_get_photometry_data(
+        mocker, mod, target, photometry_qs=rds, query={"order_photometry": order}
+    )["data"]
+    assert [row["id"] for row in data][-1] == 1
+
+
+@pytest.mark.parametrize("order", ["created", "-created"])
+def test_saved_products_pagination_links_preserve_sort(mod, target, order):
+    import re
+    from html import unescape
+    from django.template.loader import render_to_string
+    from django.test import RequestFactory
+    from goats_tom.tests.factories import DataProductFactory
+
+    products = DataProductFactory.create_batch(26, target=target)
+    date = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    for index, product in enumerate(products):
+        product.created = date + timedelta(days=index)
+    record = SimpleNamespace(id=1)
+    request = RequestFactory().get("/", {"order_saved": order, "tab": "data"})
+    context = mod.goats_dataproduct_list_for_observation_saved(
+        {"saved": products}, request, record
+    )
+    rendered = render_to_string(
+        "tom_dataproducts/partials/saved_dataproduct_list_for_observation.html", context
+    )
+    links = [unescape(link) for link in re.findall(r'href="([^"]*page_saved=2[^"]*)"', rendered)]
+    assert len(links) >= 2  # Pagination above and below the table.
+    assert all(f"order_saved={order}" in link and "tab=data" in link for link in links)
+    next_request = RequestFactory().get("/" + links[0])
+    page_two = mod.goats_dataproduct_list_for_observation_saved(
+        {"saved": products}, next_request, record
+    )
+    expected = products[-1] if order == "created" else products[0]
+    assert list(page_two["products_page"]) == [expected]

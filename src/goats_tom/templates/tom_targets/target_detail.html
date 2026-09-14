@@ -122,10 +122,10 @@
       class="btn btn-primary"
       >Update Observations Status</a
     >
-    {% observation_list object %}
+    {% goats_observation_list object %}
   </div>
   <div class="tab-pane" id="manage-data">
-    {% if user.is_authenticated %} {% upload_dataproduct object %} {% endif %} {% dataproduct_list_for_target object %}
+    {% if user.is_authenticated %} {% upload_dataproduct object %} {% endif %} {% goats_dataproduct_list_for_target object %}
   </div>
   <div class="tab-pane" id="manage-groups">{% target_groups target %}</div>
   <div class="tab-pane" id="photometry">

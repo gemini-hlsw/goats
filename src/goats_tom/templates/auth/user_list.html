@@ -1,0 +1,9 @@
+{% extends 'tom_common/base.html' %}
+{% load user_extras tom_overrides %}
+{% block title %}User Management{% endblock %}
+{% block content %}
+{% include_app_user_lists %}
+{% group_list %}
+<hr/>
+{% goats_user_list %}
+{% endblock %}

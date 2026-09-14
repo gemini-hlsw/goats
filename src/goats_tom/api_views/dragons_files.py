@@ -30,7 +30,7 @@ class DRAGONSFilesViewSet(
     serializer_class = DRAGONSFileSerializer
     filter_serializer_class = DRAGONSFileFilterSerializer
     permission_classes = [IsAuthenticated]
-    queryset = DRAGONSFile.objects.all()
+    queryset = DRAGONSFile.objects.all().order_by("-data_product__created", "-pk")
 
     def get_queryset(self) -> QuerySet:
         """Retrieves the queryset filtered by the associated DRAGONS run.
@@ -97,18 +97,24 @@ class DRAGONSFilesViewSet(
 
         # Group by dynamic fields if specified.
         if group_by:
+            created_field = self.get_serializer().fields["created"]
             if "all" in group_by:
                 # Return all files under the "All" key with a count
-                files_data = list(
-                    queryset.values(
+                files_data = [
+                    {
+                        **item,
+                        "created": created_field.to_representation(item["created"]),
+                    }
+                    for item in queryset.values(
                         "id",
                         "product_id",
                         "url",
                         "observation_type",
                         "object_name",
                         "observation_class",
+                        created=F("data_product__created"),
                     )
-                )
+                ]
                 grouped_data = {"All": {"count": len(files_data), "files": files_data}}
                 return Response(grouped_data)
 
@@ -141,7 +147,8 @@ class DRAGONSFilesViewSet(
                 "product_id",
                 "url",
                 group_field,
-            ).order_by(group_field)
+                created=F("data_product__created"),
+            ).order_by(group_field, "-data_product__created", "-pk")
 
             # Manually aggregate grouped data.
             grouped_data = {}
@@ -160,6 +167,7 @@ class DRAGONSFilesViewSet(
                         "object_name": item["object_name"],
                         "observation_type": item["observation_type"],
                         "observation_class": item["observation_class"],
+                        "created": created_field.to_representation(item["created"]),
                     }
                 )
                 grouped_data[group_key]["count"] += 1
