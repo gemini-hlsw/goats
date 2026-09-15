@@ -2109,7 +2109,7 @@ requires-dist = [
     { name = "django", specifier = "==5.2.16" },
     { name = "django-cors-headers", specifier = ">=4.9.0,<5" },
     { name = "django-dramatiq", specifier = ">=0.15.0" },
-    { name = "djangorestframework", specifier = ">=3.17.2,<4" },
+    { name = "djangorestframework", specifier = "==3.17.2,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
     { name = "gpp-client", specifier = "==26.7.3.dev8" },
