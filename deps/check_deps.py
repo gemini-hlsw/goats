@@ -108,6 +108,10 @@ DEFAULT_PYTHON_VERSION = "3.12"
 DEFAULT_TIMEOUT = 15
 DEFAULT_WORKERS = 16
 HTTP_RETRIES = 2
+# How far back the resolver walks a package's release history looking for a
+# version whose own requirements fit the graph. Backtracking deeper than this
+# costs one PyPI request per step and never pays off in practice.
+MAX_VERSION_CANDIDATES = 12
 
 # Mutated by main() via configure_python(); read by parse_requirements().
 PYTHON_VERSION = DEFAULT_PYTHON_VERSION
@@ -368,6 +372,8 @@ def latest_goats_release() -> str | None:
 
 
 _pypi_cache: dict[tuple[str, str | None], list[str]] = {}
+_pypi_releases_cache: dict[str, list[str]] = {}
+_pypi_latest: dict[str, str] = {}
 _pypi_cache_lock = threading.Lock()
 
 
@@ -377,8 +383,12 @@ def fetch_pypi_requires(package: str, version: str | None = None) -> list[str]:
     Only the requirement list is kept; PyPI metadata documents are large and
     holding them all would dominate memory on a deep run.
     """
-    key = (package.lower(), version)
     with _pypi_cache_lock:
+        # Asking for the latest version by number is the same document as asking
+        # for it by omission; collapsing the two keys saves a request per package.
+        if version is not None and _pypi_latest.get(package.lower()) == version:
+            version = None
+        key = (package.lower(), version)
         if key in _pypi_cache:
             return _pypi_cache[key]
 
@@ -402,6 +412,58 @@ def fetch_pypi_requires(package: str, version: str | None = None) -> list[str]:
     with _pypi_cache_lock:
         _pypi_cache[key] = requires
     return requires
+
+
+def fetch_pypi_releases(package: str) -> list[str]:
+    """Return every installable release of `package`, newest first.
+
+    Releases that ship no files, or whose files are all yanked, are dropped: a
+    resolver could not install them, so offering them as candidates would only
+    produce advice nobody can follow.
+    """
+    key = package.lower()
+    with _pypi_cache_lock:
+        if key in _pypi_releases_cache:
+            return _pypi_releases_cache[key]
+
+    payload = _http_json(PYPI_URL_LATEST.format(package=package), cache=False)
+    versions: list[str] = []
+    latest: str | None = None
+    requires: list[str] | None = None
+    if payload is not _TIMEOUT and isinstance(payload, dict):
+        info = payload.get("info") or {}
+        latest = info.get("version")
+        requires = info.get("requires_dist") or []
+        for raw, files in (payload.get("releases") or {}).items():
+            if not files or all(f.get("yanked") for f in files):
+                continue
+            try:
+                Version(raw)
+            except InvalidVersion:
+                continue
+            versions.append(raw)
+        versions.sort(key=Version, reverse=True)
+
+    with _pypi_cache_lock:
+        _pypi_releases_cache[key] = versions
+        # The same document already carries the latest release's requirements,
+        # so record them rather than fetching the identical payload again.
+        if latest is not None:
+            _pypi_latest[key] = latest
+            _pypi_cache.setdefault((key, None), requires or [])
+    return versions
+
+
+def candidate_versions(package: str, spec: str) -> list[str]:
+    """Releases of `package` satisfying `spec`, newest first."""
+    versions = fetch_pypi_releases(package)
+    if not versions:
+        return []
+    specifier = _safe_specifier(spec) or SpecifierSet("")
+    matching = list(specifier.filter(versions))
+    if not matching:
+        matching = list(specifier.filter(versions, prereleases=True))
+    return matching[:MAX_VERSION_CANDIDATES]
 
 
 # ---------------------------------------------------------------------------
@@ -504,10 +566,10 @@ _conda_versions_lock = threading.Lock()
 
 
 def fetch_conda_versions(package: str, pool: ThreadPoolExecutor | None = None) -> list[str]:
-    """Fetch available conda versions with channel priority.
+    """Fetch available conda versions across the configured channels.
 
-      1. conda-forge (fastest, most packages)
-      2. fallback channels (astroconda, defaults, Gemini) — only if needed
+      1. conda-forge and the Gemini channels, together
+      2. astroconda / defaults — only if neither of the above has the package
 
     Results are cached per package for the lifetime of the process.
     """
@@ -522,22 +584,32 @@ def fetch_conda_versions(package: str, pool: ThreadPoolExecutor | None = None) -
         all_versions: set[str] = set()
         had_timeout = False
 
+        gemini_tasks: list[ChannelTask] = [
+            (_fetch_gemini_versions, url) for url in GEMINI_REPODATA_URLS
+        ]
         for name in _conda_name_variants(package):
+            # The Gemini channels are queried alongside conda-forge rather than
+            # behind it. GOATS publishes its own builds there, and treating them
+            # as a fallback hid them completely whenever conda-forge also shipped
+            # the package: a fresh conda-test build stayed invisible behind an
+            # older conda-forge one. Their repodata is parsed once per process,
+            # so consulting them for every package costs nothing extra.
             primary, primary_timeout = _fetch_channel_group(
-                name, [(_fetch_anaconda_versions, PRIMARY_CHANNEL)], pool
+                name, [(_fetch_anaconda_versions, PRIMARY_CHANNEL), *gemini_tasks], pool
             )
             had_timeout = had_timeout or primary_timeout
             if primary:
                 all_versions.update(primary)
-                logger.debug("'%s' found in %s, skipping fallbacks", name, PRIMARY_CHANNEL)
                 continue
 
-            logger.debug("'%s' not in %s, trying fallback channels", name, PRIMARY_CHANNEL)
+            # Only now pay for the generic channels: each costs one request per
+            # package, and they exist to catch what the channels above lack.
+            logger.debug("'%s' not in conda-forge or the Gemini channels", name)
             fallback_tasks: list[ChannelTask] = [
                 (_fetch_anaconda_versions, ch)
                 for ch in CONDA_CHANNELS
                 if ch != PRIMARY_CHANNEL
-            ] + [(_fetch_gemini_versions, url) for url in GEMINI_REPODATA_URLS]
+            ]
             fallback, fallback_timeout = _fetch_channel_group(name, fallback_tasks, pool)
             had_timeout = had_timeout or fallback_timeout
             all_versions.update(fallback)
@@ -745,11 +817,77 @@ def get_pinned_version(
 # ---------------------------------------------------------------------------
 
 
+def _contradicts(constraints: dict[str, set[str]], name: str, spec: str) -> bool:
+    """True when `spec` cannot hold alongside what the graph already demands.
+
+    Only packages the graph has an opinion about can be contradicted, so an
+    unknown name is never a veto — and the check costs nothing for the long
+    tail of dependencies nobody else constrains.
+    """
+    known = constraints.get(name)
+    if not known or not spec:
+        return False
+    combined = _safe_specifier(",".join(sorted(known | {spec})))
+    if combined is None:
+        return False
+    versions = fetch_pypi_releases(name)
+    if not versions:
+        return False  # no release list to judge against; assume it is fine
+    return not list(combined.filter(versions)) and not list(
+        combined.filter(versions, prereleases=True)
+    )
+
+
+def _resolve_requirements(
+    package: str, constraints: dict[str, set[str]], pinned: str | None
+) -> list[str]:
+    """Requirements of the newest `package` release the graph can actually use.
+
+    Reading the latest release unconditionally — what this used to do — imports
+    constraints from versions the resolver would never install, and those show
+    up as phantom conflicts: `ipyvuetify` 3.x demands `ipyvue>=3` while jdaviz
+    caps it at `<3.0`, and `tom-tns` 0.5 demands `tomtoolkit>=3` while GOATS
+    pins 2.32.2. Walking candidates newest-first and skipping any whose own
+    requirements contradict the established graph mirrors what a real resolver
+    does when it backtracks.
+    """
+    own = set(constraints.get(package) or set())
+    if pinned:
+        own.add(f"=={pinned}")
+    candidates = candidate_versions(package, ",".join(sorted(own)))
+    if not candidates:
+        return fetch_pypi_requires(package, pinned)
+
+    newest: list[str] | None = None
+    for version in candidates:
+        requires = fetch_pypi_requires(package, version)
+        if newest is None:
+            newest = requires
+        if not any(
+            _contradicts(constraints, name, spec)
+            for name, spec, _marker in parse_requirements(requires)
+        ):
+            if version != candidates[0]:
+                logger.debug(
+                    "%s: backtracked from %s to %s to fit the graph",
+                    package,
+                    candidates[0],
+                    version,
+                )
+            return requires
+
+    # Every candidate clashes: the conflict is real, so report the newest one
+    # and let the analysis surface it rather than hiding it behind a fallback.
+    logger.debug("%s: no candidate fits the graph, keeping %s", package, candidates[0])
+    return newest or []
+
+
 def resolve_transitive(
     roots: list[tuple[str, str | None]],
     max_depth: int,
     workers: int = DEFAULT_WORKERS,
     exclude: set[str] | None = None,
+    constraints: dict[str, set[str]] | None = None,
 ) -> list[tuple[str, str]]:
     """Expand the dependency tree breadth-first via PyPI.
 
@@ -763,6 +901,10 @@ def resolve_transitive(
 
     Names in `exclude` are never looked up and never become edges: they are
     conda-only packages whose names belong to unrelated projects on PyPI.
+
+    `constraints` seeds what the upstream projects already declare. Those specs
+    are facts rather than guesses, so a candidate version that contradicts them
+    can be rejected outright instead of being reported as a conflict.
     """
     if max_depth <= 0:
         return []
@@ -770,6 +912,9 @@ def resolve_transitive(
     excluded = exclude or set()
     edges: list[tuple[str, str]] = []
     seen: set[str] = set(excluded)
+    established: dict[str, set[str]] = {
+        name: set(specs) for name, specs in (constraints or {}).items()
+    }
     frontier = [(name.lower(), version) for name, version in roots]
     seen.update(name for name, _ in frontier)
 
@@ -778,9 +923,14 @@ def resolve_transitive(
             break
         logger.info("[depth %d] Resolving %d package(s)...", depth, len(frontier))
 
+        # Frozen while the pool runs: every package in this depth is resolved
+        # against the same snapshot, so the outcome cannot depend on which
+        # thread happens to finish first.
+        snapshot = {name: set(specs) for name, specs in established.items()}
+
         with ThreadPoolExecutor(max_workers=max(1, min(workers, len(frontier)))) as pool:
             futures = {
-                pool.submit(fetch_pypi_requires, name, version): name
+                pool.submit(_resolve_requirements, name, snapshot, version): name
                 for name, version in frontier
             }
             results: dict[str, list[str]] = {}
@@ -793,13 +943,17 @@ def resolve_transitive(
                     results[parent] = []
 
         next_frontier: list[tuple[str, str | None]] = []
-        for parent, deps in results.items():
+        # Sorted so the constraints accumulate in a stable order regardless of
+        # completion order above.
+        for parent, deps in sorted(results.items()):
             # Markers are evaluated here so we never spend a request resolving a
             # dependency that does not apply to the target environment.
             for name, spec, _marker in parse_requirements(deps):
                 if name in excluded:
                     continue
                 edges.append((parent, f"{name}{spec}"))
+                if spec:
+                    established.setdefault(name, set()).add(spec)
                 if name in seen:
                     continue
                 seen.add(name)
@@ -808,7 +962,7 @@ def resolve_transitive(
                     (s.version for s in specifier or () if s.operator == "=="), None
                 )
                 next_frontier.append((name, pinned))
-        frontier = next_frontier
+        frontier = sorted(next_frontier, key=lambda item: item[0])
 
     return edges
 
@@ -1458,8 +1612,16 @@ def add_transitive_deps(
         for pkg in list(global_dict)
         if pkg not in excluded
     ]
+    # What the upstream projects declare is authoritative; hand it to the
+    # resolver so it can reject candidate versions that contradict it.
+    established = {
+        pkg: {spec for spec, _source, _marker in entries if spec}
+        for pkg, entries in global_dict.items()
+    }
     direct_count = len(global_dict)
-    for parent, requirement in resolve_transitive(roots, max_depth, workers, excluded):
+    for parent, requirement in resolve_transitive(
+        roots, max_depth, workers, excluded, established
+    ):
         for name, spec, marker in parse_requirements([requirement]):
             global_dict.setdefault(name, []).append((spec, parent, marker))
     return len(global_dict) - direct_count
