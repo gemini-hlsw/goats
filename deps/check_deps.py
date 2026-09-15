@@ -454,8 +454,23 @@ def fetch_pypi_releases(package: str) -> list[str]:
     return versions
 
 
-def candidate_versions(package: str, spec: str) -> list[str]:
-    """Releases of `package` satisfying `spec`, newest first."""
+def _normalized(version: str) -> str | None:
+    """PEP 440 canonical form, or None when the string is not a version."""
+    try:
+        return str(Version(version))
+    except InvalidVersion:
+        return None
+
+
+def candidate_versions(
+    package: str, spec: str, prefer: set[str] | None = None
+) -> list[str]:
+    """Releases of `package` satisfying `spec`, newest first.
+
+    `prefer` holds canonical versions to try first. They are moved to the front
+    before the list is capped, so a preferred release sitting deep in the
+    history still survives — capping first would discard it.
+    """
     versions = fetch_pypi_releases(package)
     if not versions:
         return []
@@ -463,7 +478,23 @@ def candidate_versions(package: str, spec: str) -> list[str]:
     matching = list(specifier.filter(versions))
     if not matching:
         matching = list(specifier.filter(versions, prereleases=True))
+    if prefer:
+        favored = [v for v in matching if _normalized(v) in prefer]
+        if favored:
+            matching = favored + [v for v in matching if _normalized(v) not in prefer]
     return matching[:MAX_VERSION_CANDIDATES]
+
+
+def conda_available_versions(
+    package: str, pool: ThreadPoolExecutor | None = None
+) -> set[str]:
+    """Canonical versions of `package` that conda can actually install."""
+    available: set[str] = set()
+    for raw in fetch_conda_versions(package, pool):
+        canonical = _normalized(raw)
+        if canonical is not None:
+            available.add(canonical)
+    return available
 
 
 # ---------------------------------------------------------------------------
@@ -839,7 +870,10 @@ def _contradicts(constraints: dict[str, set[str]], name: str, spec: str) -> bool
 
 
 def _resolve_requirements(
-    package: str, constraints: dict[str, set[str]], pinned: str | None
+    package: str,
+    constraints: dict[str, set[str]],
+    pinned: str | None,
+    channel_pool: ThreadPoolExecutor | None = None,
 ) -> list[str]:
     """Requirements of the newest `package` release the graph can actually use.
 
@@ -854,7 +888,15 @@ def _resolve_requirements(
     own = set(constraints.get(package) or set())
     if pinned:
         own.add(f"=={pinned}")
-    candidates = candidate_versions(package, ",".join(sorted(own)))
+    # This tool answers what conda would install, so a release conda ships beats
+    # a newer one that exists only on PyPI. Without this, `solara` resolved to
+    # its PyPI latest and its own `==` pins on solara-server/solara-ui were then
+    # reported unsatisfiable — while the release conda does ship pins a trio
+    # conda has in full. Declared constraints still filter first: a version the
+    # graph forbids is never reachable just because conda happens to have it.
+    candidates = candidate_versions(
+        package, ",".join(sorted(own)), conda_available_versions(package, channel_pool)
+    )
     if not candidates:
         return fetch_pypi_requires(package, pinned)
 
@@ -918,51 +960,62 @@ def resolve_transitive(
     frontier = [(name.lower(), version) for name, version in roots]
     seen.update(name for name, _ in frontier)
 
-    for depth in range(max_depth):
-        if not frontier:
-            break
-        logger.info("[depth %d] Resolving %d package(s)...", depth, len(frontier))
+    # A pool of its own for the channel lookups: the resolver threads below wait
+    # on it, so sharing their pool could deadlock. Its results are cached, which
+    # makes the later availability pass a series of cache hits.
+    channel_pool = ThreadPoolExecutor(max_workers=max(8, workers * 2))
 
-        # Frozen while the pool runs: every package in this depth is resolved
-        # against the same snapshot, so the outcome cannot depend on which
-        # thread happens to finish first.
-        snapshot = {name: set(specs) for name, specs in established.items()}
+    try:
+        for depth in range(max_depth):
+            if not frontier:
+                break
+            logger.info("[depth %d] Resolving %d package(s)...", depth, len(frontier))
 
-        with ThreadPoolExecutor(max_workers=max(1, min(workers, len(frontier)))) as pool:
-            futures = {
-                pool.submit(_resolve_requirements, name, snapshot, version): name
-                for name, version in frontier
-            }
-            results: dict[str, list[str]] = {}
-            for future in as_completed(futures):
-                parent = futures[future]
-                try:
-                    results[parent] = future.result()
-                except Exception as e:  # noqa: BLE001
-                    logger.debug("PyPI lookup failed for %s: %s", parent, e)
-                    results[parent] = []
+            # Frozen while the pool runs: every package in this depth is resolved
+            # against the same snapshot, so the outcome cannot depend on which
+            # thread happens to finish first.
+            snapshot = {name: set(specs) for name, specs in established.items()}
 
-        next_frontier: list[tuple[str, str | None]] = []
-        # Sorted so the constraints accumulate in a stable order regardless of
-        # completion order above.
-        for parent, deps in sorted(results.items()):
-            # Markers are evaluated here so we never spend a request resolving a
-            # dependency that does not apply to the target environment.
-            for name, spec, _marker in parse_requirements(deps):
-                if name in excluded:
-                    continue
-                edges.append((parent, f"{name}{spec}"))
-                if spec:
-                    established.setdefault(name, set()).add(spec)
-                if name in seen:
-                    continue
-                seen.add(name)
-                specifier = _safe_specifier(spec)
-                pinned = next(
-                    (s.version for s in specifier or () if s.operator == "=="), None
-                )
-                next_frontier.append((name, pinned))
-        frontier = sorted(next_frontier, key=lambda item: item[0])
+            with ThreadPoolExecutor(max_workers=max(1, min(workers, len(frontier)))) as pool:
+                futures = {
+                    pool.submit(
+                        _resolve_requirements, name, snapshot, version, channel_pool
+                    ): name
+                    for name, version in frontier
+                }
+                results: dict[str, list[str]] = {}
+                for future in as_completed(futures):
+                    parent = futures[future]
+                    try:
+                        results[parent] = future.result()
+                    except Exception as e:  # noqa: BLE001
+                        logger.debug("PyPI lookup failed for %s: %s", parent, e)
+                        results[parent] = []
+
+            next_frontier: list[tuple[str, str | None]] = []
+            # Sorted so the constraints accumulate in a stable order regardless of
+            # completion order above.
+            for parent, deps in sorted(results.items()):
+                # Markers are evaluated here so we never spend a request resolving a
+                # dependency that does not apply to the target environment.
+                for name, spec, _marker in parse_requirements(deps):
+                    if name in excluded:
+                        continue
+                    edges.append((parent, f"{name}{spec}"))
+                    if spec:
+                        established.setdefault(name, set()).add(spec)
+                    if name in seen:
+                        continue
+                    seen.add(name)
+                    specifier = _safe_specifier(spec)
+                    pinned = next(
+                        (s.version for s in specifier or () if s.operator == "=="), None
+                    )
+                    next_frontier.append((name, pinned))
+            frontier = sorted(next_frontier, key=lambda item: item[0])
+
+    finally:
+        channel_pool.shutdown(wait=True)
 
     return edges
 
