@@ -9,6 +9,40 @@ from django import forms
 from goats_tom.antares_membership import requestable_pi_groups
 
 
+def _pi_group_label(pi_group) -> str:
+    """Label a PI group for the dropdown, by the PI's full name.
+
+    Parameters
+    ----------
+    pi_group : `goats_tom.models.AntaresPIGroup`
+        The group being offered.
+
+    Returns
+    -------
+    str
+        ``"<group> (PI: <full name>)"``, or just the group name when the PI
+        has set no full name.
+
+    Notes
+    -----
+    Not `AntaresPIGroup.__str__`, which renders the PI's *username*. A
+    username is half of a login credential, and showing it to every user who
+    opens this dropdown widens the surface for credential stuffing and
+    phishing for no gain -- it does not even identify the person, since a
+    handle like ``jsmith01`` tells a colleague nothing about who the PI is.
+
+    There is deliberately no fallback to username when the full name is
+    blank. The group name alone is less useful but not harmful, which is the
+    right way round.
+
+    `__str__` is untouched: it is what the Django admin and the shell
+    display, where the username is the useful identifier and the audience is
+    already privileged.
+    """
+    name = pi_group.pi.get_full_name().strip()
+    return f"{pi_group.group.name} (PI: {name})" if name else pi_group.group.name
+
+
 class AntaresJoinRequestForm(forms.Form):
     """Asks which PI group to join, and what access to request.
 
@@ -26,9 +60,9 @@ class AntaresJoinRequestForm(forms.Form):
         is actually granted remains the PI's decision, which is why this is
         worded as a request rather than a setting.
     message : `forms.CharField`
-        Optional note to the PI. A PI receiving a request from an unfamiliar
-        username otherwise has nothing to base a decision on, so this is
-        where a programme or collaboration is explained.
+        Optional note to the PI. A PI receiving a request from someone they
+        do not recognise otherwise has nothing to base a decision on, so this
+        is where a programme or collaboration is explained.
 
     """
 
@@ -36,15 +70,10 @@ class AntaresJoinRequestForm(forms.Form):
         queryset=None,
         label="PI group",
         empty_label="Select a group",
-        help_text="The PI whose ANTARES dashboard you want access to.",
     )
     request_save_targets = forms.BooleanField(
         label="Also request permission to save loci as targets",
         required=False,
-        help_text=(
-            "Leave unchecked to request view-only access. The PI decides "
-            "what to grant."
-        ),
     )
     message = forms.CharField(
         label="Message to the PI (optional)",
@@ -73,5 +102,6 @@ class AntaresJoinRequestForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.user = user
         self.fields["pi_group"].queryset = requestable_pi_groups(user)
+        self.fields["pi_group"].label_from_instance = _pi_group_label
         self.helper = FormHelper()
         self.helper.add_input(Submit("submit", "Request access"))

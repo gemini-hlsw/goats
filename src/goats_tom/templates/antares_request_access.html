@@ -40,7 +40,7 @@ no tables the page would otherwise be blank.
       {% for membership in my_memberships %}
       <tr>
         <td>{{ membership.pi_group.group.name }}</td>
-        <td>{{ membership.pi_group.pi.username }}</td>
+        <td>{{ membership.pi_group.pi.get_full_name|default:'&mdash;' }}</td>
         <td>
           {% if membership.can_view_dashboard %}
             <span class="badge bg-success">Yes</span>
@@ -78,7 +78,7 @@ no tables the page would otherwise be blank.
       {% for join_request in my_requests %}
       <tr>
         <td>{{ join_request.pi_group.group.name }}</td>
-        <td>{{ join_request.pi_group.pi.username }}</td>
+        <td>{{ join_request.pi_group.pi.get_full_name|default:'&mdash;' }}</td>
         <td>{{ join_request.created_at }}</td>
         <td>
           {% if join_request.status == "pending" %}

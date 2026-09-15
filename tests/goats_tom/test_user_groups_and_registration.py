@@ -435,7 +435,10 @@ class TestPendingAccountVisibility:
         )
         client.force_login(admin)
         response = client.get(reverse("home"))
-        assert b"Account Requests" in response.content
+        # The queue is now listed under a "Manage Requests" heading that
+        # supplies the word "Requests", so the row itself reads "Accounts".
+        assert b"Manage Requests" in response.content
+        assert b"Accounts" in response.content
 
     def test_badge_absent_with_no_pending(self, client):
         """No badge when the queue is empty."""

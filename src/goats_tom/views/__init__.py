@@ -37,6 +37,17 @@ from goats_tom.views.antares_stream_subscribe import (
     antares_stream_status,
     antares_stream_subscribe,
 )
+from goats_tom.views.tns_access_management import (
+    tns_create_join_request,
+    tns_decide_join_request,
+    tns_group_settings,
+    tns_revoke_membership,
+)
+from goats_tom.views.tns_report import (
+    GOATSTNSFormView,
+    GOATSTNSSubmitView,
+    tns_choose_posting_option,
+)
 from goats_tom.views.astro_datalab import AstroDatalabView
 from goats_tom.views.brokerquery_name import update_brokerquery_name
 from goats_tom.views.dataproduct_delete import DataProductDeleteView
@@ -72,6 +83,13 @@ from goats_tom.views.user_generate_token import UserGenerateTokenView
 
 __all__ = [
     "GOATSAddProductToGroupView",
+    "tns_create_join_request",
+    "tns_decide_join_request",
+    "tns_revoke_membership",
+    "tns_group_settings",
+    "GOATSTNSFormView",
+    "GOATSTNSSubmitView",
+    "tns_choose_posting_option",
     "GOATSDataProductGroupCreateView",
     "GOATSDataProductGroupDeleteView",
     "GOATSObservationGroupDeleteView",

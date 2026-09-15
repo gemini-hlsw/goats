@@ -1,32 +1,133 @@
 {% extends 'tom_common/base.html' %}
-{% load bootstrap4 tns_extras%}
+{% comment %}
+Loads `goats_tns_extras` rather than upstream's `tns_extras`. The GOATS tags
+wrap the upstream ones and pre-fill the author list from the group being
+posted through; everything else about the forms is upstream's. See
+`goats_tom.templatetags.goats_tns_extras`.
+{% endcomment %}
+{% load bootstrap4 goats_tns_extras %}
 {% block title %}Report to TNS{% endblock %}
 {% block additional_css %} {% endblock %}
 {% block content %}
 <h1>Submit <a href="{% url 'targets:detail' pk=target.id %}" title="Back">{{ target.name }}</a> Information to the TNS</h1>
+
 {% if not tns_configured %}
+    {% comment %}
+    Two different situations used to share one red "credentials not
+    configured" box. They need different answers: a user with no
+    credentials and nowhere to ask is stuck, while one who could join a
+    colleague's group is two clicks from being able to post. Telling the
+    second group to go and register a bot sends them to do work they do not
+    need to do.
+    {% endcomment %}
+    {% if join_request_form %}
+    <div class="alert alert-info">
+        <p>
+            You do not have TNS credentials of your own, but you can request
+            access to another user's TNS group.
+        </p>
+        <form method="post" action="{% url 'tns-request-access' %}"
+              class="col-md-6 px-0">
+            {% csrf_token %}
+            <div class="mb-2">
+                {{ join_request_form.tns_group }}
+            </div>
+            <div class="mb-2">
+                <label for="{{ join_request_form.message.id_for_label }}">
+                    {{ join_request_form.message.label }}
+                </label>
+                {{ join_request_form.message }}
+            </div>
+            <button type="submit" class="btn btn-primary">Request access</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if not has_own_credentials %}
     <div class="alert alert-danger">
-    TNS Credentials have not been configured!
-    Navigate to <strong>Users</strong> in the navbar (under your username), then click <strong>Credential Manager</strong>, and select <strong>Transient Name Server</strong> to enter the required information and configure TNS.
-</div>
+        TNS Credentials have not been configured!
+        Navigate to <strong>Users</strong> in the navbar (under your username), then click <strong>Credential Manager</strong>, and select <strong>Transient Name Server</strong> to enter the required information and configure TNS.
+    </div>
+    {% endif %}
 {% else %}
     {% if default_form == 'supernova' %}
         <div class="alert alert-danger"> Warning: This target {{target.names}} may have already been reported to and classified with the TNS</div>
     {% endif %}
+
+    {% comment %}
+    The picker is always rendered, even with a single option, so the page
+    always states plainly whose credentials are about to be used. With a
+    shared bot that is the one thing a submitter most needs to see before
+    pressing submit, and hiding it whenever there is no choice would mean
+    it is absent exactly when somebody has just been granted their first
+    group and is least expecting it.
+    {% endcomment %}
+    {% comment %}
+    One compact line rather than a bordered card. The card gave the control
+    more visual weight than the form it sits above, and this is a setting,
+    not a step.
+
+    Labelled "TNS bot" and not "Submit using", because the form below has
+    its own "Reporting group" field and the two read as the same question
+    otherwise. They are not: this picks *whose credentials* send the
+    report, that picks *which group* on the TNS.
+
+    Always rendered, even with one option, so the page states plainly whose
+    bot is about to be used. Hiding it when there is no choice would remove
+    it exactly when somebody has just been granted their first group and is
+    least expecting their report to go out under another name.
+    {% endcomment %}
+    {% comment %}
+    `d-flex`, not `form-inline`: the latter is a Bootstrap 4 class that
+    Bootstrap 5 removed, so it did nothing and the select stretched to the
+    full page width. `w-auto` keeps it to its content.
+
+    Lists bots, not groups. Choosing the bot decides whose credentials send
+    the report; the "Reporting group" field in the form below decides which
+    TNS group it is filed under. A picker that listed groups asked the same
+    question twice.
+    {% endcomment %}
+    <form method="get" class="d-flex align-items-center gap-2 mb-3">
+        <label for="posting_option" class="mb-0 text-nowrap">
+            <strong>TNS bot:</strong>
+        </label>
+        <select name="posting_option" id="posting_option"
+                class="form-select form-select-sm w-auto"
+                onchange="this.form.submit()">
+            {% for option in posting_options %}
+            <option value="{{ option.key }}"
+                    {% if active_option and option.key == active_option.key %}selected{% endif %}>
+                {{ option.label }}
+            </option>
+            {% endfor %}
+        </select>
+        <noscript>
+            <button type="submit" class="btn btn-sm btn-secondary">Use</button>
+        </noscript>
+    </form>
+
+     {% comment %}
+     `data-bs-toggle`, not upstream's `data-toggle`. GOATS is on Bootstrap 5,
+     where the Bootstrap 4 attribute is inert -- these tabs would render but
+     never switch. It went unnoticed because this half of the page never
+     rendered: `tns_configured` was always false (see
+     `goats_tom.views.tns_report.GOATSTNSFormView`), so the page always
+     stopped at the "credentials not configured" banner.
+     {% endcomment %}
      <div class="col-md-8">
         <ul class="nav nav-tabs" role="tablist" id="tabs">
           <li class="nav-item">
               {% if default_form == 'classify' %}
-                <a class="nav-link" id="report-tab" href="#report" role="tab" data-toggle="tab">Report {{ target.name }}</a>
+                <a class="nav-link" id="report-tab" href="#report" role="tab" data-bs-toggle="tab">Report {{ target.name }}</a>
               {% else %}
-                <a class="nav-link active" id="report-tab" href="#report" role="tab" data-toggle="tab">Report {{ target.name }}</a>
+                <a class="nav-link active" id="report-tab" href="#report" role="tab" data-bs-toggle="tab">Report {{ target.name }}</a>
               {% endif %}
           </li>
           <li class="nav-item">
               {% if default_form == 'classify' %}
-                <a class="nav-link active" id="classify-tab" href="#classify" role="tab" data-toggle="tab">Classify {{ target.name }} </a>
+                <a class="nav-link active" id="classify-tab" href="#classify" role="tab" data-bs-toggle="tab">Classify {{ target.name }} </a>
               {% else %}
-                <a class="nav-link" id="classify-tab" href="#classify" role="tab" data-toggle="tab">Classify {{ target.name }} </a>
+                <a class="nav-link" id="classify-tab" href="#classify" role="tab" data-bs-toggle="tab">Classify {{ target.name }} </a>
               {% endif %}
           </li>
         </ul>
@@ -62,6 +163,52 @@
             </div>
         </div>
     </div>
+
+    {% comment %}
+    Recommended co-authors are a per-group setting, but the group is chosen
+    here, after the page has loaded -- so a value pre-filled from the
+    credentials alone would quietly be the wrong one the moment the user
+    switched groups. This keeps the author field in step.
+
+    Scoped per form and matched by `name`, not `id`: both the report and
+    classify forms render on this page and `tom_tns` gives their fields
+    identical ids, so an id lookup would find whichever came first.
+
+    A field the user has typed in is left alone. Overwriting an edited
+    author list to "help" would be worse than not updating at all.
+    {% endcomment %}
+    <script id="tns-group-authors" type="application/json">{{ group_authors_json }}</script>
+    <script>
+      (function () {
+        var el = document.getElementById("tns-group-authors");
+        if (!el) { return; }
+        var authors;
+        try { authors = JSON.parse(el.textContent || "{}"); } catch (e) { return; }
+
+        document.querySelectorAll("form").forEach(function (form) {
+          var groupField = form.querySelector("[name='reporting_group']");
+          var authorField = form.querySelector("[name='reporter'], [name='classifier']");
+          if (!groupField || !authorField) { return; }
+
+          authorField.addEventListener("input", function () {
+            authorField.dataset.userEdited = "1";
+          });
+
+          groupField.addEventListener("change", function () {
+            if (authorField.dataset.userEdited === "1") { return; }
+            var label = groupField.options[groupField.selectedIndex];
+            authorField.value = authors[label ? label.text.trim() : ""] || "";
+          });
+        });
+      })();
+    </script>
+
+    {% if join_request_form %}
+    <p class="text-muted small mt-3">
+        You can request access to another group from your
+        <a href="{% url 'user-tns-login' request.user.pk %}">TNS credentials page</a>.
+    </p>
+    {% endif %}
 {% endif %}
 <hr>
 <p><em>TOM Toolkit Module (<a href="https://github.com/TOMToolkit/tom_tns" target="_blank">tom_tns</a>) version {{ version }}</em></p>

@@ -564,3 +564,17 @@ select.form-control[multiple] {
 .input-group > .border-danger {
   z-index: 4;
 }
+
+/*
+  The Downloads menu is a fixed 400px and anchors its right edge to a button
+  roughly 49px wide, so it extends about 350px to the *left* of that button.
+  On a narrow window that runs past the left edge of the viewport.
+
+  A ceiling rather than a fixed width lets it shrink to fit. On a wide screen
+  it is unchanged at 400px. Placed at the end of the file so it wins on
+  source order, leaving the original `.download-tasks-container` rule above
+  intact.
+*/
+.download-tasks-container {
+  width: min(400px, calc(100vw - 2rem));
+}

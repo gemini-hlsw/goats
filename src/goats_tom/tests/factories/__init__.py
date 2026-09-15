@@ -12,6 +12,11 @@ from .logins import (
     LCOLoginFactory,
     TNSLoginFactory,
 )
+from .tns_groups import (
+    TNSGroupFactory,
+    TNSGroupJoinRequestFactory,
+    TNSGroupMembershipFactory,
+)
 from .recipes_module import RecipesModuleFactory
 from .reduceddatum import ReducedDatumFactory
 from .user import UserFactory
@@ -32,4 +37,7 @@ __all__ = [
     "GPPLoginFactory",
     "LCOLoginFactory",
     "TNSLoginFactory",
+    "TNSGroupFactory",
+    "TNSGroupJoinRequestFactory",
+    "TNSGroupMembershipFactory",
 ]

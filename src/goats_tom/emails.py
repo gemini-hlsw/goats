@@ -5,8 +5,8 @@ notifications are right for what they do: transient status about work you
 started while watching a page. Download progress and reduction status belong
 there and nowhere else.
 
-This module covers a different set. Both `RegistrationRequest` and
-`AntaresGroupJoinRequest` say the same thing in their docstrings -- the table
+This module covers a different set. Both `RegistrationRequest`,
+`AntaresGroupJoinRequest` and `TNSGroupJoinRequest` say the same thing in their docstrings -- the table
 is the source of truth, and the real-time notification "is delivered only to
 connected sessions, so anything that depended on it would silently lose
 requests made while the PI was offline". Email is the durable channel onto
@@ -30,6 +30,8 @@ __all__ = [
     "notify_pi_of_join_request",
     "notify_user_of_join_decision",
     "notify_user_of_registration_decision",
+    "notify_owner_of_tns_join_request",
+    "notify_user_of_tns_join_decision",
 ]
 
 import logging
@@ -301,4 +303,101 @@ def notify_user_of_join_decision(join_request) -> None:
         body=body,
         recipients=[requester.email],
         context=f"join decision for {requester.username}",
+    )
+
+
+def notify_owner_of_tns_join_request(join_request) -> None:
+    """Tell a credential owner that somebody wants to post through their group.
+
+    Parameters
+    ----------
+    join_request : `goats_tom.models.TNSGroupJoinRequest`
+        The pending request.
+
+    Notes
+    -----
+    Email matters more here than for the ANTARES equivalent. That request
+    asks to *see* a dashboard; this one asks to send something to a public
+    registry under the owner's bot name, which the owner is accountable
+    for. Leaving it to a toast the owner may never have been signed in to
+    receive is the wrong default for a decision of that weight.
+
+    Goes to the owner and to the administrators, since a superuser may also
+    decide these and an owner on an observing run should not block a
+    collaboration behind them.
+    """
+    requester = join_request.requester
+    group = join_request.tns_group
+    owner = group.owner
+
+    body = (
+        f"{requester.get_full_name() or requester.username} has asked to "
+        f"post to the TNS through your group '{group.name}'.\n\n"
+        f"Username: {requester.username}\n"
+        f"Email:    {requester.email}\n\n"
+        "If you approve, reports and classifications they submit for this "
+        "group will be sent to the TNS using your bot credentials, and the "
+        "TNS will attribute them to your bot.\n"
+    )
+    if join_request.message:
+        body += f"\nMessage:\n{join_request.message}\n"
+    body += (
+        f"\nApprove or decline it here:\n"
+        f"{_site_url(reverse('user-tns-login', kwargs={'pk': owner.pk}))}\n"
+    )
+
+    recipients = _admin_addresses()
+    if owner is not None and owner.email:
+        recipients = [owner.email, *recipients]
+
+    _send(
+        subject=f"{requester.username} asked to post via your TNS group",
+        body=body,
+        recipients=recipients,
+        context=f"TNS join request from {requester.username}",
+    )
+
+
+def notify_user_of_tns_join_decision(join_request) -> None:
+    """Tell a requester whether they may post through a group.
+
+    Parameters
+    ----------
+    join_request : `goats_tom.models.TNSGroupJoinRequest`
+        The decided request.
+
+    Notes
+    -----
+    An approval spells out that posts go out under the owner's bot. Somebody
+    who has only ever posted with their own credentials would otherwise have
+    no reason to expect their name not to be on the submission, and the
+    author list is the one thing they should check before sending.
+    """
+    requester = join_request.requester
+    group = join_request.tns_group
+
+    if join_request.status == join_request.STATUS_APPROVED:
+        subject = f"You can now post to the TNS via {group.name}"
+        body = (
+            f"Your request to post to the TNS through the group "
+            f"'{group.name}' was approved.\n\n"
+            f"Submissions you make for this group use "
+            f"{group.owner.username}'s bot credentials and are attributed "
+            "to that bot by the TNS. Check the author list on the form "
+            "before submitting.\n\n"
+            f"Open your targets here:\n{_site_url(reverse('targets:list'))}\n"
+        )
+    else:
+        subject = f"Your TNS request for {group.name}"
+        body = (
+            f"Your request to post to the TNS through the group "
+            f"'{group.name}' was not approved.\n\n"
+            "Contact the group's owner if you think this is a mistake.\n"
+        )
+
+    _send(
+        subject=subject,
+        body=body,
+        recipients=[requester.email],
+        context=f"TNS join decision for {requester.username}",
     )

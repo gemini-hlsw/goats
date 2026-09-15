@@ -1,0 +1,320 @@
+{% extends "auth/login_form.html" %}
+{% comment %}
+The single page for everything TNS: credentials, group sharing settings,
+requests waiting on you, who currently has access, your own access
+elsewhere, and the submission log.
+
+Extends the shared credential page rather than replacing it, so the stored
+badge, the last-updated line and the "do not share your credentials"
+warning stay defined in one place for every service.
+
+Sharing settings post separately from the credentials form, and have to:
+group names are free text in that form, so a group has no row to attach a
+toggle to until it has been saved once.
+{% endcomment %}
+{% block content %}
+{{ block.super }}
+
+{% if group_settings %}
+<hr />
+<div class="mb-3">
+  <p class="h4">Your TNS groups</p>
+</div>
+{% for group, settings_form in group_settings %}
+<div class="card mb-3">
+  <div class="card-body">
+    <p class="h5 mb-3">{{ group.name }}</p>
+    {% if is_own_page %}
+    <form method="post" action="{% url 'tns-group-settings' group.pk %}">
+      {% csrf_token %}
+      <div class="form-check mb-3">
+        {{ settings_form.allow_join_requests }}
+        <label class="form-check-label"
+               for="{{ settings_form.allow_join_requests.id_for_label }}">
+          {{ settings_form.allow_join_requests.label }}
+        </label>
+        <small class="form-text text-muted d-block">
+          {{ settings_form.allow_join_requests.help_text }}
+        </small>
+      </div>
+      <div class="mb-3">
+        <label for="{{ settings_form.recommended_authors.id_for_label }}">
+          {{ settings_form.recommended_authors.label }}
+        </label>
+        {{ settings_form.recommended_authors }}
+        <small class="form-text text-muted">
+          {{ settings_form.recommended_authors.help_text }}
+        </small>
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary">Save</button>
+    </form>
+    {% else %}
+    {% comment %}
+    A superuser may open another user's credential page, which is right for
+    administering a stored secret and wrong for this: the toggle decides
+    whose reports go out under *this* user's bot name. Shown as plain text
+    rather than a disabled form, which would only invite looking for a way
+    to enable it.
+    {% endcomment %}
+    <p class="text-muted mb-0">
+      {% if group.allow_join_requests %}
+        Open to access requests.
+      {% else %}
+        Not open to access requests.
+      {% endif %}
+      Only the account holder can change this.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% elif is_own_page %}
+<hr />
+<div class="mb-3">
+  <p class="h4">Your TNS groups</p>
+  <div class="alert alert-info mb-0">
+    Add one or more group names above and save. Sharing settings for each
+    group will appear here afterwards.
+  </div>
+</div>
+{% endif %}
+
+{% if is_own_page %}
+<hr />
+<div class="mb-4">
+  <p class="h4">
+    Requests to your groups
+    {% if pending_requests %}
+      <span class="badge bg-warning text-dark">{{ pending_requests|length }}</span>
+    {% endif %}
+  </p>
+  {% comment %}
+  Rendered from the database, which is what makes this authoritative. The
+  in-app notification and the email that accompany a new request are
+  convenience layers: the first reaches only a signed-in owner, and the
+  second can bounce.
+  {% endcomment %}
+  {% if pending_requests %}
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th scope="col">User</th>
+        <th scope="col">Group</th>
+        <th scope="col">Requested</th>
+        <th scope="col">Message</th>
+        <th scope="col">Decision</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for join_request in pending_requests %}
+      <tr>
+        <td>{{ join_request.requester.get_full_name|default:'&mdash;' }}</td>
+        <td>{{ join_request.tns_group.name }}</td>
+        <td>{{ join_request.created_at }}</td>
+        <td>{{ join_request.message|default:"&mdash;" }}</td>
+        <td>
+          <form method="post"
+                action="{% url 'tns-decide-join-request' join_request.pk %}"
+                class="d-flex gap-2 align-items-center">
+            {% csrf_token %}
+            <button type="submit" name="action" value="approve"
+                    class="btn btn-sm btn-success">Approve</button>
+            <button type="submit" name="action" value="deny"
+                    class="btn btn-sm btn-outline-secondary">Decline</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">No pending requests.</p>
+  {% endif %}
+</div>
+
+<div class="mb-4">
+  <p class="h4">Who can report under your groups</p>
+  {% if members %}
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th scope="col">User</th>
+        <th scope="col">Group</th>
+        <th scope="col">Granted</th>
+        <th scope="col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for membership in members %}
+      <tr>
+        <td>{{ membership.user.get_full_name|default:'&mdash;' }}</td>
+        <td>{{ membership.tns_group.name }}</td>
+        <td>{{ membership.granted_at }}</td>
+        <td>
+          <form method="post"
+                action="{% url 'tns-revoke-membership' membership.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+              Remove
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">Nobody else can report under your groups.</p>
+  {% endif %}
+</div>
+
+<div class="mb-4">
+  <p class="h4">Your access to other groups</p>
+  {% comment %}
+  Access and requests in one table. They were two, which meant a group you
+  had asked for and a group you already had were reported in different
+  places -- so answering "can I report under X?" took reading both. Status
+  carries the distinction instead.
+  {% endcomment %}
+  {% if my_access %}
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th scope="col">Group</th>
+        <th scope="col">Shared by</th>
+        <th scope="col">Requested</th>
+        <th scope="col">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in my_access %}
+      <tr>
+        <td>{{ row.group.name }}</td>
+        {% comment %}
+        Two facts, two lines. A username answered neither question that
+        matters: who to chase, and what the TNS will show. The bot name is
+        the attribution that lands on the public record, so it appears only
+        where access is actually held -- a pending or declined row has no
+        reason to expose it.
+        {% endcomment %}
+        <td>
+          {{ row.group.owner.get_full_name|default:'&mdash;' }}
+          {% if row.membership and row.group.owner.tnslogin.bot_name %}
+          <small class="d-block text-muted">
+            sent as {{ row.group.owner.tnslogin.bot_name }}
+          </small>
+          {% endif %}
+        </td>
+        <td>{{ row.requested_at|default:"&mdash;" }}</td>
+        <td>
+          {% if row.membership %}
+            <span class="badge bg-success">Granted</span>
+            <small class="d-block text-muted">{{ row.membership.granted_at }}</small>
+          {% elif row.status == "pending" %}
+            <span class="badge bg-warning text-dark">Pending</span>
+          {% else %}
+            <span class="badge bg-secondary">Declined</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-muted small">
+    Choose which bot to report with on a target's TNS page.
+  </p>
+  {% endif %}
+
+  {% comment %}
+  A request can also be made from a target's TNS page, which is where the
+  need usually arises. This form covers arranging access ahead of time,
+  with no particular target in mind. Both post to the same endpoint.
+
+  Only shown when there is something to request: the queryset already
+  excludes your own groups, ones you hold, ones with a request pending and
+  ones not open to requests, so an empty dropdown would offer nothing.
+  {% endcomment %}
+  {% if join_request_form.fields.tns_group.queryset.exists %}
+  <div class="card">
+    <div class="card-body">
+      <p class="h6">Request access to a group</p>
+      <form method="post" action="{% url 'tns-request-access' %}">
+        {% csrf_token %}
+        <div class="mb-2">
+          {{ join_request_form.tns_group }}
+        </div>
+        <div class="mb-2">
+          <label for="{{ join_request_form.message.id_for_label }}">
+            {{ join_request_form.message.label }}
+          </label>
+          {{ join_request_form.message }}
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">
+          Request access
+        </button>
+      </form>
+    </div>
+  </div>
+  {% elif not my_access %}
+  <p class="text-muted">
+    No one has opened a TNS group to requests yet.
+  </p>
+  {% endif %}
+</div>
+
+{% if submissions %}
+<div class="mb-4">
+  {% comment %}
+  Collapsed by default. It is the longest section and the least often
+  needed -- an owner opens this page to decide a request or edit a group,
+  not usually to audit. The count is on the toggle so it is still obvious
+  that something is there.
+  {% endcomment %}
+  <p class="h4">
+    <a class="text-decoration-none" data-bs-toggle="collapse"
+       href="#tns-submission-log" role="button" aria-expanded="false"
+       aria-controls="tns-submission-log">
+      Reports sent with your credentials
+      <span class="badge bg-secondary">{{ submissions|length }}</span>
+    </a>
+  </p>
+  <div class="collapse" id="tns-submission-log">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th scope="col">When</th>
+          <th scope="col">User</th>
+          <th scope="col">Group</th>
+          <th scope="col">Object</th>
+          <th scope="col">Type</th>
+          <th scope="col">Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for submission in submissions %}
+        <tr>
+          <td>{{ submission.created_at }}</td>
+          <td>{{ submission.display_name|default:"&mdash;" }}</td>
+          <td>{{ submission.group_name|default:"&mdash;" }}</td>
+          <td>{{ submission.object_name|default:"&mdash;" }}</td>
+          <td>{{ submission.get_kind_display }}</td>
+          <td>
+            {% if submission.succeeded %}
+              <span class="badge bg-success">Sent</span>
+            {% else %}
+              <span class="badge bg-danger" title="{{ submission.error }}">Failed</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="text-muted small">
+      The TNS records these against your bot, so this is the only place that
+      shows who actually sent them.
+    </p>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -2,7 +2,6 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path, reverse_lazy
 from tom_alerts.views import BrokerQueryListView
 from tom_common.api_router import SharedAPIRootRouter
-from tom_tns.urls import urlpatterns as tom_tns_urls
 
 from . import api_views, views
 
@@ -284,7 +283,33 @@ urlpatterns = [
     # filter, both of which listed every PI's target groups. Declared
     # before the tom_targets include so this wins.
     path("targets/", views.GOATSTargetListView.as_view(), name="goats-target-list"),
-    path("tns/", include(tom_tns_urls)),
+    # GOATS' own TNS routes, keeping upstream's `tom_tns` namespace and
+    # route names so `tom_tns`'s form partials still resolve. See
+    # `goats_tom.tns_urls`.
+    path("tns/", include("goats_tom.tns_urls")),
+    # POST-only. Every TNS access page was folded into the credential page
+    # (`user-tns-login`); these are just the state changes its buttons post
+    # to, plus the request form on a target's TNS page.
+    path(
+        "tns/access/request/",
+        views.tns_create_join_request,
+        name="tns-request-access",
+    ),
+    path(
+        "tns/access/requests/<int:pk>/decide/",
+        views.tns_decide_join_request,
+        name="tns-decide-join-request",
+    ),
+    path(
+        "tns/access/members/<int:pk>/revoke/",
+        views.tns_revoke_membership,
+        name="tns-revoke-membership",
+    ),
+    path(
+        "tns/access/groups/<int:pk>/settings/",
+        views.tns_group_settings,
+        name="tns-group-settings",
+    ),
     path(
         "targets/<int:target_id>/refresh-antares/",
         views.RefreshAntaresPhotometryView.as_view(),

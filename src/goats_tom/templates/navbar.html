@@ -1,15 +1,48 @@
-{% load registration_extras static bootstrap4 custom_filters %}
+{% load pending_requests_extras static bootstrap4 custom_filters %}
+{% comment %}
+`data-bs-toggle`, not `data-toggle`. `tom_common/base.html` loads *both*
+Bootstrap 4 JS (via `{% bootstrap_javascript %}`, with jQuery) and the
+Bootstrap 5 bundle, so the two frameworks were each claiming part of this
+navbar: the BS4 attributes here handed the dropdowns to Bootstrap 4, while
+anything written with `data-bs-` went to Bootstrap 5.
+
+That split is what broke the Manage Requests row. A single click did two
+things at once -- Bootstrap 4 closed the menu, because it dismisses on any
+click inside, while Bootstrap 5 expanded the row where nobody could see it.
+The row only appeared open on the *second* click. `data-bs-auto-close`
+could not help, since it is an option Bootstrap 5 reads and this dropdown
+was not Bootstrap 5's to configure.
+
+Moving the toggles to `data-bs-` gives Bootstrap 5 the whole navbar, which
+matches the CSS: Halfmoon is built on Bootstrap 5, so the classes here were
+already 5's.
+
+Both right-hand menus use `dropdown-menu-end`, Bootstrap 5's name, and must.
+
+`halfmoon.goats.css` does define its own `.dropdown-menu-right { right: 0;
+left: auto; }`, so under Bootstrap 4 that class was doing real work. But
+Bootstrap 5 positions dropdowns with Popper, in JavaScript, and Popper
+writes inline styles that beat a plain CSS rule. It recognises
+`dropdown-menu-end` and aligns the menu's right edge to the toggle; it does
+not recognise `dropdown-menu-right`, so it left-aligns instead -- which
+sends a fixed-width menu straight off the right of the window when its
+button sits near the edge.
+
+The lesson being: the toggle attribute and the alignment class have to
+agree. `data-bs-toggle` means Bootstrap 5 owns positioning, and Bootstrap
+5's class names are the only ones it reads.
+{% endcomment %}
 <div class="navbar navbar-expand-md navbar-dark">
   <a class="navbar-brand" href="{% url 'home' %}">
     <img src="{% static 'img/goats-outline.png' %}" alt="Logo" height="48" class="d-inline-block align-text-top">
   </a>
-  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#goatsNavbar" aria-controls="goatsNavbar" aria-expanded="false" aria-label="Toggle navigation">
+  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#goatsNavbar" aria-controls="goatsNavbar" aria-expanded="false" aria-label="Toggle navigation">
     <span class="navbar-toggler-icon"></span>
   </button>
   <div class="collapse navbar-collapse" id="goatsNavbar">
     <ul class="navbar-nav me-auto">
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'alerts' %}active fw-bold{% endif %}" title="Search and import targets from brokers" data-toggle="dropdown">Brokers</a>
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'alerts' %}active fw-bold{% endif %}" title="Search and import targets from brokers" data-bs-toggle="dropdown">Brokers</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'alerts:create' %}?broker=ANTARES">ANTARES</a>
           <a class="dropdown-item" href="{% url 'alerts:create' %}?broker=ALeRCE">ALeRCE</a>
@@ -20,20 +53,17 @@
           <div class="dropdown-divider"></div>
           <a class="dropdown-item" href="{% url 'antares-locus-dashboard' %}">Live ANTARES Stream</a>
           <a class="dropdown-item" href="{% url 'antares-request-access' %}">Request ANTARES Access</a>
-          {% if user.antares_pi_group %}
-          <a class="dropdown-item" href="{% url 'antares-manage-access' %}">Manage ANTARES Access</a>
-          {% endif %}
         </div>
       </li>
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/targets' %}active fw-bold{% endif %}" title="Create and manage target details" data-toggle="dropdown">Targets</a>
+        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/targets' %}active fw-bold{% endif %}" title="Create and manage target details" data-bs-toggle="dropdown">Targets</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'targets:list' %}">Targets</a>
           <a class="dropdown-item" href="{% url 'targets:targetgrouping' %}">Target Grouping</a>
         </div>
       </li>
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/observations' %}active fw-bold{% endif %}" title="Manage observations and view facility status" data-toggle="dropdown">Observations</a>
+        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/observations' %}active fw-bold{% endif %}" title="Manage observations and view facility status" data-bs-toggle="dropdown">Observations</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'tom_observations:list' %}">Observations</a>
           <a class="dropdown-item" href="{% url 'tom_observations:group-list' %}">Observation Groups</a>
@@ -64,35 +94,114 @@
         </button>
       </li>
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle px-md-2 py-2 my-auto {% if request.resolver_match.url_name == 'recent_downloads' %}active fw-bold{% endif %}" href="#" id="navbarDownloadLink" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="View current and past downloads">
+        <a class="nav-link dropdown-toggle px-md-2 py-2 my-auto {% if request.resolver_match.url_name == 'recent_downloads' %}active fw-bold{% endif %}" href="#" id="navbarDownloadLink" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="View current and past downloads">
           <span id="downloadBadge" class="badge badge-pill badge-primary d-none mt-0">0</span> <i class="fa-solid fa-download fa-lg"></i><span class=" d-md-none ms-2">Downloads</span>
         </a>
-        <div class="dropdown-menu dropdown-menu-right download-tasks-container" aria-labelledby="navbarDownloadDropdown">
+        <div class="dropdown-menu dropdown-menu-end download-tasks-container" aria-labelledby="navbarDownloadDropdown">
           <div id="downloadTasksBanner"></div>
           <a href="{% url 'recent_downloads' %}" class="dropdown-item">View Previous Downloads</a>
         </div>
       </li>
       {% if user.is_authenticated %}
       <li class="nav-item dropdown ">
-        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|starts_with:'user-' %}active fw-bold{% endif %}" title="Manage user settings and preferences" data-toggle="dropdown">
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|starts_with:'user-' %}active fw-bold{% endif %}" title="Manage user settings and preferences" data-bs-toggle="dropdown"
+           data-bs-auto-close="outside">
           {{ user.username }}
-        </a>
-        <div class="dropdown-menu dropdown-menu-right">
-          <a class="dropdown-item" href="{% url 'user-list' %}">Users</a>
-          {% if user.is_superuser %}
           {% comment %}
-          The count is what actually surfaces a request. The notification sent
-          at registration only reaches sessions connected at that moment, so
-          an administrator who was signed out would otherwise never learn of
-          it.
+          One badge covering every approval flow. Each flow used to surface
+          itself differently -- account signups had a badged entry, ANTARES
+          stream access had an unbadged line buried in the Brokers menu, TNS
+          had a third -- so whether a PI noticed somebody was waiting
+          depended on which kind of request it happened to be. The total is
+          visible here without opening anything, and
+          `goats_tom.pending_requests` decides what it covers.
           {% endcomment %}
-          {% pending_registration_count as pending_count %}
-          <a class="dropdown-item" href="{% url 'registration-requests' %}">
-            Account Requests
-            {% if pending_count %}
-            <span class="badge bg-warning text-dark">{{ pending_count }}</span>
+          {% pending_request_total user as pending_total %}
+          {% if pending_total %}
+          <span class="badge bg-warning text-dark">{{ pending_total }}</span>
+          {% endif %}
+        </a>
+        <div class="dropdown-menu dropdown-menu-end user-menu">
+          <a class="dropdown-item" href="{% url 'user-list' %}">Users</a>
+          {% comment %}
+          One row, expanding in place. The queues themselves stay where they
+          have always been -- this links to the registration queue, the
+          ANTARES manage page and the TNS credential page, and adds no
+          destination of its own.
+
+          A single row rather than one per flow because the menu should not
+          grow every time an approval flow is added; a fourth appears inside
+          the expansion and changes nothing out here.
+
+          Rows persist when their count is zero. An administrator needs to
+          open the registration queue whether or not anyone is currently
+          waiting, and a link that disappears when the queue empties would
+          leave no route to it at all. The badges are what come and go.
+          {% endcomment %}
+          {% pending_requests user as pending_items %}
+          {% if pending_items %}
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item d-flex align-items-center gap-2 manage-requests-toggle"
+             data-bs-toggle="collapse" href="#manage-requests" role="button"
+             aria-expanded="false" aria-controls="manage-requests">
+            {% comment %}
+            A chevron, because the row was otherwise indistinguishable from
+            the links around it -- nothing said it could be opened, so the
+            only way to find the queues was to click it and see. It rotates
+            on expand, driven by `aria-expanded`, so the state the screen
+            reader announces and the state the arrow shows cannot disagree.
+            {% endcomment %}
+            <i class="fas fa-chevron-right manage-requests-chevron"></i>
+            <span class="me-auto">Manage Requests</span>
+            {% if pending_total %}
+            <span class="badge bg-warning text-dark">{{ pending_total }}</span>
             {% endif %}
           </a>
+          <div class="collapse" id="manage-requests">
+            {% for item in pending_items %}
+            <a class="dropdown-item d-flex align-items-center gap-2"
+               href="{{ item.url }}">
+              <span class="me-auto small">{{ item.label }}</span>
+              {% if item.count %}
+              <span class="badge bg-warning text-dark">{{ item.count }}</span>
+              {% endif %}
+            </a>
+            {% endfor %}
+          </div>
+          <style>
+            .manage-requests-chevron {
+              transition: transform 0.15s ease-in-out;
+              width: 0.75rem;
+            }
+            .manage-requests-toggle[aria-expanded="true"] .manage-requests-chevron {
+              transform: rotate(90deg);
+            }
+            /*
+              A dropdown is only as wide as its rows ask to be, and flex rows
+              ask for nothing -- so this menu was sized by "Users" and
+              "Logout", and the longer rows here were squeezed until they
+              wrapped. `max-content` makes it size to its widest row instead,
+              flex rows included, so nothing needs to wrap in the first
+              place. `max-width` stays as a ceiling for a future label long
+              enough to genuinely need wrapping.
+
+              A plain class rather than `:has()`. The selector worked, but it
+              was the one part of this that could silently do nothing on an
+              older browser, and a class costs nothing.
+            */
+            .user-menu {
+              width: max-content;
+              max-width: 20rem;
+            }
+            .manage-requests-toggle > span {
+              white-space: nowrap;
+            }
+            #manage-requests .dropdown-item > span {
+              white-space: normal;
+              overflow-wrap: anywhere;
+            }
+          </style>
+          <div class="dropdown-divider"></div>
           {% endif %}
           <a class="dropdown-item" href="{% url 'user-update' user.id %}">Settings</a>
           <div class="dropdown-divider"></div>

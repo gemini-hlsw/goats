@@ -65,6 +65,15 @@ INSTALLED_APPS = [
     "tom_catalogs",
     "tom_observations",
     "tom_dataproducts",
+    # Real deployments install this (see
+    # `goats_cli/goats_template/{{ project_name }}/settings/base.py.jinja`),
+    # and `goats_tom.urls` mounts its routes, but the test settings had
+    # omitted it. Without it the app's template directory is not searched,
+    # so `tom_tns/partials/tns_report_form.html` is unresolvable and any
+    # test that actually renders the TNS report page fails with
+    # `TemplateDoesNotExist` -- which no test had done before, since the
+    # page only reaches the forms once credentials resolve.
+    "tom_tns",
 ]
 
 SITE_ID = 1
