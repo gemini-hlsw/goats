@@ -41,7 +41,7 @@ dependencies = [
     "typer>=0.19.2",
     "tomtoolkit==2.32.2",
     "whitenoise>=6.6.0,<7",
-    "jdaviz==5.0.1",
+    "jdaviz==5.0.2",
 ]
 version = "26.9.0"
 
