@@ -6,9 +6,9 @@
   <div class="col-md-10">
     <div class="row">
       <div class="col-md-12">
-        <span class="float-right">
+        <span class="float-end">
         {{ target_count }} Targets &nbsp;
-        <button class="btn btn-primary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        <button class="btn btn-primary dropdown-toggle" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
           Create Targets
         </button>
         <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
@@ -30,16 +30,16 @@
       {% csrf_token %}
       <div class="form-group d-flex justify-content-end align-items-baseline">
         <label>Add/Remove from grouping</label>
-        <select name="grouping" class="form-control w-25 ml-1">
+        <select name="grouping" class="form-control w-25 ms-1">
           {% for grouping in groupings %}
           <option value="{{ grouping.id }}">{{ grouping.name }}</option>
           {% endfor %}
         </select>
         <input type="hidden" value="{{ query_string }}" name="query_string">
         <input type="hidden" value="False" id="isSelectAll" name="isSelectAll">
-        <button type="submit" class="btn btn-secondary ml-1" name="add">Add</button>
-        <button type="submit" class="btn btn-secondary ml-1" name="move">Move</button>
-        <button type="submit" class="btn btn-danger ml-1" name="remove">Remove</button>
+        <button type="submit" class="btn btn-secondary ms-1" name="add">Add</button>
+        <button type="submit" class="btn btn-secondary ms-1" name="move">Move</button>
+        <button type="submit" class="btn btn-danger ms-1" name="remove">Remove</button>
       </div>
       {% goats_target_table object_list %}
     </form>

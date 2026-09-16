@@ -37,7 +37,7 @@ const enterEditMode = (container) => {
 
   let inputElement = document.createElement("input");
   inputElement.type = "text";
-  inputElement.className = "form-control edit-input mr-1";
+  inputElement.className = "form-control edit-input me-1";
   inputElement.style.display = "inline-block";
   inputElement.style.width = "auto";
   inputElement.value = currentName;

@@ -66,7 +66,7 @@ class HelpOffcanvas {
     const loadingDiv = Utils.createElement("div", ["d-flex", "justify-content-center"]);
     const spinner = Utils.createElement("div", "spinner-border");
     spinner.setAttribute("role", "status");
-    const sr = Utils.createElement("span", "sr-only");
+    const sr = Utils.createElement("span", "visually-hidden");
     sr.textContent = "Loading...";
     loadingDiv.appendChild(spinner);
     loadingDiv.appendChild(sr);

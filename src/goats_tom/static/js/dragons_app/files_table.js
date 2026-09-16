@@ -236,7 +236,7 @@ class FilesTableTemplate {
     ]);
     viewLink.href = "#";
     viewLink.setAttribute("role", "button");
-    viewLink.setAttribute("data-toggle", "dropdown");
+    viewLink.setAttribute("data-bs-toggle", "dropdown");
     viewLink.setAttribute("aria-expanded", "false");
     viewLink.textContent = "View";
 

@@ -17,16 +17,16 @@
         <ul class="nav nav-tabs" role="tablist" id="tabs">
           <li class="nav-item">
               {% if default_form == 'classify' %}
-                <a class="nav-link" id="report-tab" href="#report" role="tab" data-toggle="tab">Report {{ target.name }}</a>
+                <a class="nav-link" id="report-tab" href="#report" role="tab" data-bs-toggle="tab">Report {{ target.name }}</a>
               {% else %}
-                <a class="nav-link active" id="report-tab" href="#report" role="tab" data-toggle="tab">Report {{ target.name }}</a>
+                <a class="nav-link active" id="report-tab" href="#report" role="tab" data-bs-toggle="tab">Report {{ target.name }}</a>
               {% endif %}
           </li>
           <li class="nav-item">
               {% if default_form == 'classify' %}
-                <a class="nav-link active" id="classify-tab" href="#classify" role="tab" data-toggle="tab">Classify {{ target.name }} </a>
+                <a class="nav-link active" id="classify-tab" href="#classify" role="tab" data-bs-toggle="tab">Classify {{ target.name }} </a>
               {% else %}
-                <a class="nav-link" id="classify-tab" href="#classify" role="tab" data-toggle="tab">Classify {{ target.name }} </a>
+                <a class="nav-link" id="classify-tab" href="#classify" role="tab" data-bs-toggle="tab">Classify {{ target.name }} </a>
               {% endif %}
           </li>
         </ul>

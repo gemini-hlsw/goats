@@ -314,8 +314,8 @@ class RecipeReductionTemplate {
     // Create and configure accordion button.
     const accordionButton = Utils.createElement("button", ["accordion-button"]);
     accordionButton.setAttribute("type", "button");
-    accordionButton.setAttribute("data-toggle", "collapse");
-    accordionButton.setAttribute("data-target", `#${collapseId}`);
+    accordionButton.setAttribute("data-bs-toggle", "collapse");
+    accordionButton.setAttribute("data-bs-target", `#${collapseId}`);
     accordionButton.setAttribute("aria-expanded", "true");
     accordionButton.setAttribute("aria-controls", collapseId);
     accordionButton.textContent = this.accordionSetups.buttons[name];

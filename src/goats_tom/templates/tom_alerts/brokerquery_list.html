@@ -26,7 +26,7 @@
         {% for query in filter.qs %}
         <tr>
           <td>
-            <span class="query-name" data-id="{{ query.id }}"><a href="{% url 'tom_alerts:update' query.id %}" title="Update query" class="mr-1">{{ query.name }}</a></span>
+            <span class="query-name" data-id="{{ query.id }}"><a href="{% url 'tom_alerts:update' query.id %}" title="Update query" class="me-1">{{ query.name }}</a></span>
             <span class="edit-container">
               <i class="fa-solid fa-pencil edit-icon" style="cursor: pointer;"></i>
             </span>
