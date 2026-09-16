@@ -15,7 +15,12 @@ from goats_tom.serializers.gpp.observing_mode import ObservingModeSerializer
             {
                 "centralWavelength": {"nanometers": 750.5},
                 "explicitWavelengthDithers": [{"nanometers": 0.0}, {"nanometers": 8.0}],
-                "explicitOffsets": [{"arcseconds": 10.0}, {"arcseconds": -10.0}],
+                "explicitTelescopeConfigs": {
+                    "alongSlit": [
+                        {"q": {"arcseconds": 10.0}, "guiding": "ENABLED"},
+                        {"q": {"arcseconds": -10.0}, "guiding": "ENABLED"},
+                    ]
+                },
             },
         ),
         (
@@ -23,7 +28,9 @@ from goats_tom.serializers.gpp.observing_mode import ObservingModeSerializer
             {
                 "centralWavelength": {"nanometers": 650.0},
                 "explicitWavelengthDithers": [{"nanometers": 1.0}],
-                "explicitOffsets": [{"arcseconds": 5.0}],
+                "explicitTelescopeConfigs": {
+                    "alongSlit": [{"q": {"arcseconds": 5.0}, "guiding": "ENABLED"}]
+                },
             },
         ),
     ],

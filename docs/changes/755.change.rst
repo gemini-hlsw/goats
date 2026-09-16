@@ -1,0 +1,1 @@
+Updated GMOS long slit spatial offsets to be sent as explicit telescope configurations
