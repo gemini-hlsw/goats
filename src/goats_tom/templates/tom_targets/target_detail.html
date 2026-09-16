@@ -34,7 +34,7 @@
       href="#observe"
       role="tab"
       title="Trigger observation of the target on a facility"
-      data-toggle="tab"
+      data-bs-toggle="tab"
       >Observe</a
     >
   </li>
@@ -45,7 +45,7 @@
       href="#observations"
       role="tab"
       title="Manage existing observations of the target"
-      data-toggle="tab"
+      data-bs-toggle="tab"
       >Observations</a
     >
   </li>
@@ -56,7 +56,7 @@
       href="#manage-data"
       role="tab"
       title="View and manage data products of the target"
-      data-toggle="tab"
+      data-bs-toggle="tab"
       >Manage Data</a
     >
   </li>
@@ -67,7 +67,7 @@
       href="#manage-groups"
       role="tab"
       title="View and manage the target's groups"
-      data-toggle="tab"
+      data-bs-toggle="tab"
       >Manage Groups</a
     >
   </li>
@@ -78,7 +78,7 @@
       href="#photometry"
       role="tab"
       title="Visualize available photometry data of the target"
-      data-toggle="tab"
+      data-bs-toggle="tab"
       >Photometry</a
     >
   </li>
@@ -89,7 +89,7 @@
       href="#spectroscopy"
       role="tab"
       title="Visualize available spectra of the target"
-      data-toggle="tab"
+      data-bs-toggle="tab"
       >Spectroscopy</a
     >
   </li>
@@ -149,9 +149,7 @@
     alertDiv.innerHTML = `
       <h6>${file}</h6>
       ${message}
-      <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-        <span aria-hidden="true">&times;</span>
-      </button>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     `;
     main.prepend(alertDiv);
   };

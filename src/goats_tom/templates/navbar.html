@@ -3,13 +3,13 @@
   <a class="navbar-brand" href="{% url 'home' %}">
     <img src="{% static 'img/goats-outline.png' %}" alt="Logo" height="48" class="d-inline-block align-text-top">
   </a>
-  <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#goatsNavbar" aria-controls="goatsNavbar" aria-expanded="false" aria-label="Toggle navigation">
+  <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#goatsNavbar" aria-controls="goatsNavbar" aria-expanded="false" aria-label="Toggle navigation">
     <span class="navbar-toggler-icon"></span>
   </button>
   <div class="collapse navbar-collapse" id="goatsNavbar">
     <ul class="navbar-nav me-auto">
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'alerts' %}active fw-bold{% endif %}" title="Search and import targets from brokers" data-toggle="dropdown">Brokers</a>
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.namespace == 'alerts' %}active fw-bold{% endif %}" title="Search and import targets from brokers" data-bs-toggle="dropdown">Brokers</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'alerts:create' %}?broker=ANTARES">ANTARES</a>
           <a class="dropdown-item" href="{% url 'alerts:create' %}?broker=ALeRCE">ALeRCE</a>
@@ -20,14 +20,14 @@
         </div>
       </li>
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/targets' %}active fw-bold{% endif %}" title="Create and manage target details" data-toggle="dropdown">Targets</a>
+        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/targets' %}active fw-bold{% endif %}" title="Create and manage target details" data-bs-toggle="dropdown">Targets</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'targets:list' %}">Targets</a>
           <a class="dropdown-item" href="{% url 'targets:targetgrouping' %}">Target Grouping</a>
         </div>
       </li>
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/observations' %}active fw-bold{% endif %}" title="Manage observations and view facility status" data-toggle="dropdown">Observations</a>
+        <a class="nav-link dropdown-toggle {% if request.path|starts_with:'/observations' %}active fw-bold{% endif %}" title="Manage observations and view facility status" data-bs-toggle="dropdown">Observations</a>
         <div class="dropdown-menu">
           <a class="dropdown-item" href="{% url 'tom_observations:list' %}">Observations</a>
           <a class="dropdown-item" href="{% url 'tom_observations:group-list' %}">Observation Groups</a>
@@ -58,8 +58,8 @@
         </button>
       </li>
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle px-md-2 py-2 my-auto {% if request.resolver_match.url_name == 'recent_downloads' %}active fw-bold{% endif %}" href="#" id="navbarDownloadLink" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="View current and past downloads">
-          <span id="downloadBadge" class="badge badge-pill badge-primary d-none mt-0">0</span> <i class="fa-solid fa-download fa-lg"></i><span class=" d-md-none ms-2">Downloads</span>
+        <a class="nav-link dropdown-toggle px-md-2 py-2 my-auto {% if request.resolver_match.url_name == 'recent_downloads' %}active fw-bold{% endif %}" href="#" id="navbarDownloadLink" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="View current and past downloads">
+          <span id="downloadBadge" class="badge rounded-pill bg-primary d-none mt-0">0</span> <i class="fa-solid fa-download fa-lg"></i><span class=" d-md-none ms-2">Downloads</span>
         </a>
         <div class="dropdown-menu dropdown-menu-right download-tasks-container" aria-labelledby="navbarDownloadDropdown">
           <div id="downloadTasksBanner"></div>
@@ -68,7 +68,7 @@
       </li>
       {% if user.is_authenticated %}
       <li class="nav-item dropdown ">
-        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|starts_with:'user-' %}active fw-bold{% endif %}" title="Manage user settings and preferences" data-toggle="dropdown">
+        <a class="nav-link dropdown-toggle {% if request.resolver_match.url_name|starts_with:'user-' %}active fw-bold{% endif %}" title="Manage user settings and preferences" data-bs-toggle="dropdown">
           {{ user.username }}
         </a>
         <div class="dropdown-menu dropdown-menu-right">

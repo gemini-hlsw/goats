@@ -18,7 +18,7 @@
       <td><a href="{{ product.data.url }}">{{ product }}</a></td>
       <td>{% dataproduct_type_dropdown product %}</td>
       <td>{{ product.created }}</td>
-      <td class="text-right"><a href="{% url 'delete-dataproduct' product.id %}" class="text-light"><i class="fa-solid fa-trash"></i></a></td>
+      <td class="text-end"><a href="{% url 'delete-dataproduct' product.id %}" class="text-light"><i class="fa-solid fa-trash"></i></a></td>
     </tr>
     {% empty %}
     <tr>
