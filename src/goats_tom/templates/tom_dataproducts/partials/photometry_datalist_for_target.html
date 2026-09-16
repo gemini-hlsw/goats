@@ -1,4 +1,4 @@
-{% load bootstrap4 sorting %}
+{% load bootstrap4 sorting static %}
 {% load tom_common_extras tom_overrides %}
 <form method="POST" action="{% url 'tom_dataproducts:share_all' tg_pk=target.id %}" enctype="multipart/form-data" id="photometry-data-share-form">
     {% csrf_token %}
@@ -36,7 +36,7 @@
               </thead>
               <tbody>
               {% for datum in data %}
-              <tr>
+              <tr data-sort-pk="{{ datum.id }}" data-sort-timestamp="{{ datum.timestamp|date:'c' }}" data-sort-mjd="{{ datum.mjd }}">
                   <td><input type="checkbox" class="phot-row" id="phot-row-{{ datum.id }}" name="share-box" value="{{ datum.id }}" onchange="check_selected_phot()"></td>
                   <td>{{ datum.timestamp }}</td>
                   <td class="text-end">{{ datum.mjd|floatformat:4  }}</td>
@@ -100,6 +100,8 @@
         {% endif %}
     </div>
 </form>
+<script src="{% static 'js/utils.js' %}"></script>
+<script src="{% static 'js/photometry_sort.js' %}"></script>
 <script>
   const photometryShareForm = document.getElementById('photometry-data-share-form');
   function setTargetOnPhotometryForm(val) {
