@@ -8,7 +8,12 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import Iterator
 
-__all__ = ["set_current_user_id", "get_current_user_id", "user_id_context"]
+__all__ = [
+    "set_current_user_id",
+    "get_current_user_id",
+    "reset_current_user_id",
+    "user_id_context",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -65,3 +70,14 @@ def user_id_context(uid: int | None) -> Iterator[None]:
     finally:
         _user_id_var.reset(token)
         logger.debug("Exit user_id_context: restored to %s", prev)
+
+
+def reset_current_user_id(token: Token[int | None]) -> None:
+    """Restore the user ID that was current before ``token`` was issued.
+    Parameters
+    ----------
+    token : Token[int | None]
+        The token returned by :func:`set_current_user_id`.
+    """
+    _user_id_var.reset(token)
+    logger.debug("Reset current_user_id to %s", _user_id_var.get())
