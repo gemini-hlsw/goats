@@ -178,6 +178,7 @@ DRAMATIQ_BROKER = {
         "django_dramatiq.middleware.DbConnectionsMiddleware",
         "dramatiq.middleware.Callbacks",
         "goats_tom.middleware.DRAGONSMiddleware",
+        "goats_tom.middleware.TaskUserContextMiddleware",
         # "django_dramatiq.middleware.AdminMiddleware",
         # Disabled the AdminMiddleware to avoid issues with database locks.
     ],
