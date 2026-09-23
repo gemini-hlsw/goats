@@ -104,7 +104,8 @@ def _send_notification(result: dict[str, str | None | bool | list[str]]) -> None
         f"</ol>"
     )
 
-    NotificationInstance.create_and_send(
+    # Broadcast: an announcement about GOATS itself, with no user behind it.
+    NotificationInstance.broadcast(
         label=f"GOATS Update Available: {latest}",
         message=message,
         color="warning",

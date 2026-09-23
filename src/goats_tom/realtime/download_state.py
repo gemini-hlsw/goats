@@ -2,16 +2,26 @@
 
 __all__ = ["DownloadState"]
 
+import logging
 import uuid
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+from goats_tom.context.user_context import get_current_user_id
+
+from .groups import UPDATES_PREFIX, user_group
+
+logger = logging.getLogger(__name__)
+
 
 class DownloadState:
-    """Class responsible for managing the state of the download task."""
+    """Class responsible for managing the state of the download task.
 
-    group_name = "updates_group"
+    Updates reach only the user whose download they describe, resolved from the
+    task context.
+    """
+
     func_type = "download.message"
 
     def __init__(self) -> None:
@@ -68,10 +78,18 @@ class DownloadState:
 
     def _send(self) -> None:
         """Sends a download update over the websocket."""
+        group = user_group(UPDATES_PREFIX, get_current_user_id())
+        if group is None:
+            # Dropped rather than broadcast: better lost than shown to all.
+            logger.warning(
+                "Dropping download update %r: no user to address it to.", self.label
+            )
+            return
+
         channel_layer = get_channel_layer()
 
         async_to_sync(channel_layer.group_send)(
-            self.group_name,
+            group,
             {
                 "type": self.func_type,
                 "label": self.label,
