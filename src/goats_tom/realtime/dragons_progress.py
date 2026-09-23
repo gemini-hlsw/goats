@@ -2,16 +2,26 @@
 
 __all__ = ["DRAGONSProgress"]
 
+import logging
+
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
+from goats_tom.context.user_context import get_current_user_id
 from goats_tom.models import DRAGONSReduce
+
+from .groups import DRAGONS_PREFIX, user_group
+
+logger = logging.getLogger(__name__)
 
 
 class DRAGONSProgress:
-    """Class responsible for updating DRAGONS recipe progress."""
+    """Class responsible for updating DRAGONS recipe progress.
 
-    group_name = "dragons_group"
+    Progress reaches only the user who started the reduction, resolved from the
+    request or task context.
+    """
+
     func_type = "recipe.progress.message"
 
     @classmethod
@@ -47,9 +57,17 @@ class DRAGONSProgress:
             The identifier for the reduction process within the recipe.
 
         """
+        group = user_group(DRAGONS_PREFIX, get_current_user_id())
+        if group is None:
+            # Dropped rather than broadcast: better lost than shown to all.
+            logger.warning(
+                "Dropping progress for reduce %s: no user to address it to.", reduce_id
+            )
+            return
+
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            cls.group_name,
+            group,
             {
                 "type": cls.func_type,
                 "status": status,

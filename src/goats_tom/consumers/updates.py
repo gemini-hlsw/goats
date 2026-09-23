@@ -7,27 +7,41 @@ import json
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 
+from goats_tom.realtime.groups import BROADCAST_GROUP, UPDATES_PREFIX, user_group
+
 
 class UpdatesConsumer(WebsocketConsumer):
     """A WebSocket consumer that handles sending updates to
     connected clients on all pages.
 
+    Each connection joins two groups: the broadcast one, which carries
+    announcements about GOATS itself, and the signed-in user's own, which
+    carries everything their work produces.
+
     Attributes
     ----------
-    group_name : `str`
-        The name of the group that this consumer handles updates for.
+    groups_joined : `list[str]`
+        The groups this connection was added to.
 
     """
 
-    group_name = "updates_group"
-
     def connect(self) -> None:
-        """Adds this consumer to the updates group upon WebSocket connection."""
-        async_to_sync(self.channel_layer.group_add)(self.group_name, self.channel_name)
+        """Adds this consumer to the updates groups upon WebSocket connection."""
+        # `scope["user"]` is populated by Channels' `AuthMiddlewareStack`.
+        user = self.scope.get("user")
+        own_group = user_group(UPDATES_PREFIX, getattr(user, "pk", None))
+
+        self.groups_joined = [BROADCAST_GROUP]
+        if own_group is not None:
+            self.groups_joined.append(own_group)
+
+        for group in self.groups_joined:
+            async_to_sync(self.channel_layer.group_add)(group, self.channel_name)
+
         self.accept()
 
     def disconnect(self, code: int) -> None:
-        """Removes this consumer from the updates group upon WebSocket disconnection.
+        """Removes this consumer from the updates groups upon WebSocket disconnection.
 
         Parameters
         ----------
@@ -35,10 +49,9 @@ class UpdatesConsumer(WebsocketConsumer):
             Return code to send on disconnect.
 
         """
-        async_to_sync(self.channel_layer.group_discard)(
-            self.group_name,
-            self.channel_name,
-        )
+        # `getattr`: `disconnect` can run without `connect` having completed.
+        for group in getattr(self, "groups_joined", []):
+            async_to_sync(self.channel_layer.group_discard)(group, self.channel_name)
 
     def notification_message(self, event: dict) -> None:
         """Sends a notification message to the client connected through WebSocket.

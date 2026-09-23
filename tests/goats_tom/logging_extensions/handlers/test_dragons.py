@@ -3,7 +3,10 @@
 import logging
 from unittest import TestCase, mock
 
+from goats_tom.context.user_context import user_id_context
 from goats_tom.logging_extensions.handlers import DRAGONSHandler
+
+USER_ID = 42
 
 
 class TestDRAGONSHandler(TestCase):
@@ -19,8 +22,9 @@ class TestDRAGONSHandler(TestCase):
         self.mock_get_channel_layer.return_value = self.mock_channel_layer
         self.mock_channel_layer.group_send = mock.AsyncMock()
 
-        # Create an instance of the handler.
-        self.handler = DRAGONSHandler(recipe_id=123, reduce_id=456, run_id=789)
+        # Built inside the reduction's context: the handler fixes its user there.
+        with user_id_context(USER_ID):
+            self.handler = DRAGONSHandler(recipe_id=123, reduce_id=456, run_id=789)
 
     def tearDown(self):
         self.patcher.stop()
@@ -56,7 +60,7 @@ class TestDRAGONSHandler(TestCase):
             "run_id": 789,
         }
         self.mock_channel_layer.group_send.assert_called_once_with(
-            "dragons_group", expected_message,
+            f"dragons_user_{USER_ID}", expected_message,
         )
 
     def test_emit_with_failure(self):
