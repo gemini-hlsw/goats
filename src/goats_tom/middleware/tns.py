@@ -12,6 +12,8 @@ from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from django.utils.deprecation import MiddlewareMixin
 
+from goats_tom.credentials import get_credentials
+
 # Context-local store for the current request’s creds.
 current_tns_creds = contextvars.ContextVar("current_tns_creds", default=None)
 
@@ -67,10 +69,12 @@ class TNSCredentialsMiddleware(MiddlewareMixin):
         # Check if url is TNS, if not, don't bother.
         if not request.path.startswith("/tns/"):
             return self.get_response(request)
+        # Imported here: `django_dramatiq` loads this package before the apps.
+        from goats_tom.models import TNSLogin  # noqa: PLC0415
+
         token = None
-        user = getattr(request, "user", None)
-        if user and user.is_authenticated and hasattr(user, "tnslogin"):
-            login = user.tnslogin
+        login = get_credentials(TNSLogin, user=getattr(request, "user", None))
+        if login is not None:
             token = current_tns_creds.set(
                 build_payload(
                     login.bot_id,

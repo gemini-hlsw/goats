@@ -10,6 +10,7 @@ from django.views.generic import View
 from tom_observations.models import ObservationRecord
 
 from goats_tom.astroquery import Observations as GOA
+from goats_tom.credentials import MissingCredentialsError, require_credentials
 from goats_tom.forms import GOAQueryForm
 from goats_tom.models import GOALogin
 from goats_tom.tasks import download_goa_files
@@ -41,14 +42,14 @@ class GOAQueryFormView(View):
             # Get GOA credentials.
             prop_data_msg = "Proprietary data will not be downloaded."
             try:
-                goa_credentials = GOALogin.objects.get(user=request.user)
+                goa_credentials = require_credentials(GOALogin, user=request.user)
                 # Login to GOA.
                 GOA.login(goa_credentials.username, goa_credentials.password)
                 if not GOA.authenticated():
                     raise PermissionError
                 GOA.logout()
 
-            except GOALogin.DoesNotExist:
+            except MissingCredentialsError:
                 messages.warning(
                     request,
                     f"GOA login credentials not found. {prop_data_msg}",

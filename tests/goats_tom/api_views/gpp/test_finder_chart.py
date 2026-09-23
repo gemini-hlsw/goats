@@ -1,10 +1,10 @@
 import asyncio
-from types import SimpleNamespace
 
 import pytest
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from goats_tom.api_views.gpp.finder_chart import GPPFinderChartViewSet
+from goats_tom.tests.factories import GPPLoginFactory
 
 
 @pytest.fixture
@@ -33,11 +33,7 @@ def clear_cache():
 
 def test_get_gpp_token_returns_token(mocker, rf, user):
     view = GPPFinderChartViewSet()
-    creds = SimpleNamespace(token="abc123")
-
-    mocker.patch(
-        "goats_tom.api_views.gpp.finder_chart.GPPLogin.objects.filter"
-    ).return_value.first.return_value = creds
+    GPPLoginFactory(user=user, token="abc123")
 
     request = rf.get("/x/")
     request.user = user
@@ -51,10 +47,7 @@ def test_get_gpp_token_missing_raises_and_notifies(mocker, rf, user):
     view = GPPFinderChartViewSet()
     notify = mocker.patch.object(view, "_notify")
 
-    mocker.patch(
-        "goats_tom.api_views.gpp.finder_chart.GPPLogin.objects.filter"
-    ).return_value.first.return_value = None
-
+    # The user stored no GPP credentials at all.
     request = rf.get("/x/")
     request.user = user
 

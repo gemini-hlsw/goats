@@ -1,7 +1,8 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from goats_tom.context.user_context import user_id_context, get_current_user_id
+from goats_tom.tests.factories import LCOLoginFactory
 from goats_tom.facilities.overrides import (
     InferDataProductTypeMixin,
     UserAwareLCOSettings,
@@ -67,60 +68,45 @@ def test_api_key_none_when_no_context():
     assert settings.get_setting("api_key") is ""
 
 
-def test_api_key_resolved_from_contextvar_and_user_token():
+def test_api_key_resolved_from_the_current_user():
     """
-    api_key is resolved using ContextVar uid -> User -> credential relation.
+    api_key comes from the credentials of whoever the context names.
     """
+    login = LCOLoginFactory(token="TOKEN-123")
     settings = UserAwareLCOSettings("LCO")
 
-    fake_user = MagicMock()
-    fake_cred = MagicMock()
-    fake_cred.token = "TOKEN-123"
-    setattr(fake_user, "lcologin", fake_cred)
-
-    qs = MagicMock()
-    qs.get.return_value = fake_user
-
-    with (
-        patch("goats_tom.facilities.overrides.get_user_model") as get_user_model,
-        user_id_context(1),
-    ):
-        UserModel = MagicMock()
-        UserModel.objects.select_related.return_value = qs
-        get_user_model.return_value = UserModel
-
-        token = settings.get_setting("api_key")
-        assert token == "TOKEN-123"
+    with user_id_context(login.user.pk):
+        assert settings.get_setting("api_key") == "TOKEN-123"
 
 
-def test_api_key_cached_per_request():
+def test_api_key_falls_back_when_the_user_has_no_credentials():
     """
-    Repeated calls to get_setting('api_key') in the same request
-    should not hit the DB more than once.
+    A user who stored no LCO token gets the default from settings, not an error.
     """
+    login = LCOLoginFactory()
+    login.delete()
     settings = UserAwareLCOSettings("LCO")
 
-    fake_user = MagicMock()
-    fake_cred = MagicMock()
-    fake_cred.token = "TOKEN-CACHED"
-    setattr(fake_user, "lcologin", fake_cred)
+    with user_id_context(login.user.pk):
+        assert settings.get_setting("api_key") == ""
 
-    qs = MagicMock()
-    qs.get.return_value = fake_user
 
-    with (
-        patch("goats_tom.facilities.overrides.get_user_model") as get_user_model,
-        user_id_context(99),
-    ):
-        UserModel = MagicMock()
-        UserModel.objects.select_related.return_value = qs
-        get_user_model.return_value = UserModel
+def test_one_users_token_is_not_served_to_another():
+    """
+    The same settings object serves each user their own token.
 
-        assert settings.get_setting("api_key") == "TOKEN-CACHED"
-        assert settings.get_setting("api_key") == "TOKEN-CACHED"
+    It is built once per facility and reused, so a token remembered from an
+    earlier request would be handed to whoever asks next.
+    """
+    first = LCOLoginFactory(token="TOKEN-FIRST")
+    second = LCOLoginFactory(token="TOKEN-SECOND")
+    settings = UserAwareLCOSettings("LCO")
 
-        # DB queried only once
-        assert qs.get.call_count == 1
+    with user_id_context(first.user.pk):
+        assert settings.get_setting("api_key") == "TOKEN-FIRST"
+
+    with user_id_context(second.user.pk):
+        assert settings.get_setting("api_key") == "TOKEN-SECOND"
 
 
 def test_get_form_injects_facility_settings():

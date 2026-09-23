@@ -17,6 +17,9 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+# Re-exported: defined with the lookup that raises it, imported from here.
+from goats_tom.credentials import MissingCredentialsError
+
 logger = logging.getLogger(__name__)
 
 status_mixins: dict[str, dict[str, Any]] = {}
@@ -43,10 +46,6 @@ class StatusPayload:
     message: str
     latency_ms: float
     timestamp: str
-
-
-class MissingCredentialsError(Exception):
-    """Raised when required credentials are missing."""
 
 
 def register_status(name: str, display_name: str):

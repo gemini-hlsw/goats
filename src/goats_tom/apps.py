@@ -2,8 +2,6 @@ import logging
 
 from django.apps import AppConfig
 
-from goats_tom.middleware.tns import current_tns_creds
-
 logger = logging.getLogger(__name__)
 
 
@@ -26,6 +24,9 @@ class GOATSTomConfig(AppConfig):
         # the credentials have not been set for the context or other uncaught issues
         # arise.
         from tom_tns import tns_api  # noqa: PLC0415
+
+        # Imported here: the middleware reaches the models, loaded after this.
+        from goats_tom.middleware.tns import current_tns_creds  # noqa: PLC0415
 
         original_get_tns_credentials = tns_api.get_tns_credentials
         original_group_names = tns_api.group_names

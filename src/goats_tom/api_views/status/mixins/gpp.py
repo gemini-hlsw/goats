@@ -9,6 +9,9 @@ from django.conf import settings
 from gpp_client import GPPClient
 from rest_framework.request import Request
 
+from goats_tom.credentials import require_credentials
+from goats_tom.models import GPPLogin
+
 from .base import BaseStatusMixin, MissingCredentialsError, Status, register_status
 
 
@@ -36,11 +39,7 @@ class GPPStatusMixin(BaseStatusMixin):
             If GPP credentials are missing in the request.
         """
         # Retrieve GPP credentials from the request.
-        if not hasattr(request.user, "gpplogin"):
-            raise MissingCredentialsError("Missing GPP login credentials")
-
-        user = request.user
-        credentials = user.gpplogin
+        credentials = require_credentials(GPPLogin, user=request.user)
 
         env = settings.GPP_ENV
         if not env:

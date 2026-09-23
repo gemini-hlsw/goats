@@ -31,7 +31,7 @@ def test_get_credentials_missing_gpplogin(mock_request):
     del mock_request.user.gpplogin
     mixin = GPPStatusMixin()
 
-    with pytest.raises(MissingCredentialsError, match="Missing GPP login credentials"):
+    with pytest.raises(MissingCredentialsError, match="No GPPLogin credentials"):
         mixin.get_credentials(mock_request)
 
 

@@ -13,6 +13,7 @@ from tom_observations.models import ObservationRecord
 
 from goats_tom.astroquery import Observations as GOA
 from goats_tom.astroquery.conf import conf as goa_conf
+from goats_tom.credentials import get_credentials
 from goats_tom.models import GOALogin
 
 logger = logging.getLogger(__name__)
@@ -43,9 +44,8 @@ class GOAArchiveRedirectView(View):
             return redirect(archive_url)
 
         if response.status_code == 403:
-            try:
-                credentials = GOALogin.objects.get(user=request.user)
-            except GOALogin.DoesNotExist:
+            credentials = get_credentials(GOALogin, user=request.user)
+            if credentials is None:
                 return redirect(goa_login_url)
 
             # Validate credentials are still valid before exposing them.
