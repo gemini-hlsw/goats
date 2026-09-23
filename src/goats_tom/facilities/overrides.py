@@ -1,17 +1,10 @@
-"""
-Facility overrides for TOMToolkit to support per-user API keys (ContextVar-based).
-
-This version ONLY uses request-scoped ContextVar user resolution (ASGI-safe).
-It does NOT support legacy set_user(user) injection.
-"""
+"""Facility overrides for TOMToolkit to support per-user API keys."""
 
 __all__ = ["LCOFacility", "SOARFacility", "BLANCOFacility"]
 
 import logging
 from typing import Any, Optional
 
-from django.contrib.auth import get_user_model
-from django.utils.functional import cached_property
 from tom_observations.facilities.blanco import BLANCOFacility as BaseBLANCOFacility
 from tom_observations.facilities.blanco import BLANCOSettings
 from tom_observations.facilities.lco import LCOFacility as BaseLCOFacility
@@ -19,7 +12,9 @@ from tom_observations.facilities.lco import LCOSettings
 from tom_observations.facilities.soar import SOARFacility as BaseSOARFacility
 from tom_observations.facilities.soar import SOARSettings
 
-from goats_tom.context.user_context import get_current_user_id
+from goats_tom.credentials import get_credentials
+from goats_tom.models import LCOLogin
+from goats_tom.models.logins.base import BaseLogin
 
 from .blanco import GOATSBLANCOImagingObservationForm
 
@@ -28,25 +23,17 @@ logger = logging.getLogger(__name__)
 
 class UserTokenMixin:
     """
-    Inject per-user API keys into a facility settings class using ContextVar uid.
+    Inject the current user's API key into a facility settings class.
 
-    Resolution for api_key:
-    - Request-scoped user id via ContextVar (set by middleware).
+    The toolkit's ``set_user()`` stops at the facility and never reaches its
+    settings, so this is the only adapter between the two.
     """
 
-    credential_attr: str = ""
-    """Name of the attribute on ``User`` pointing to the credential model."""
+    credential_model: type[BaseLogin] | None = None
+    """The credential model holding this facility's token."""
 
     token_field: str = "token"
     """Field name on the credential model that stores the API token."""
-
-    def __init__(self, facility_name: str):
-        super().__init__(facility_name)
-
-        # Per-request cache to avoid repeated DB hits when api_key
-        # is requested many times.
-        self._token_cache_uid = object()  # sentinel
-        self._token_cache_value: Optional[str] = None
 
     def get_setting(self, key: str) -> Any:
         """
@@ -55,68 +42,27 @@ class UserTokenMixin:
         if key == "api_key":
             token = self._current_user_token
             if token:
-                logger.debug(
-                    "Using per-user API token (uid=%s, relation=%s.%s)",
-                    get_current_user_id(),
-                    self.credential_attr,
-                    self.token_field,
-                )
+                logger.debug("Using per-user API token (%s).", self.facility_name)
                 return token
 
-            logger.debug(
-                "No per-user API token found (uid=%s, relation=%s.%s)",
-                get_current_user_id(),
-                self.credential_attr,
-                self.token_field,
-            )
+            logger.debug("No per-user API token found (%s).", self.facility_name)
 
         # Otherwise, do the default.
         return super().get_setting(key)
-
-    @cached_property
-    def _credential_accessors(self) -> tuple[Optional[str], Optional[str]]:
-        """
-        Cached tuple ``(relation_name, token_field_name)``.
-        """
-        if not self.credential_attr:
-            return None, None
-        return self.credential_attr, self.token_field
 
     @property
     def _current_user_token(self) -> Optional[str]:
         """
         Return the per-user token or ``None`` when unavailable.
-
-        Uses request-scoped ContextVar uid set by middleware.
         """
-        uid = get_current_user_id()
-        if uid is None:
+        if self.credential_model is None:
             return None
 
-        relation, field = self._credential_accessors
-        if not relation or not field:
+        credentials = get_credentials(self.credential_model)
+        if credentials is None:
             return None
 
-        # Cache hit for this request/user.
-        if uid == self._token_cache_uid:
-            return self._token_cache_value
-
-        UserModel = get_user_model()
-        try:
-            user = UserModel.objects.select_related(relation).get(pk=uid)
-        except UserModel.DoesNotExist:
-            self._token_cache_uid = uid
-            self._token_cache_value = None
-            return None
-
-        credential_obj = getattr(user, relation, None)
-        token = getattr(credential_obj, field, None) if credential_obj else None
-
-        # Cache for remainder of request.
-        self._token_cache_uid = uid
-        self._token_cache_value = token
-
-        return token
+        return getattr(credentials, self.token_field, None)
 
 
 class UserAwareLCOSettings(UserTokenMixin, LCOSettings):
@@ -124,7 +70,7 @@ class UserAwareLCOSettings(UserTokenMixin, LCOSettings):
     Settings wrapper that pulls API keys from ``user.lcologin.token``.
     """
 
-    credential_attr = "lcologin"
+    credential_model = LCOLogin
 
 
 class UserAwareSOARSettings(UserTokenMixin, SOARSettings):
@@ -132,7 +78,7 @@ class UserAwareSOARSettings(UserTokenMixin, SOARSettings):
     Settings wrapper that pulls API keys from ``user.lcologin.token``.
     """
 
-    credential_attr = "lcologin"
+    credential_model = LCOLogin
 
 
 class UserAwareBLANCOSettings(UserTokenMixin, BLANCOSettings):
@@ -140,7 +86,7 @@ class UserAwareBLANCOSettings(UserTokenMixin, BLANCOSettings):
     Settings wrapper that pulls API keys from ``user.lcologin.token``.
     """
 
-    credential_attr = "lcologin"
+    credential_model = LCOLogin
 
 
 class InferDataProductTypeMixin:

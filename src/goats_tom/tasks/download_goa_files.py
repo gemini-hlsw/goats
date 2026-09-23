@@ -18,6 +18,7 @@ from tom_dataproducts.models import DataProduct
 from tom_observations.models import ObservationRecord
 
 from goats_tom.astroquery import Observations as GOA
+from goats_tom.credentials import MissingCredentialsError, require_credentials
 from goats_tom.models import DataProductMetadata, Download, GOALogin
 from goats_tom.realtime import DownloadState, NotificationInstance
 from goats_tom.utils import create_name_reduction_map
@@ -109,7 +110,7 @@ def download_goa_files(
         # Have to handle logging in for each task.
         prop_data_msg = "Proprietary data will not be downloaded."
         try:
-            goa_credentials = GOALogin.objects.get(user=user)
+            goa_credentials = require_credentials(GOALogin)
             logger.debug("Found GOA credentials for user=%s", user)
 
             # Login to GOA.
@@ -117,7 +118,7 @@ def download_goa_files(
             if not GOA.authenticated():
                 raise PermissionError
             logger.info("Successfully authenticated with GOA.")
-        except GOALogin.DoesNotExist:
+        except MissingCredentialsError:
             logger.warning("GOA login credentials not found. %s", prop_data_msg)
         except PermissionError:
             logger.warning(

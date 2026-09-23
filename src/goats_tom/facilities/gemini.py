@@ -11,7 +11,6 @@ from asgiref.sync import async_to_sync
 from astropy import units as u
 from bs4 import BeautifulSoup
 from django import forms
-from django.contrib.auth import get_user_model
 from django.http import HttpRequest
 from gpp_client import GPPClient
 from gpp_client.generated.enums import ObservationWorkflowState, ObservingModeType
@@ -24,6 +23,8 @@ from tom_observations.models import ObservationRecord
 
 from goats_tom.astroquery import Observations as GOA
 from goats_tom.context.user_context import get_current_user_id
+from goats_tom.credentials import get_credentials
+from goats_tom.models import GPPLogin
 from goats_tom.ocs import OCSClient
 from goats_tom.utils import is_gpp_id, is_ocs_id
 
@@ -301,22 +302,15 @@ class GOATSGEMFacility(BaseRoboticObservationFacility):
                 logger.debug("Fetching observation status from GPP.")
 
                 # Make sure user is provided.
-                uid = get_current_user_id()
-                if uid is None:
+                if get_current_user_id() is None:
                     raise PermissionError(
                         "User context required to fetch observation status."
                     )
 
-                # Get GPP credentials from user profile.
-                UserModel = get_user_model()
-                try:
-                    user = UserModel.objects.select_related("gpplogin").get(pk=uid)
-                except UserModel.DoesNotExist as exc:
-                    raise LookupError(f"User {uid} does not exist") from exc
+                credentials = get_credentials(GPPLogin)
                 workflow_state_summary = None
 
-                if hasattr(user, "gpplogin"):
-                    credentials = user.gpplogin
+                if credentials is not None:
                     # Create GPP client.
                     client = GPPClient(token=credentials.token)
                     workflow_state_summary = async_to_sync(

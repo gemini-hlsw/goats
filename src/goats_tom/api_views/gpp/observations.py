@@ -28,6 +28,8 @@ from tom_observations.api_views import ObservationRecordViewSet
 from tom_observations.models import ObservationRecord
 
 from goats_tom.context_processors.goats_version_processor import get_goats_version
+from goats_tom.credentials import get_credentials
+from goats_tom.models import GPPLogin
 from goats_tom.serializers.gpp import (
     ContextSerializer,
     CreateContextSerializer,
@@ -717,13 +719,13 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
         logger.info("Updating observation on GPP")
 
         # Ensure the user has GPP credentials.
-        if not hasattr(request.user, "gpplogin"):
+        credentials = get_credentials(GPPLogin, user=request.user)
+        if credentials is None:
             return build_failure_response(
                 stage=Stage.CREDENTIALS_CHECK,
                 error="GPP login credentials are not configured for this user.",
                 previous_messages=messages,
             )
-        credentials = request.user.gpplogin
 
         messages.append(
             StageMessage(
@@ -973,13 +975,13 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
         )
 
         # Ensure the user has GPP credentials.
-        if not hasattr(request.user, "gpplogin"):
+        credentials = get_credentials(GPPLogin, user=request.user)
+        if credentials is None:
             return build_failure_response(
                 stage=Stage.CREDENTIALS_CHECK,
                 error="GPP login credentials are not configured for this user.",
                 previous_messages=messages,
             )
-        credentials = request.user.gpplogin
 
         messages.append(
             StageMessage(

@@ -8,6 +8,9 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from goats_tom.credentials import get_credentials
+from goats_tom.models import GPPLogin
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,7 +34,7 @@ class GPPCredentialsMixin:
             The answer explaining what is missing, or ``None`` when the user
             does have credentials stored.
         """
-        if hasattr(request.user, "gpplogin"):
+        if get_credentials(GPPLogin, user=request.user) is not None:
             return None
 
         logger.error(

@@ -10,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
+from goats_tom.credentials import get_credentials
 from goats_tom.models import GPPLogin
 from goats_tom.realtime import NotificationInstance
 
@@ -42,8 +43,8 @@ class GPPFinderChartViewSet(GenericViewSet):
         str
             Valid GPP token.
         """
-        creds = GPPLogin.objects.filter(user_id=request.user.id).first()
-        token = getattr(creds, "token", None) if creds else None
+        creds = get_credentials(GPPLogin, user=request.user)
+        token = getattr(creds, "token", None)
 
         if not token:
             self._notify(

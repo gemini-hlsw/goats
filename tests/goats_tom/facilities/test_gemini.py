@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 import requests
 
+from goats_tom.context.user_context import user_id_context
 from goats_tom.facilities import GEMObservationForm, GOATSGEMFacility
 from goats_tom.facilities.gemini import (
     GMOSNorthImagingForm,
@@ -94,11 +95,6 @@ class TestGOATSGEMFacility:
         user = UserFactory()
         GPPLoginFactory(user=user, token="tok")
 
-        mocker.patch(
-            "goats_tom.facilities.gemini.get_current_user_id",
-            return_value=user.id,
-        )
-
         workflow_response = Mock()
         workflow_response.model_dump.return_value = {
             "observation": {
@@ -112,7 +108,8 @@ class TestGOATSGEMFacility:
             return_value=workflow_response
         )
 
-        result = self.facility.get_observation_status("G-2024A-Q-100-1")
+        with user_id_context(user.id):
+            result = self.facility.get_observation_status("G-2024A-Q-100-1")
 
         assert result["state"] == "Ongoing"
         assert result["parameters"]["gpp_id"] == "o-123"
@@ -139,11 +136,6 @@ class TestGOATSGEMFacility:
         user = UserFactory()
         GPPLoginFactory(user=user, token="tok")
 
-        mocker.patch(
-            "goats_tom.facilities.gemini.get_current_user_id",
-            return_value=user.id,
-        )
-
         workflow_response = Mock()
         workflow_response.model_dump.return_value = {"observation": None}
         mock_client = mocker.patch("goats_tom.facilities.gemini.GPPClient")
@@ -155,7 +147,10 @@ class TestGOATSGEMFacility:
             self.facility, "_state_from_archive", return_value="Observed"
         )
 
-        result = self.facility.get_observation_status("G-2024A-Q-100-1")
+        with user_id_context(user.id):
+            result = self.facility.get_observation_status("G-2024A-Q-100-1")
+
+        mock_client.return_value.workflow_state.get_by_reference.assert_called_once()
 
         assert result["state"] == "Observed"
         assert result["parameters"] == {}
