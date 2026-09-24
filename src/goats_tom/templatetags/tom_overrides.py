@@ -139,11 +139,21 @@ def goats_target_table(context, targets, all_checked=False):
 @register.inclusion_tag("auth/partials/user_list.html", takes_context=True)
 def goats_user_list(context):
     """
-    Override for TOMToolkit method. Orders users by join date via ``?order=``.
+    Override for TOMToolkit method. Orders users by join date via ``?order=``,
+    and shows an ordinary account only its own row.
     """
     context_data = user_list(context)
+    users = context_data["users"]
+
+    # Upstream shows every account's name and email to any logged-in user.
+    viewer = getattr(context["request"], "user", None)
+    if viewer is None or not viewer.is_authenticated:
+        users = users.none()
+    elif not viewer.is_superuser:
+        users = users.filter(pk=viewer.pk)
+
     ordering = date_ordering(context["request"], ("date_joined",), "-date_joined")
-    context_data["users"] = context_data["users"].order_by(*ordering)
+    context_data["users"] = users.order_by(*ordering)
     context_data["current_order"] = resolve_date_order(
         context["request"], ("date_joined",), "-date_joined"
     )
