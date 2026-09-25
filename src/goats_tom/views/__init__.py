@@ -30,7 +30,7 @@ from goats_tom.views.target_delete import TargetDeleteView
 from goats_tom.views.target_detail import TargetDetailView
 from goats_tom.views.target_list import TargetListView
 from goats_tom.views.tasks import ongoing_tasks
-from goats_tom.views.user_generate_token import UserGenerateTokenView
+from goats_tom.views.user_list import UserListView
 
 __all__ = [
     "DRAGONSView",
@@ -41,7 +41,7 @@ __all__ = [
     "DataProductDeleteView",
     "ObservationRecordDetailView",
     "TargetDeleteView",
-    "UserGenerateTokenView",
+    "UserListView",
     "ongoing_tasks",
     "recent_downloads",
     "update_brokerquery_name",

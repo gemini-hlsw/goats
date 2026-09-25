@@ -1,0 +1,28 @@
+{% comment %}
+Override for TOMToolkit's API token partial. Upstream prints the value for
+whoever is looking, and a superuser can open anybody's settings page. The
+token is a bearer credential, so that hands them the ability to act as that
+user over the API. An administrator only needs to be able to replace it.
+
+Compares against ``request``: the HTMX re-render after regenerating passes
+only the token and the pk, so ``current_user`` is not set on that path.
+{% endcomment %}
+<div id="api-token-container" class="mt-3">
+  <h5>API Token</h5>
+  {% if not drf_api_token %}
+    <span class="text-muted">No token generated.</span>
+  {% elif user_pk == request.user.pk %}
+    <code>{{ drf_api_token }}</code>
+  {% else %}
+    <span class="text-muted">Set, and only its owner can read it.</span>
+  {% endif %}
+  <form hx-post="{% url 'regenerate-api-token' pk=user_pk %}"
+        hx-target="#api-token-container"
+        hx-swap="outerHTML"
+        hx-confirm="{% if user_pk == request.user.pk %}Regenerate API token? Your current API token will stop working immediately.{% else %}Regenerate this API token? Theirs stops working immediately and is replaced by one only they can read.{% endif %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-warning btn-sm mt-2">
+      Regenerate API Token
+    </button>
+  </form>
+</div>

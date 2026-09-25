@@ -1,9 +1,12 @@
 from unittest.mock import patch
-from goats_tom.tests.factories import UserFactory
+
 from django.test import TestCase
 from django.urls import reverse
+
 from goats_tom.models import TNSLogin
+from goats_tom.tests.factories import UserFactory
 from goats_tom.views import TNSLoginView
+
 
 class TestTNSLoginView(TestCase):
     def setUp(self):
@@ -25,7 +28,9 @@ class TestTNSLoginView(TestCase):
         form_data = {"token": "1234", "bot_id": "test", "group_names": ["group1", "group2"], "bot_name": "test2"}
         response = self.client.post(self.url, form_data, follow=True)
 
-        self.assertRedirects(response, reverse("user-list"))
+        self.assertRedirects(
+            response, reverse("user-update", kwargs={"pk": self.user.pk})
+        )
         messages_list = list(response.context["messages"])
         self.assertTrue(any("TNS login information saved." in str(msg) for msg in messages_list))
 
@@ -40,7 +45,9 @@ class TestTNSLoginView(TestCase):
         form_data = {"token": "5678", "bot_id": "test", "group_names": ["group1", "group2"], "bot_name": "test2"}
         response = self.client.post(self.url, form_data, follow=True)
 
-        self.assertRedirects(response, reverse("user-list"))
+        self.assertRedirects(
+            response, reverse("user-update", kwargs={"pk": self.user.pk})
+        )
         messages_list = list(response.context["messages"])
         self.assertTrue(any("Failed to verify TNS credentials" in str(msg) for msg in messages_list))
 

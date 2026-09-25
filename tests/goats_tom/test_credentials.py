@@ -2,10 +2,14 @@
 
 import pytest
 from django.contrib.auth.models import AnonymousUser
+from django.urls import reverse
 
+from goats_tom import models
 from goats_tom.context.user_context import user_id_context
 from goats_tom.credentials import (
+    CREDENTIAL_SERVICES,
     MissingCredentialsError,
+    get_credential_status,
     get_credentials,
     require_credentials,
 )
@@ -83,3 +87,40 @@ def test_requiring_credentials_that_are_missing_raises() -> None:
 
     with pytest.raises(MissingCredentialsError, match="No GPPLogin credentials"):
         require_credentials(GPPLogin, user=user)
+
+
+def test_every_registered_model_resolves() -> None:
+    """The registry names models as strings, so a typo would only show on render."""
+    for _, _, model_name in CREDENTIAL_SERVICES:
+        assert hasattr(models, model_name), model_name
+
+
+def test_every_registered_url_resolves() -> None:
+    """Same for the URL names."""
+    user = UserFactory()
+
+    for _, url_name, _ in CREDENTIAL_SERVICES:
+        assert reverse(url_name, kwargs={"pk": user.pk})
+
+
+def test_status_reports_every_service() -> None:
+    """A fresh account has every service listed, none of them stored."""
+    user = UserFactory()
+
+    statuses = get_credential_status(user)
+
+    assert [s["label"] for s in statuses] == [
+        label for label, _, _ in CREDENTIAL_SERVICES
+    ]
+    assert not any(s["stored"] for s in statuses)
+
+
+def test_status_marks_only_what_is_stored() -> None:
+    """Storing one service does not mark the others."""
+    login = GOALoginFactory()
+
+    statuses = get_credential_status(login.user)
+
+    assert [s["label"] for s in statuses if s["stored"]] == [
+        "Gemini Observatory Archive"
+    ]

@@ -13,6 +13,8 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 
+from goats_tom.credentials import get_service_label
+
 
 class BaseLoginView(LoginRequiredMixin, FormView):
     """View to handle Login form."""
@@ -55,6 +57,10 @@ class BaseLoginView(LoginRequiredMixin, FormView):
         user = get_object_or_404(User, pk=self.kwargs["pk"])
         context["user"] = user
         context["service_name"] = self.service_name
+        # The display label lives with the other service metadata.
+        context["service_label"] = (
+            get_service_label(self.request.resolver_match.url_name) or self.service_name
+        )
         context["service_description"] = self.service_description
 
         return context
@@ -68,7 +74,11 @@ class BaseLoginView(LoginRequiredMixin, FormView):
             The URL to redirect to.
 
         """
-        return reverse_lazy("user-list")
+        # Only an administrator can reach the user list, so everybody else
+        # goes back to the settings page they came from.
+        if self.request.user.is_superuser:
+            return reverse_lazy("user-list")
+        return reverse_lazy("user-update", kwargs={"pk": self.request.user.pk})
 
     def form_valid(self, form: Any) -> HttpResponse:
         """Handle valid form submission.

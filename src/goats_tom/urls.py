@@ -110,11 +110,6 @@ urlpatterns = [
     ),
     path("brokers/list/", views.BrokerQueryListView.as_view(), name="list"),
     path(
-        "users/<int:pk>/generate_token/",
-        views.UserGenerateTokenView.as_view(),
-        name="user-generate-token",
-    ),
-    path(
         "users/<int:pk>/goa_login/",
         views.GOALoginView.as_view(),
         name="user-goa-login",
@@ -157,6 +152,7 @@ urlpatterns = [
     path("targets/<int:pk>/", views.TargetDetailView.as_view(), name="detail"),
     # Override the TOM list views to add date ordering; these must come before
     # the `tom_common.urls` include so they win the URL match.
+    path("users/", views.UserListView.as_view(), name="user-list"),
     path("targets/", views.TargetListView.as_view(), name="target-list"),
     path(
         "alerts/query/list/",
