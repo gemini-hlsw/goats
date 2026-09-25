@@ -1,0 +1,1 @@
+Scoped the credential manager and user list to the authenticated user to prevent access to other users' credentials
