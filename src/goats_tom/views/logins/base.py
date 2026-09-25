@@ -4,7 +4,9 @@ from typing import Any
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
+from django.core.exceptions import PermissionDenied
 from django.http import (
+    HttpRequest,
     HttpResponse,
 )
 from django.shortcuts import get_object_or_404
@@ -21,6 +23,32 @@ class BaseLoginView(LoginRequiredMixin, FormView):
     service_description = None
     login_client = None
     model_class = None
+
+    def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        """Reject attempts to manage another user's credentials.
+
+        Parameters
+        ----------
+        request : `HttpRequest`
+            The incoming request.
+
+        Returns
+        -------
+        `HttpResponse`
+            The response from the matching handler.
+
+        Raises
+        ------
+        `PermissionDenied`
+            If the requester is neither the user named in the URL nor a
+            superuser.
+        """
+        # The target user comes from the URL, so it is not necessarily the requester.
+        if not request.user.is_superuser and str(request.user.pk) != str(
+            kwargs.get("pk")
+        ):
+            raise PermissionDenied("You may only manage your own service credentials.")
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

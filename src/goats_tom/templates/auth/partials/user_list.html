@@ -38,8 +38,8 @@
               ><i class="fa-solid fa-circle-info"></i
             ></a>
           </th>
-          {% if request.user.is_superuser %}
           <th>Edit</th>
+          {% if request.user.is_superuser %}
           <th>Change Password</th>
           <th>Delete</th>
 
@@ -55,6 +55,7 @@
           <td>{{ user.date_joined }}</td>
           <td>{% if user.is_superuser %} yes {% endif %}</td>
           <td>
+            {% if user == request.user or request.user.is_superuser %}
             <div class="dropdown">
               <button
                 class="btn btn-secondary dropdown-toggle"
@@ -111,11 +112,18 @@
                 {% endif %}
               </ul>
             </div>
+            {% else %}
+            <span class="text-muted">&mdash;</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if user == request.user or request.user.is_superuser %}
+            <a href="{% url 'user-update' user.id %}" class="btn btn-primary">Edit</a>
+            {% else %}
+            <span class="text-muted">&mdash;</span>
+            {% endif %}
           </td>
           {% if request.user.is_superuser %}
-          <td>
-            <a href="{% url 'user-update' user.id %}" class="btn btn-primary">Edit</a>
-          </td>
           <td>
             <a
               href="{% url 'admin-user-change-password' user.id %}"
