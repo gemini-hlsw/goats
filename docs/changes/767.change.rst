@@ -1,0 +1,1 @@
+Redesigned and restructured the settings page and user list to improve usability and separation of concerns
