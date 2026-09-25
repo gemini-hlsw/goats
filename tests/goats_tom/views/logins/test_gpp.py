@@ -28,7 +28,9 @@ class TestGPPLoginView(TestCase):
         form_data = {"token": "gpp_token"}
         response = self.client.post(self.url, form_data, follow=True)
 
-        self.assertRedirects(response, reverse("user-list"))
+        self.assertRedirects(
+            response, reverse("user-update", kwargs={"pk": self.user.pk})
+        )
         messages_list = list(response.context["messages"])
         self.assertTrue(
             any("GPP login information verified" in str(msg) for msg in messages_list)
@@ -42,7 +44,9 @@ class TestGPPLoginView(TestCase):
         form_data = {"token": "bad_token"}
         response = self.client.post(self.url, form_data, follow=True)
 
-        self.assertRedirects(response, reverse("user-list"))
+        self.assertRedirects(
+            response, reverse("user-update", kwargs={"pk": self.user.pk})
+        )
         messages_list = list(response.context["messages"])
         self.assertTrue(
             any(

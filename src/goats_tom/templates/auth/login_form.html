@@ -1,51 +1,66 @@
 {% extends 'tom_common/base.html' %}
+{% load credential_extras %}
 {% block title %}{{ service_name }} Login Information{% endblock %}
 {% block content %}
-<div class="mb-3">
-  <p class="h2">
-    Manage
-    {% if service_name == "GOA" %}
-    Gemini Observatory Archive (GOA)
-    {% elif service_name == "GPP" %}
-      Gemini Program Platform (GPP)
-    {% elif service_name == "TNS" %}
-      Transient Name Server (TNS)
-    {% elif service_name == "LCO" %}
-      Las Cumbres Observatory (LCO)
-    {% else %}
-      {{ service_name }}
+<div class="row g-5">
+  <div class="col-lg-7">
+    <p class="h2 mb-1">
+      Manage {{ service_label }}{% if service_name != service_label %} ({{ service_name }}){% endif %} Credentials
+    </p>
+    {% if service_description %}
+    <p>{{ service_description|safe }}</p>
     {% endif %}
-    Credentials
-  </p>
-  {% if service_description %}
-  <p class="mb-3">
-    {{ service_description|safe }}
-  </p>
-  {% endif %}
-  <p class="mb-0">
-    User: <code>{{ user.username }}</code>
-  </p>
-</div>
-<div class="alert alert-danger" role="alert">
-  <strong>Important:</strong> This information will be securely stored. Do not share your {{ service_name }} credentials.
-</div>
-<hr />
-
-<form method="POST">
-  {% csrf_token %}
-  {% for field in form %}
-    <div class="mb-3">
-      {{ field.label_tag }}<br>
-      {{ field }}
-      {% if field.help_text %}
-        <small class="form-text text-muted">{{ field.help_text }}</small>
-      {% endif %}
-      {% for error in field.errors %}
-        <div class="text-danger">{{ error }}</div>
-      {% endfor %}
+    <p>User: <code>{{ user.username }}</code></p>
+    <div class="alert alert-danger" role="alert">
+      <strong>Important:</strong> This information will be securely stored. Do not share your {{ service_name }} credentials.
     </div>
-  {% endfor %}
-  <input type="submit" value="Save {{ service_name }} Credentials" class="btn btn-primary">
-</form>
-
+    <form method="POST">
+      {% csrf_token %}
+      {% include 'partials/form_fields.html' with fields=form %}
+      <input type="submit" value="Save {{ service_name }} Credentials" class="btn btn-primary">
+    </form>
+  </div>
+  <div class="col-lg-5">
+    <p class="h2 mb-1">Service credentials</p>
+    <p>Move between services without going back to your settings.</p>
+    <table class="table table-borderless align-middle">
+      <thead>
+        <tr>
+          <th class="w-100">Service</th>
+          <th class="text-center">Stored</th>
+          <th class="text-center">Manage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% credential_services user as services %}
+        {% for service in services %}
+        <tr>
+          {% if service.is_current %}
+          <td class="fw-bold">{{ service.label }}</td>
+          {% else %}
+          <td>{{ service.label }}</td>
+          {% endif %}
+          <td class="text-center">
+            {% if service.stored %}
+            <i class="fa-solid fa-check fa-lg text-success" title="Stored"></i>
+            {% else %}
+            <i class="fa-solid fa-minus fa-lg text-muted" title="Not stored"></i>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if not service.is_current %}
+            <a
+              href="{% url service.url_name user.id %}"
+              title="Manage {{ service.label }} credentials"
+              class="btn btn-outline-primary btn-sm"
+              ><i class="fa-solid fa-pencil"></i
+            ></a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}

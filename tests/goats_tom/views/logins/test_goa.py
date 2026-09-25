@@ -39,7 +39,9 @@ class TestGOALoginView(TestCase):
         response = self.client.post(self.url, form_data, follow=True)
 
         # Check we redirected to success URL.
-        self.assertRedirects(response, reverse("user-list"))
+        self.assertRedirects(
+            response, reverse("user-update", kwargs={"pk": self.user.pk})
+        )
         # Check success message.
         messages_list = list(response.context["messages"])
         self.assertTrue(any("GOA login information verified" in str(msg) for msg in messages_list))
@@ -58,7 +60,9 @@ class TestGOALoginView(TestCase):
         form_data = {"username": "invalid_user", "password": "wrong_pass"}
         response = self.client.post(self.url, form_data, follow=True)
 
-        self.assertRedirects(response, reverse("user-list"))
+        self.assertRedirects(
+            response, reverse("user-update", kwargs={"pk": self.user.pk})
+        )
         messages_list = list(response.context["messages"])
         self.assertTrue(any("Failed to verify GOA credentials" in str(msg) for msg in messages_list))
 

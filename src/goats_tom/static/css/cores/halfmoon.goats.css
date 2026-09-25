@@ -564,3 +564,13 @@ select.form-control[multiple] {
 .input-group > .border-danger {
   z-index: 4;
 }
+
+/* A dropdown section heading. Bootstrap's own is smaller and dimmer than the
+   items, which buries it; this reads as a label above what it names. */
+.dropdown-section {
+  /* Bootstrap pads the heading on all sides, which pushes it away from the
+     items it names. Dropping the bottom padding sits it on top of them. */
+  color: var(--bs-body-color);
+  font-size: inherit;
+  padding-bottom: 0.1rem;
+}

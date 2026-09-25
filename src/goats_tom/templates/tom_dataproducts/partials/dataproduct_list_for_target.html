@@ -7,7 +7,11 @@
       You can <strong>view files in JS9</strong> or
       <strong>send them to Astro Data Lab</strong> using the "Actions" dropdown. To send
       files, make sure your
-      <a href="{% url 'user-list' %}" class="alert-link">Astro Data Lab credentials</a>
+      <a
+        href="{% url 'user-astro-data-lab-login' request.user.id %}"
+        class="alert-link"
+        >Astro Data Lab credentials</a
+      >
       are set up.
     </div>
   </div>

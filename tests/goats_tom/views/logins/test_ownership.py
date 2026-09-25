@@ -66,86 +66,37 @@ class TestCredentialOwnership(TestCase):
         assert GOALogin.objects.get(user=self.other).username == "set_by_admin"
 
 
-@patch.object(GOALoginView, "perform_login_and_logout", return_value=True)
-class TestCredentialManagerIsOffered(TestCase):
-    """The user list only offers the credential manager where it would work."""
+class TestTheUserListIsForAdministrators(TestCase):
+    """Nobody else can reach it: settings is where a user finds their own."""
 
     def setUp(self) -> None:
         self.user = UserFactory(username="owner", password="x")
         self.other = UserFactory(username="other", password="y")
 
-    def get_user_list(self) -> str:
-        """The rendered user list, as this client sees it."""
-        return self.client.get(reverse("user-list")).content.decode()
-
-    def test_your_own_row_offers_it(self, _mock) -> None:
-        """Everyone can reach their own credentials."""
+    def test_an_ordinary_account_is_refused(self) -> None:
+        """The page carries every account's name, email and join date."""
         self.client.login(username="owner", password="x")
 
-        assert reverse("user-goa-login", kwargs={"pk": self.user.pk}) in (
-            self.get_user_list()
-        )
+        response = self.client.get(reverse("user-list"))
 
-    def test_another_users_row_does_not(self, _mock) -> None:
-        """A link that only leads to a refusal is not offered."""
-        self.client.login(username="owner", password="x")
+        assert response.status_code == 302
+        assert response["Location"].startswith(reverse("login"))
 
-        assert reverse("user-goa-login", kwargs={"pk": self.other.pk}) not in (
-            self.get_user_list()
-        )
-
-    def test_a_superuser_is_offered_every_row(self, _mock) -> None:
+    def test_a_superuser_is_offered_every_row(self) -> None:
         """The admin flow stays reachable from the list."""
         admin = UserFactory(
             username="admin", password="z", is_superuser=True, is_staff=True
         )
         self.client.force_login(admin)
 
-        rendered = self.get_user_list()
+        rendered = self.client.get(reverse("user-list")).content.decode()
+
         assert reverse("user-goa-login", kwargs={"pk": self.other.pk}) in rendered
         assert reverse("user-goa-login", kwargs={"pk": admin.pk}) in rendered
 
 
-class TestUserListShowsOnlyYou(TestCase):
-    """The user list carries names and emails, so it is not a directory."""
-
-    def setUp(self) -> None:
-        self.user = UserFactory(
-            username="owner", password="x", email="owner@example.org"
-        )
-        # A name no page furniture could contain, so the assertion is meaningful.
-        self.other = UserFactory(
-            username="zzcolleague", password="y", email="zzcolleague@example.org"
-        )
-
-    def get_user_list(self) -> str:
-        """The rendered user list, as this client sees it."""
-        return self.client.get(reverse("user-list")).content.decode()
-
-    def test_an_ordinary_account_sees_only_itself(self) -> None:
-        """Another user's name and email must not be on the page."""
-        self.client.login(username="owner", password="x")
-
-        rendered = self.get_user_list()
-
-        assert "owner@example.org" in rendered
-        assert "zzcolleague" not in rendered
-
-    def test_a_superuser_sees_everyone(self) -> None:
-        """Administering the instance means seeing who is on it."""
-        admin = UserFactory(
-            username="admin", password="z", is_superuser=True, is_staff=True
-        )
-        self.client.force_login(admin)
-
-        rendered = self.get_user_list()
-
-        assert "owner@example.org" in rendered
-        assert "zzcolleague@example.org" in rendered
-
-
 class TestEditIsOfferedOnYourOwnRow(TestCase):
-    """Changing your own password goes through the Edit form, so it is offered."""
+    """The list is an administrator's, so every row carries its actions."""
 
     def setUp(self) -> None:
         self.user = UserFactory(username="owner", password="x")
@@ -154,22 +105,6 @@ class TestEditIsOfferedOnYourOwnRow(TestCase):
     def get_user_list(self) -> str:
         """The rendered user list, as this client sees it."""
         return self.client.get(reverse("user-list")).content.decode()
-
-    def test_your_own_row_offers_edit(self) -> None:
-        """An ordinary account can reach its own settings from the list."""
-        self.client.login(username="owner", password="x")
-
-        assert reverse("user-update", kwargs={"pk": self.user.pk}) in (
-            self.get_user_list()
-        )
-
-    def test_the_admin_password_button_is_not_offered(self) -> None:
-        """`UserPasswordChangeView` is superuser-only, so the link would refuse."""
-        self.client.login(username="owner", password="x")
-
-        assert reverse(
-            "admin-user-change-password", kwargs={"pk": self.user.pk}
-        ) not in (self.get_user_list())
 
     def test_a_superuser_is_offered_both(self) -> None:
         """The admin columns stay as they were."""

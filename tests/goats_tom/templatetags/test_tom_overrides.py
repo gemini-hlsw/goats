@@ -679,3 +679,20 @@ def test_saved_products_pagination_links_preserve_sort(mod, target, order):
     )
     expected = products[-1] if order == "created" else products[0]
     assert list(page_two["products_page"]) == [expected]
+
+
+def test_goats_dataproduct_list_for_target_carries_the_request(mocker, mod, target):
+    """The alert links to the reader's own credentials, so it needs ``request``.
+
+    Upstream leaves ``request`` out of what the tag returns, and the template
+    cannot reach it any other way.
+    """
+    request = SimpleNamespace(user=SimpleNamespace(id=7, is_authenticated=True))
+    mocker.patch(
+        f"{MODULE}.dataproduct_list_for_target",
+        return_value={"products": mocker.MagicMock()},
+    )
+
+    context = mod.goats_dataproduct_list_for_target({"request": request}, target)
+
+    assert context["request"] is request

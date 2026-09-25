@@ -1,0 +1,43 @@
+{% comment %}
+Renders form fields with Bootstrap 5 spacing. Needed where the form comes from
+TOMToolkit: its pages render through django-bootstrap4, whose ``form-group``
+was dropped in Bootstrap 5, so the fields come out with no spacing at all.
+
+Takes ``fields``, an iterable of bound fields, and optionally ``note_for`` and
+``note`` to hang one extra hint off the named field, or ``hide_help_for`` to
+drop the help text of one field.
+{% endcomment %}
+{% load custom_filters %}
+{% for field in fields %}
+<div class="mb-3">
+  {% if field.field.widget.input_type == "checkbox" %}
+  <label class="form-label d-block">{{ field.label }}</label>
+  {% if field.field.choices %}
+  {% for choice in field|with_widget_class:"form-check-input" %}
+  <div class="form-check">
+    {{ choice.tag }}
+    <label class="form-check-label" for="{{ choice.id_for_label }}">
+      {{ choice.choice_label }}
+    </label>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="form-check">
+    {{ field|add_class:"form-check-input" }}
+  </div>
+  {% endif %}
+  {% else %}
+  <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+  {{ field|add_class:"form-control" }}
+  {% endif %}
+  {% if note_for and field.name == note_for %}
+  <div class="form-text text-muted mt-2">{{ note }}</div>
+  {% endif %}
+  {% if field.help_text and field.name != hide_help_for %}
+  <div class="form-text text-muted mt-2">{{ field.help_text|safe }}</div>
+  {% endif %}
+  {% for error in field.errors %}
+  <div class="text-danger mt-2">{{ error }}</div>
+  {% endfor %}
+</div>
+{% endfor %}

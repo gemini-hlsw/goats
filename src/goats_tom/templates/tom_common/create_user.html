@@ -1,0 +1,103 @@
+{% extends 'tom_common/base.html' %}
+{% comment %}
+Override for TOMToolkit's user create/update page. Upstream renders it through
+django-bootstrap4, which leaves the fields unspaced under Bootstrap 5, so the
+fields go through the GOATS partial instead. On update the page doubles as the
+per-user settings panel, so it also lists the credentials stored per service.
+{% endcomment %}
+{% load credential_extras custom_filters %}
+{% block title %}{% if object %}Settings{% else %}Create user{% endif %}{% endblock %}
+{% block content %}
+<div class="row g-5">
+  <div class="col-lg-7">
+    <p class="h2 mb-3">{% if object %}Settings{% else %}Create user{% endif %}</p>
+    {% if object %}
+    <form action="{% url 'user-update' object.id %}" method="POST">
+    {% else %}
+    <form action="{% url 'user-create' %}" method="POST">
+    {% endif %}
+      {% csrf_token %}
+      {% for error in form.non_field_errors %}
+      <div class="alert alert-danger" role="alert">{{ error }}</div>
+      {% endfor %}
+      {% comment %}
+      Grouped by meaning rather than by the order the form declares: who you
+      are, then how you sign in, then what you may do. Affiliation lives on
+      the profile formset, which is why it is pulled in between the two.
+      {% endcomment %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"username,first_name,last_name,email" %}
+      {{ form.user_profile_formset.management_form }}
+      {% for subform in form.user_profile_formset %}
+        {% for hidden in subform.hidden_fields %}{{ hidden }}{% endfor %}
+        {% include 'partials/form_fields.html' with fields=subform.visible_fields %}
+      {% endfor %}
+      {% if object %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"password1,password2" note_for="password1" note="Leave both password fields blank to keep your current password." hide_help_for="password2" %}
+      {% else %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"password1,password2" hide_help_for="password2" %}
+      {% endif %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"groups" %}
+      {% if object.pk != current_user.pk %}
+      <div class="alert alert-warning" role="alert">
+        <strong>Warning:</strong> changing the password for
+        <code>{{ object.username }}</code> will clear out all of their saved
+        external service API keys and passwords, if any.
+      </div>
+      {% endif %}
+      <button type="submit" class="btn btn-primary">
+        {% if object %}Update{% else %}Create User{% endif %}
+      </button>
+    </form>
+
+  </div>
+  {% if object %}
+  <div class="col-lg-5">
+    <p class="h2 mb-1">Service credentials</p>
+    <p>
+      GOATS uses these to reach each service on behalf of
+      <code>{{ object.username }}</code>.
+    </p>
+    <table class="table table-borderless align-middle">
+      <thead>
+        <tr>
+          <th class="w-100">Service</th>
+          <th class="text-center">Stored</th>
+          <th class="text-center">Manage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% credential_services object as services %}
+        {% for service in services %}
+        <tr>
+          <td>{{ service.label }}</td>
+          <td class="text-center">
+            {% if service.stored %}
+            <i class="fa-solid fa-check fa-lg text-success" title="Stored"></i>
+            {% else %}
+            <i class="fa-solid fa-minus fa-lg text-muted" title="Not stored"></i>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            <a
+              href="{% url service.url_name object.id %}"
+              title="Manage {{ service.label }} credentials"
+              class="btn btn-outline-primary btn-sm"
+              ><i class="fa-solid fa-pencil"></i
+            ></a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="mt-5">
+      {% include 'tom_common/partials/api_token.html' %}
+      <p class="mt-2">
+        This is the token the <strong>antares2goats</strong> browser extension
+        uses. Regenerating it stops the extension working until you paste the
+        new one in.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

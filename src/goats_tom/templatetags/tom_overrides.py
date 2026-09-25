@@ -110,6 +110,9 @@ def goats_dataproduct_list_for_target(context, target):
     """
     context_data = dataproduct_list_for_target(context, target)
     context_data["products"] = context_data["products"].order_by("-created", "-pk")
+    # Upstream leaves it out, and the template links to the reader's own
+    # credentials page.
+    context_data["request"] = context["request"]
     return context_data
 
 

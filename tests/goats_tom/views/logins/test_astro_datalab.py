@@ -35,7 +35,9 @@ class TestAstroDatalabLoginView(TestCase):
         form_data = {"username": "astro_user", "password": "astro_pass"}
         response = self.client.post(self.url, form_data, follow=True)
 
-        self.assertRedirects(response, reverse("user-list"))
+        self.assertRedirects(
+            response, reverse("user-update", kwargs={"pk": self.user.pk})
+        )
         messages_list = list(response.context["messages"])
         self.assertTrue(any("Astro Data Lab login information verified" in str(msg) for msg in messages_list))
 
@@ -51,7 +53,9 @@ class TestAstroDatalabLoginView(TestCase):
         form_data = {"username": "bad_user", "password": "bad_pass"}
         response = self.client.post(self.url, form_data, follow=True)
 
-        self.assertRedirects(response, reverse("user-list"))
+        self.assertRedirects(
+            response, reverse("user-update", kwargs={"pk": self.user.pk})
+        )
         messages_list = list(response.context["messages"])
         self.assertTrue(any("Failed to verify Astro Data Lab credentials" in str(msg) for msg in messages_list))
 

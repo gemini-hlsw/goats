@@ -1,0 +1,28 @@
+{% comment %}
+Override for TOMToolkit's group list, so it matches the user list beside it:
+same heading level, same table treatment.
+{% endcomment %}
+{% if request.user.is_superuser %}
+<p class="h2">Groups</p>
+<p>Permission groups on this GOATS instance.</p>
+<div class="row">
+  <div class="col-md-12">
+    <a href="{% url 'group-create' %}" title="Add Group" class="btn btn-outline-primary mb-3">Add Group</a>
+    <table class="table table-striped table-hover align-middle">
+      <thead>
+        <tr><th>Name</th><th class="text-center">Members</th><th class="text-center">Update</th><th class="text-center">Delete</th></tr>
+      </thead>
+      <tbody>
+        {% for group in groups %}
+        <tr>
+          <td>{{ group.name }}</td>
+          <td class="text-center">{{ group.user_set.count }}</td>
+          <td class="text-center"><a href="{% url 'group-update' group.id %}" title="Update {{ group.name }}" class="btn btn-primary"><i class="fa-solid fa-pencil"></i></a></td>
+          <td class="text-center"><a href="{% url 'group-delete' group.id %}" title="Delete {{ group.name }}" class="btn btn-danger"><i class="fa-solid fa-trash"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
