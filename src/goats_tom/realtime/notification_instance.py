@@ -19,8 +19,8 @@ class NotificationInstance:
     """Class responsible for creating and sending a notification.
 
     A notification reaches only the user whose work produced it, resolved from
-    the request or task context. Use `broadcast` for the rare announcement that
-    is addressed to everyone.
+    the request or task context unless one is named. Use `broadcast` for the
+    rare announcement that is addressed to everyone.
     """
 
     func_type = "notification.message"
@@ -33,6 +33,8 @@ class NotificationInstance:
         color: str = "primary",
         autohide: bool = True,
         allow_html: bool = False,
+        *,
+        user=None,
     ) -> None:
         """Creates and sends a notification to the user it belongs to.
 
@@ -50,9 +52,12 @@ class NotificationInstance:
         allow_html : bool, optional
             Whether the message should be rendered as HTML instead of plain text.
             Only enable for trusted, static markup, by default ``False``.
+        user : `django.contrib.auth.models.User`, optional
+            Who to notify, by default whoever the context names. Given when the
+            notification is about somebody else's action.
         """
         unique_id = f"{uuid.uuid4()}"
-        cls._send(unique_id, label, message, color, autohide, allow_html)
+        cls._send(unique_id, label, message, color, autohide, allow_html, user=user)
 
     @classmethod
     def broadcast(
@@ -105,6 +110,7 @@ class NotificationInstance:
         allow_html: bool = False,
         *,
         group: str | None = None,
+        user=None,
     ) -> None:
         """Sends a notification.
 
@@ -124,10 +130,16 @@ class NotificationInstance:
             Whether the message should be rendered as HTML instead of plain text.
             Only enable for trusted, static markup, by default ``False``.
         group : str | None, optional
-            The group to send to. By default the current user's own group.
+            The group to send to. By default the one of the addressed user.
+        user : `django.contrib.auth.models.User`, optional
+            Who to notify, by default whoever the context names.
         """
         if group is None:
-            group = user_group(UPDATES_PREFIX, get_current_user_id())
+            if user is not None:
+                user_id = getattr(user, "pk", None)
+            else:
+                user_id = get_current_user_id()
+            group = user_group(UPDATES_PREFIX, user_id)
             if group is None:
                 # Dropped rather than broadcast: better lost than shown to all.
                 logger.warning(

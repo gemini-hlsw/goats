@@ -14,9 +14,17 @@ from .logins import (
 )
 from .recipes_module import RecipesModuleFactory
 from .reduceddatum import ReducedDatumFactory
+from .tns_groups import (
+    TNSGroupFactory,
+    TNSGroupJoinRequestFactory,
+    TNSGroupMembershipFactory,
+)
 from .user import UserFactory
 
 __all__ = [
+    "TNSGroupFactory",
+    "TNSGroupJoinRequestFactory",
+    "TNSGroupMembershipFactory",
     "AstroDatalabLoginFactory",
     "GOALoginFactory",
     "BaseRecipeFactory",
