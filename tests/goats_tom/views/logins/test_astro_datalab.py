@@ -48,20 +48,20 @@ class TestAstroDatalabLoginView(TestCase):
     @patch.object(AstroDatalabLoginView, "perform_login_and_logout", return_value=False)
     def test_post_invalid_credentials(self, mock_method):
         """
-        Invalid credentials -> failure message, but credentials still saved by design.
+        Invalid credentials -> failure message, and nothing is written.
         """
         form_data = {"username": "bad_user", "password": "bad_pass"}
-        response = self.client.post(self.url, form_data, follow=True)
+        response = self.client.post(self.url, form_data)
 
-        self.assertRedirects(
-            response, reverse("user-update", kwargs={"pk": self.user.pk})
-        )
+        self.assertEqual(response.status_code, 200)
         messages_list = list(response.context["messages"])
-        self.assertTrue(any("Failed to verify Astro Data Lab credentials" in str(msg) for msg in messages_list))
-
-        login_obj = AstroDatalabLogin.objects.get(user=self.user)
-        self.assertEqual(login_obj.username, "bad_user")
-        self.assertEqual(login_obj.password, "bad_pass")
+        self.assertTrue(
+            any(
+                "Could not verify Astro Data Lab credentials" in str(msg)
+                for msg in messages_list
+            )
+        )
+        self.assertFalse(AstroDatalabLogin.objects.filter(user=self.user).exists())
 
     def test_post_form_invalid(self):
         """

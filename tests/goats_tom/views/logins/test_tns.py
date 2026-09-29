@@ -46,9 +46,7 @@ class TestTNSLoginView(TestCase):
         form_data = {"token": "5678", "bot_id": "test", "bot_name": "test2"}
         response = self.client.post(self.url, form_data, follow=True)
 
-        self.assertRedirects(
-            response, reverse("user-update", kwargs={"pk": self.user.pk})
-        )
+        self.assertEqual(response.status_code, 200)
         messages_list = list(response.context["messages"])
         self.assertTrue(
             any("Failed to verify TNS credentials" in str(msg) for msg in messages_list)

@@ -101,22 +101,26 @@ class BaseLoginView(LoginRequiredMixin, FormView):
         if not authenticated:
             messages.error(
                 self.request,
-                f"Failed to verify {self.service_name} credentials. Please try again.",
+                f"Could not verify {self.service_name} credentials: they may be "
+                f"wrong, or {self.service_name} may be unreachable. Nothing was "
+                "saved, and any credentials you already had are unchanged.",
+            )
+            # Re-render instead of form_invalid, which would add a second message.
+            return self.render_to_response(self.get_context_data(form=form))
+
+        if self.service_name == "TNS":
+            messages.success(
+                self.request,
+                "TNS login information saved. It cannot be automatically verified "
+                "at this time. If you experience issues communicating with TNS, "
+                "please double-check your credentials and try again.",
             )
         else:
-            if self.service_name == "TNS":
-                messages.success(
-                    self.request,
-                    "TNS login information saved. It cannot be automatically verified "
-                    "at this time. If you experience issues communicating with TNS, "
-                    "please double-check your credentials and try again.",
-                )
-            else:
-                messages.success(
-                    self.request,
-                    f"{self.service_name} login information verified and saved "
-                    "successfully.",
-                )
+            messages.success(
+                self.request,
+                f"{self.service_name} login information verified and saved "
+                "successfully.",
+            )
 
         # Update or create credentials.
         self.model_class.objects.update_or_create(
