@@ -8,7 +8,10 @@ from goats_tom.middleware.tns import (
     current_tns_creds,
 )
 from django.http import HttpRequest, HttpResponse
-from goats_tom.tests.factories import TNSLoginFactory
+from goats_tom.tests.factories import TNSLoginFactory, UserFactory
+from goats_tom import tns_membership as tm
+from goats_tom.middleware.tns import SESSION_KEY
+from goats_tom.models import TNSGroup
 
 
 @pytest.mark.django_db
@@ -59,3 +62,124 @@ def test_middleware_skips_non_tns_paths() -> None:
     response = middleware(request)
     assert response.status_code == 200
     assert current_tns_creds.get() is None
+
+
+@pytest.mark.django_db
+def test_middleware_uses_the_owners_bot_for_a_granted_group() -> None:
+    """A member's request posts with the owner's key, scoped to one group.
+
+    This is the whole of multi-user support in one assertion: the bot is
+    the owner's, and `group_names` is narrowed to the single group that was
+    granted -- `tom_tns` builds its reporting-group dropdown from that
+    list, so anything wider would turn a one-group grant into access to
+    every group the owner's bot can reach.
+    """
+    login = TNSLoginFactory(
+        bot_id="42", bot_name="goatsbot", groups=["Gemini", "Private"]
+    )
+    shared = TNSGroup.objects.get(owner=login.user, name="Gemini")
+    shared.allow_join_requests = True
+    shared.recommended_authors = "A. Smith (NOIRLab)"
+    shared.save()
+
+    member = UserFactory()
+    tm.approve_join_request(
+        tm.create_join_request(member, shared), decided_by=login.user
+    )
+
+    def dummy_view(request: HttpRequest) -> HttpResponse:
+        creds = current_tns_creds.get()
+        assert creds["bot_id"] == "42"
+        assert creds["group_names"] == ["Gemini"]
+        assert creds["recommended_authors"] == "A. Smith (NOIRLab)"
+        return HttpResponse("OK")
+
+    middleware = TNSCredentialsMiddleware(dummy_view)
+    request = RequestFactory().get("/tns/1/")
+    request.user = member
+    request.session = {SESSION_KEY: f"group:{shared.pk}"}
+
+    assert middleware(request).status_code == 200
+    assert current_tns_creds.get() is None
+
+
+@pytest.mark.django_db
+def test_middleware_ignores_a_session_key_the_user_does_not_hold() -> None:
+    """A forged session key falls back rather than being honoured.
+
+    The key is user-controlled, so it is matched against what the member
+    actually holds instead of trusted.
+    """
+    login = TNSLoginFactory(groups=["Gemini", "Private"])
+    shared = TNSGroup.objects.get(owner=login.user, name="Gemini")
+    shared.allow_join_requests = True
+    shared.save()
+    private = TNSGroup.objects.get(owner=login.user, name="Private")
+
+    member = UserFactory()
+    tm.approve_join_request(
+        tm.create_join_request(member, shared), decided_by=login.user
+    )
+
+    def dummy_view(request: HttpRequest) -> HttpResponse:
+        assert current_tns_creds.get()["group_names"] == ["Gemini"]
+        return HttpResponse("OK")
+
+    middleware = TNSCredentialsMiddleware(dummy_view)
+    request = RequestFactory().get("/tns/1/")
+    request.user = member
+    request.session = {SESSION_KEY: f"group:{private.pk}"}
+
+    assert middleware(request).status_code == 200
+
+
+@pytest.mark.django_db
+def test_middleware_sets_nothing_for_a_user_with_no_access() -> None:
+    """No credentials and no grants leaves the context untouched.
+
+    `tom_tns` then falls back to its settings-based credentials, exactly as
+    it did before sharing existed.
+    """
+    def dummy_view(request: HttpRequest) -> HttpResponse:
+        assert current_tns_creds.get() is None
+        return HttpResponse("OK")
+
+    middleware = TNSCredentialsMiddleware(dummy_view)
+    request = RequestFactory().get("/tns/1/")
+    request.user = UserFactory()
+    request.session = {}
+
+    assert middleware(request).status_code == 200
+
+
+@pytest.mark.django_db
+def test_one_users_credentials_never_reach_the_next_request() -> None:
+    """Consecutive requests on one middleware instance stay isolated.
+
+    The ContextVar lives for the process, not the request, so a missing
+    `reset` would leak the previous caller's bot into the next request that
+    happens to run on the same thread -- and the user who inherited it would
+    post to a public registry under somebody else's name.
+    """
+    first = TNSLoginFactory(bot_id="bot-one")
+    second = TNSLoginFactory(bot_id="bot-two")
+    no_credentials = UserFactory()
+
+    seen = []
+
+    def dummy_view(request: HttpRequest) -> HttpResponse:
+        creds = current_tns_creds.get()
+        seen.append(creds["bot_id"] if creds else None)
+        return HttpResponse("OK")
+
+    middleware = TNSCredentialsMiddleware(dummy_view)
+    factory = RequestFactory()
+
+    for user in (first.user, second.user, no_credentials, first.user):
+        request = factory.get("/tns/report/1")
+        request.user = user
+        middleware(request)
+        assert current_tns_creds.get() is None
+
+    # The third caller has no bot of their own and must inherit nothing.
+    assert seen == ["bot-one", "bot-two", None, "bot-one"]

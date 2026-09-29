@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "django_dramatiq",
     "daphne",
     "goats_tom",
+    "tom_tns",
     "channels",
     "corsheaders",
     "django.contrib.admin",
@@ -80,6 +81,7 @@ MIDDLEWARE = [
     "django_htmx.middleware.HtmxMiddleware",
     # Mirrors the deployment template: the per-user context the app relies on.
     "goats_tom.middleware.UserContextMiddleware",
+    "goats_tom.middleware.TNSCredentialsMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "tom_common.middleware.Raise403Middleware",

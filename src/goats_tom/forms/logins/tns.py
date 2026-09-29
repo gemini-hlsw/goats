@@ -6,17 +6,19 @@ from goats_tom.models import TNSLogin
 
 
 class TNSLoginForm(forms.ModelForm):
-    """Form for managing TNS login credentials."""
+    """Form for managing TNS login credentials.
 
-    group_names = forms.CharField(
-        label="Group Names",
-        help_text="Enter one group name per line.",
-        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-    )
+    Notes
+    -----
+    No group names: they used to be typed here one per line, which made the
+    text the only thing identifying a group, so correcting a typo revoked
+    everyone approved for the old spelling. They are rows now, edited in the
+    table on the same page -- see `goats_tom.forms.TNSGroupSettingsForm`.
+    """
 
     class Meta:
         model = TNSLogin
-        fields = ["token", "bot_id", "bot_name", "group_names"]
+        fields = ["token", "bot_id", "bot_name"]
         labels = {
             "token": "API Token",
             "bot_id": "Bot ID",
@@ -27,7 +29,3 @@ class TNSLoginForm(forms.ModelForm):
             "bot_id": forms.TextInput(attrs={"class": "form-control"}),
             "bot_name": forms.TextInput(attrs={"class": "form-control"}),
         }
-
-    def clean_group_names(self):
-        data = self.cleaned_data["group_names"]
-        return [line.strip() for line in data.splitlines() if line.strip()]

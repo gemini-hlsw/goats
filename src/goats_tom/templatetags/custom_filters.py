@@ -1,4 +1,10 @@
-__all__ = ["add_class", "select_fields", "starts_with", "with_widget_class"]
+__all__ = [
+    "add_class",
+    "display_name",
+    "select_fields",
+    "starts_with",
+    "with_widget_class",
+]
 # Standard library imports.
 
 # Related third party imports.
@@ -106,3 +112,33 @@ def with_widget_class(field: BoundField, css: str) -> BoundField:
     """
     field.field.widget.attrs["class"] = _merged_classes(field, css)
     return field
+
+
+@register.filter(name="display_name")
+def display_name(user) -> str:
+    """Names a person the way GOATS shows them to another user.
+
+    Parameters
+    ----------
+    user : `django.contrib.auth.models.User` or `None`
+        The person to name. `None` is accepted because a stored record can
+        outlive the account that made it.
+
+    Returns
+    -------
+    `str`
+        Their full name, failing that their email address, failing that an em
+        dash.
+
+    Notes
+    -----
+    Never the username: it is half of a login credential and names nobody to
+    a colleague. The email address is the fallback rather than the first
+    choice because a real name is what a colleague recognises -- but an unset
+    name is common enough that without a fallback the dash would be most of
+    the column.
+    """
+    if user is None:
+        return "—"
+    full = (user.get_full_name() or "").strip()
+    return full or (user.email or "").strip() or "—"

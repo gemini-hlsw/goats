@@ -30,9 +30,27 @@ from goats_tom.views.target_delete import TargetDeleteView
 from goats_tom.views.target_detail import TargetDetailView
 from goats_tom.views.target_list import TargetListView
 from goats_tom.views.tasks import ongoing_tasks
+from goats_tom.views.tns_access_management import (
+    tns_create_join_request,
+    tns_decide_join_request,
+    tns_group_settings,
+    tns_revoke_membership,
+)
+from goats_tom.views.tns_report import (
+    GOATSTNSFormView,
+    GOATSTNSSubmitView,
+    tns_choose_posting_option,
+)
 from goats_tom.views.user_list import UserListView
 
 __all__ = [
+    "GOATSTNSFormView",
+    "GOATSTNSSubmitView",
+    "tns_choose_posting_option",
+    "tns_create_join_request",
+    "tns_decide_join_request",
+    "tns_group_settings",
+    "tns_revoke_membership",
     "DRAGONSView",
     "DeleteObservationDataProductsView",
     "GOAArchiveRedirectView",

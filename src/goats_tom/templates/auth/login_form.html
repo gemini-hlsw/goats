@@ -19,6 +19,12 @@
       {% include 'partials/form_fields.html' with fields=form %}
       <input type="submit" value="Save {{ service_name }} Credentials" class="btn btn-primary">
     </form>
+    {% comment %}
+    Extension points for a service that needs more than a credentials form.
+    Empty for every service but TNS, and defined here so an extending page
+    lands inside the two columns rather than in a third block below them.
+    {% endcomment %}
+    {% block credentials_main %}{% endblock %}
   </div>
   <div class="col-lg-5">
     <p class="h2 mb-1">Service credentials</p>
@@ -63,4 +69,5 @@
     </table>
   </div>
 </div>
+{% block credentials_below %}{% endblock %}
 {% endblock %}

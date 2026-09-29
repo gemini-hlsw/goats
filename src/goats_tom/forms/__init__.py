@@ -7,8 +7,16 @@ from goats_tom.forms.logins import (
     LCOLoginForm,
     TNSLoginForm,
 )
+from goats_tom.forms.tns_join_request import (
+    TNSGroupSettingsForm,
+    TNSGroupSettingsFormSet,
+    TNSJoinRequestForm,
+)
 
 __all__ = [
+    "TNSGroupSettingsForm",
+    "TNSGroupSettingsFormSet",
+    "TNSJoinRequestForm",
     "describe_field",
     "describe_form",
     "GOAQueryForm",

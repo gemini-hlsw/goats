@@ -1,18 +1,78 @@
 {% extends 'tom_common/base.html' %}
-{% load bootstrap4 tns_extras%}
+{% comment %}
+Loads `goats_tns_extras`, not upstream's `tns_extras`: the GOATS tags
+wrap the upstream ones and pre-fill the author list from the group
+being posted through.
+{% endcomment %}
+{% load goats_tns_extras %}
 {% block title %}Report to TNS{% endblock %}
 {% block additional_css %} {% endblock %}
 {% block content %}
-<h1>Submit <a href="{% url 'targets:detail' pk=target.id %}" title="Back">{{ target.name }}</a> Information to the TNS</h1>
+<p class="h2">Submit <a href="{% url 'targets:detail' pk=target.id %}" title="Back">{{ target.name }}</a> Information to the TNS</p>
+
 {% if not tns_configured %}
+    {% comment %}
+    Two situations, two answers: a user with no credentials and nowhere to
+    ask is stuck, while one who could join a colleague's group is two
+    clicks away.
+    {% endcomment %}
+    {% if join_request_form %}
+    <div class="alert alert-info">
+        <p>
+            You do not have TNS credentials of your own, but you can request
+            access to another user's TNS group.
+        </p>
+        <form method="post" action="{% url 'tns-request-access' %}"
+              class="col-md-6 px-0">
+            {% csrf_token %}
+            {% include 'partials/form_fields.html' with fields=join_request_form %}
+            <button type="submit" class="btn btn-primary">Request access</button>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if not has_own_credentials %}
     <div class="alert alert-danger">
-    TNS Credentials have not been configured!
-    Navigate to <strong>Users</strong> in the navbar (under your username), then click <strong>Credential Manager</strong>, and select <strong>Transient Name Server</strong> to enter the required information and configure TNS.
-</div>
+        TNS credentials have not been configured. Add them on your
+        <a href="{% url 'user-tns-login' request.user.pk %}">TNS credentials page</a>.
+    </div>
+    {% endif %}
 {% else %}
     {% if default_form == 'supernova' %}
         <div class="alert alert-danger"> Warning: This target {{target.names}} may have already been reported to and classified with the TNS</div>
     {% endif %}
+
+    {% comment %}
+    Lists bots, not groups. Choosing the bot decides whose credentials
+    send the report; the "Reporting group" field below decides which TNS
+    group it is filed under. Always rendered, even with one option, so
+    the page states whose bot is about to be used. `d-flex`, not
+    `form-inline`, which Bootstrap 5 removed.
+    {% endcomment %}
+    <form method="get" class="d-flex align-items-center gap-2 mb-3">
+        <label for="posting_option" class="mb-0 text-nowrap">
+            <strong>TNS bot:</strong>
+        </label>
+        <select name="posting_option" id="posting_option"
+                class="form-select form-select-sm w-auto"
+                onchange="this.form.submit()">
+            {% for option in posting_options %}
+            <option value="{{ option.key }}"
+                    {% if active_option and option.key == active_option.key %}selected{% endif %}>
+                {{ option.label }}
+            </option>
+            {% endfor %}
+        </select>
+        <noscript>
+            <button type="submit" class="btn btn-sm btn-secondary">Use</button>
+        </noscript>
+    </form>
+
+     {% comment %}
+     `data-bs-toggle`, not upstream's `data-toggle`: GOATS is on Bootstrap
+     5, where the Bootstrap 4 attribute is inert and these tabs never
+     switch.
+     {% endcomment %}
      <div class="col-md-8">
         <ul class="nav nav-tabs" role="tablist" id="tabs">
           <li class="nav-item">
@@ -41,7 +101,7 @@
         {% endif %}
             <div class="col-md-12">
                 <br/>
-                <h4>Report {{ target.name }} to the TNS</h4>
+                <p class="h4">Report {{ target.name }} to the TNS</p>
                 <hr/>
                 {% report_to_tns %}
             </div>
@@ -56,12 +116,55 @@
         {% endif %}
             <div class="col-md-12">
                 <br/>
-                <h4>Classify {{ target.name }} with the TNS</h4>
+                <p class="h4">Classify {{ target.name }} with the TNS</p>
                 <hr/>
                 {% classify_with_tns %}
             </div>
         </div>
     </div>
+
+    {% comment %}
+    Scoped per form and matched by `name`, not `id`: both forms render
+    here and `tom_tns` gives their fields identical ids. A field the user
+    has typed in is left alone.
+    {% endcomment %}
+    {{ group_authors|json_script:"tns-group-authors" }}
+    <script>
+      (function () {
+        var el = document.getElementById("tns-group-authors");
+        if (!el) { return; }
+        var authors;
+        try { authors = JSON.parse(el.textContent || "{}"); } catch (e) { return; }
+
+        document.querySelectorAll("form").forEach(function (form) {
+          var groupField = form.querySelector("[name='reporting_group']");
+          var authorField = form.querySelector("[name='reporter'], [name='classifier']");
+          if (!groupField || !authorField) { return; }
+
+          authorField.addEventListener("input", function () {
+            authorField.dataset.userEdited = "1";
+          });
+
+          groupField.addEventListener("change", function () {
+            if (authorField.dataset.userEdited === "1") { return; }
+            var label = groupField.options[groupField.selectedIndex];
+            var recommended = authors[label ? label.text.trim() : ""];
+            // Back to the submitter's own credit, not to an empty field:
+            // blanking it made switching group show something different
+            // from what the same group showed on first render.
+            authorField.value =
+              recommended || authorField.dataset.defaultAuthors || "";
+          });
+        });
+      })();
+    </script>
+
+    {% if join_request_form %}
+    <p class="text-muted small mt-3">
+        You can request access to another group from your
+        <a href="{% url 'user-tns-login' request.user.pk %}">TNS credentials page</a>.
+    </p>
+    {% endif %}
 {% endif %}
 <hr>
 <p><em>TOM Toolkit Module (<a href="https://github.com/TOMToolkit/tom_tns" target="_blank">tom_tns</a>) version {{ version }}</em></p>
