@@ -40,18 +40,17 @@ class TestTNSLoginView(TestCase):
     @patch.object(TNSLoginView, "perform_login_and_logout", return_value=False)
     def test_post_invalid_credentials(self, mock_method):
         """
-        Invalid credentials -> failure message, but credentials still saved by
-        design.
+        Invalid credentials -> failure message, and nothing is written.
         """
         form_data = {"token": "5678", "bot_id": "test", "bot_name": "test2"}
-        response = self.client.post(self.url, form_data, follow=True)
+        response = self.client.post(self.url, form_data)
 
         self.assertEqual(response.status_code, 200)
         messages_list = list(response.context["messages"])
         self.assertTrue(
-            any("Failed to verify TNS credentials" in str(msg) for msg in messages_list)
+            any("Could not verify TNS credentials" in str(msg) for msg in messages_list)
         )
-        self.assertEqual(TNSLogin.objects.get(user=self.user).token, "5678")
+        self.assertFalse(TNSLogin.objects.filter(user=self.user).exists())
 
     def test_post_form_invalid(self):
         """

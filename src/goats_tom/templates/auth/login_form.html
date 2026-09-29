@@ -11,9 +11,14 @@
     <p>{{ service_description|safe }}</p>
     {% endif %}
     <p>User: <code>{{ user.username }}</code></p>
-    <div class="alert alert-danger" role="alert">
-      <strong>Important:</strong> This information will be securely stored. Do not share your {{ service_name }} credentials.
-    </div>
+    {% comment %}
+    A callout, not an alert, so it doesn't compete with the save messages.
+    The login models are plain CharFields, so don't imply encryption.
+    {% endcomment %}
+    <p class="border-start border-3 border-warning bg-body-secondary rounded-end py-2 px-3">
+      <i class="fa-solid fa-lock-open text-warning me-1" aria-hidden="true"></i>
+      Stored in readable form in the GOATS database on this machine.
+    </p>
     <form method="POST">
       {% csrf_token %}
       {% include 'partials/form_fields.html' with fields=form %}

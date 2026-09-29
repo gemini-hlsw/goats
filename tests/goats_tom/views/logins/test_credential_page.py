@@ -39,6 +39,24 @@ class TestTheTitleComesFromTheRegistry(TestCase):
         assert "Astro Data Lab (Astro Data Lab)" not in rendered
 
 
+class TestTheStorageNoticeIsHonest(TestCase):
+    """The login models are plain CharFields, so no page may imply encryption."""
+
+    def setUp(self) -> None:
+        self.user = UserFactory(username="owner", password="x")
+        self.client.login(username="owner", password="x")
+
+    def test_every_page_says_how_credentials_are_stored(self) -> None:
+        """The notice lives in the shared template, so TNS gets it too."""
+        for _, url_name, _ in CREDENTIAL_SERVICES:
+            rendered = self.client.get(
+                reverse(url_name, kwargs={"pk": self.user.pk})
+            ).content.decode()
+
+            assert "Stored in readable form" in rendered, url_name
+            assert "securely stored" not in rendered, url_name
+
+
 class TestThePanelOfOtherServices(TestCase):
     """Moving between services should not need a trip back to settings."""
 
