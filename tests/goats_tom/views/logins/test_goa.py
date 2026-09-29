@@ -54,22 +54,20 @@ class TestGOALoginView(TestCase):
     @patch.object(GOALoginView, "perform_login_and_logout", return_value=False)
     def test_post_invalid_credentials(self, mock_method):
         """
-        If login check fails, a failure message should be displayed,
-        but credentials are still saved in the model (by design).
+        Invalid credentials -> failure message, and nothing is written.
         """
         form_data = {"username": "invalid_user", "password": "wrong_pass"}
-        response = self.client.post(self.url, form_data, follow=True)
+        response = self.client.post(self.url, form_data)
 
-        self.assertRedirects(
-            response, reverse("user-update", kwargs={"pk": self.user.pk})
-        )
+        self.assertEqual(response.status_code, 200)
         messages_list = list(response.context["messages"])
-        self.assertTrue(any("Failed to verify GOA credentials" in str(msg) for msg in messages_list))
-
-        # Credentials are still saved (based on BaseLoginView logic).
-        login_obj = GOALogin.objects.get(user=self.user)
-        self.assertEqual(login_obj.username, "invalid_user")
-        self.assertEqual(login_obj.password, "wrong_pass")
+        self.assertTrue(
+            any(
+                "Could not verify GOA credentials" in str(msg)
+                for msg in messages_list
+            )
+        )
+        self.assertFalse(GOALogin.objects.filter(user=self.user).exists())
 
     def test_post_form_invalid(self):
         """
