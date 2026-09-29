@@ -1,6 +1,5 @@
 from django.urls import include, path
 from tom_common.api_router import SharedAPIRootRouter
-from tom_tns.urls import urlpatterns as tom_tns_urls
 
 from . import api_views, views
 
@@ -179,7 +178,29 @@ urlpatterns = [
         views.DataProductListView.as_view(),
         name="dataproduct-list",
     ),
-    path("tns/", include(tom_tns_urls)),
+    # GOATS' own TNS routes, keeping upstream's `tom_tns` namespace and route
+    # names so `tom_tns`'s form partials still resolve.
+    path("tns/", include("goats_tom.tns_urls")),
+    path(
+        "tns/access/request/",
+        views.tns_create_join_request,
+        name="tns-request-access",
+    ),
+    path(
+        "tns/access/requests/<int:pk>/decide/",
+        views.tns_decide_join_request,
+        name="tns-decide-join-request",
+    ),
+    path(
+        "tns/access/members/<int:pk>/revoke/",
+        views.tns_revoke_membership,
+        name="tns-revoke-membership",
+    ),
+    path(
+        "tns/access/groups/settings/",
+        views.tns_group_settings,
+        name="tns-group-settings",
+    ),
     path(
         "targets/<int:target_id>/refresh-antares/",
         views.RefreshAntaresPhotometryView.as_view(),

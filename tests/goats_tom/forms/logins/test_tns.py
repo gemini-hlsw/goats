@@ -7,11 +7,9 @@ class TestTNSLoginForm:
             "token": "abc123",
             "bot_id": "my_bot_id",
             "bot_name": "my_bot_name",
-            "group_names": "group1\ngroup2\ngroup3",
         }
         form = TNSLoginForm(data=form_data)
         assert form.is_valid()
-        assert form.cleaned_data["group_names"] == ["group1", "group2", "group3"]
 
     def test_invalid_when_missing_fields(self):
         form = TNSLoginForm(data={})
@@ -19,15 +17,11 @@ class TestTNSLoginForm:
         assert "token" in form.errors
         assert "bot_id" in form.errors
         assert "bot_name" in form.errors
-        assert "group_names" in form.errors
 
-    def test_group_names_strips_and_filters_blank_lines(self):
-        form_data = {
-            "token": "abc123",
-            "bot_id": "bot123",
-            "bot_name": "cool_bot",
-            "group_names": "\ngroup1\n\n group2 \n\n",
-        }
-        form = TNSLoginForm(data=form_data)
-        assert form.is_valid()
-        assert form.cleaned_data["group_names"] == ["group1", "group2"]
+    def test_it_does_not_ask_for_group_names(self):
+        """Groups are rows edited in their own table, not free text here.
+
+        Typing them here made the name the identity of a group, so
+        correcting a typo revoked everyone approved for the old spelling.
+        """
+        assert "group_names" not in TNSLoginForm().fields

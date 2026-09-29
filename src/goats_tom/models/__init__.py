@@ -13,6 +13,10 @@ from goats_tom.models.logins import (
     TNSLogin,
 )
 from goats_tom.models.recipes_module import RecipesModule
+from goats_tom.models.tns_group import TNSGroup
+from goats_tom.models.tns_group_join_request import TNSGroupJoinRequest
+from goats_tom.models.tns_group_membership import TNSGroupMembership
+from goats_tom.models.tns_submission_record import TNSSubmissionRecord
 
 __all__ = [
     "DRAGONSFile",
@@ -28,4 +32,8 @@ __all__ = [
     "GPPLogin",
     "LCOLogin",
     "TNSLogin",
+    "TNSGroup",
+    "TNSGroupJoinRequest",
+    "TNSGroupMembership",
+    "TNSSubmissionRecord",
 ]
