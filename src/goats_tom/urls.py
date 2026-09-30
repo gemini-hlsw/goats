@@ -34,6 +34,17 @@ router.register(
     basename="gppfindercharts",
 )
 router.register(
+    r"gpp/configuration-requests",
+    api_views.GPPConfigurationRequestViewSet,
+    basename="gppconfigurationrequests",
+)
+router.register(
+    r"gpp/config-options",
+    api_views.GPPConfigOptionsViewSet,
+    basename="gppconfigoptions",
+)
+router.register(r"gpp/enums", api_views.GPPEnumsViewSet, basename="gppenums")
+router.register(
     r"reduceddatums", api_views.ReducedDatumViewSet, basename="reduceddatums"
 )
 router.register(r"dragonsruns", api_views.DRAGONSRunsViewSet, basename="dragonsruns")

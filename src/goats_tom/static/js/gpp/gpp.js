@@ -253,8 +253,13 @@ class GPPModel {
         `${this.#gppObservationsUrl}?program_id=${programId}`,
       );
 
-      // One list holds every observation of the program, ToO ones included.
-      for (const obs of matches?.results ?? []) {
+      // The endpoint groups matches by too/normal; one list holds every
+      // observation of the program regardless of group.
+      const results = [
+        ...(matches?.normal?.results ?? []),
+        ...(matches?.too?.results ?? []),
+      ];
+      for (const obs of results) {
         this.#normalObservations.set(obs.id, obs);
       }
     } catch (error) {

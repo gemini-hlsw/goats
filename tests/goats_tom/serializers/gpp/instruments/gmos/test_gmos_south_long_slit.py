@@ -1,4 +1,5 @@
 import pytest
+from gpp_client.generated.enums import GuideState
 
 from goats_tom.serializers.gpp.instruments import GMOSSouthLongSlitSerializer
 
@@ -89,11 +90,13 @@ def test_format_gpp_outputs_structured_data() -> None:
             {"nanometers": 8.0},
             {"nanometers": -8.0},
         ],
-        "explicitOffsets": [
-            {"arcseconds": 0.0},
-            {"arcseconds": 15.0},
-            {"arcseconds": -15.0},
-        ],
+        "explicitTelescopeConfigs": {
+            "alongSlit": [
+                {"q": {"arcseconds": 0.0}, "guiding": "ENABLED"},
+                {"q": {"arcseconds": 15.0}, "guiding": "ENABLED"},
+                {"q": {"arcseconds": -15.0}, "guiding": "ENABLED"},
+            ]
+        },
     }
     assert serializer.format_gpp() == expected
 
@@ -114,8 +117,10 @@ def test_to_pydantic_outputs_valid_model() -> None:
             {"nanometers": 1.0},
             {"nanometers": -1.0},
         ],
-        "explicit_offsets": [
-            {"arcseconds": 5.0},
-            {"arcseconds": -5.0},
-        ],
+        "explicit_telescope_configs": {
+            "along_slit": [
+                {"q": {"arcseconds": 5.0}, "guiding": GuideState.ENABLED},
+                {"q": {"arcseconds": -5.0}, "guiding": GuideState.ENABLED},
+            ]
+        },
     }
