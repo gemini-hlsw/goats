@@ -4,20 +4,48 @@ GPP status view.
 
 __all__ = ["GPPStatusMixin"]
 
-from asgiref.sync import async_to_sync
 from django.conf import settings
-from gpp_client import GPPClient
+from gpp_client.settings import GPPSettings
 from rest_framework.request import Request
 
 from goats_tom.credentials import require_credentials
 from goats_tom.models import GPPLogin
+from goats_tom.service_checks import CheckResult, check_gpp, check_gpp_reachable
 
-from .base import BaseStatusMixin, MissingCredentialsError, Status, register_status
+from .base import BaseStatusMixin, MissingCredentialsError, register_status
 
 
-@register_status("gpp", "Gemini Program Platform (GPP)")
+@register_status(
+    "gpp",
+    "Gemini Program Platform (GPP)",
+    url="https://explore.gemini.edu",
+    url_label="Explore",
+    manage_url_name="user-gpp-login",
+)
 class GPPStatusMixin(BaseStatusMixin):
     service_name = "GPP"
+
+    def get_public_url(self) -> str:
+        """
+        Returns the GPP URL checked when no token is stored.
+
+        Returns
+        -------
+        str
+            The base URL of the GPP environment the client targets.
+        """
+        return GPPSettings().environment.base_url
+
+    def check_public(self) -> CheckResult:
+        """
+        Checks that GPP answers the client's ping query, without a token.
+
+        Returns
+        -------
+        CheckResult
+            The outcome. The server's root answers 404, so it cannot tell.
+        """
+        return check_gpp_reachable()
 
     def get_credentials(self, request: Request) -> dict:
         """
@@ -49,7 +77,7 @@ class GPPStatusMixin(BaseStatusMixin):
             "env": env,
         }
 
-    def check_service(self, credentials: dict, *args, **kwargs) -> tuple[Status, str]:
+    def check_service(self, credentials: dict, *args, **kwargs) -> CheckResult:
         """
         Checks the reachability of the GPP service.
 
@@ -60,12 +88,7 @@ class GPPStatusMixin(BaseStatusMixin):
 
         Returns
         -------
-        tuple[Status, str]
-            A tuple containing the service status and a message.
+        CheckResult
+            The outcome of the check.
         """
-        client = GPPClient(token=credentials["token"])
-        reachable, error = async_to_sync(client.ping)()
-        if reachable:
-            return Status.OK, "GPP service is reachable."
-        else:
-            return Status.DOWN, f"GPP service is unreachable: {error}"
+        return check_gpp(credentials["token"])

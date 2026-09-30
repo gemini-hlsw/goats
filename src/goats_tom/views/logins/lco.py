@@ -2,11 +2,9 @@ __all__ = ["LCOLoginView"]
 
 from typing import Any
 
-import requests
-from django.conf import settings
-
 from goats_tom.forms import LCOLoginForm
 from goats_tom.models import LCOLogin
+from goats_tom.service_checks import CheckResult, check_lco
 
 from .base import BaseLoginView
 
@@ -21,8 +19,8 @@ class LCOLoginView(BaseLoginView):
     model_class = LCOLogin
     form_class = LCOLoginForm
 
-    def perform_login_and_logout(self, **kwargs: Any) -> bool:
-        """Perform check using a token.
+    def verify_credentials(self, **kwargs: Any) -> CheckResult:
+        """Check an LCO API key.
 
         Parameters
         ----------
@@ -33,17 +31,8 @@ class LCOLoginView(BaseLoginView):
 
         Returns
         -------
-        bool
-            `True` if the endpoint is reachable and the token is valid, `False`
-            otherwise.
+        CheckResult
+            Whether the credentials were accepted and, if not, whether the
+            service could be reached.
         """
-        token = kwargs.get("token")
-        url = settings.FACILITIES.get("LCO").get("portal_url")
-        try:
-            response = requests.get(
-                f"{url}/api/proposals/", headers={"Authorization": f"Token {token}"}
-            )
-            response.raise_for_status()
-        except Exception:
-            return False
-        return True
+        return check_lco(kwargs.get("token"))

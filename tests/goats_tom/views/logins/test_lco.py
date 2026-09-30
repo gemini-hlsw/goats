@@ -3,6 +3,8 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 
+from goats_tom.service_checks import CheckResult
+
 from goats_tom.models import LCOLogin
 from goats_tom.tests.factories import UserFactory
 from goats_tom.views import LCOLoginView
@@ -20,7 +22,7 @@ class TestLCOLoginView(TestCase):
         self.assertTemplateUsed(response, "auth/login_form.html")
         self.assertContains(response, "LCO")
 
-    @patch.object(LCOLoginView, "perform_login_and_logout", return_value=True)
+    @patch.object(LCOLoginView, "verify_credentials", return_value=CheckResult(True, "ok"))
     def test_post_valid_credentials(self, mock_method):
         """
         Valid credentials, login passes -> success message, credentials stored.
@@ -37,7 +39,7 @@ class TestLCOLoginView(TestCase):
         login_obj = LCOLogin.objects.get(user=self.user)
         self.assertEqual(login_obj.token, "1234")
 
-    @patch.object(LCOLoginView, "perform_login_and_logout", return_value=False)
+    @patch.object(LCOLoginView, "verify_credentials", return_value=CheckResult(False, "rejected"))
     def test_post_invalid_credentials(self, mock_method):
         """
         Invalid credentials -> failure message, and nothing is written.

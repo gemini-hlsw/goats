@@ -3,6 +3,8 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 
+from goats_tom.service_checks import CheckResult
+
 from goats_tom.models import TNSLogin
 from goats_tom.tests.factories import UserFactory
 from goats_tom.views import TNSLoginView
@@ -20,7 +22,12 @@ class TestTNSLoginView(TestCase):
         self.assertTemplateUsed(response, "auth/login_form.html")
         self.assertContains(response, "TNS")
 
-    @patch.object(TNSLoginView, "perform_login_and_logout", return_value=True)
+    def test_verify_credentials_is_marked_unverified(self):
+        result = TNSLoginView().verify_credentials(token="1234")
+        self.assertTrue(result.ok)
+        self.assertFalse(result.verified)
+
+    @patch.object(TNSLoginView, "verify_credentials", return_value=CheckResult(True, "ok", verified=False))
     def test_post_valid_credentials(self, mock_method):
         """
         Valid credentials, login passes -> success message, credentials stored.
@@ -32,12 +39,18 @@ class TestTNSLoginView(TestCase):
             response, reverse("user-update", kwargs={"pk": self.user.pk})
         )
         messages_list = list(response.context["messages"])
-        self.assertTrue(any("TNS login information saved." in str(msg) for msg in messages_list))
+        self.assertTrue(
+            any(
+                "TNS login information saved. It cannot be automatically verified"
+                in str(msg)
+                for msg in messages_list
+            )
+        )
 
         login_obj = TNSLogin.objects.get(user=self.user)
         self.assertEqual(login_obj.token, "1234")
 
-    @patch.object(TNSLoginView, "perform_login_and_logout", return_value=False)
+    @patch.object(TNSLoginView, "verify_credentials", return_value=CheckResult(False, "rejected"))
     def test_post_invalid_credentials(self, mock_method):
         """
         Invalid credentials -> failure message, and nothing is written.

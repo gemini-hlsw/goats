@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from django.conf import settings
 from rest_framework.request import Request
 from goats_tom.api_views.status.mixins.gpp import GPPStatusMixin, MissingCredentialsError
-from goats_tom.api_views.status.mixins.base import Status
+from goats_tom.service_checks import CheckResult
 
 @pytest.fixture
 def mock_request():
@@ -48,29 +48,44 @@ def test_get_credentials_missing_gpp_env(mock_request):
 
 
 def test_check_service_reachable():
-    """check_service returns OK when the GPP client reports reachable."""
+    """check_service reports the token accepted when the ping succeeds."""
     credentials = {"token": "test_token", "env": "DEVELOPMENT"}
-    with patch("goats_tom.api_views.status.mixins.gpp.GPPClient") as mock_client_cls:
+    with patch("goats_tom.service_checks.GPPClient") as mock_client_cls:
         mock_client = mock_client_cls.return_value
-        mock_client.ping = AsyncMock(return_value=(True, None))
+        mock_client.close = AsyncMock()
+        mock_client.graphql.__aenter__.return_value = mock_client.graphql
+        mock_client.graphql.ping = AsyncMock(return_value=None)
 
         mixin = GPPStatusMixin()
-        status, message = mixin.check_service(credentials)
+        result = mixin.check_service(credentials)
 
-    assert status == Status.OK
-    assert message == "GPP service is reachable."
-    mock_client_cls.assert_called_once_with(token="test_token")
+    assert result == CheckResult(True, "GPP accepted the token.")
+    mock_client_cls.assert_called_once_with(token="test_token", debug=False)
 
 
 def test_check_service_unreachable():
-    """check_service returns DOWN with the error message when ping fails."""
+    """check_service reports GPP unavailable when neither ping nor server answer."""
     credentials = {"token": "test_token", "env": "DEVELOPMENT"}
-    with patch("goats_tom.api_views.status.mixins.gpp.GPPClient") as mock_client_cls:
+    with (
+        patch("goats_tom.service_checks.GPPClient") as mock_client_cls,
+        patch(
+            "goats_tom.service_checks.check_reachable",
+            return_value=CheckResult(False, "GPP is not available.", reachable=False),
+        ),
+    ):
         mock_client = mock_client_cls.return_value
-        mock_client.ping = AsyncMock(return_value=(False, "boom"))
+        mock_client.close = AsyncMock()
+        mock_client.graphql.__aenter__.return_value = mock_client.graphql
+        mock_client.graphql.ping = AsyncMock(side_effect=RuntimeError("network"))
 
         mixin = GPPStatusMixin()
-        status, message = mixin.check_service(credentials)
+        result = mixin.check_service(credentials)
 
-    assert status == Status.DOWN
-    assert message == "GPP service is unreachable: boom"
+    assert result == CheckResult(False, "GPP is not available.", reachable=False)
+
+
+def test_public_url_needs_no_token():
+    with patch("goats_tom.api_views.status.mixins.gpp.GPPSettings") as mock_settings:
+        mock_settings.return_value.environment.base_url = "https://gpp.example"
+
+        assert GPPStatusMixin().get_public_url() == "https://gpp.example"

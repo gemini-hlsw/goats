@@ -131,21 +131,24 @@ class ObservationsClass(QueryWithLogin):
         """
         url = self.url_helper.get_login_url()
         data = {"username": username, "password": password}
+        self.login_rejected = False
         logger.debug("Attempting GOA login for user: %s", username)
 
         try:
-            r = self._session.post(url, data=data)
+            r = self._session.post(url, data=data, timeout=10)
             # If there's a possibility of a non-200, handle that first.
             if r.status_code != 200:
+                self.login_rejected = r.status_code in (401, 403)
                 logger.warning("Login failed with HTTP status %d", r.status_code)
                 return False
             # For the case where 200 is returned on both success and failure:
             # Check the page content for a known error message or any other indicator.
             if "Log-in did not succeed" in r.text:
+                self.login_rejected = True
                 logger.warning("Login rejected: invalid credentials.")
                 return False
-        except Exception:
-            logger.exception("Error during GOA login request.")
+        except Exception as exc:
+            logger.warning("GOA login request failed (%s)", type(exc).__name__)
             return False
 
         logger.info("Successfully authenticated with GOA for user: %s", username)
