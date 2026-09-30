@@ -4,12 +4,12 @@ Provides custom endpoints to interact with GPP GraphQL service.
 
 __all__ = ["GPPViewSet"]
 
-from asgiref.sync import async_to_sync
-from gpp_client import GPPClient
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
+
+from goats_tom.service_checks import check_gpp
 
 from ._credentials import GPPCredentialsMixin
 
@@ -33,14 +33,12 @@ class GPPViewSet(GPPCredentialsMixin, viewsets.GenericViewSet):
         if (denied := self.missing_credentials(request)) is not None:
             return denied
 
-        credentials = request.user.gpplogin
-        client = GPPClient(token=credentials.token)
-        reachable, error = async_to_sync(client.ping)()
+        result = check_gpp(request.user.gpplogin.token)
 
-        if reachable:
+        if result.ok:
             return Response({"detail": "Successfully connected to GPP."})
         else:
             return Response(
-                {"detail": f"Failed to connect to GPP. {error}"},
+                {"detail": result.message},
                 status=status.HTTP_502_BAD_GATEWAY,
             )

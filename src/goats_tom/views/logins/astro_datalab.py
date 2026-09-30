@@ -2,9 +2,9 @@ __all__ = ["AstroDatalabLoginView"]
 
 from typing import Any
 
-from goats_tom.astro_data_lab import AstroDataLabClient
 from goats_tom.forms import AstroDatalabLoginForm
 from goats_tom.models import AstroDatalabLogin
+from goats_tom.service_checks import CheckResult, check_astro_datalab
 
 from .base import BaseLoginView
 
@@ -18,8 +18,8 @@ class AstroDatalabLoginView(BaseLoginView):
     model_class = AstroDatalabLogin
     form_class = AstroDatalabLoginForm
 
-    def perform_login_and_logout(self, **kwargs: Any) -> bool:
-        """Perform Astro Data Lab login and logout checks.
+    def verify_credentials(self, **kwargs: Any) -> CheckResult:
+        """Check Astro Data Lab credentials by signing in.
 
         Parameters
         ----------
@@ -32,15 +32,8 @@ class AstroDatalabLoginView(BaseLoginView):
 
         Returns
         -------
-        bool
-            `True` if login was successful and logout executed, otherwise `False`.
+        CheckResult
+            Whether the credentials were accepted and, if not, whether the
+            service could be reached.
         """
-        with AstroDataLabClient(
-            username=kwargs.get("username"), password=kwargs.get("password")
-        ) as client:
-            try:
-                client.login()
-                client.is_logged_in()
-            except Exception:
-                return False
-        return True
+        return check_astro_datalab(kwargs.get("username"), kwargs.get("password"))

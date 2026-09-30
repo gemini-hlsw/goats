@@ -6,12 +6,14 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
+from goats_tom.service_checks import CheckResult
+
 from goats_tom.models import GOALogin
 from goats_tom.tests.factories import UserFactory
 from goats_tom.views import GOALoginView
 
 
-@patch.object(GOALoginView, "perform_login_and_logout", return_value=True)
+@patch.object(GOALoginView, "verify_credentials", return_value=CheckResult(True, "ok"))
 class TestCredentialOwnership(TestCase):
     """The user list links to everyone's credential pages, so the view checks."""
 

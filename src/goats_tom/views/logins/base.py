@@ -14,6 +14,7 @@ from django.urls import reverse_lazy
 from django.views.generic import FormView
 
 from goats_tom.credentials import get_service_label
+from goats_tom.service_checks import CheckResult
 
 
 class BaseLoginView(LoginRequiredMixin, FormView):
@@ -96,24 +97,35 @@ class BaseLoginView(LoginRequiredMixin, FormView):
         user = get_object_or_404(User, pk=self.kwargs["pk"])
         data = form.cleaned_data
 
-        # Test logging in and logging out.
-        authenticated = self.perform_login_and_logout(**data)
-        if not authenticated:
+        try:
+            result = self.verify_credentials(**data)
+        except Exception:
+            result = CheckResult(
+                False,
+                "The check could not be completed. Please try again later.",
+                verified=False,
+            )
+        if not result.ok:
+            if result.reachable and result.verified:
+                reason = f"{self.service_name} rejected them."
+            else:
+                reason = result.message
             messages.error(
                 self.request,
-                f"Could not verify {self.service_name} credentials: they may be "
-                f"wrong, or {self.service_name} may be unreachable. Nothing was "
-                "saved, and any credentials you already had are unchanged.",
+                f"Could not verify {self.service_name} credentials: {reason} "
+                "Nothing was saved, and any credentials you already had "
+                "are unchanged.",
             )
             # Re-render instead of form_invalid, which would add a second message.
             return self.render_to_response(self.get_context_data(form=form))
 
-        if self.service_name == "TNS":
+        if not result.verified:
             messages.success(
                 self.request,
-                "TNS login information saved. It cannot be automatically verified "
-                "at this time. If you experience issues communicating with TNS, "
-                "please double-check your credentials and try again.",
+                f"{self.service_name} login information saved. It cannot be "
+                "automatically verified at this time. If you experience issues "
+                f"communicating with {self.service_name}, please double-check your "
+                "credentials and try again.",
             )
         else:
             messages.success(
@@ -149,9 +161,9 @@ class BaseLoginView(LoginRequiredMixin, FormView):
         )
         return super().form_invalid(form)
 
-    def perform_login_and_logout(self, **kwargs: Any) -> bool:
-        """Perform the actual login or credential check and logout for the service,
-        override in subclass.
+    def verify_credentials(self, **kwargs: Any) -> CheckResult:
+        """Check the submitted credentials against the service; override in a
+        subclass.
 
         Parameters
         ----------
@@ -160,7 +172,8 @@ class BaseLoginView(LoginRequiredMixin, FormView):
 
         Returns
         -------
-        `bool`
-            `True` if authentication succeeded, otherwise `False`.
+        `CheckResult`
+            Whether the credentials were accepted and, if not, whether the
+            service could be reached.
         """
-        return True
+        return CheckResult(True, "Not checked.", verified=False)

@@ -17,6 +17,7 @@ from goats_tom.models import (
     TNSLogin,
     TNSSubmissionRecord,
 )
+from goats_tom.service_checks import CheckResult
 from goats_tom.tns_membership import owned_groups
 
 from .base import BaseLoginView
@@ -42,18 +43,17 @@ class TNSLoginView(BaseLoginView):
     form_class = TNSLoginForm
     template_name = "auth/tns_login_form.html"
 
-    def perform_login_and_logout(self, **kwargs: Any) -> bool:
+    def verify_credentials(self, **kwargs: Any) -> CheckResult:
         """Accept the credentials without checking them against TNS.
 
         Returns
         -------
-        bool
-            Always `True`; no check is implemented. `BaseLoginView.form_valid`
-            special-cases this service, so the user is told the credentials
-            were saved rather than verified.
+        CheckResult
+            Always a success marked unverified: no check is implemented, so
+            the user is told the credentials were saved rather than verified.
         """
         # TODO: Figure out if there is a test or not.
-        return True
+        return CheckResult(True, "Not checked.", verified=False)
 
     def get_context_data(self, **kwargs):
         """Add every access-management section to the context.

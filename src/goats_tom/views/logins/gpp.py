@@ -1,17 +1,12 @@
 __all__ = ["GPPLoginView"]
 
-import logging
 from typing import Any
-
-from asgiref.sync import async_to_sync
-from gpp_client import GPPClient
 
 from goats_tom.forms import GPPLoginForm
 from goats_tom.models import GPPLogin
+from goats_tom.service_checks import CheckResult, check_gpp
 
 from .base import BaseLoginView
-
-logger = logging.getLogger(__name__)
 
 
 class GPPLoginView(BaseLoginView):
@@ -23,8 +18,8 @@ class GPPLoginView(BaseLoginView):
     model_class = GPPLogin
     form_class = GPPLoginForm
 
-    def perform_login_and_logout(self, **kwargs: Any) -> bool:
-        """Perform GPP login check using a token.
+    def verify_credentials(self, **kwargs: Any) -> CheckResult:
+        """Check a GPP token.
 
         Parameters
         ----------
@@ -35,18 +30,8 @@ class GPPLoginView(BaseLoginView):
 
         Returns
         -------
-        bool
-            `True` if the GPP endpoint is reachable and the token is valid, `False`
-            otherwise.
+        CheckResult
+            Whether the credentials were accepted and, if not, whether the
+            service could be reached.
         """
-        token = kwargs.get("token")
-        client = GPPClient(token=token)
-
-        try:
-            is_reachable, error = async_to_sync(client.ping)()
-            if not is_reachable:
-                logger.debug(f"GPP endpoint is not reachable: {error}")
-                raise Exception(error)
-        except Exception:
-            return False
-        return True
+        return check_gpp(kwargs.get("token"))

@@ -3,6 +3,8 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 
+from goats_tom.service_checks import CheckResult
+
 from goats_tom.models import AstroDatalabLogin
 from goats_tom.tests.factories import UserFactory
 from goats_tom.views import AstroDatalabLoginView
@@ -27,7 +29,7 @@ class TestAstroDatalabLoginView(TestCase):
         self.assertTemplateUsed(response, "auth/login_form.html")
         self.assertContains(response, "Astro Data Lab")
 
-    @patch.object(AstroDatalabLoginView, "perform_login_and_logout", return_value=True)
+    @patch.object(AstroDatalabLoginView, "verify_credentials", return_value=CheckResult(True, "ok"))
     def test_post_valid_credentials(self, mock_method):
         """
         Valid credentials, login passes -> success message, credentials stored.
@@ -45,7 +47,7 @@ class TestAstroDatalabLoginView(TestCase):
         self.assertEqual(login_obj.username, "astro_user")
         self.assertEqual(login_obj.password, "astro_pass")
 
-    @patch.object(AstroDatalabLoginView, "perform_login_and_logout", return_value=False)
+    @patch.object(AstroDatalabLoginView, "verify_credentials", return_value=CheckResult(False, "rejected"))
     def test_post_invalid_credentials(self, mock_method):
         """
         Invalid credentials -> failure message, and nothing is written.

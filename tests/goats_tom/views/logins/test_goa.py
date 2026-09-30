@@ -4,6 +4,8 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
+from goats_tom.service_checks import CheckResult
+
 from goats_tom.models import GOALogin
 from goats_tom.views import GOALoginView
 
@@ -29,7 +31,7 @@ class TestGOALoginView(TestCase):
         self.assertContains(response, "username")
         self.assertContains(response, "password")
 
-    @patch.object(GOALoginView, "perform_login_and_logout", return_value=True)
+    @patch.object(GOALoginView, "verify_credentials", return_value=CheckResult(True, "ok"))
     def test_post_valid_credentials(self, mock_method):
         """
         When valid credentials are posted and login check passes,
@@ -51,7 +53,7 @@ class TestGOALoginView(TestCase):
         self.assertEqual(login_obj.username, "goa_user")
         self.assertEqual(login_obj.password, "goa_pass")
 
-    @patch.object(GOALoginView, "perform_login_and_logout", return_value=False)
+    @patch.object(GOALoginView, "verify_credentials", return_value=CheckResult(False, "rejected"))
     def test_post_invalid_credentials(self, mock_method):
         """
         Invalid credentials -> failure message, and nothing is written.
@@ -63,11 +65,25 @@ class TestGOALoginView(TestCase):
         messages_list = list(response.context["messages"])
         self.assertTrue(
             any(
-                "Could not verify GOA credentials" in str(msg)
+                "Could not verify GOA credentials: GOA rejected them" in str(msg)
                 for msg in messages_list
             )
         )
         self.assertFalse(GOALogin.objects.filter(user=self.user).exists())
+
+    @patch.object(
+        GOALoginView,
+        "verify_credentials",
+        return_value=CheckResult(False, "GOA is not available.", reachable=False),
+    )
+    def test_post_unreachable_keeps_existing(self, mock_method):
+        """An unavailable service must not overwrite a saved account."""
+        GOALogin.objects.create(user=self.user, username="old", password="old")
+        response = self.client.post(self.url, {"username": "new", "password": "new"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nothing was saved")
+        login = GOALogin.objects.get(user=self.user)
+        self.assertEqual((login.username, login.password), ("old", "old"))
 
     def test_post_form_invalid(self):
         """
