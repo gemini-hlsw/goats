@@ -16,6 +16,7 @@ __all__ = [
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import requests
@@ -56,7 +57,13 @@ class CheckResult:
     verified: bool = True
 
 
-def _failed(name: str, message: str, url: str, detail: object = None) -> CheckResult:
+def _failed(
+    name: str,
+    message: str,
+    reachable: Callable[[], CheckResult],
+    detail: object = None,
+    server_error: str | None = None,
+) -> CheckResult:
     """Classify a failure without inferring authentication from a public page.
 
     Parameters
@@ -65,10 +72,12 @@ def _failed(name: str, message: str, url: str, detail: object = None) -> CheckRe
         The service's name, for display.
     message : `str`
         What to show only when authentication was explicitly rejected.
-    url : `str`
-        A URL of the service that answers without signing in.
+    reachable : `Callable[[], CheckResult]`
+        Checks, without signing in, whether the service is up.
     detail : `object`, optional
         The underlying error, logged but never shown.
+    server_error : `str | None`, optional
+        What to show when the service is up but fails on the credentials.
 
     Returns
     -------
@@ -88,15 +97,22 @@ def _failed(name: str, message: str, url: str, detail: object = None) -> CheckRe
     )
     if isinstance(status_code, int) and status_code in (401, 403):
         return CheckResult(False, message)
-    reachability = check_reachable(url, name)
+    reachability = reachable()
     if not reachability.ok:
         return reachability
-    # A working homepage says nothing about an API timeout, 5xx or rate limit.
-    return CheckResult(
-        False,
-        f"The {name} credential check could not be completed. Please try again later.",
-        verified=False,
-    )
+    # The service is up, so the failure is specific to the credential check.
+    if status_code == 429:
+        reason = f"{name} is limiting requests. Please try again in a few minutes."
+    elif isinstance(detail, (TimeoutError, requests.Timeout)):
+        reason = f"{name} took too long to check the credentials. Please try again."
+    elif isinstance(status_code, int) and status_code >= 500:
+        reason = server_error or (
+            f"{name} had an internal error while checking the credentials. "
+            "Please try again later."
+        )
+    else:
+        reason = f"{name} is available but did not complete the credential check."
+    return CheckResult(False, reason, verified=False)
 
 
 def check_gpp(token: str) -> CheckResult:
@@ -127,14 +143,22 @@ def check_gpp(token: str) -> CheckResult:
     try:
         return async_to_sync(probe)()
     except Exception as exc:
-        # Use the configured endpoint, without constructing another client.
-        from gpp_client.settings import GPPSettings  # noqa: PLC0415
+        from gpp_client.settings import GPPEnvironment, GPPSettings  # noqa: PLC0415
 
+        # GPP answers without a token yet fails with this one: a token created
+        # in another GPP environment gets a server error, not a rejection.
+        server_error = "GPP could not validate the token."
+        if GPPSettings().environment != GPPEnvironment.PRODUCTION:
+            # Only developers switch environments; production users need no hint.
+            server_error += (
+                " GOATS is using GPP Development; the token may be from Production."
+            )
         return _failed(
             "GPP",
             "GPP rejected the token.",
-            GPPSettings().environment.base_url,
+            check_gpp_reachable,
             exc,
+            server_error=server_error,
         )
 
 
@@ -193,8 +217,11 @@ def check_goa(username: str, password: str) -> CheckResult:
         if not goa.authenticated():
             if goa.login_rejected is True:
                 return CheckResult(False, "GOA rejected the credentials.")
+            server = goa.url_helper.server
             return _failed(
-                "GOA", "GOA rejected the credentials.", goa.url_helper.server
+                "GOA",
+                "GOA rejected the credentials.",
+                lambda: check_reachable(server, "GOA"),
             )
         goa.logout()
         return CheckResult(True, "GOA accepted the credentials.")
@@ -224,7 +251,12 @@ def check_astro_datalab(username: str, password: str) -> CheckResult:
             client.login()
             logged_in = client.is_logged_in()
         except Exception as exc:
-            return _failed("Astro Data Lab", rejected, url, exc)
+            return _failed(
+                "Astro Data Lab",
+                rejected,
+                lambda: check_reachable(url, "Astro Data Lab"),
+                exc,
+            )
     if not logged_in:
         return CheckResult(False, rejected)
     return CheckResult(True, "Astro Data Lab accepted the credentials.")
@@ -252,7 +284,12 @@ def check_lco(token: str) -> CheckResult:
         )
         response.raise_for_status()
     except Exception as exc:
-        return _failed("LCO", "LCO rejected the API key.", url, exc)
+        return _failed(
+            "LCO",
+            "LCO rejected the API key.",
+            lambda: check_reachable(url, "LCO"),
+            exc,
+        )
     return CheckResult(True, "LCO accepted the API key.")
 
 
@@ -282,11 +319,17 @@ def check_reachable(
         response.close()
         code = response.status_code
         if 400 <= code < 500:
-            message = (
-                f"{name} is limiting requests. Please try again later."
-                if code == 429
-                else f"{name} returned HTTP {code}; availability is not confirmed."
-            )
+            if code == 429:
+                message = (
+                    f"{name} is limiting requests. Please try again in a few minutes."
+                )
+            elif code in (401, 403):
+                message = f"{name} is refusing requests from GOATS."
+            elif code == 404:
+                message = f"The {name} address GOATS checks no longer exists."
+            else:
+                message = f"{name} did not accept the request GOATS sends to check it."
+            logger.info("%s connectivity check inconclusive (HTTP %s)", name, code)
             return CheckResult(False, message, verified=False)
         up = 200 <= code < 400
         detail = f"HTTP {code}"

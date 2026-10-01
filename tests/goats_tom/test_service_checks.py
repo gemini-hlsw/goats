@@ -50,19 +50,18 @@ class TestFailedChecksTellRejectedFromDown:
 
         assert result == CheckResult(False, "GOA is not available.", reachable=False)
 
-    @patch("goats_tom.service_checks.check_reachable")
+    @patch("goats_tom.service_checks.check_gpp_reachable")
     @patch("goats_tom.service_checks.GPPClient")
-    def test_gpp_asks_its_base_url(self, mock_client_cls, mock_reachable):
+    def test_gpp_asks_its_graphql_endpoint(self, mock_client_cls, mock_reachable):
+        # The server's root answers 404, so it cannot tell whether GPP is up.
         client = mock_client_cls.return_value
         client.close = AsyncMock()
         client.graphql.__aenter__.return_value = client.graphql
         client.graphql.ping = AsyncMock(side_effect=RuntimeError("network"))
-        from gpp_client.settings import GPPSettings
-        expected_url = GPPSettings().environment.base_url
         mock_reachable.return_value = CheckResult(False, "x", reachable=False)
 
         assert check_gpp("token").reachable is False
-        mock_reachable.assert_called_once_with(expected_url, "GPP")
+        mock_reachable.assert_called_once_with()
 
 
 @pytest.mark.usefixtures("server_answers")
@@ -313,3 +312,72 @@ class TestCheckGPPReachable:
         assert check_gpp_reachable() == CheckResult(
             False, "GPP is not available.", reachable=False
         )
+
+
+def _gpp_ping_raises(cls, exc):
+    client = cls.return_value
+    client.graphql.__aenter__.return_value = client.graphql
+    client.close = AsyncMock()
+    client.graphql.ping = AsyncMock(side_effect=exc)
+
+
+@pytest.mark.parametrize(
+    "env, hint",
+    [("DEVELOPMENT", "GOATS is using GPP Development"), ("PRODUCTION", None)],
+)
+@patch(
+    "goats_tom.service_checks.check_gpp_reachable",
+    return_value=CheckResult(True, "GPP is available."),
+)
+@patch("goats_tom.service_checks.GPPClient")
+def test_gpp_server_error_hints_environment_only_in_development(
+    mock_cls, _reachable, env, hint
+):
+    from gpp_client.generated.exceptions import GraphQLClientHttpError
+    from gpp_client.settings import GPPEnvironment
+
+    _gpp_ping_raises(mock_cls, GraphQLClientHttpError(500, MagicMock(status_code=500)))
+
+    with patch("gpp_client.settings.GPPSettings") as settings_cls:
+        settings_cls.return_value.environment = GPPEnvironment(env)
+        result = check_gpp("token")
+
+    assert not result.ok and result.reachable and not result.verified
+    if hint:
+        assert result.message.startswith("GPP could not validate the token.")
+        assert hint in result.message
+    else:
+        assert result.message == "GPP could not validate the token."
+
+
+@patch(
+    "goats_tom.service_checks.check_gpp_reachable",
+    return_value=CheckResult(True, "GPP is available."),
+)
+@patch("goats_tom.service_checks.GPPClient")
+def test_gpp_timeout_is_reported_as_such(mock_cls, _reachable):
+    _gpp_ping_raises(mock_cls, TimeoutError())
+
+    result = check_gpp("token")
+
+    assert not result.verified
+    assert "took too long" in result.message
+
+
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        (404, "no longer exists"),
+        (403, "refusing requests"),
+        (429, "limiting requests"),
+        (400, "did not accept"),
+    ],
+)
+def test_public_client_errors_explain_the_problem(code, expected):
+    with patch(
+        "goats_tom.service_checks.requests.get",
+        return_value=MagicMock(status_code=code),
+    ):
+        result = check_reachable("https://example.test", "Example")
+    assert expected in result.message
+    assert "HTTP" not in result.message

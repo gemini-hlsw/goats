@@ -69,7 +69,7 @@ def test_check_service_unreachable():
     with (
         patch("goats_tom.service_checks.GPPClient") as mock_client_cls,
         patch(
-            "goats_tom.service_checks.check_reachable",
+            "goats_tom.service_checks.check_gpp_reachable",
             return_value=CheckResult(False, "GPP is not available.", reachable=False),
         ),
     ):
