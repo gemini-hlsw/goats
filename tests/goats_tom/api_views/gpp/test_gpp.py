@@ -54,7 +54,7 @@ class TestGPPViewSet:
         mock_client.return_value.graphql.__aenter__.return_value = mock_client.return_value.graphql
         mock_client.return_value.graphql.ping = AsyncMock(side_effect=RuntimeError("network"))
         mocker.patch(
-            "goats_tom.service_checks.check_reachable",
+            "goats_tom.service_checks.check_gpp_reachable",
             return_value=CheckResult(True, "GPP is available."),
         )
 
@@ -65,6 +65,5 @@ class TestGPPViewSet:
 
         assert response.status_code == status.HTTP_502_BAD_GATEWAY
         assert response.data == {
-            "detail": "The GPP credential check could not be completed. "
-            "Please try again later."
+            "detail": "GPP is available but did not complete the credential check."
         }
