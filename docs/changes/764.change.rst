@@ -1,1 +1,0 @@
-Scoped real-time notifications to only be visible to the user who triggered them

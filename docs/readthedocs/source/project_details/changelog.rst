@@ -3,6 +3,46 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.10.0 (2026-10-02)
+============================
+
+New Features
+------------
+
+- Added a service status page showing the health of GOATS dependencies (`PR #772 <https://github.com/gemini-hlsw/goats/pull/772>`_)
+
+
+Changes
+-------
+
+- Updated program observations list to show all observations grouped by type: normal, ToO, and calibrations (`PR #745 <https://github.com/gemini-hlsw/goats/pull/745>`_)
+- Extended date-based sorting to all list views in GOATS (`PR #750 <https://github.com/gemini-hlsw/goats/pull/750>`_)
+- Updated GMOS long slit spatial offsets to be sent as explicit telescope configurations (`PR #755 <https://github.com/gemini-hlsw/goats/pull/755>`_)
+- Migrated GOATS custom markup from Bootstrap 4 to Bootstrap 5. (`PR #756 <https://github.com/gemini-hlsw/goats/pull/756>`_)
+- Passed the enqueuing user context to Dramatiq workers (`PR #762 <https://github.com/gemini-hlsw/goats/pull/762>`_)
+- Scoped real-time notifications to only be visible to the user who triggered them (`PR #764 <https://github.com/gemini-hlsw/goats/pull/764>`_)
+- Scoped the credential manager and user list to the authenticated user to prevent access to other users' credentials (`PR #766 <https://github.com/gemini-hlsw/goats/pull/766>`_)
+- Redesigned and restructured the settings page and user list to improve usability and separation of concerns (`PR #767 <https://github.com/gemini-hlsw/goats/pull/767>`_)
+- Added TNS bot credential sharing with approved group members (`PR #769 <https://github.com/gemini-hlsw/goats/pull/769>`_)
+- Added warning message in the UI indicating that service credentials are stored unencrypted (`PR #771 <https://github.com/gemini-hlsw/goats/pull/771>`_)
+- Replaced HTTP error codes with clear error messages in service check results (`PR #773 <https://github.com/gemini-hlsw/goats/pull/773>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed brightness validation error raised when a row is left blank (`PR #746 <https://github.com/gemini-hlsw/goats/pull/746>`_)
+- Fixed missing Rust dependency in the conda environment (`PR #748 <https://github.com/gemini-hlsw/goats/pull/748>`_)
+- Fixed photometry table sorting to work without reloading the page (`PR #757 <https://github.com/gemini-hlsw/goats/pull/757>`_)
+- Fixed credentials being lost when verification fails (`PR #770 <https://github.com/gemini-hlsw/goats/pull/770>`_)
+
+
+Other
+-----
+
+- Centralized per-user service credential reading into a single location (`PR #765 <https://github.com/gemini-hlsw/goats/pull/765>`_)
+
+
 Version 26.9.0 (2026-09-03)
 ===========================
 

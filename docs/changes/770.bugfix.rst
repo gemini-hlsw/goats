@@ -1,1 +1,0 @@
-Fixed credentials being lost when verification fails

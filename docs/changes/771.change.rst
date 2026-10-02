@@ -1,1 +1,0 @@
-Added warning message in the UI indicating that service credentials are stored unencrypted

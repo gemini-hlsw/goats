@@ -1,1 +1,0 @@
-Migrated GOATS custom markup from Bootstrap 4 to Bootstrap 5.

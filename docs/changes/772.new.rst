@@ -1,1 +1,0 @@
-Added a service status page showing the health of GOATS dependencies

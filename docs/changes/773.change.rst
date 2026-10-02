@@ -1,1 +1,0 @@
-Replaced HTTP error codes with clear error messages in service check results
