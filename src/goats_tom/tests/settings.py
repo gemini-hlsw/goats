@@ -379,7 +379,7 @@ CORS_ORIGIN_REGEX_WHITELIST = [
 
 # Default Plotly theme setting, can set to any valid theme:
 # 'plotly', 'plotly_white', 'plotly_dark', 'ggplot2', 'seaborn', 'simple_white', 'none'
-PLOTLY_THEME = "plotly_dark"
+PLOTLY_THEME = "plotly_white"
 
 GPP_ENV = "DEVELOPMENT"
 
