@@ -45,3 +45,13 @@ class GOATSTomConfig(AppConfig):
 
         tns_api.get_tns_credentials = patched_get_tns_credentials
         tns_api.group_names = patched_group_names
+
+        # TOM's sky maps (observation and target distribution) keep plotly's default
+        # near-white grid, invisible on the "plotly_white" theme; use the template's
+        # own line grey. Runs before tom_common applies PLOTLY_THEME.
+        import plotly.io as pio  # noqa: PLC0415
+
+        geo = pio.templates["plotly_white"].layout.geo
+        geo.lonaxis.gridcolor = geo.lataxis.gridcolor = "#C8D4E3"
+        geo.showframe = True
+        geo.framecolor = "#C8D4E3"
