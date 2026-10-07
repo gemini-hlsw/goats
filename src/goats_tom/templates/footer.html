@@ -2,12 +2,28 @@
 {% comment %}
 The footer section for the GOATS application. It is sticky, always staying at the bottom of the page due to 'mt-auto'. The link redirects to TOM Toolkit's documentation.
 {% endcomment %}
-<div class="d-flex justify-content-center align-items-center gap-2 flex-wrap small text-body-secondary">
-  <span>🐐 <strong>Version {{ version_info.current }}</strong></span>
-  <span aria-hidden="true" class="opacity-75">•</span>
-  <span>
-    <i class="fa-solid fa-bolt-lightning text-primary" aria-hidden="true"></i>
-    <strong>Powered by the</strong>
-    <a href="https://tom-toolkit.readthedocs.io/en/latest/index.html" target="_blank"><strong>TOM Toolkit</strong></a>
-  </span>
+<div class="footer-layout">
+  <div class="partner-logos d-flex align-items-center">
+    <a class="logo-gemini" href="https://www.gemini.edu" target="_blank" rel="noopener" title="International Gemini Observatory">
+      <img src="{% static 'img/gemini-horizontal-dark.svg' %}" alt="International Gemini Observatory">
+    </a>
+    <a class="logo-noirlab" href="https://noirlab.edu" target="_blank" rel="noopener" title="NSF NOIRLab">
+      <img src="{% static 'img/nsf-noirlab-light.png' %}" alt="NSF NOIRLab" class="theme-logo-light">
+      <img src="{% static 'img/nsf-noirlab-dark.png' %}" alt="NSF NOIRLab" class="theme-logo-dark">
+    </a>
+  </div>
+  <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap small text-body-secondary">
+    <span>🐐 <strong>Version {{ version_info.current }}</strong></span>
+    <span aria-hidden="true" class="opacity-75">•</span>
+    <span>
+      <i class="fa-solid fa-bolt-lightning text-primary" aria-hidden="true"></i>
+      <strong>Powered by the</strong>
+      <a href="https://tom-toolkit.readthedocs.io/en/latest/index.html" target="_blank"><strong>TOM Toolkit</strong></a>
+    </span>
+  </div>
+  <div class="partner-logos d-flex align-items-center">
+    <a class="logo-aura" href="https://www.aura-astronomy.org" target="_blank" rel="noopener" title="AURA">
+      <img src="{% static 'img/aura-dark.png' %}" alt="AURA">
+    </a>
+  </div>
 </div>

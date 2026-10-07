@@ -1,0 +1,1 @@
+Added NSF, NOIRLab, Gemini, and AURA logos to the GOATS interface
