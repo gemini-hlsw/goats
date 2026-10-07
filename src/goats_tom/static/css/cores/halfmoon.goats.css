@@ -202,24 +202,16 @@
 
 body {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto 1fr auto;
   min-height: 100vh;
 }
 
-.banner {
-  grid-row: 1;
-}
-
-nav {
+main {
   grid-row: 2;
 }
 
-main {
-  grid-row: 3;
-}
-
 footer {
-  grid-row: 4;
+  grid-row: 3;
 }
 
 .shadow-xs {
@@ -267,13 +259,20 @@ footer {
   background-repeat: no-repeat;
 }
 
+/* A slim strip above the navbar: Gemini yellow in the light theme, the darker page surface
+   in the dark one. */
 [data-bs-core="goats"]:not([data-bs-theme="dark"]) .banner {
   background-color: var(--gemini);
 }
 
 [data-bs-core="goats"][data-bs-theme="dark"] .banner {
-  background-color: #000;
+  background-color: var(--bs-body-bg);
   color: var(--bs-lightgray-300);
+}
+
+/* A quiet italic line that does not compete with the navbar. */
+.banner-slogan {
+  font-style: italic;
 }
 
 /* Form select */
@@ -507,8 +506,11 @@ select.form-control[multiple] {
   }
 }
 
-/* Allows dark/light mode hack for plotly.js */
-:root[data-bs-theme="dark"] .plotly-container {
+/* Plots are drawn light (PLOTLY_THEME = "plotly_white") and inverted in the dark theme:
+   GOATS's own plots (.plotly-container) and TOM Toolkit's server-rendered ones
+   (.plotly-graph-div). */
+:root[data-bs-theme="dark"] .plotly-container,
+:root[data-bs-theme="dark"] .plotly-graph-div {
   filter: invert(100%) hue-rotate(180deg);
 }
 
@@ -582,4 +584,80 @@ main:has(.status-table) {
 
 .status-service.needs-attention > :first-child {
   box-shadow: inset 3px 0 var(--bs-warning);
+}
+
+/* Footer: Gemini and NSF NOIRLab on the left, version text centered on the page and AURA on
+   the right. Below the xl breakpoint the logos no longer fit their columns and would push
+   the text off centre, so everything stacks, centred. */
+.footer-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+@media (width >= 1200px) {
+  .footer-layout {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+  }
+
+  .footer-layout > :first-child {
+    justify-self: start;
+  }
+
+  /* The extra end padding lines AURA up with the navbar's power icon. */
+  .footer-layout > :last-child {
+    justify-self: end;
+    padding-right: 0.5rem;
+  }
+}
+
+.partner-logos a + a {
+  margin-left: 1.25rem;
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--bs-border-color);
+}
+
+/* Partner logos: monochrome and muted so they stay secondary to GOATS's own logo. */
+.partner-logos img {
+  height: 1.75rem;
+  width: auto;
+  opacity: 0.6;
+  transition: opacity 0.15s ease-in-out;
+}
+
+/* NSF | NOIRLab has thin strokes, so it needs more height than AURA to weigh the same. */
+.partner-logos .logo-noirlab img {
+  height: 2.75rem;
+}
+
+/* Gemini's official lockup has small lettering, so it gets a bit more height. */
+.partner-logos .logo-gemini img {
+  height: 2.1rem;
+}
+
+/* AURA's thin strokes look lighter than NOIRLab's at the same height. */
+.partner-logos .logo-aura img {
+  height: 2rem;
+}
+
+/* The white artwork is darkened in the light theme. */
+[data-bs-theme="light"] .partner-logos img {
+  filter: brightness(0);
+}
+
+/* More muted in the dark theme, where full white stands out most. */
+[data-bs-theme="dark"] .partner-logos img {
+  opacity: 0.5;
+}
+
+.partner-logos a:hover img {
+  opacity: 0.9;
+}
+
+/* Images with light/dark variants: show only the one matching the current theme. */
+[data-bs-theme="dark"] .theme-logo-light,
+[data-bs-theme="light"] .theme-logo-dark {
+  display: none;
 }
