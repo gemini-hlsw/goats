@@ -659,3 +659,11 @@ main:has(.status-table) {
 [data-bs-theme="light"] .theme-logo-dark {
   display: none;
 }
+
+/* Plot/Unplot and Analyze on the target's data product tables share one width, so the
+   buttons line up and Plot does not jump when its label changes. */
+.dataproduct-action {
+  min-width: 4.25rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.8rem;
+}

@@ -1,0 +1,1 @@
+Added the ability to unplot data from the Photometry and Spectroscopy tabs

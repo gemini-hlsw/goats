@@ -11,7 +11,8 @@
       See <a href="{% url 'targets:detail' pk=target.id %}?tab=manage-data" target="_blank">Manage Data</a>
       for an example of the format.
     </em>
-    Click the <strong>Plot</strong> button to add the selected data product to the plot.
+    Click the <strong>Plot</strong> button to add the selected data product to the plot, and
+    <strong>Unplot</strong> to remove it.
   </p>
   <div class="row g-3">
     <div class="col-12">
@@ -38,12 +39,12 @@
               data-data-type="{{ data_type }}">
               <td>{{ dataproduct.data.name }}</td>
               <td>
-                <button type="button" class="btn btn-primary btn-sm plot-button" data-action="plot"
+                <button type="button" class="btn btn-primary btn-sm plot-button dataproduct-action" data-action="plot"
                   title="Click to add this data product to the plot">
                   Plot
                 </button>
                 {% if data_type == "spectroscopy" %}
-                <button type="button" class="btn btn-primary btn-sm plot-button" data-action="analyze"
+                <button type="button" class="btn btn-primary btn-sm plot-button dataproduct-action" data-action="analyze"
                   title="Click to open this data product in the jdaviz analyzer">
                   Analyze
                 </button>
