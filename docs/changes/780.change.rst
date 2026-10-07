@@ -1,0 +1,1 @@
+Polished header, navbar, and Plotly styling for the light theme
