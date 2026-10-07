@@ -507,8 +507,11 @@ select.form-control[multiple] {
   }
 }
 
-/* Allows dark/light mode hack for plotly.js */
-:root[data-bs-theme="dark"] .plotly-container {
+/* Plots are drawn light (PLOTLY_THEME = "plotly_white") and inverted in the dark theme:
+   GOATS's own plots (.plotly-container) and TOM Toolkit's server-rendered ones
+   (.plotly-graph-div). */
+:root[data-bs-theme="dark"] .plotly-container,
+:root[data-bs-theme="dark"] .plotly-graph-div {
   filter: invert(100%) hue-rotate(180deg);
 }
 

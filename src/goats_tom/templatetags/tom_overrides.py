@@ -1,7 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from operator import attrgetter
 
+import numpy as np
 import plotly.graph_objs as go
+from astroplan import moon_illumination
+from astropy import units as u
+from astropy.coordinates import SkyCoord, get_body
+from astropy.time import Time
 from django import forms, template
 from django.conf import settings
 from django.core.paginator import Paginator
@@ -13,6 +18,7 @@ from tom_dataproducts.models import ReducedDatum
 from tom_dataproducts.processors.data_serializers import SpectrumSerializer
 from tom_dataproducts.templatetags.dataproduct_extras import dataproduct_list_for_target
 from tom_observations.templatetags.observation_extras import observation_list
+from tom_targets.models import Target
 from tom_targets.templatetags.targets_extras import target_table
 
 from goats_tom.views.ordering import date_ordering, resolve_date_order
@@ -309,3 +315,113 @@ def get_photometry_data(context, target, target_share=False):
         "current_order_photometry": order,
     }
     return context
+
+
+#: Trace colours, matching the airmass plot next to it (plotly's default colorway).
+SEPARATION_COLOR = "#636EFA"
+ILLUMINATION_COLOR = "#EF553B"
+
+
+@register.inclusion_tag("tom_targets/partials/moon_distance.html")
+def moon_distance(
+    target: Target,
+    day_range: int = 30,
+    width: int | None = 600,
+    height: int = 400,
+    background: str | None = None,
+    label_color: str | None = None,
+    grid: bool = True,
+) -> dict[str, str | None]:
+    """Plot the Moon's separation from a sidereal target and its illumination.
+
+    Overrides TOM Toolkit's tag of the same name, keeping its signature: real UTC
+    dates, labelled traces with a legend and a unified hover.
+
+    Parameters
+    ----------
+    target : `Target`
+        The target to plot.
+    day_range : `int`, optional
+        Days to plot, starting today (UTC).
+    width : `int | None`, optional
+        Unused; the plot fills its container. Kept for TOM's signature.
+    height : `int`, optional
+        Plot height in pixels.
+    background : `str | None`, optional
+        Background colour; the theme's when not given.
+    label_color : `str | None`, optional
+        Axis and label colour; the theme's when not given.
+    grid : `bool`, optional
+        Whether to draw grid lines.
+
+    Returns
+    -------
+    `dict[str, str | None]`
+        The plot's HTML under ``plot``; `None` for non-sidereal targets.
+    """
+    if target.type != Target.SIDEREAL:
+        return {"plot": None}
+
+    start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    times = Time(start) + np.arange(0, day_range, 0.2) * u.day
+    dates = times.to_datetime(timezone=timezone.utc)
+    separation = (
+        get_body("moon", times)
+        .separation(SkyCoord(target.ra, target.dec, unit=u.deg))
+        .deg
+    )
+    illumination = moon_illumination(times) * 100
+
+    fig = go.Figure(
+        [
+            go.Scatter(
+                x=dates,
+                y=separation,
+                name="Moon separation",
+                line={"color": SEPARATION_COLOR},
+                hovertemplate="%{y:.0f}°",
+            ),
+            go.Scatter(
+                x=dates,
+                y=illumination,
+                name="Moon illumination",
+                yaxis="y2",
+                line={"color": ILLUMINATION_COLOR},
+                hovertemplate="%{y:.0f}%",
+            ),
+        ]
+    )
+    now = datetime.now(timezone.utc)
+    fig.add_vline(x=now, line={"dash": "dot", "width": 1}, opacity=0.6)
+    fig.add_annotation(
+        x=now, y=1, yref="paper", text="Now", showarrow=False, yanchor="bottom"
+    )
+    fig.update_layout(
+        xaxis={"title": "Date (UTC)", "showgrid": grid},
+        yaxis={
+            "title": "Separation (°)",
+            "range": [0, 180],
+            "dtick": 30,
+            "showgrid": grid,
+        },
+        yaxis2={
+            "title": "Illumination (%)",
+            "range": [0, 100],
+            "dtick": 25,
+            "overlaying": "y",
+            "side": "right",
+            "showgrid": False,
+        },
+        hovermode="x unified",
+        legend={"orientation": "h", "x": 0, "y": -0.25},
+        margin={"l": 50, "r": 50, "b": 40, "t": 30},
+        height=height,
+        autosize=True,
+        paper_bgcolor=background,
+        plot_bgcolor=background,
+    )
+    fig.update_xaxes(color=label_color)
+    fig.update_yaxes(color=label_color)
+    return {"plot": offline.plot(fig, output_type="div", show_link=False)}
