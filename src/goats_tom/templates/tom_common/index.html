@@ -5,10 +5,18 @@
 {% endblock %}
 {% block javascript %}
 {{ block.super }}
+{% comment %}Only an administrator can open the user list; everybody else manages their own credentials in settings.{% endcomment %}
+{% if user.is_superuser %}
+  {% url 'user-list' as credentials_url %}
+{% elif user.is_authenticated %}
+  {% url 'user-update' user.pk as credentials_url %}
+{% else %}
+  {% url 'login' as credentials_url %}
+{% endif %}
 <script>
   document.addEventListener("DOMContentLoaded", () => {
     const message = `
-    Manage your credentials <a href="./users/">here</a> to access your proprietary data and communicate with the various integrated services:
+    Manage your credentials <a href="{{ credentials_url }}">here</a> to access your proprietary data and communicate with the various integrated services:
     <ul class="mb-0 mt-2">
       <li>Gemini Observatory Archive</li>
       <li>Gemini Program Platform</li>

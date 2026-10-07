@@ -322,3 +322,36 @@ class TestTheApiTokenIsOnlyShownToItsOwner(TestCase):
         )
 
         assert Token.objects.get(user=self.user).key != old_key
+
+
+class TestHomeCredentialsLinkFitsTheUser(TestCase):
+    """The home notice links to a page the visitor is allowed to open."""
+
+    def credentials_link(self) -> str:
+        """The href of the "manage your credentials" link on the home page."""
+        response = self.client.get(reverse("home"))
+        assert response.status_code == 200
+        return re.search(
+            r'Manage your credentials <a href="([^"]*)">', response.content.decode()
+        ).group(1)
+
+    def test_a_regular_user_goes_to_their_settings(self) -> None:
+        """Not to the admin-only user list."""
+        user = UserFactory(username="owner", password="x")
+        self.client.login(username="owner", password="x")
+
+        link = self.credentials_link()
+
+        assert link == reverse("user-update", kwargs={"pk": user.pk})
+        assert self.client.get(link).status_code == 200
+
+    def test_an_admin_goes_to_the_user_list(self) -> None:
+        """Where they manage everybody's credentials."""
+        UserFactory(username="admin", password="z", is_superuser=True, is_staff=True)
+        self.client.login(username="admin", password="z")
+
+        assert self.credentials_link() == reverse("user-list")
+
+    def test_an_anonymous_visitor_goes_to_login(self) -> None:
+        """There are no credentials to manage before logging in."""
+        assert self.credentials_link() == reverse("login")
