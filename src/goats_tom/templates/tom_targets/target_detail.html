@@ -423,6 +423,8 @@
         initialized: false,
         wavelengthUnits: null,
         fluxUnits: null,
+        // Reduced data of each plotted data product, by ID, to redraw after an unplot.
+        plotted: new Map(),
         plotFunction: plotSpectroscopy,
         dummyTraces: [],
         layout: {
@@ -451,6 +453,7 @@
       {
         plotAbsoluteMagnitude: false,
         initialized: false,
+        plotted: new Map(),
         plotFunction: plotPhotometry,
         dummyTraces: [
           { x: [], y: [], mode: "markers", name: "Apparent Magnitude", yaxis: "y" },
@@ -490,25 +493,79 @@
     ],
   ]);
 
+  const plotlyConfig = {
+    scrollZoom: true,
+    displayModeBar: true,
+    displayLogo: false,
+    responsive: true,
+    editable: true,
+    modeBarButtonsToRemove: ["resetScale2d"],
+  };
+
+  /**
+   * Redraw a plot from the data products still plotted. Photometry merges every data
+   * product into one trace per filter, so traces cannot just be deleted. The current
+   * layout is kept, so titles the user edited survive, but the axes rescale to the data.
+   * @param {string} dataType - "photometry" or "spectroscopy".
+   */
+  const redrawPlot = async (dataType) => {
+    const plotId = `${dataType}Plot`;
+    const config = plottingConfigurations.get(dataType);
+    const { layout } = document.getElementById(plotId);
+
+    config.initialized = false;
+    if (dataType === "spectroscopy") {
+      config.wavelengthUnits = null;
+      config.fluxUnits = null;
+    }
+
+    await Plotly.react(
+      plotId,
+      structuredClone(config.dummyTraces),
+      {
+        ...layout,
+        // Resizing drops the fixed height from the layout; without it the plot would
+        // shrink to its container and overlap the table below.
+        height: config.layout.height,
+        xaxis: { ...layout.xaxis, autorange: true },
+        yaxis: { ...layout.yaxis, autorange: config.layout.yaxis.autorange ?? true },
+      },
+      plotlyConfig
+    );
+    config.plotted.forEach((results) => config.plotFunction(plotId, results));
+  };
+
+  /**
+   * Switch a data product's button between Plot and Unplot. The button keeps its width
+   * and fades to the new label, and Bootstrap animates the colour change.
+   * @param {HTMLButtonElement} button - The data product's plot button.
+   * @param {boolean} plotted - Whether the data product is now on the plot.
+   */
+  const setPlotButton = (button, plotted) => {
+    button.dataset.action = plotted ? "unplot" : "plot";
+    button.textContent = plotted ? "Unplot" : "Plot";
+    button.title = plotted
+      ? "Click to remove this data product from the plot"
+      : "Click to add this data product to the plot";
+    button.classList.toggle("btn-primary", !plotted);
+    button.classList.toggle("btn-outline-primary", plotted);
+    button.animate([{ opacity: 0.3 }, { opacity: 1 }], { duration: 200, easing: "ease-out" });
+    button.disabled = false;
+  };
+
   document.addEventListener("DOMContentLoaded", () => {
     const dataTypes = ["photometry", "spectroscopy"];
     dataTypes.forEach((dataType) => {
       const plotId = `${dataType}Plot`;
       const tbody = document.getElementById(`${dataType}PlotTBody`);
 
-      // Create the plot.
+      // Create the plot. Plotly keeps and mutates the traces and layout it is given, so
+      // it gets copies and the originals stay clean for redrawing after an unplot.
       Plotly.react(
         plotId,
-        plottingConfigurations.get(dataType).dummyTraces,
-        plottingConfigurations.get(dataType).layout,
-        {
-          scrollZoom: true,
-          displayModeBar: true,
-          displayLogo: false,
-          responsive: true,
-          editable: true,
-          modeBarButtonsToRemove: ["resetScale2d"],
-        }
+        structuredClone(plottingConfigurations.get(dataType).dummyTraces),
+        structuredClone(plottingConfigurations.get(dataType).layout),
+        plotlyConfig
       );
 
       // The plot is built while its tab is still hidden, so the container has no
@@ -522,14 +579,13 @@
       // Event listener for plot button clicks.
       tbody.addEventListener("click", async (event) => {
         const action = event.target.dataset.action;
-        if (action !== "plot" && action !== "analyze") return;
+        if (!["plot", "unplot", "analyze"].includes(action)) return;
 
         const button = event.target;
         const row = button.closest("tr");
         if (!row) return;
 
         const dataproductId = row.dataset.dataproductId;
-        const dataType = row.dataset.dataType;
         const file = row.dataset.file;
 
         // Open the jdaviz analyzer for this data product in a new tab.
@@ -538,7 +594,15 @@
           return;
         }
 
+        const config = plottingConfigurations.get(dataType);
         button.disabled = true;
+        if (action === "unplot") {
+          config.plotted.delete(dataproductId);
+          await redrawPlot(dataType);
+          setPlotButton(button, false);
+          return;
+        }
+
         try {
           let data = await fetchReducedData(dataproductId, dataType);
           if (!data.results || data.results.length === 0) {
@@ -548,7 +612,9 @@
               throw new Error(`No reduced data available.`);
             }
           }
-          plottingConfigurations.get(dataType).plotFunction(plotId, data.results);
+          config.plotFunction(plotId, data.results);
+          config.plotted.set(dataproductId, data.results);
+          setPlotButton(button, true);
         } catch (error) {
           showAlert(file, `${error.message}`);
           button.disabled = false;
