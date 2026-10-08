@@ -188,12 +188,27 @@ def test_register_status_duplicate_raises():
             pass
 
 
-def test_inconclusive_check_is_neither_healthy_nor_rejected():
+def test_inconclusive_credential_check_keeps_service_available():
     result = CheckResult(False, "API check failed", verified=False)
     state, credentials, message = BaseStatusMixin()._result_state(result)
-    assert state == Status.UNKNOWN
+    assert state == Status.OK
     assert credentials == Credentials.UNCHECKED
     assert message == "API check failed"
+
+
+def test_inconclusive_availability_is_unknown():
+    result = CheckResult(False, "Not found", reachable=None, verified=False)
+    state, credentials, _ = BaseStatusMixin()._result_state(result)
+    assert state == Status.UNKNOWN
+    assert credentials == Credentials.UNCHECKED
+
+
+def test_inconclusive_availability_without_credentials_is_unknown():
+    mixin = BaseStatusMixin()
+    mixin.check_public = lambda: CheckResult(False, "Not found", reachable=None, verified=False)
+    state, credentials, _ = mixin._missing_state()
+    assert state == Status.UNKNOWN
+    assert credentials == Credentials.MISSING
 
 
 def test_public_http_error_maps_to_unknown():
