@@ -51,8 +51,7 @@ class TestCredentialOwnership(TestCase):
         """The form is not even rendered for somebody else's account."""
         response = self.client.get(self.url_for(self.other))
 
-        # ``Raise403Middleware`` turns the ``PermissionDenied`` into a redirect.
-        assert response.status_code == 302
+        assert response.status_code == 403
 
     def test_a_superuser_may_manage_another_user(self, _mock) -> None:
         """The admin flow the user list offers keeps working."""
@@ -81,8 +80,7 @@ class TestTheUserListIsForAdministrators(TestCase):
 
         response = self.client.get(reverse("user-list"))
 
-        assert response.status_code == 302
-        assert response["Location"].startswith(reverse("login"))
+        assert response.status_code == 403
 
     def test_a_superuser_is_offered_every_row(self) -> None:
         """The admin flow stays reachable from the list."""

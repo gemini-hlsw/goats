@@ -11,7 +11,6 @@ they could ask to join rather than told to go and register a bot.
 import re
 
 import pytest
-from django.conf import settings
 from django.test import override_settings
 from django.urls import reverse
 from guardian.shortcuts import assign_perm
@@ -319,11 +318,7 @@ def test_tns_page_refuses_a_target_the_user_cannot_see(
         method = client.get if endpoint == "report-tns" else client.post
         response = method(reverse(f"tom_tns:{endpoint}", kwargs={"pk": target.pk}))
 
-    # `tom_common.middleware.Raise403Middleware` turns every 403 into a bounce
-    # to the login page. The refusal is the same; only its presentation is.
-    # This becomes a plain 403 when `PermissionDeniedMiddleware` lands.
-    assert response.status_code == 302
-    assert response.url.startswith(settings.LOGIN_URL)
+    assert response.status_code == 403
 
 
 @pytest.mark.django_db
@@ -509,9 +504,7 @@ def test_submitting_without_credentials_is_refused(client, target):
         {"object_name": "GOATS1"},
     )
 
-    # `Raise403Middleware` turns the refusal into a bounce to the login page.
-    assert response.status_code == 302
-    assert response.url.startswith(settings.LOGIN_URL)
+    assert response.status_code == 403
     assert not TNSSubmissionRecord.objects.exists()
 
 
