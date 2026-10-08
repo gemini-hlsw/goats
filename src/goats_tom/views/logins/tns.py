@@ -94,6 +94,7 @@ class TNSLoginView(BaseLoginView):
             return context
 
         context["access_rows"] = self._access_rows(user)
+        context.update(self._linked_request(user))
         # Keyed by group, so an approved request and the membership it
         # produced are one row rather than two.
         memberships = {
@@ -150,6 +151,34 @@ class TNSLoginView(BaseLoginView):
             .order_by("-created_at")[:25]
         )
         return context
+
+    def _linked_request(self, user: User) -> dict[str, Any]:
+        """The request a notification linked to, when it is no longer pending.
+
+        Parameters
+        ----------
+        user : `django.contrib.auth.models.User`
+            The group owner.
+
+        Returns
+        -------
+        dict
+            ``linked_request_closed`` (whether the linked request can no longer
+            be decided) and ``linked_request`` (it, if it still exists and is
+            for one of `user`'s groups). Empty without a ``request`` query.
+        """
+        pk = self.request.GET.get("request", "")
+        if not pk.isdigit():
+            return {}
+        join_request = (
+            TNSGroupJoinRequest.objects.filter(pk=pk, tns_group__owner=user)
+            .select_related("requester", "tns_group")
+            .first()
+        )
+        if join_request and join_request.status == TNSGroupJoinRequest.STATUS_PENDING:
+            # Still in the table, where the link's fragment scrolls to it.
+            return {}
+        return {"linked_request_closed": True, "linked_request": join_request}
 
     @staticmethod
     def _access_rows(user: User) -> list[dict[str, Any]]:

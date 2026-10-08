@@ -137,6 +137,17 @@ urlpatterns = [
     ),
     path("api/ongoing-tasks/", views.ongoing_tasks, name="ongoing_tasks"),
     path("recent-downloads/", views.recent_downloads, name="recent_downloads"),
+    path("notifications/", views.notification_list, name="notifications"),
+    path(
+        "notifications/<int:pk>/",
+        views.notification_open,
+        name="notification-open",
+    ),
+    path(
+        "notifications/read-all/",
+        views.notification_mark_all_read,
+        name="notifications-read-all",
+    ),
     path("observations/<int:pk>/dragons/", views.DRAGONSView.as_view(), name="dragons"),
     path(
         "dataproducts/data/upload/",

@@ -216,6 +216,21 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 """URL to redirect to after logout."""
 
+DEFAULT_FROM_EMAIL = "GOATS <noreply@localhost>"
+"""Sender address of every email GOATS sends."""
+
+GOATS_SITE_URL = "http://localhost:8000"
+"""Public base URL of this instance, used for links in emails. Leave empty to
+send emails without links."""
+
+GOATS_EMAIL_NOTIFICATIONS = False
+"""Whether notifications are also emailed to their recipients. Off until an SMTP
+server is configured in ``local.py`` (``EMAIL_HOST``, ``EMAIL_PORT``,
+``EMAIL_HOST_USER``, ``EMAIL_HOST_PASSWORD``, ``EMAIL_USE_TLS``)."""
+
+GOATS_EMAIL_SUBJECT_PREFIX = "[GOATS] "
+"""Prefix of the subject of every notification email."""
+
 AUTHENTICATION_BACKENDS = (
     "django.contrib.auth.backends.ModelBackend",
     "guardian.backends.ObjectPermissionBackend",

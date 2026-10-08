@@ -12,6 +12,7 @@ from goats_tom.models.logins import (
     LCOLogin,
     TNSLogin,
 )
+from goats_tom.models.notification import Notification
 from goats_tom.models.recipes_module import RecipesModule
 from goats_tom.models.tns_group import TNSGroup
 from goats_tom.models.tns_group_join_request import TNSGroupJoinRequest
@@ -28,6 +29,7 @@ __all__ = [
     "BaseRecipe",
     "RecipesModule",
     "DataProductMetadata",
+    "Notification",
     "AstroDatalabLogin",
     "GPPLogin",
     "LCOLogin",

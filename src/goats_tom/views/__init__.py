@@ -19,6 +19,11 @@ from goats_tom.views.logins import (
     LCOLoginView,
     TNSLoginView,
 )
+from goats_tom.views.notifications import (
+    notification_list,
+    notification_mark_all_read,
+    notification_open,
+)
 from goats_tom.views.observation_group_list import ObservationGroupListView
 from goats_tom.views.observation_list import ObservationListView
 from goats_tom.views.observation_record_delete import ObservationRecordDeleteView
@@ -62,6 +67,9 @@ __all__ = [
     "UserListView",
     "ongoing_tasks",
     "recent_downloads",
+    "notification_list",
+    "notification_open",
+    "notification_mark_all_read",
     "update_brokerquery_name",
     "ObservationRecordDeleteView",
     "DataProductUploadView",

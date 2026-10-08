@@ -6,12 +6,15 @@ question these tests keep asking is not "does the happy path work" but
 "can a grant be made to cover more than it was meant to".
 """
 
+from unittest.mock import patch
+
 import pytest
 from django.db import IntegrityError, transaction
 
 from goats_tom import tns_membership as tm
 from goats_tom.middleware.tns import payload_for_option
 from goats_tom.models import (
+    Notification,
     TNSGroup,
     TNSGroupJoinRequest,
     TNSGroupMembership,
@@ -346,3 +349,67 @@ def test_other_users_pending_request_does_not_block_reapplication(owner_with_gro
 
     TNSGroupJoinRequest.objects.create(tns_group=group, requester=requester)
     assert not tm.requestable_groups(requester).filter(pk=group.pk).exists()
+
+
+@pytest.mark.django_db
+def test_a_request_notifies_the_owner(owner_with_groups):
+    owner, _, shared, _ = owner_with_groups
+    requester = UserFactory()
+
+    join_request = tm.create_join_request(requester, shared)
+
+    [notification] = Notification.objects.filter(recipient=owner)
+    assert notification.kind == "tns.join_requested"
+    assert notification.subject_type.model_class() is type(join_request)
+    assert notification.subject_id == join_request.pk
+    assert notification.actor == requester
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("decide", "kind"),
+    [
+        (tm.approve_join_request, "tns.join_approved"),
+        (tm.deny_join_request, "tns.join_denied"),
+    ],
+)
+def test_a_decision_resolves_the_request_and_tells_the_requester(
+    owner_with_groups, decide, kind
+):
+    owner, _, shared, _ = owner_with_groups
+    requester = UserFactory()
+    join_request = tm.create_join_request(requester, shared)
+
+    decide(join_request, decided_by=owner)
+
+    assert Notification.objects.get(recipient=owner).is_read
+    [decision] = Notification.objects.filter(recipient=requester)
+    assert decision.kind == kind
+    assert not decision.is_read
+
+
+@pytest.mark.django_db
+def test_revoking_tells_the_member(owner_with_groups):
+    owner, _, shared, _ = owner_with_groups
+    member = UserFactory()
+    membership = TNSGroupMembership.objects.create(tns_group=shared, user=member)
+
+    tm.revoke_membership(membership, revoked_by=owner)
+
+    [notification] = Notification.objects.filter(recipient=member)
+    assert notification.kind == "tns.membership_revoked"
+    assert shared.name in notification.message
+
+
+@pytest.mark.django_db
+def test_a_failed_notification_leaves_no_request_behind(owner_with_groups):
+    """Otherwise the retry would be refused as a duplicate."""
+    _, _, shared, _ = owner_with_groups
+    requester = UserFactory()
+
+    with patch.object(tm, "notify", side_effect=RuntimeError("boom")):
+        with pytest.raises(RuntimeError):
+            tm.create_join_request(requester, shared)
+
+    assert not TNSGroupJoinRequest.objects.filter(requester=requester).exists()
+    assert tm.create_join_request(requester, shared).status == "pending"
