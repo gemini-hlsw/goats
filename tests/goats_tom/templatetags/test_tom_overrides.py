@@ -696,3 +696,30 @@ def test_goats_dataproduct_list_for_target_carries_the_request(mocker, mod, targ
     context = mod.goats_dataproduct_list_for_target({"request": request}, target)
 
     assert context["request"] is request
+
+
+def test_moon_distance_plots_separation_and_illumination(mod, target):
+    plot = mod.moon_distance(target)["plot"]
+
+    # Plotly serializes the degree sign as a JSON escape.
+    assert "Separation (\\u00b0)" in plot
+    assert "Illumination (%)" in plot
+    assert "Date (UTC)" in plot
+    assert mod.SEPARATION_COLOR in plot
+    assert mod.ILLUMINATION_COLOR in plot
+
+
+def test_moon_distance_skips_non_sidereal_targets(mod, db):
+    target = Target.objects.create(name="COMET", type="NON_SIDEREAL")
+
+    assert mod.moon_distance(target) == {"plot": None}
+
+
+def test_moon_distance_overrides_tom_in_templates(target):
+    """Loaded after TOM's library, GOATS's tag is the one templates render."""
+    rendered = Template(
+        "{% load targets_extras tom_overrides %}{% moon_distance target %}"
+    ).render(Context({"target": target}))
+
+    # TOM labels this axis "Moon Phase".
+    assert "Illumination (%)" in rendered
