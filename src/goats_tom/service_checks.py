@@ -43,9 +43,10 @@ class CheckResult:
         Whether the service answered and accepted the credentials.
     message : `str`
         What happened, for display.
-    reachable : `bool`, optional
-        Whether the service answered at all, so a failed check can tell
-        rejected credentials from a service that is down.
+    reachable : `bool | None`, optional
+        Whether the service is up, so a failed check can tell rejected
+        credentials from a service that is down; `None` when it answered but
+        that does not show it is available.
     verified : `bool`, optional
         Whether authentication produced a conclusive result; `False` when
         a check fails inconclusively or the service offers no check.
@@ -53,7 +54,7 @@ class CheckResult:
 
     ok: bool
     message: str
-    reachable: bool = True
+    reachable: bool | None = True
     verified: bool = True
 
 
@@ -330,7 +331,7 @@ def check_reachable(
             else:
                 message = f"{name} did not accept the request GOATS sends to check it."
             logger.info("%s connectivity check inconclusive (HTTP %s)", name, code)
-            return CheckResult(False, message, verified=False)
+            return CheckResult(False, message, reachable=None, verified=False)
         up = 200 <= code < 400
         detail = f"HTTP {code}"
     except Exception as exc:

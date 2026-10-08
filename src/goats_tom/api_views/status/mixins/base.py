@@ -297,7 +297,7 @@ class BaseStatusMixin:
         if result is None:
             return Status.UNKNOWN, Credentials.MISSING, "No credentials stored."
         if not result.ok:
-            state = Status.DOWN if not result.reachable else Status.UNKNOWN
+            state = Status.DOWN if result.reachable is False else Status.UNKNOWN
             return state, Credentials.MISSING, result.message
         return Status.OK, Credentials.MISSING, "No credentials stored."
 
@@ -318,7 +318,9 @@ class BaseStatusMixin:
             Whether the service is available, what happened to the credentials
             (`None` if the service uses none), and the check's message.
         """
-        service_status = Status.OK if result.reachable else Status.DOWN
+        service_status = {True: Status.OK, False: Status.DOWN}.get(
+            result.reachable, Status.UNKNOWN
+        )
         if not self.uses_credentials:
             if result.reachable and not result.ok:
                 service_status = Status.UNKNOWN
@@ -326,11 +328,11 @@ class BaseStatusMixin:
         if not result.reachable:
             credentials_state = Credentials.UNCHECKED
         elif not result.ok:
-            if result.verified:
-                credentials_state = Credentials.REJECTED
-            else:
-                service_status = Status.UNKNOWN
-                credentials_state = Credentials.UNCHECKED
+            # A service that is up but did not finish the credential check is
+            # still available; only the credentials stay unchecked.
+            credentials_state = (
+                Credentials.REJECTED if result.verified else Credentials.UNCHECKED
+            )
         elif not result.verified:
             credentials_state = Credentials.UNVERIFIABLE
         else:

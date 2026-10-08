@@ -161,7 +161,7 @@ class TestCheckReachable:
         mock_get.return_value = MagicMock(status_code=404)
 
         result = check_reachable("https://x", "X")
-        assert not result.ok and result.reachable and not result.verified
+        assert not result.ok and result.reachable is None and not result.verified
 
     @patch("goats_tom.service_checks.requests.get")
     def test_server_error_is_down(self, mock_get):
@@ -231,7 +231,7 @@ def test_datalab_failures_never_log_tokens(caplog, server_answers):
 def test_public_client_errors_are_not_claimed_as_available(code):
     with patch("goats_tom.service_checks.requests.get", return_value=MagicMock(status_code=code)):
         result = check_reachable("https://example.test", "Example")
-    assert not result.ok and result.reachable and not result.verified
+    assert not result.ok and result.reachable is None and not result.verified
 
 
 def test_gpp_retains_http_rejection_and_closes_connections():
