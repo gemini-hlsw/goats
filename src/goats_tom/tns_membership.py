@@ -519,13 +519,15 @@ def deny_join_request(join_request, decided_by):
     return join_request
 
 
-def revoke_membership(membership) -> None:
+def revoke_membership(membership, revoked_by=None) -> None:
     """Withdraw a member's permission to post through a group.
 
     Parameters
     ----------
     membership : `goats_tom.models.TNSGroupMembership`
         The membership to remove.
+    revoked_by : `django.contrib.auth.models.User`, optional
+        Who is revoking -- normally the group's owner.
 
     Notes
     -----
@@ -536,10 +538,23 @@ def revoke_membership(membership) -> None:
 
     The member is told, since otherwise they first learn of it from a page
     that has quietly changed which bot it posts as.
+
+    The approved request behind it is marked revoked, so the member's page
+    shows the removal and its date rather than reading as a decline.
     """
     user = membership.user
     group = membership.tns_group
-    membership.delete()
+    with transaction.atomic():
+        membership.delete()
+        TNSGroupJoinRequest.objects.filter(
+            requester=user,
+            tns_group=group,
+            status=TNSGroupJoinRequest.STATUS_APPROVED,
+        ).update(
+            status=TNSGroupJoinRequest.STATUS_REVOKED,
+            decided_by=revoked_by,
+            decided_at=timezone.now(),
+        )
 
     logger.info("Revoked TNS posting access for %s in %s.", user.username, group.name)
     _notify(

@@ -136,6 +136,19 @@ def test_cannot_request_a_group_never_offered(client, owner, private_group):
 
 
 @pytest.mark.django_db
+def test_a_message_over_the_limit_is_rejected(client, owner, shared_group):
+    member = UserFactory()
+    client.force_login(member)
+
+    client.post(
+        reverse("tns-request-access"),
+        {"tns_group": shared_group.pk, "message": "x" * 501},
+    )
+
+    assert not TNSGroupJoinRequest.objects.filter(requester=member).exists()
+
+
+@pytest.mark.django_db
 def test_request_endpoint_rejects_get(client):
     """It is a POST endpoint, not a page -- the pages were consolidated."""
     client.force_login(UserFactory())
@@ -374,6 +387,25 @@ def test_owner_can_revoke_a_membership(client, owner, shared_group):
 
     assert not TNSGroupMembership.objects.filter(pk=membership.pk).exists()
     assert tm.posting_options(member) == []
+
+
+@pytest.mark.django_db
+def test_a_revoked_member_sees_removed_not_declined(client, owner, shared_group):
+    member = UserFactory()
+    tm.approve_join_request(
+        tm.create_join_request(member, shared_group), decided_by=owner
+    )
+    membership = TNSGroupMembership.objects.get(user=member)
+    client.force_login(owner)
+    client.post(
+        reverse("tns-revoke-membership", kwargs={"pk": membership.pk})
+    )
+    client.force_login(member)
+
+    response = client.get(reverse("user-tns-login", kwargs={"pk": member.pk}))
+
+    assert b"Removed" in response.content
+    assert b"Declined" not in response.content
 
 
 @pytest.mark.django_db
