@@ -158,8 +158,9 @@ def tns_group_settings(request: HttpRequest) -> HttpResponse:
     against it, so a forged primary key saves nothing. New rows have no owner
     of their own until it is set here, from the acting user.
 
-    Removing a group cascades to its memberships and requests. The page says
-    how many people that is before the box is ticked.
+    Removing a group cascades to its memberships and requests. The page's
+    remove button ticks that row's hidden ``DELETE`` box and posts the whole
+    table, so the group goes at once and other unsaved edits are saved too.
     """
     formset = TNSGroupSettingsFormSet(request.POST, queryset=owned_groups(request.user))
 
@@ -290,6 +291,6 @@ def tns_revoke_membership(request: HttpRequest, pk: int) -> HttpResponse:
     # username is half of a login credential and names nobody to a colleague.
     who = display_name(membership.user)
     group_name = membership.tns_group.name
-    revoke_membership(membership)
+    revoke_membership(membership, revoked_by=request.user)
     messages.success(request, f"Removed {who}'s access to '{group_name}'.")
     return _back(request)

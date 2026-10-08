@@ -115,13 +115,20 @@ class TNSLoginView(BaseLoginView):
             .order_by("-created_at")
         ):
             # Newest kept, so an old denial cannot contradict a later grant.
+            membership = memberships.get(join_request.tns_group_id)
             rows.setdefault(
                 join_request.tns_group_id,
                 {
                     "group": join_request.tns_group,
-                    "requested_at": join_request.created_at,
+                    # Date of the status shown: granted, declined, removed
+                    # or asked.
+                    "when": (
+                        membership.granted_at
+                        if membership
+                        else join_request.decided_at or join_request.created_at
+                    ),
                     "status": join_request.status,
-                    "membership": memberships.get(join_request.tns_group_id),
+                    "membership": membership,
                 },
             )
         # Access granted without a request still belongs in the table.
@@ -130,7 +137,7 @@ class TNSLoginView(BaseLoginView):
                 group_id,
                 {
                     "group": membership.tns_group,
-                    "requested_at": None,
+                    "when": membership.granted_at,
                     "status": None,
                     "membership": membership,
                 },

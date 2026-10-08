@@ -262,6 +262,31 @@ def test_revocation_takes_effect_immediately(owner_with_groups):
 
 
 @pytest.mark.django_db
+def test_revocation_marks_the_approved_request_revoked(owner_with_groups):
+    """The request behind a revoked membership records the removal.
+
+    Left approved, the member's page read it as a decline dated from the
+    approval.
+    """
+    owner, _, shared, _ = owner_with_groups
+    member = UserFactory()
+    join_request = tm.create_join_request(member, shared)
+    tm.approve_join_request(join_request, decided_by=owner)
+    approved_at = TNSGroupJoinRequest.objects.get(pk=join_request.pk).decided_at
+
+    tm.revoke_membership(
+        TNSGroupMembership.objects.get(user=member), revoked_by=owner
+    )
+
+    join_request.refresh_from_db()
+    assert join_request.status == TNSGroupJoinRequest.STATUS_REVOKED
+    assert join_request.decided_by == owner
+    assert join_request.decided_at > approved_at
+    # Revoked is not pending, so the member may ask again.
+    assert shared in tm.requestable_groups(member)
+
+
+@pytest.mark.django_db
 def test_group_is_not_offered_once_owner_deletes_credentials(
     owner_with_groups,
 ):

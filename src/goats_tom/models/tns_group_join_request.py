@@ -22,15 +22,17 @@ class TNSGroupJoinRequest(models.Model):
         The group being asked for. Per-group rather than per-owner, since
         an owner may share one collaboration and not another.
     status : `models.CharField`
-        One of `STATUS_PENDING`, `STATUS_APPROVED`, `STATUS_DENIED`.
+        One of `STATUS_PENDING`, `STATUS_APPROVED`, `STATUS_DENIED`,
+        `STATUS_REVOKED`. Revoked is an approval whose access was later
+        withdrawn.
     message : `models.TextField`
         Optional note from the requester, since TNS attributes the post to
         the owner's bot and an unfamiliar username is little to go on.
     decided_by : `models.ForeignKey`
-        Who approved or denied it. `SET_NULL`, so deleting that account
-        loses the attribution rather than the decision.
+        Who approved, denied or revoked it. `SET_NULL`, so deleting that
+        account loses the attribution rather than the decision.
     decided_at : `models.DateTimeField`
-        When it was decided. `None` while pending.
+        When it was last decided, revocation included. `None` while pending.
     created_at : `models.DateTimeField`
         When it was made. Orders the queue oldest first.
     """
@@ -38,10 +40,12 @@ class TNSGroupJoinRequest(models.Model):
     STATUS_PENDING = "pending"
     STATUS_APPROVED = "approved"
     STATUS_DENIED = "denied"
+    STATUS_REVOKED = "revoked"
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pending"),
         (STATUS_APPROVED, "Approved"),
         (STATUS_DENIED, "Denied"),
+        (STATUS_REVOKED, "Revoked"),
     ]
 
     requester = models.ForeignKey(

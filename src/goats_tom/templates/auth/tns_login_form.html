@@ -13,11 +13,12 @@ settings pages.
 <div class="mt-5">
   <p class="h3">Your TNS groups</p>
   <p class="text-muted">
-    The groups your bot may file under, spelled as they are on TNS. Opening
-    one lets other GOATS users ask to report under it; you decide each
-    request, and an approved user's reports go out under your bot's name.
-    Recommended co-authors are added to the author list of anything filed
-    through that group, and can still be edited before sending.
+    Add the groups your TNS bot may file under, spelled as they are on TNS.
+    Toggle the “Open” option to let other GOATS users request to report under
+    it, which you can approve. Note that an approved user's reports go out
+    under your bot's name. Recommended co-authors are automatically added to
+    the author list of reports filed through that group, and can still be
+    edited before sending.
   </p>
   {% if is_own_page %}
   <form method="post" action="{% url 'tns-group-settings' %}">
@@ -34,10 +35,6 @@ settings pages.
       <thead>
         <tr>
           <th scope="col">{{ group_settings.empty_form.name.label }}</th>
-          {% comment %}
-          Remove is kept away from the switch: two adjacent controls, one
-          sharing the bot and one deleting the group, invite the wrong click.
-          {% endcomment %}
           <th scope="col" class="text-center text-nowrap">
             {{ group_settings.empty_form.allow_join_requests.label }}
           </th>
@@ -58,24 +55,15 @@ settings pages.
             <small class="d-block text-danger">{{ error }}</small>
             {% endfor %}
           </td>
-          {% comment %}
-          `mb-0` only. The input's own `margin-top` is what centres it in the
-          1.5rem box a form-check reserves, so clearing it pins the switch to
-          the top of the row.
-          {% endcomment %}
           <td class="text-center">
-            <div class="form-check form-switch d-inline-block mb-0 align-middle">
-              {{ settings_form.allow_join_requests|add_class:"form-check-input" }}
+            <div class="form-check form-switch d-inline-block ps-0 mb-0 align-middle">
+              {{ settings_form.allow_join_requests|add_class:"form-check-input float-none ms-0" }}
             </div>
           </td>
           <td class="text-center">
             {% if settings_form.instance.member_count %}
             {{ settings_form.instance.member_count }}
             {% elif settings_form.instance.pk %}
-            {% comment %}
-            Closing a group does not revoke its members, so the count wins over
-            the toggle: a closed group with people still reads as its number.
-            {% endcomment %}
             {% if settings_form.instance.allow_join_requests %}
             <span class="text-muted">0</span>
             {% else %}
@@ -88,17 +76,18 @@ settings pages.
           </td>
           <td class="text-center">
             {% if settings_form.instance.pk %}
-            {{ settings_form.DELETE|add_class:"form-check-input" }}
+            {{ settings_form.DELETE|add_class:"d-none" }}
+            <button type="button" class="btn btn-sm btn-outline-danger"
+                    data-tns-remove="{{ settings_form.DELETE.id_for_label }}"
+                    title="Remove this group" hidden>
+              <i class="fa-solid fa-trash"></i>
+            </button>
             {% endif %}
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-    {% comment %}
-    The row the Add button clones. `empty_form` numbers its fields
-    `__prefix__`, which the script swaps for the next index.
-    {% endcomment %}
     <template id="tns-group-row">
       <tr>
         <td>
@@ -106,8 +95,8 @@ settings pages.
           {{ group_settings.empty_form.name|add_class:"form-control" }}
         </td>
         <td class="text-center">
-          <div class="form-check form-switch d-inline-block mb-0 align-middle">
-            {{ group_settings.empty_form.allow_join_requests|add_class:"form-check-input" }}
+          <div class="form-check form-switch d-inline-block ps-0 mb-0 align-middle">
+            {{ group_settings.empty_form.allow_join_requests|add_class:"form-check-input float-none ms-0" }}
           </div>
         </td>
         <td></td>
@@ -117,10 +106,6 @@ settings pages.
         <td></td>
       </tr>
     </template>
-    {% comment %}
-    `ps-2` matches the 0.5rem a table cell puts before its contents, so
-    the buttons line up with the group names above them.
-    {% endcomment %}
     <div class="d-flex gap-2 ps-2">
       <button type="button" class="btn btn-outline-secondary" id="tns-add-group"
               hidden>
@@ -135,6 +120,18 @@ settings pages.
       var template = document.getElementById("tns-group-row");
       var rows = document.getElementById("tns-group-rows");
       var total = document.getElementById("id_form-TOTAL_FORMS");
+
+      // Ticks the row's hidden DELETE box and saves, so the group goes at once.
+      document.querySelectorAll("[data-tns-remove]").forEach(function (remove) {
+        remove.hidden = false;
+        remove.addEventListener("click", function () {
+          var box = document.getElementById(remove.dataset.tnsRemove);
+          if (!box) { return; }
+          box.checked = true;
+          remove.form.requestSubmit();
+        });
+      });
+
       if (!button || !template || !rows || !total) { return; }
 
       button.hidden = false;
@@ -151,11 +148,6 @@ settings pages.
     })();
   </script>
   {% else %}
-  {% comment %}
-  A superuser may open another user's credential page, which is right
-  for a stored secret and wrong here: this decides whose reports go
-  out under *their* bot. Shown as text, not a disabled form.
-  {% endcomment %}
   <table class="table table-borderless align-middle">
     <tbody>
       {% for group in owned_groups %}
@@ -183,29 +175,20 @@ settings pages.
     Who can report under your groups
   </p>
   {% if access_rows %}
-  {% comment %}
-  No `w-100` on any column: `.table` is already full width, and giving
-  one column the slack opened a gap between a name and its group.
-  {% endcomment %}
-  {% comment %}
-  `align-top`: the person's cell runs to two or three lines, so centred
-  the group and status floated away from the name they belong to.
-  {% endcomment %}
   <table class="table table-borderless align-top">
-    {% comment %}
-    The same widths as the other access table, so the two read as one grid.
-    {% endcomment %}
     <colgroup>
-      <col style="width: 40%">
-      <col style="width: 25%">
+      <col style="width: 35%">
       <col style="width: 20%">
+      <col style="width: 15%">
+      <col style="width: 15%">
       <col style="width: 15%">
     </colgroup>
     <thead>
       <tr>
-        <th scope="col">Person</th>
+        <th scope="col">User</th>
         <th scope="col">Group</th>
         <th scope="col">Status</th>
+        <th scope="col">Since</th>
         <th scope="col">Action</th>
       </tr>
     </thead>
@@ -214,13 +197,6 @@ settings pages.
       <tr>
         <td>
           {{ row.user|display_name }}
-          <small class="d-block text-muted">
-            {% if row.status == "pending" %}
-            asked {{ row.when|date:"j M Y" }}
-            {% else %}
-            approved {{ row.when|date:"j M Y" }}
-            {% endif %}
-          </small>
           {% if row.message %}
           <small class="d-block text-muted">{{ row.message }}</small>
           {% endif %}
@@ -233,6 +209,7 @@ settings pages.
           <span class="badge bg-success">Granted</span>
           {% endif %}
         </td>
+        <td class="text-nowrap">{{ row.when|date:"j M Y" }}</td>
         <td class="text-nowrap">
           {% if row.status == "pending" %}
           <form method="post"
@@ -268,7 +245,7 @@ settings pages.
   </table>
   {% else %}
   <p class="text-muted">
-    Nobody has asked for access, and nobody else reports under your groups.
+   —
   </p>
   {% endif %}
 </div>
@@ -278,17 +255,12 @@ settings pages.
 <div class="mt-5">
   <p class="h3">Groups you can report under</p>
   {% if my_access %}
-  {% comment %}
-  `align-top`, as in the table above.
-  {% endcomment %}
   <table class="table table-borderless align-top">
-    {% comment %}
-    The same widths as the table above.
-    {% endcomment %}
     <colgroup>
-      <col style="width: 40%">
-      <col style="width: 25%">
+      <col style="width: 35%">
       <col style="width: 20%">
+      <col style="width: 15%">
+      <col style="width: 15%">
       <col style="width: 15%">
     </colgroup>
     <thead>
@@ -296,6 +268,7 @@ settings pages.
         <th scope="col">Group</th>
         <th scope="col">Owner</th>
         <th scope="col">Status</th>
+        <th scope="col">Since</th>
         <th scope="col">Sent as</th>
       </tr>
     </thead>
@@ -311,14 +284,13 @@ settings pages.
           <span class="badge bg-success">Granted</span>
           {% elif row.status == "pending" %}
           <span class="badge bg-warning text-dark">Pending</span>
+          {% elif row.status == "revoked" %}
+          <span class="badge bg-danger">Removed</span>
           {% else %}
           <span class="badge bg-secondary">Declined</span>
           {% endif %}
         </td>
-        {% comment %}
-        The bot name is the attribution that lands on the public record, so
-        a pending request must not advertise the name it would post under.
-        {% endcomment %}
+        <td class="text-nowrap">{{ row.when|date:"j M Y" }}</td>
         <td class="text-nowrap">
           {% if row.membership and row.group.owner.tnslogin.bot_name %}
           {{ row.group.owner.tnslogin.bot_name }}
@@ -335,10 +307,6 @@ settings pages.
   </p>
   {% endif %}
 
-  {% comment %}
-  Shown only when there is something to request: the queryset already
-  excludes your own groups, ones you hold, pending ones and closed ones.
-  {% endcomment %}
   {% if join_request_form.fields.tns_group.queryset.exists %}
   <form method="post" action="{% url 'tns-request-access' %}">
     {% csrf_token %}
@@ -346,7 +314,7 @@ settings pages.
     <button type="submit" class="btn btn-primary">Request access</button>
   </form>
   {% elif not my_access %}
-  <p class="text-muted">No other user has opened a TNS group to requests.</p>
+  <p class="text-muted">—</p>
   {% endif %}
 </div>
 {% endif %}
@@ -380,10 +348,6 @@ settings pages.
       {% for submission in submissions %}
       <tr>
         <td>{{ submission.created_at|date:"j M Y H:i" }}</td>
-        {% comment %}
-        The record keeps the name as it stood when the report went out; the
-        live account is consulted only when that snapshot is empty.
-        {% endcomment %}
         <td>
           {% if submission.display_name %}
           {{ submission.display_name }}

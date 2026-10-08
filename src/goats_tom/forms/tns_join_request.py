@@ -23,7 +23,7 @@ class TNSJoinRequestForm(forms.Form):
         `goats_tom.tns_membership.requestable_groups`.
     message : `forms.CharField`
         Optional note to the owner, who is deciding whether an unfamiliar
-        username may post under their bot's name.
+        username may post under their bot's name. Capped at 500 characters.
 
     Notes
     -----
@@ -33,13 +33,14 @@ class TNSJoinRequestForm(forms.Form):
 
     tns_group = forms.ModelChoiceField(
         queryset=TNSGroup.objects.none(),
-        label="TNS group",
+        label="TNS group open to new members",
         empty_label="Select a group",
         help_text="The group you want to report or classify under.",
     )
     message = forms.CharField(
         label="Message to the owner (optional)",
         required=False,
+        max_length=500,
         widget=forms.Textarea(
             attrs={
                 "rows": 2,
