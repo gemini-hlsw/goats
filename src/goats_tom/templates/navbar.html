@@ -68,6 +68,7 @@
         </div>
       </li>
       {% if user.is_authenticated %}
+      {% include 'notifications/partials/bell.html' %}
       <li class="nav-item dropdown ">
         <a class="nav-link dropdown-toggle px-md-2 py-2 {% if request.resolver_match.url_name|starts_with:'user-' or request.resolver_match.url_name == 'status' %}active{% endif %}" title="Manage user settings and preferences" data-bs-toggle="dropdown">
           {{ user.username }}

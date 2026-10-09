@@ -36,7 +36,7 @@ from goats_tom.models import (
     TNSGroupJoinRequest,
     TNSGroupMembership,
 )
-from goats_tom.realtime import NotificationInstance
+from goats_tom.notifications import notify, resolve
 
 logger = logging.getLogger(__name__)
 
@@ -96,56 +96,6 @@ class PostingOption:
             for group in self.groups
             if group.recommended_authors.strip()
         }
-
-
-def _notify(
-    user,
-    label: str,
-    message: str,
-    color: str = "primary",
-    autohide: bool = True,
-) -> None:
-    """Send one notification to one user, after the current transaction commits.
-
-    Parameters
-    ----------
-    user : `django.contrib.auth.models.User`
-        The recipient. Addressed privately, since these name other users and
-        reveal who posts through whose bot.
-    label : str
-        Notification heading.
-    message : str
-        Notification body. Plain text, never HTML, since it interpolates a
-        username.
-    color : str, optional
-        Bootstrap colour scheme.
-    autohide : bool, optional
-        Whether the toast dismisses itself. `False` when the recipient has to
-        act, so it cannot vanish while they look elsewhere.
-
-    Notes
-    -----
-    Deferred with `transaction.on_commit`, so nobody is told about a change
-    that rolls back. Failures are logged and swallowed: an unreachable
-    channel layer must not fail the operation that triggered it.
-    """
-
-    def _send() -> None:
-        try:
-            NotificationInstance.create_and_send(
-                label=label,
-                message=message,
-                color=color,
-                autohide=autohide,
-                user=user,
-            )
-        except Exception:
-            logger.exception(
-                "Failed to notify user %s; the underlying change was still saved.",
-                getattr(user, "username", None),
-            )
-
-    transaction.on_commit(_send)
 
 
 def owned_groups(user):
@@ -384,28 +334,29 @@ def create_join_request(requester, tns_group, message: str = ""):
     if TNSGroupMembership.objects.filter(tns_group=tns_group, user=requester).exists():
         raise TNSJoinRequestError("You can already post through this group.")
 
-    try:
-        join_request = TNSGroupJoinRequest.objects.create(
-            requester=requester,
-            tns_group=tns_group,
-            message=message,
-        )
-    except IntegrityError as exc:
-        raise TNSJoinRequestError(
-            "You already have a pending request for this group."
-        ) from exc
+    # One transaction, so a failed notification cannot leave behind a pending
+    # request that then blocks the retry as a duplicate.
+    with transaction.atomic():
+        try:
+            # Savepoint, so the duplicate's IntegrityError rolls back cleanly.
+            with transaction.atomic():
+                join_request = TNSGroupJoinRequest.objects.create(
+                    requester=requester,
+                    tns_group=tns_group,
+                    message=message,
+                )
+        except IntegrityError as exc:
+            raise TNSJoinRequestError(
+                "You already have a pending request for this group."
+            ) from exc
 
-    _notify(
-        tns_group.owner,
-        label="TNS group request",
-        message=(
-            f"{requester.username} has asked to report under your TNS group "
-            f"'{tns_group.name}'."
-        ),
-        color="warning",
-        # Somebody is waiting on the owner, so it stays until dismissed.
-        autohide=False,
-    )
+        notify(
+            tns_group.owner,
+            "tns.join_requested",
+            actor=requester,
+            subject=join_request,
+            join_request=join_request,
+        )
     return join_request
 
 
@@ -451,18 +402,20 @@ def approve_join_request(join_request, decided_by) -> TNSGroupMembership:
         join_request.decided_by = decided_by
         join_request.decided_at = timezone.now()
         join_request.save(update_fields=["status", "decided_by", "decided_at"])
+        resolve(join_request)
+        notify(
+            join_request.requester,
+            "tns.join_approved",
+            actor=decided_by,
+            subject=join_request,
+            join_request=join_request,
+        )
 
     logger.info(
         "Approved TNS join request id=%s (%s -> %s).",
         join_request.pk,
         join_request.requester.username,
         join_request.tns_group.name,
-    )
-    _notify(
-        join_request.requester,
-        label="TNS group request approved",
-        message=(f"You can now post to TNS through '{join_request.tns_group.name}'."),
-        color="success",
     )
     return membership
 
@@ -495,26 +448,25 @@ def deny_join_request(join_request, decided_by):
     if join_request.status != TNSGroupJoinRequest.STATUS_PENDING:
         raise TNSJoinRequestError("That request has already been decided.")
 
-    join_request.status = TNSGroupJoinRequest.STATUS_DENIED
-    join_request.decided_by = decided_by
-    join_request.decided_at = timezone.now()
-    join_request.save(update_fields=["status", "decided_by", "decided_at"])
+    with transaction.atomic():
+        join_request.status = TNSGroupJoinRequest.STATUS_DENIED
+        join_request.decided_by = decided_by
+        join_request.decided_at = timezone.now()
+        join_request.save(update_fields=["status", "decided_by", "decided_at"])
+        resolve(join_request)
+        notify(
+            join_request.requester,
+            "tns.join_denied",
+            actor=decided_by,
+            subject=join_request,
+            join_request=join_request,
+        )
 
     logger.info(
         "Denied TNS join request id=%s (%s -> %s).",
         join_request.pk,
         join_request.requester.username,
         join_request.tns_group.name,
-    )
-    _notify(
-        join_request.requester,
-        label="TNS group request declined",
-        message=(
-            f"Your request to post through '{join_request.tns_group.name}' "
-            "was not approved."
-        ),
-        # Not grey: this answers something the reader asked for.
-        color="info",
     )
     return join_request
 
@@ -555,14 +507,6 @@ def revoke_membership(membership, revoked_by=None) -> None:
             decided_by=revoked_by,
             decided_at=timezone.now(),
         )
+        notify(user, "tns.membership_revoked", actor=revoked_by, tns_group=group)
 
     logger.info("Revoked TNS posting access for %s in %s.", user.username, group.name)
-    _notify(
-        user,
-        label="TNS group access removed",
-        message=(
-            f"Your access to post to TNS through '{group.name}' has been removed."
-        ),
-        # Heavier than a decline: this takes away access already held.
-        color="warning",
-    )

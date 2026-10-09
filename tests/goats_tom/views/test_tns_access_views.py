@@ -190,6 +190,64 @@ def test_usernames_are_never_shown(client, owner, shared_group):
 
 
 @pytest.mark.django_db
+def test_the_notification_links_to_the_pending_requests_row(client, owner, shared_group):
+    join_request = tm.create_join_request(UserFactory(), shared_group)
+    client.force_login(owner)
+    [notification] = owner.notifications.all()
+
+    path, fragment = notification.url.split("#")
+    response = client.get(path)
+
+    assert f'id="{fragment}"'.encode() in response.content
+    assert fragment == f"join-request-{join_request.pk}"
+    assert b"alert-info" not in response.content
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("decide", "wording"),
+    [
+        (tm.approve_join_request, "was approved on"),
+        (tm.deny_join_request, "was declined on"),
+    ],
+)
+def test_a_decided_request_says_how_it_was_decided(
+    client, owner, shared_group, decide, wording
+):
+    member = UserFactory(first_name="Ada", last_name="Lovelace")
+    join_request = tm.create_join_request(member, shared_group)
+    decide(join_request, decided_by=owner)
+    client.force_login(owner)
+
+    response = client.get(
+        reverse("user-tns-login", kwargs={"pk": owner.pk}),
+        {"request": join_request.pk},
+    )
+
+    text = " ".join(response.content.decode().split())
+    assert f"The request from Ada Lovelace to report under 'Gemini' {wording}" in text
+    assert f'id="join-request-{join_request.pk}"' not in text
+
+
+@pytest.mark.django_db
+def test_another_owners_request_is_not_described(client, owner, shared_group):
+    other = TNSLoginFactory(groups=["Other"]).user
+    TNSGroup.objects.filter(owner=other).update(allow_join_requests=True)
+    theirs = tm.create_join_request(
+        UserFactory(first_name="Grace", last_name="Hopper"),
+        TNSGroup.objects.get(owner=other),
+    )
+    client.force_login(owner)
+
+    response = client.get(
+        reverse("user-tns-login", kwargs={"pk": owner.pk}), {"request": theirs.pk}
+    )
+
+    assert b"This request is no longer available." in response.content
+    assert b"Grace Hopper" not in response.content
+
+
+@pytest.mark.django_db
 def test_superuser_cannot_manage_another_users_sharing(
     client, owner, shared_group
 ):

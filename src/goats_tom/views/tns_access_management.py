@@ -24,10 +24,6 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from goats_tom.emails import (
-    notify_owner_of_tns_join_request,
-    notify_user_of_tns_join_decision,
-)
 from goats_tom.forms import TNSGroupSettingsFormSet, TNSJoinRequestForm
 from goats_tom.models import TNSGroupJoinRequest, TNSGroupMembership
 from goats_tom.templatetags.custom_filters import display_name
@@ -109,7 +105,7 @@ def tns_create_join_request(request: HttpRequest) -> HttpResponse:
         return _back(request)
 
     try:
-        join_request = create_join_request(
+        create_join_request(
             request.user,
             form.cleaned_data["tns_group"],
             message=form.cleaned_data["message"],
@@ -118,9 +114,6 @@ def tns_create_join_request(request: HttpRequest) -> HttpResponse:
         messages.error(request, str(exc))
         return _back(request)
 
-    # On commit, so an owner is never emailed about a request that rolled
-    # back. Reaches an owner who is not signed in, unlike the toast.
-    transaction.on_commit(lambda: notify_owner_of_tns_join_request(join_request))
     messages.success(
         request,
         "Access requested. The group owner will be notified and can approve "
@@ -236,9 +229,6 @@ def tns_decide_join_request(request: HttpRequest, pk: int) -> HttpResponse:
     try:
         if action == "approve":
             approve_join_request(join_request, decided_by=request.user)
-            transaction.on_commit(
-                lambda: notify_user_of_tns_join_decision(join_request)
-            )
             messages.success(
                 request,
                 f"{display_name(join_request.requester)} can now report under "
@@ -246,9 +236,6 @@ def tns_decide_join_request(request: HttpRequest, pk: int) -> HttpResponse:
             )
         elif action == "deny":
             deny_join_request(join_request, decided_by=request.user)
-            transaction.on_commit(
-                lambda: notify_user_of_tns_join_decision(join_request)
-            )
             messages.info(
                 request,
                 f"Declined the request from {display_name(join_request.requester)}.",

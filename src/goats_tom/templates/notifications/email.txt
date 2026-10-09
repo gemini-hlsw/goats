@@ -1,0 +1,15 @@
+{% autoescape off %}{{ notification.title }}
+
+{{ notification.message }}
+{% if notification.detail %}
+{{ notification.detail }}
+{% endif %}{% if action_url %}
+Open it in GOATS:
+{{ action_url }}
+{% endif %}{% if inbox_url %}
+All your notifications:
+{{ inbox_url }}
+{% endif %}
+--
+You receive this because you have a GOATS account.
+{% endautoescape %}

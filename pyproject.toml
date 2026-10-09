@@ -89,7 +89,7 @@ where = ["src"]
 goats = "goats_cli:cli"
 
 [tool.setuptools.package-data]
-"goats_tom.templates" = ["**/*.html"]
+"goats_tom.templates" = ["**/*.html", "**/*.txt"]
 "goats_tom.static" = ["**/*.*"]
 "goats_setup.templates" = ["**/*.tmpl"]
 "goats_cli.goats_template" = ["**/*", "**/.*"]

@@ -1,0 +1,35 @@
+{% load notifications_extras %}
+{% inbox_summary user as inbox %}
+<li class="nav-item dropdown">
+  <a class="nav-link dropdown-toggle px-md-2 py-2 my-auto {% if request.resolver_match.url_name == 'notifications' %}active{% endif %}" href="#" id="navbarNotificationsLink" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Notifications">
+    <span id="notificationIcon" class="nav-icon"><i class="fa-solid fa-bell fa-lg"></i><span id="notificationBadge" class="nav-badge bg-primary {% if not inbox.unread %}d-none{% endif %}">{% if inbox.unread > 9 %}9+{% else %}{{ inbox.unread }}{% endif %}</span></span><span class="d-md-none ms-2">Notifications</span>
+  </a>
+  <div id="notificationPanel" class="dropdown-menu dropdown-menu-end notifications-panel" aria-labelledby="navbarNotificationsLink">
+    <h6 class="dropdown-header text-uppercase fw-bold dropdown-section notifications-head">Notifications</h6>
+    <div class="notifications-tabs" role="tablist" aria-label="Filter notifications">
+      <button type="button" class="notifications-tab active" role="tab" aria-selected="true" data-inbox-filter="unread">Unread <span id="notificationTabCount" class="notifications-count {% if not inbox.unread %}d-none{% endif %}">{% if inbox.unread > 9 %}9+{% else %}{{ inbox.unread }}{% endif %}</span></button>
+      <button type="button" class="notifications-tab" role="tab" aria-selected="false" data-inbox-filter="all">All</button>
+    </div>
+    <div id="notificationList" class="notifications-list" data-filter="unread">
+      {% for notification in inbox.recent %}
+      <div class="notification-row {% if not notification.is_read %}unread{% endif %}" data-notification-id="{{ notification.pk }}">
+        <span class="notification-kind kind-{{ notification.kind|kind_color }}" aria-hidden="true"><i class="fa-solid {{ notification.kind|kind_icon }}"></i></span>
+        <div class="notification-body">
+          <div class="notification-top">
+            <a class="notification-title stretched-link" href="{% url 'notification-open' notification.pk %}">{{ notification.title }}</a>
+            <time class="notification-time" datetime="{{ notification.created_at|date:'c' }}" title="{{ notification.created_at }}">{{ notification.created_at|short_time }}</time>
+          </div>
+          <p class="notification-message">{{ notification.message }}</p>
+        </div>
+        <span class="notification-dot"><span class="visually-hidden">Unread</span></span>
+      </div>
+      {% endfor %}
+    </div>
+    <div id="notificationEmpty" class="notifications-empty {% if inbox.has_unread %}d-none{% endif %}">
+      <i class="fa-solid fa-bell notifications-empty-icon" aria-hidden="true"></i>
+      <strong data-empty-title>You're all caught up</strong>
+      <span>New requests and decisions will show up here.</span>
+    </div>
+    <a class="dropdown-item notifications-foot" href="{% url 'notifications' %}">View all notifications</a>
+  </div>
+</li>
