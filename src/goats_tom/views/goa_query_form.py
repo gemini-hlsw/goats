@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.views.generic import View
 from tom_observations.models import ObservationRecord
 
-from goats_tom.astroquery import Observations as GOA
+from goats_tom.astroquery import goa_session
 from goats_tom.credentials import MissingCredentialsError, require_credentials
 from goats_tom.forms import GOAQueryForm
 from goats_tom.models import GOALogin
@@ -44,10 +44,10 @@ class GOAQueryFormView(View):
             try:
                 goa_credentials = require_credentials(GOALogin, user=request.user)
                 # Login to GOA.
-                GOA.login(goa_credentials.username, goa_credentials.password)
-                if not GOA.authenticated():
-                    raise PermissionError
-                GOA.logout()
+                with goa_session() as goa:
+                    goa.login(goa_credentials.username, goa_credentials.password)
+                    if not goa.authenticated():
+                        raise PermissionError
 
             except MissingCredentialsError:
                 messages.warning(

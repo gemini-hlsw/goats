@@ -25,7 +25,7 @@ from django.conf import settings
 from gpp_client import GPPClient
 
 from goats_tom.astro_data_lab import AstroDataLabClient
-from goats_tom.astroquery import ObservationsClass
+from goats_tom.astroquery import goa_session
 
 logger = logging.getLogger(__name__)
 
@@ -211,9 +211,7 @@ def check_goa(username: str, password: str) -> CheckResult:
     `CheckResult`
         The outcome.
     """
-    # A private session: the shared `Observations` one may be in use elsewhere.
-    goa = ObservationsClass()
-    try:
+    with goa_session() as goa:
         goa.login(username, password)
         if not goa.authenticated():
             if goa.login_rejected is True:
@@ -224,10 +222,7 @@ def check_goa(username: str, password: str) -> CheckResult:
                 "GOA rejected the credentials.",
                 lambda: check_reachable(server, "GOA"),
             )
-        goa.logout()
         return CheckResult(True, "GOA accepted the credentials.")
-    finally:
-        goa._session.close()
 
 
 def check_astro_datalab(username: str, password: str) -> CheckResult:

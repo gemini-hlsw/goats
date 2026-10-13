@@ -102,7 +102,7 @@ class TestGOAArchiveRedirectView(TestCase):
             fetch_redirect_response=False,
         )
 
-    @patch("goats_tom.views.goa_archive_redirect.GOA")
+    @patch("goats_tom.astroquery.session.ObservationsClass")
     @patch("goats_tom.views.goa_archive_redirect.requests.head")
     @patch("goats_tom.views.goa_archive_redirect.get_object_or_404")
     def test_403_with_valid_credentials_renders_login_template(
@@ -111,7 +111,7 @@ class TestGOAArchiveRedirectView(TestCase):
         """When archive returns 403 and credentials are valid, renders auto-submit template."""
         mock_get.return_value = self._mock_record()
         mock_head.return_value.status_code = 403
-        mock_goa.authenticated.return_value = True
+        mock_goa.return_value.authenticated.return_value = True
         GOALoginFactory.create(user=self.user, username="goauser", password="goapass")
 
         response = self.client.get(self.url)
@@ -121,7 +121,7 @@ class TestGOAArchiveRedirectView(TestCase):
         self.assertEqual(response["Cache-Control"], "no-store")
         self.assertContains(response, "goauser")
 
-    @patch("goats_tom.views.goa_archive_redirect.GOA")
+    @patch("goats_tom.astroquery.session.ObservationsClass")
     @patch("goats_tom.views.goa_archive_redirect.requests.head")
     @patch("goats_tom.views.goa_archive_redirect.get_object_or_404")
     def test_403_with_invalid_credentials_redirects_to_goats_login(
@@ -130,7 +130,7 @@ class TestGOAArchiveRedirectView(TestCase):
         """When archive returns 403 and credentials are invalid, redirects to GOATS GOA login."""
         mock_get.return_value = self._mock_record()
         mock_head.return_value.status_code = 403
-        mock_goa.authenticated.return_value = False
+        mock_goa.return_value.authenticated.return_value = False
         GOALoginFactory.create(user=self.user, username="goauser", password="badpass")
 
         response = self.client.get(self.url)
