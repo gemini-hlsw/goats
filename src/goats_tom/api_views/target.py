@@ -69,9 +69,9 @@ class TargetViewSet(BaseTargetViewSet):
             coordinates = SkyCoord(ra=target.ra * u.deg, dec=target.dec * u.deg)
             try:
                 table = goa.query_raw("science", coordinates=coordinates, radius=radius)
-            except Exception as e:
+            except Exception:
                 return Response(
-                    {"detail": f"Error during GOA query: {str(e)}"},
+                    {"detail": "Error during GOA query."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
