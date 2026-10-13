@@ -8,6 +8,7 @@ import ast
 import logging
 import os
 import sys
+import threading
 import time
 import types
 import uuid
@@ -26,6 +27,9 @@ from goats_tom.models import DRAGONSFile, DRAGONSReduce
 from goats_tom.realtime import DRAGONSProgress, NotificationInstance
 
 matplotlib.use("Agg", force=True)
+
+_reduce_lock = threading.Lock()
+"""One reduction per process: DRAGONS works in the cwd and the root logger."""
 
 
 def _safe_literal(value: str, label: str, expected_type: type | None = None) -> Any:
@@ -77,6 +81,22 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
     DoesNotExist
         Raised if the DRAGONSReduce instance does not exist.
     """
+    with _reduce_lock:
+        _run_dragons_reduce(reduce_id, file_ids)
+
+
+def _run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
+    """Run the reduction; the caller must hold `_reduce_lock`.
+
+    Parameters
+    ----------
+    reduce_id : int
+        The ID of the DRAGONSReduce instance to be processed.
+    file_ids : list[int]
+        A list of file IDs to limit to. If empty, use all files.
+    """
+    original_cwd = os.getcwd()
+    added_handlers: list[logging.Handler] = []
     try:
         logger = logging.getLogger(__name__)
         user_id = get_current_user_id()
@@ -133,12 +153,20 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
         )
         file_paths = [file.file_path for file in files]
 
-        # Setup the logger.
+        # Setup the logger, keeping the worker's own handlers in place.
+        root_logger = logging.getLogger()
+        existing_handlers = list(root_logger.handlers)
         logutils.config(
             mode="standard",
             file_name=run.log_filename,
             additional_handlers=dragons_handler,
+            keep_handlers=True,
         )
+        added_handlers = [h for h in root_logger.handlers if h not in existing_handlers]
+        # Other tasks share this process; keep their records out of this run.
+        thread_id = threading.get_ident()
+        for handler in added_handlers:
+            handler.addFilter(lambda record: record.thread == thread_id)
 
         r = Reduce()
 
@@ -247,12 +275,13 @@ def run_dragons_reduce(reduce_id: int, file_ids: list[int]) -> None:
         )
         raise
     finally:
-        # Remove handler so it can’t emit more log records.
+        # Remove this run's handlers so they can’t emit more log records.
         # This would cause coroutines to be unawaited.
-        logger = logging.getLogger()
-        for h in logger.handlers[:]:
-            if isinstance(h, DRAGONSHandler):
-                logger.removeHandler(h)
+        root_logger = logging.getLogger()
+        for handler in added_handlers:
+            root_logger.removeHandler(handler)
+            handler.close()
+        os.chdir(original_cwd)
         # Cleanup dynamically created module.
         if module_name in sys.modules:
             del sys.modules[module_name]
