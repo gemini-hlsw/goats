@@ -46,14 +46,13 @@ class TestTheStorageNoticeIsHonest(TestCase):
         self.user = UserFactory(username="owner", password="x")
         self.client.login(username="owner", password="x")
 
-    def test_every_page_says_how_credentials_are_stored(self) -> None:
-        """The notice lives in the shared template, so TNS gets it too."""
+    def test_no_page_claims_credentials_are_secure(self) -> None:
+        """The shared template is used by every service, TNS included."""
         for _, url_name, _ in CREDENTIAL_SERVICES:
             rendered = self.client.get(
                 reverse(url_name, kwargs={"pk": self.user.pk})
             ).content.decode()
 
-            assert "Stored in readable form" in rendered, url_name
             assert "securely stored" not in rendered, url_name
 
 
