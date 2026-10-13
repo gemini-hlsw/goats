@@ -758,7 +758,10 @@ class ObservationsClass(QueryWithLogin):
         url = self.url_helper.get_tar_file_url(*query_args, **query_kwargs)
         logger.debug("GOA download URL: %s", url)
 
-        response = self._session.get(url, stream=True)
+        # The read timeout bounds each stall between chunks, not the whole download.
+        response = self._session.get(
+            url, stream=True, timeout=(conf.GOA_TIMEOUT, conf.GOA_READ_TIMEOUT)
+        )
         response.raise_for_status()
 
         # Check if data is good.
