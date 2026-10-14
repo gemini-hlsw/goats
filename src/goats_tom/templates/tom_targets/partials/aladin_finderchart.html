@@ -1,0 +1,222 @@
+<div class="card mt-3 overflow-hidden">
+  <div class="card-header px-2">
+    <h4 class="mb-0">Survey View</h4>
+  </div>
+  <div id="aladin-lite-div" style="width:100%;aspect-ratio:4 / 3;">
+    <div id="aladin-status" class="d-flex h-100 justify-content-center align-items-center text-body-secondary">
+      <div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>
+    </div>
+  </div>
+</div>
+<form id="chart-form" class="mt-3 d-flex flex-column gap-2">
+  <div class="input-group">
+    <label class="input-group-text bg-transparent" for="fov" style="font-family: inherit; min-width: 6.5rem;">Field of view</label>
+    <input type="number" class="form-control" id="fov" min="0" value="10">
+    <select id="fov-units-select" class="form-select flex-grow-0 w-auto" aria-label="Field of view units">
+      <option>arcsec</option>
+      <option selected>arcmin</option>
+      <option>deg</option>
+    </select>
+  </div>
+  <div class="input-group">
+    <label class="input-group-text bg-transparent" for="scale-bar-size" style="font-family: inherit; min-width: 6.5rem;">Scale bar</label>
+    <input type="number" class="form-control" id="scale-bar-size" min="0" value="1">
+    <select id="scale-bar-units-select" class="form-select flex-grow-0 w-auto" aria-label="Scale bar units">
+      <option>arcsec</option>
+      <option selected>arcmin</option>
+      <option>deg</option>
+    </select>
+  </div>
+  <div class="d-flex gap-2 mt-2">
+    <button type="button" class="btn btn-primary" onclick="updateFromForm({{ target.ra }}, {{ target.dec }})">Update</button>
+    <a class="btn btn-primary" id="download-chart" href="#" onclick="downloadImage(event)">Save Image</a>
+  </div>
+</form>
+{% comment %}
+  Aladin Lite v3 instead of the v2 shipped by TOM Toolkit: v2 assigns a global
+  `Utils`, which GOATS' utils.js shadows, so v2 breaks on the target page.
+{% endcomment %}
+<script type="text/javascript" src="https://aladin.cds.unistra.fr/AladinLite/api/v3/3.8.2/aladin.js" charset="utf-8" defer></script>
+<script type="text/javascript">
+
+  let aladin;
+  // aladin.js is deferred so its download does not block the rest of the page.
+  document.addEventListener('DOMContentLoaded', () => {
+    const status = document.getElementById('aladin-status');
+    // A is missing when the CDN cannot be reached, and A.init rejects without WebGL2.
+    (window.A ? A.init : Promise.reject()).then(() => {
+      aladin = A.aladin('#aladin-lite-div', {
+        survey: "P/DSS2/color",
+        fov: getFovAsDegreesFromForm(),
+        showReticle: false,
+        target: "{{ target.ra }} {{ target.dec }}",
+        showGotoControl: false,
+        showZoomControl: false,
+        // The FOV field follows the zoom instead, as this readout covers the scale bar.
+        showFov: false,
+        showProjectionControl: false
+      });
+      status.remove();
+
+      aladin.on('positionChanged', function() {
+        annotateChart({{ target.ra }}, {{ target.dec }});
+      });
+
+      aladin.on('zoomChanged', function() {
+        syncFovToForm();
+        annotateChart({{ target.ra }}, {{ target.dec }});
+      });
+
+      // The view follows the column width, so the corner annotations move with it.
+      aladin.on('resizeChanged', function() {
+        annotateChart({{ target.ra }}, {{ target.dec }});
+      });
+    }).catch(() => {
+      status.textContent = 'Survey view unavailable';
+    });
+  });
+
+    function getScaleBarFromForm() {
+      let size = Number(document.getElementById('scale-bar-size').value);
+      if (size < 0) {
+        size = 0;
+      }
+      const units = document.getElementById('scale-bar-units-select').value;
+      const label = String(size) + ' ' + units;
+      const sizeAsDegrees = toDegrees(size, units);
+      return {size: size, units: units, label: label, sizeAsDegrees: sizeAsDegrees};
+    }
+
+    function getFovAsDegreesFromForm() {
+      const fov = Number(document.getElementById('fov').value);
+      const units = document.getElementById('fov-units-select').value;
+      let fovAsDegrees;
+      if (fov >= 0) {
+        fovAsDegrees = toDegrees(fov, units);
+      }
+      return fovAsDegrees;
+    }
+
+    function toDegrees(value, units) {
+      if (units === 'arcmin') {
+        return value / 60;
+      } else if (units === 'arcsec') {
+        return value / 3600;
+      } else {
+        return value;
+      }
+    }
+
+    function fromDegrees(value, units) {
+      if (units === 'arcmin') {
+        return value * 60;
+      } else if (units === 'arcsec') {
+        return value * 3600;
+      } else {
+        return value;
+      }
+    }
+
+    function syncFovToForm() {
+      const units = document.getElementById('fov-units-select').value;
+      // Four significant digits keep small FOVs in degrees from drifting on the next Update.
+      document.getElementById('fov').value = Number(fromDegrees(aladin.getFov()[0], units).toPrecision(4));
+    }
+
+    function annotateChart(targetRa, targetDec) {
+      const fovDegrees = aladin.getFov()[0];
+      const scaleBar = getScaleBarFromForm();
+      // Pixel position (0,0) is the top left corner of the view
+      const viewSizePix = aladin.getSize();
+      const offsetPixFromEdge = 30;
+      const scaleBarStartPix = [offsetPixFromEdge, viewSizePix[1] - offsetPixFromEdge]; // Bottom left corner
+      const compassCenterPix = [viewSizePix[0] - offsetPixFromEdge, viewSizePix[1] - offsetPixFromEdge]; // Bottom right corner
+      // Compass position
+      const cosDec = Math.cos(targetDec * Math.PI / 180);
+      const compassArmLength = fovDegrees / 10;
+      const compassCenter = aladin.pix2world(compassCenterPix[0], compassCenterPix[1]);
+      const compassNorthArm = [compassCenter[0], compassCenter[1] + compassArmLength];
+      const compassNorthArmPix = aladin.world2pix(compassNorthArm[0], compassNorthArm[1]);
+      const compassEastArm = [compassCenter[0] + compassArmLength / cosDec, compassCenter[1]];
+      const compassEastArmPix = aladin.world2pix(compassEastArm[0], compassEastArm[1]);
+      // Scale bar position
+      const scaleBarStart = aladin.pix2world(scaleBarStartPix[0], scaleBarStartPix[1]);
+      const scaleBarEnd = [scaleBarStart[0] - scaleBar.sizeAsDegrees / cosDec, scaleBarStart[1]];
+      const scaleBarEndPix = aladin.world2pix(scaleBarEnd[0], scaleBarEnd[1]);
+      const scaleBarLength = Math.abs(scaleBarEndPix[0] - scaleBarStartPix[0]);
+      // Re-draw the annotations on the chart
+      const color = '#f72525';
+      const scaleBarTextSpacing = 7;
+      const compassTextSpacing = 3;
+      aladin.removeLayers();
+      let layer = A.graphicOverlay({name: 'chart annotations', color: color, lineWidth: 2});
+      aladin.addOverlay(layer);
+      layer.add(A.polyline([compassNorthArm, compassCenter, compassEastArm]));
+      layer.add(A.polyline([scaleBarStart, scaleBarEnd]));
+      layer.add(A.circle(targetRa, targetDec, fovDegrees / 30));
+      layer.add(new Text(scaleBarStartPix[0] + scaleBarLength / 2, scaleBarStartPix[1] - scaleBarTextSpacing, scaleBar.label, {color: color}));
+      layer.add(new Text(compassNorthArmPix[0], compassNorthArmPix[1] - compassTextSpacing, 'N', {color: color}));
+      layer.add(new Text(compassEastArmPix[0] - compassTextSpacing, compassEastArmPix[1], 'E', {color: color, align: 'end', baseline: 'middle'}));
+    }
+
+    async function downloadImage(event) {
+      // v3 renders the snapshot asynchronously, so it is saved through a link built once it is ready.
+      event.preventDefault();
+      if (!aladin) return;
+      const link = document.createElement('a');
+      // v3 stamps its logo on the bottom-right corner, over the compass.
+      link.href = await aladin.getViewDataURL({logo: false});
+      link.download = 'chart.png';
+      link.click();
+    }
+
+    function updateFromForm(ra, dec) {
+      const fov = getFovAsDegreesFromForm();
+      if (aladin && fov !== undefined) {
+        aladin.setFov(fov);
+        annotateChart(ra, dec);
+      }
+    }
+
+    Text = (function() {
+      // The AladinLite API does not provide a way to draw arbitrary text at an arbitrary location in an overlay layer.
+      // This implements the methods necessary to do so when provided as an input to layer.add(). This approach was
+      // preferable to the others (possibilities included directly getting and drawing on the actual canvas element that the
+      // other overlay elements are drawn on, or creating another canvas element and placing it directly on top of
+      // the others) as the text that is drawn will then be integrated with the draw/destroy/redraw loops within aladin,
+      // and the text will show up in the generated data url that is used for saving an image without having to do anything extra.
+
+      Text = function(x, y, text, options) {
+        options = options || {};
+        this.x = x || undefined;
+        this.y = y || undefined;
+        this.text = text || '';
+        this.color = options['color'] || undefined;
+        this.align = options['align'] || 'center';
+        this.baseline = options['baseline'] || 'alphabetic';
+        this.overlay = null;
+      };
+
+      Text.prototype.setOverlay = function(overlay) {
+        this.overlay = overlay;
+      };
+
+      Text.prototype.draw = function(ctx) {
+        ctx.fillStyle = this.color;
+        ctx.font = '15px Arial';
+        ctx.textAlign = this.align;
+        ctx.textBaseline = this.baseline;
+        ctx.fillText(this.text, this.x, this.y);
+      };
+
+      // v3 calls these on every overlay item when hit-testing the mouse and toggling the layer.
+      Text.prototype.getLineWidth = function() {
+        return 0;
+      };
+      Text.prototype.setLineWidth = function() {};
+      Text.prototype.show = function() {};
+      Text.prototype.hide = function() {};
+
+      return Text;
+    })();
+</script>

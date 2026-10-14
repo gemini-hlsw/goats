@@ -1,0 +1,1 @@
+Fixed Survey view broken by a conflict with Aladin v2; migrated to Aladin v3 to resolve the issue
