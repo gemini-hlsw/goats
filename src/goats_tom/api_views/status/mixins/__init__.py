@@ -7,7 +7,6 @@ from .lco import LCOStatusMixin
 from .public import (
     ALeRCEPublicStatusMixin,
     ANTARESPublicStatusMixin,
-    GaiaPublicStatusMixin,
     HorizonsPublicStatusMixin,
     NEDPublicStatusMixin,
     ScoutPublicStatusMixin,
@@ -24,7 +23,6 @@ __all__ = [
     "TNSStatusMixin",
     "ALeRCEPublicStatusMixin",
     "ANTARESPublicStatusMixin",
-    "GaiaPublicStatusMixin",
     "HorizonsPublicStatusMixin",
     "NEDPublicStatusMixin",
     "ScoutPublicStatusMixin",
