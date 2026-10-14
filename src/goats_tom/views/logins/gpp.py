@@ -12,8 +12,8 @@ from .base import BaseLoginView
 class GPPLoginView(BaseLoginView):
     service_name = "GPP"
     service_description = (
-        "Provide your GPP token to enable communication with GPP, allowing a user to "
-        "trigger ToOs and modify observations."
+        "Provide your GPP token from your Gemini Explore account. "
+        "This is required for triggering ToOs at Gemini and modifying observations"
     )
     model_class = GPPLogin
     form_class = GPPLoginForm

@@ -14,7 +14,7 @@ class LCOLoginView(BaseLoginView):
     service_description = (
         "Provide your API key from your "
         '<a href="https://observe.lco.global" target="_blank">LCO portal account</a>. '
-        "This is required to be able to trigger LCO or SOAR."
+        "This is required to be able to trigger LCO, SOAR or Blanco."
     )
     model_class = LCOLogin
     form_class = LCOLoginForm

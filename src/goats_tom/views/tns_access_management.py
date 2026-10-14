@@ -182,7 +182,11 @@ def tns_group_settings(request: HttpRequest) -> HttpResponse:
 
     with transaction.atomic():
         groups = formset.save(commit=False)
-        removed = len(formset.deleted_objects)
+        # Read before deleting: the cascade takes the memberships with it.
+        removed = [f"'{group.name}'" for group in formset.deleted_objects]
+        lost_access = sum(
+            group.memberships.count() for group in formset.deleted_objects
+        )
         for group in formset.deleted_objects:
             group.delete()
         for group in groups:
@@ -192,11 +196,17 @@ def tns_group_settings(request: HttpRequest) -> HttpResponse:
             group.save()
 
     if removed:
-        messages.success(
-            request,
-            f"Updated your TNS groups. Removed {removed}, "
-            "along with any access granted to them.",
+        names = " and ".join(
+            [", ".join(removed[:-1]), removed[-1]] if len(removed) > 1 else removed
         )
+        message = f"Removed the TNS group{'s' if len(removed) > 1 else ''} {names}."
+        if lost_access:
+            message += (
+                f" {lost_access} user{'s' if lost_access > 1 else ''} you had "
+                "approved can no longer report under "
+                f"{'them' if len(removed) > 1 else 'it'}."
+            )
+        messages.success(request, message)
     else:
         messages.success(request, "Updated your TNS groups.")
 

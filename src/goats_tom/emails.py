@@ -24,6 +24,8 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.urls import reverse
 
+from goats_tom.user_names import display_name, full_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -116,9 +118,8 @@ def notify_owner_of_tns_join_request(join_request) -> None:
     owner = group.owner
 
     body = (
-        f"{requester.get_full_name() or requester.username} has asked to "
+        f"{display_name(requester)} has asked to "
         f"post to the TNS through your group '{group.name}'.\n\n"
-        f"Username: {requester.username}\n"
         f"Email:    {requester.email}\n\n"
         "If you approve, reports and classifications they submit for this "
         "group will be sent to the TNS using your bot credentials, and the "
@@ -136,7 +137,7 @@ def notify_owner_of_tns_join_request(join_request) -> None:
         recipients = [owner.email, *recipients]
 
     _send(
-        subject=f"{requester.username} asked to post via your TNS group",
+        subject=f"{display_name(requester)} asked to post via your TNS group",
         body=body,
         recipients=recipients,
         context=f"TNS join request from {requester.username}",
@@ -160,12 +161,14 @@ def notify_user_of_tns_join_decision(join_request) -> None:
     group = join_request.tns_group
 
     if join_request.status == join_request.STATUS_APPROVED:
+        owner_name = full_name(group.owner)
+        owner = f"{owner_name}'s" if owner_name != "—" else "the group owner's"
         subject = f"You can now post to the TNS via {group.name}"
         body = (
             f"Your request to post to the TNS through the group "
             f"'{group.name}' was approved.\n\n"
             f"Submissions you make for this group use "
-            f"{group.owner.username}'s bot credentials and are attributed "
+            f"{owner} bot credentials and are attributed "
             "to that bot by the TNS. Check the author list on the form "
             "before submitting.\n\n"
             f"Open your targets here:\n{_site_url(reverse('targets:list'))}\n"
