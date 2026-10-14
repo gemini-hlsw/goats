@@ -86,9 +86,14 @@ class TNSLoginView(BaseLoginView):
         groups = owned_groups(user).annotate(member_count=Count("memberships"))
         context["owned_groups"] = groups
         # One formset, so the whole table saves with one button.
-        context["group_settings"] = (
-            TNSGroupSettingsFormSet(queryset=groups) if is_own_page else None
-        )
+        group_settings = None
+        if is_own_page:
+            group_settings = TNSGroupSettingsFormSet(queryset=groups)
+            # A blank row when there are no groups yet, so the empty table
+            # shows what adding one looks like.
+            if not groups.exists():
+                group_settings.extra = 1
+        context["group_settings"] = group_settings
 
         if not is_own_page:
             return context

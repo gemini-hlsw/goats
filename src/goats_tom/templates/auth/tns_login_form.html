@@ -11,15 +11,24 @@ settings pages.
 {% block credentials_main %}
 {% if is_own_page and has_credentials or owned_groups %}
 <div class="mt-5">
-  <p class="h3">Your TNS groups</p>
-  <p class="text-muted">
-    Add the groups your TNS bot may file under, spelled as they are on TNS.
-    Toggle the “Open” option to let other GOATS users request to report under
-    it, which you can approve. Note that an approved user's reports go out
-    under your bot's name. Recommended co-authors are automatically added to
-    the author list of reports filed through that group, and can still be
-    edited before sending.
+  <p class="h3">
+    Your TNS groups
+    <a
+      class="link-primary ms-1 fs-6 align-middle"
+      type="button"
+      tabindex="0"
+      id="tns-groups-info"
+      data-bs-toggle="popover"
+      data-bs-placement="right"
+      data-bs-trigger="focus"
+      data-bs-title="Your TNS groups"
+      data-bs-content="Add the groups your TNS bot may file under, spelled as they are on TNS. Toggle the “Open” option to let other GOATS users request to report under it, which you can approve. Note that an approved user's reports go out under your bot's name. Recommended co-authors are automatically added to the author list of reports filed through that group, and can still be edited before sending."
+      ><i class="fa-solid fa-circle-info"></i
+    ></a>
   </p>
+  <script>
+    new bootstrap.Popover(document.getElementById("tns-groups-info"));
+  </script>
   {% if is_own_page %}
   <form method="post" action="{% url 'tns-group-settings' %}">
     {% csrf_token %}
@@ -277,7 +286,7 @@ settings pages.
       <tr>
         <td>{{ row.group.name }}</td>
         <td class="text-nowrap">
-          {{ row.group.owner|display_name }}
+          {{ row.group.owner|full_name }}
         </td>
         <td class="text-nowrap">
           {% if row.membership %}

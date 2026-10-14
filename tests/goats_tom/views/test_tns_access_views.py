@@ -11,6 +11,7 @@ they could ask to join rather than told to go and register a bot.
 import re
 
 import pytest
+from django.contrib.messages import get_messages
 from django.test import override_settings
 from django.urls import reverse
 from guardian.shortcuts import assign_perm
@@ -97,6 +98,41 @@ def test_credential_page_offers_only_shared_groups(client, owner, shared_group):
     assert response.status_code == 200
     assert b"Gemini" in response.content
     assert b"Private" not in response.content
+
+
+@pytest.mark.django_db
+def test_the_group_owner_is_named_never_by_username(client, owner, shared_group):
+    """Every user can see open groups, so their owner is named, not identified."""
+    owner.first_name, owner.last_name = "Ada", "Lovelace"
+    owner.save()
+    member = UserFactory()
+    client.force_login(member)
+
+    content = client.get(
+        reverse("user-tns-login", kwargs={"pk": member.pk})
+    ).content.decode()
+
+    assert "Gemini (owner: Ada Lovelace)" in content
+    assert owner.username not in content
+    assert "The group you want to report or classify under." not in content
+
+
+@pytest.mark.django_db
+def test_an_owner_without_a_name_is_shown_as_a_dash(client, owner, shared_group):
+    """No fallback to the username or email for an unnamed owner."""
+    owner.first_name, owner.last_name = "", ""
+    owner.email = "owner@noirlab.edu"
+    owner.save()
+    member = UserFactory()
+    client.force_login(member)
+
+    content = client.get(
+        reverse("user-tns-login", kwargs={"pk": member.pk})
+    ).content.decode()
+
+    assert "Gemini (owner: —)" in content
+    assert owner.username not in content
+    assert owner.email not in content
 
 
 @pytest.mark.django_db
@@ -553,6 +589,23 @@ def test_existing_login_groups_appear_on_credentials_page(client) -> None:
 
 
 @pytest.mark.django_db
+def test_a_blank_row_is_shown_only_when_there_are_no_groups(client, owner) -> None:
+    login = TNSLoginFactory(groups=[])
+    client.force_login(login.user)
+
+    response = client.get(reverse("user-tns-login", kwargs={"pk": login.user.pk}))
+
+    forms = response.context["group_settings"].forms
+    assert len(forms) == 1
+    assert forms[0].instance.pk is None
+
+    client.force_login(owner)
+    response = client.get(reverse("user-tns-login", kwargs={"pk": owner.pk}))
+
+    assert all(form.instance.pk for form in response.context["group_settings"])
+
+
+@pytest.mark.django_db
 def test_one_save_updates_every_group(client, owner, shared_group, private_group):
     """The settings table posts once for all of a user's groups.
 
@@ -787,6 +840,27 @@ def test_removing_a_group_revokes_the_access_it_granted(
 
     assert not TNSGroup.objects.filter(pk=shared_group.pk).exists()
     assert not TNSGroupMembership.objects.filter(user=member).exists()
+
+
+@pytest.mark.django_db
+def test_removing_a_group_names_it_in_the_confirmation(
+    client, owner, shared_group, private_group
+):
+    member = UserFactory()
+    tm.approve_join_request(
+        tm.create_join_request(member, shared_group), decided_by=owner
+    )
+    client.force_login(owner)
+
+    data = settings_payload((shared_group, True, ""), (private_group, False, ""))
+    data["form-0-DELETE"] = "on"
+    response = client.post(reverse("tns-group-settings"), data)
+
+    told = [str(m) for m in get_messages(response.wsgi_request)]
+    assert told == [
+        "Removed the TNS group 'Gemini'. 1 user you had approved can no "
+        "longer report under it."
+    ]
 
 
 @pytest.mark.django_db

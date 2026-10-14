@@ -11,6 +11,7 @@ from django.forms import modelformset_factory
 
 from goats_tom.models import TNSGroup
 from goats_tom.tns_membership import requestable_groups
+from goats_tom.user_names import full_name
 
 
 class TNSJoinRequestForm(forms.Form):
@@ -35,7 +36,6 @@ class TNSJoinRequestForm(forms.Form):
         queryset=TNSGroup.objects.none(),
         label="TNS group open to new members",
         empty_label="Select a group",
-        help_text="The group you want to report or classify under.",
     )
     message = forms.CharField(
         label="Message to the owner (optional)",
@@ -63,7 +63,7 @@ class TNSJoinRequestForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["tns_group"].queryset = requestable_groups(user)
         self.fields["tns_group"].label_from_instance = lambda group: (
-            f"{group.name} (owner: {group.owner.username})"
+            f"{group.name} (owner: {full_name(group.owner)})"
         )
 
 

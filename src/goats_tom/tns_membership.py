@@ -37,6 +37,7 @@ from goats_tom.models import (
     TNSGroupMembership,
 )
 from goats_tom.realtime import NotificationInstance
+from goats_tom.user_names import display_name
 
 logger = logging.getLogger(__name__)
 
@@ -399,7 +400,7 @@ def create_join_request(requester, tns_group, message: str = ""):
         tns_group.owner,
         label="TNS group request",
         message=(
-            f"{requester.username} has asked to report under your TNS group "
+            f"{display_name(requester)} has asked to report under your TNS group "
             f"'{tns_group.name}'."
         ),
         color="warning",
