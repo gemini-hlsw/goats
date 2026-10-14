@@ -17,7 +17,7 @@ GOATS runs on the web-browser locally, i.e., on your ``localhost`` (IP address `
 
 The various buttons on the top navigation bar are described below.
 
-1. The **Brokers** button can be used to access one of the brokers: ANTARES, ALeRCE, Gaia, or Scout to select time-domain targets, as well as queries for these brokers saved by the user. 
+1. The **Brokers** button can be used to access one of the brokers: ANTARES, ALeRCE, or Scout to select time-domain targets, as well as queries for these brokers saved by the user. 
 
 2. The **Targets** button can be used to navigate to the list of saved targets, including target groupings applied by the user. 
 

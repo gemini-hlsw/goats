@@ -299,7 +299,6 @@ TOM_FACILITY_CLASSES = [
 TOM_ALERT_CLASSES = [
     "goats_tom.brokers.ANTARESBroker",
     "tom_alerts.brokers.alerce.ALeRCEBroker",
-    "tom_alerts.brokers.gaia.GaiaBroker",
     "tom_alerts.brokers.scout.ScoutBroker",
 ]
 

@@ -5,7 +5,6 @@ from goats_tom.api_views.status.mixins.base import status_mixins
 from goats_tom.api_views.status.mixins.public import (
     ALeRCEPublicStatusMixin,
     ANTARESPublicStatusMixin,
-    GaiaPublicStatusMixin,
     HorizonsPublicStatusMixin,
     NEDPublicStatusMixin,
     ScoutPublicStatusMixin,
@@ -50,7 +49,6 @@ def test_antares_is_listed_as_public():
     ("mixin_cls", "url"),
     [
         (ALeRCEPublicStatusMixin, "https://api.alerce.online/ztf/v1"),
-        (GaiaPublicStatusMixin, "http://gsaweb.ast.cam.ac.uk/alerts/alertsindex"),
         (HorizonsPublicStatusMixin, "https://ssd.jpl.nasa.gov/api/horizons.api"),
         (ScoutPublicStatusMixin, "https://ssd-api.jpl.nasa.gov/scout.api"),
         (NEDPublicStatusMixin, "https://ned.ipac.caltech.edu/"),

@@ -5,7 +5,6 @@ Status views for services checked without signing in.
 __all__ = [
     "ALeRCEPublicStatusMixin",
     "ANTARESPublicStatusMixin",
-    "GaiaPublicStatusMixin",
     "HorizonsPublicStatusMixin",
     "NEDPublicStatusMixin",
     "PublicStatusMixin",
@@ -19,7 +18,7 @@ from astroquery.ipac.ned import conf as ned_conf
 from astroquery.jplhorizons import conf as horizons_conf
 from astroquery.simbad import conf as simbad_conf
 from rest_framework.request import Request
-from tom_alerts.brokers import alerce, gaia, scout
+from tom_alerts.brokers import alerce, scout
 
 from goats_tom.antares_client.config import ANTARESConfig
 from goats_tom.service_checks import CheckResult
@@ -92,15 +91,6 @@ class ANTARESPublicStatusMixin(PublicStatusMixin):
             The URL to request; the API's root answers 404.
         """
         return f"{urljoin(ANTARESConfig.get_api_url(), 'loci')}?page[limit]=1"
-
-
-@register_status("gaia", "Gaia Alerts", url=f"{gaia.BASE_BROKER_URL}/alerts/")
-class GaiaPublicStatusMixin(PublicStatusMixin):
-    service_name = "Gaia Alerts"
-
-    def get_public_url(self) -> str:
-        # The index the broker reads; the site's root answers 403.
-        return f"{gaia.BASE_BROKER_URL}/alerts/alertsindex"
 
 
 @register_status("horizons", "JPL Horizons", url="https://ssd.jpl.nasa.gov/horizons/")
