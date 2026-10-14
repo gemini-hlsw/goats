@@ -1,0 +1,1 @@
+Added a read timeout to GOA downloads to prevent requests from hanging indefinitely
