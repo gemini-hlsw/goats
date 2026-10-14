@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.views import View
 from tom_observations.models import ObservationRecord
 
-from goats_tom.astroquery import Observations as GOA
+from goats_tom.astroquery import goa_session
 from goats_tom.astroquery.conf import conf as goa_conf
 from goats_tom.credentials import get_credentials
 from goats_tom.models import GOALogin
@@ -49,14 +49,14 @@ class GOAArchiveRedirectView(View):
                 return redirect(goa_login_url)
 
             # Validate credentials are still valid before exposing them.
-            GOA.login(credentials.username, credentials.password)
-            if not GOA.authenticated():
-                GOA.logout()
+            with goa_session() as goa:
+                goa.login(credentials.username, credentials.password)
+                valid = goa.authenticated()
+            if not valid:
                 messages.warning(
                     request, "Your GOA credentials are invalid. Please update them."
                 )
                 return redirect(goa_login_url)
-            GOA.logout()
 
             http_response = render(
                 request,

@@ -17,7 +17,7 @@ from requests.exceptions import HTTPError
 from tom_dataproducts.models import DataProduct
 from tom_observations.models import ObservationRecord
 
-from goats_tom.astroquery import Observations as GOA
+from goats_tom.astroquery import ObservationsClass, goa_session
 from goats_tom.credentials import MissingCredentialsError, require_credentials
 from goats_tom.models import DataProductMetadata, Download, GOALogin
 from goats_tom.realtime import DownloadState, NotificationInstance
@@ -60,6 +60,29 @@ def download_goa_files(
     `HTTPError`
         Raised if an HTTP error occurs during the download process.
 
+    """
+    with goa_session() as goa:
+        _download_goa_files(goa, observation_record_pk, query_params, user)
+
+
+def _download_goa_files(
+    goa: ObservationsClass,
+    observation_record_pk: int,
+    query_params: dict,
+    user: int,
+) -> None:
+    """Run the download through ``goa``, a session private to this task.
+
+    Parameters
+    ----------
+    goa : `ObservationsClass`
+        The GOA client to log in and download with.
+    observation_record_pk : `int`
+        The primary key of the observation record.
+    query_params : `dict`
+        Parameters for querying and downloading files.
+    user : `int`
+        The user ID the download belongs to.
     """
     try:
         # Allow page to refresh before displaying notification.
@@ -114,8 +137,8 @@ def download_goa_files(
             logger.debug("Found GOA credentials for user=%s", user)
 
             # Login to GOA.
-            GOA.login(goa_credentials.username, goa_credentials.password)
-            if not GOA.authenticated():
+            goa.login(goa_credentials.username, goa_credentials.password)
+            if not goa.authenticated():
                 raise PermissionError
             logger.info("Successfully authenticated with GOA.")
         except MissingCredentialsError:
@@ -154,13 +177,13 @@ def download_goa_files(
                     status="Downloading science files...",
                     downloaded_bytes=0,
                 )
-                file_list = GOA.query_criteria(*args, **kwargs)
+                file_list = goa.query_criteria(*args, **kwargs)
                 logger.debug(
                     "[%s] GOA query returned %d files.", observation_id, len(file_list)
                 )
                 # Create the mapping.
                 name_reduction_map = create_name_reduction_map(file_list)
-                sci_out = GOA.get_files(
+                sci_out = goa.get_files(
                     target_facility_path,
                     *args,
                     decompress_fits=True,
@@ -194,7 +217,7 @@ def download_goa_files(
                         status="Downloading calibration files...",
                         downloaded_bytes=0,
                     )
-                    cal_out = GOA.get_calibration_files(
+                    cal_out = goa.get_calibration_files(
                         target_facility_path,
                         *args,
                         decompress_fits=True,
@@ -306,9 +329,6 @@ def download_goa_files(
                         observation_id,
                         file_path.name,
                     )
-
-        GOA.logout()
-        logger.debug("[%s] Logged out of GOA.", observation_id)
 
         # Update downloaded and omitted data.
         download.num_files_downloaded = num_files_downloaded

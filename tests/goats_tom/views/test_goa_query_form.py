@@ -22,7 +22,7 @@ class TestGOAQueryFormView(TestCase):
         cls.url = reverse("goa_query", kwargs={"pk": cls.observation_record.pk})
         cls.form_data = {"download_calibrations": "yes", "facility": "test_facility"}
 
-    @patch("goats_tom.views.goa_query_form.GOA")
+    @patch("goats_tom.astroquery.session.ObservationsClass")
     @patch("goats_tom.views.goa_query_form.download_goa_files.send")
     def test_successful_submission(self, mock_download, mock_goa):
         """Test successful form submission with valid GOA credentials."""
@@ -38,7 +38,7 @@ class TestGOAQueryFormView(TestCase):
         messages = [msg.message for msg in get_messages(response.wsgi_request)]
         self.assertIn("Downloading data in background. Check back soon!", messages)
 
-    @patch("goats_tom.views.goa_query_form.GOA")
+    @patch("goats_tom.astroquery.session.ObservationsClass")
     @patch("goats_tom.views.goa_query_form.download_goa_files.send")
     def test_missing_goa_credentials(self, mock_download, mock_goa):
         """Test form submission with missing GOA credentials."""
@@ -54,7 +54,7 @@ class TestGOAQueryFormView(TestCase):
             messages,
         )
 
-    @patch("goats_tom.views.goa_query_form.GOA")
+    @patch("goats_tom.astroquery.session.ObservationsClass")
     @patch("goats_tom.views.goa_query_form.download_goa_files.send")
     def test_failed_goa_authentication(self, mock_download, mock_goa):
         """Test form submission with failed GOA authentication."""
@@ -64,7 +64,7 @@ class TestGOAQueryFormView(TestCase):
         self.client.login(username="testuser", password="password")
 
         # Mock GOA authentication failure
-        mock_goa.authenticated.return_value = False
+        mock_goa.return_value.authenticated.return_value = False
 
         response = self.client.post(self.url, self.form_data)
 

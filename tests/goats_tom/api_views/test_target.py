@@ -32,8 +32,8 @@ class TestObservationsInRadius:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "GOA login credentials" in response.data["detail"]
 
-    @patch("goats_tom.api_views.target.GOA.authenticated", return_value=False)
-    @patch("goats_tom.api_views.target.GOA.login")
+    @patch("goats_tom.astroquery.session.ObservationsClass.authenticated", return_value=False)
+    @patch("goats_tom.astroquery.session.ObservationsClass.login")
     def test_invalid_credentials_returns_400(self, mock_login, mock_authenticated):
         request = self.factory.get(self.url)
         force_authenticate(request, user=self.user_with_login)
@@ -42,9 +42,9 @@ class TestObservationsInRadius:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "not valid" in response.data["detail"]
 
-    @patch("goats_tom.api_views.target.GOA.query_raw", side_effect=Exception("Error"))
-    @patch("goats_tom.api_views.target.GOA.authenticated", return_value=True)
-    @patch("goats_tom.api_views.target.GOA.login")
+    @patch("goats_tom.astroquery.session.ObservationsClass.query_raw", side_effect=Exception("Error"))
+    @patch("goats_tom.astroquery.session.ObservationsClass.authenticated", return_value=True)
+    @patch("goats_tom.astroquery.session.ObservationsClass.login")
     def test_query_exception_returns_500(self, mock_login, mock_authenticated, mock_query_raw):
         request = self.factory.get(self.url)
         force_authenticate(request, user=self.user_with_login)
@@ -53,9 +53,9 @@ class TestObservationsInRadius:
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         assert "Error during GOA query" in response.data["detail"]
 
-    @patch("goats_tom.api_views.target.GOA.query_raw", return_value=None)
-    @patch("goats_tom.api_views.target.GOA.authenticated", return_value=True)
-    @patch("goats_tom.api_views.target.GOA.login")
+    @patch("goats_tom.astroquery.session.ObservationsClass.query_raw", return_value=None)
+    @patch("goats_tom.astroquery.session.ObservationsClass.authenticated", return_value=True)
+    @patch("goats_tom.astroquery.session.ObservationsClass.login")
     def test_query_returns_none(self, mock_login, mock_authenticated, mock_query_raw):
         request = self.factory.get(self.url)
         force_authenticate(request, user=self.user_with_login)
@@ -64,9 +64,9 @@ class TestObservationsInRadius:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["observation_ids"] == []
 
-    @patch("goats_tom.api_views.target.GOA.query_raw", return_value=Table())
-    @patch("goats_tom.api_views.target.GOA.authenticated", return_value=True)
-    @patch("goats_tom.api_views.target.GOA.login")
+    @patch("goats_tom.astroquery.session.ObservationsClass.query_raw", return_value=Table())
+    @patch("goats_tom.astroquery.session.ObservationsClass.authenticated", return_value=True)
+    @patch("goats_tom.astroquery.session.ObservationsClass.login")
     def test_query_returns_empty_table(self, mock_login, mock_authenticated, mock_query_raw):
         request = self.factory.get(self.url)
         force_authenticate(request, user=self.user_with_login)
@@ -75,9 +75,9 @@ class TestObservationsInRadius:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["observation_ids"] == []
 
-    @patch("goats_tom.api_views.target.GOA.query_raw", return_value=Table(names=["not_id"], rows=[[1]]))
-    @patch("goats_tom.api_views.target.GOA.authenticated", return_value=True)
-    @patch("goats_tom.api_views.target.GOA.login")
+    @patch("goats_tom.astroquery.session.ObservationsClass.query_raw", return_value=Table(names=["not_id"], rows=[[1]]))
+    @patch("goats_tom.astroquery.session.ObservationsClass.authenticated", return_value=True)
+    @patch("goats_tom.astroquery.session.ObservationsClass.login")
     def test_query_missing_observation_id(self, mock_login, mock_authenticated, mock_query_raw):
         request = self.factory.get(self.url)
         force_authenticate(request, user=self.user_with_login)
@@ -86,9 +86,9 @@ class TestObservationsInRadius:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["observation_ids"] == []
 
-    @patch("goats_tom.api_views.target.GOA.query_raw")
-    @patch("goats_tom.api_views.target.GOA.authenticated", return_value=True)
-    @patch("goats_tom.api_views.target.GOA.login")
+    @patch("goats_tom.astroquery.session.ObservationsClass.query_raw")
+    @patch("goats_tom.astroquery.session.ObservationsClass.authenticated", return_value=True)
+    @patch("goats_tom.astroquery.session.ObservationsClass.login")
     def test_successful_query(self, mock_login, mock_authenticated, mock_query_raw):
         table = Table(names=["observation_id"], rows=[[1], [2], [1], [None]])
         mock_query_raw.return_value = table

@@ -27,7 +27,7 @@ def server_answers():
 
 class TestFailedChecksTellRejectedFromDown:
     @patch("goats_tom.service_checks.check_reachable")
-    @patch("goats_tom.service_checks.ObservationsClass")
+    @patch("goats_tom.astroquery.session.ObservationsClass")
     def test_public_page_does_not_prove_authentication_rejection(self, mock_cls, mock_reachable):
         mock_cls.return_value.authenticated.return_value = False
         mock_reachable.return_value = CheckResult(True, "X is available.")
@@ -39,7 +39,7 @@ class TestFailedChecksTellRejectedFromDown:
         assert result.reachable is True
 
     @patch("goats_tom.service_checks.check_reachable")
-    @patch("goats_tom.service_checks.ObservationsClass")
+    @patch("goats_tom.astroquery.session.ObservationsClass")
     def test_unreachable_when_server_is_silent(self, mock_cls, mock_reachable):
         mock_cls.return_value.authenticated.return_value = False
         mock_reachable.return_value = CheckResult(
@@ -97,7 +97,7 @@ class TestCheckGPP:
 
 @pytest.mark.usefixtures("server_answers")
 class TestCheckGOA:
-    @patch("goats_tom.service_checks.ObservationsClass")
+    @patch("goats_tom.astroquery.session.ObservationsClass")
     def test_accepted_uses_private_session(self, mock_cls):
         goa = mock_cls.return_value
         goa.authenticated.return_value = True
@@ -106,7 +106,7 @@ class TestCheckGOA:
         goa.login.assert_called_once_with("user", "pass")
         goa.logout.assert_called_once()
 
-    @patch("goats_tom.service_checks.ObservationsClass")
+    @patch("goats_tom.astroquery.session.ObservationsClass")
     def test_rejected(self, mock_cls):
         mock_cls.return_value.authenticated.return_value = False
 
@@ -263,7 +263,7 @@ def test_goa_retains_authentication_outcome_and_uses_timeout(http_code, body, re
 
 
 def test_goa_explicit_rejection_needs_no_public_probe(server_answers):
-    with patch("goats_tom.service_checks.ObservationsClass") as cls:
+    with patch("goats_tom.astroquery.session.ObservationsClass") as cls:
         cls.return_value.authenticated.return_value = False
         cls.return_value.login_rejected = True
         assert check_goa("user", "password") == CheckResult(False, "GOA rejected the credentials.")

@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from tom_targets.api_views import TargetViewSet as BaseTargetViewSet
 from tom_targets.models import Target
 
-from goats_tom.astroquery import Observations as GOA
+from goats_tom.astroquery import goa_session
 
 
 class TargetViewSet(BaseTargetViewSet):
@@ -54,25 +54,26 @@ class TargetViewSet(BaseTargetViewSet):
             )
 
         credentials = request.user.goalogin
-        GOA.login(credentials.username, credentials.password)
+        with goa_session() as goa:
+            goa.login(credentials.username, credentials.password)
 
-        # Check if credentials are valid for this user.
-        if not GOA.authenticated():
-            return Response(
-                {"detail": "GOA login credentials are not valid for this user."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            # Check if credentials are valid for this user.
+            if not goa.authenticated():
+                return Response(
+                    {"detail": "GOA login credentials are not valid for this user."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        # Grab the unique observations.
-        radius = 3.0 * u.arcmin
-        coordinates = SkyCoord(ra=target.ra * u.deg, dec=target.dec * u.deg)
-        try:
-            table = GOA.query_raw("science", coordinates=coordinates, radius=radius)
-        except Exception as e:
-            return Response(
-                {"detail": f"Error during GOA query: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            # Grab the unique observations.
+            radius = 3.0 * u.arcmin
+            coordinates = SkyCoord(ra=target.ra * u.deg, dec=target.dec * u.deg)
+            try:
+                table = goa.query_raw("science", coordinates=coordinates, radius=radius)
+            except Exception:
+                return Response(
+                    {"detail": "Error during GOA query."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
         if table is None or len(table) == 0 or "observation_id" not in table.colnames:
             return Response(

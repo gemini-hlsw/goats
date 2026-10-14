@@ -1,0 +1,1 @@
+Isolated GOA sessions per request to prevent session state leaking between requests
