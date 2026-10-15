@@ -216,6 +216,25 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 """URL to redirect to after logout."""
 
+DEFAULT_FROM_EMAIL = "GOATS <noreply@localhost>"
+"""Sender address of every email GOATS sends."""
+
+GOATS_SITE_URL = "http://localhost:8000"
+"""Public base URL of this instance, used for links in emails. Leave empty to
+send emails without links."""
+
+GOATS_SEND_EMAIL = False
+"""Whether GOATS sends notifications by email. Off until an SMTP
+server is configured in ``local.py`` (``EMAIL_HOST``, ``EMAIL_PORT``,
+``EMAIL_HOST_USER``, ``EMAIL_HOST_PASSWORD``, ``EMAIL_USE_TLS``)."""
+
+GOATS_EMAIL_SUBJECT_PREFIX = "[GOATS] "
+"""Prefix of the subject of every email GOATS sends."""
+
+EMAIL_TIMEOUT = 10
+"""Seconds to wait for the SMTP server. Without it an unresponsive server blocks
+the sending worker until dramatiq's time limit kills it."""
+
 AUTHENTICATION_BACKENDS = (
     "django.contrib.auth.backends.ModelBackend",
     "guardian.backends.ObjectPermissionBackend",

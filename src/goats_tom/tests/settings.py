@@ -382,6 +382,11 @@ PLOTLY_THEME = "plotly_white"
 
 GPP_ENV = "DEVELOPMENT"
 
+DEFAULT_FROM_EMAIL = "GOATS <noreply@localhost>"
+GOATS_SITE_URL = "http://testserver"
+GOATS_SEND_EMAIL = True
+GOATS_EMAIL_SUBJECT_PREFIX = "[GOATS] "
+
 try:
     from local_settings import *  # noqa
 except ImportError:
