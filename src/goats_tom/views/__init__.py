@@ -1,6 +1,7 @@
 from goats_tom.views.account_requests import (
     AccountRequestDecideView,
     AccountRequestListView,
+    PasswordResetDecideView,
 )
 from goats_tom.views.antares import RefreshAntaresPhotometryView
 from goats_tom.views.astro_datalab import AstroDatalabView
@@ -34,6 +35,12 @@ from goats_tom.views.observation_record_delete import ObservationRecordDeleteVie
 from goats_tom.views.observation_record_detail import ObservationRecordDetailView
 from goats_tom.views.observation_template_create import ObservationTemplateCreateView
 from goats_tom.views.observation_template_list import ObservationTemplateListView
+from goats_tom.views.password_reset import (
+    NewPasswordView,
+    PasswordResetByAdminDoneView,
+    PasswordResetByAdminView,
+    PasswordResetRequestView,
+)
 from goats_tom.views.register import register
 from goats_tom.views.sign_in import SignInView
 from goats_tom.views.status import status_view
@@ -56,6 +63,11 @@ from goats_tom.views.user_list import UserListView
 
 __all__ = [
     "register",
+    "NewPasswordView",
+    "PasswordResetByAdminDoneView",
+    "PasswordResetByAdminView",
+    "PasswordResetDecideView",
+    "PasswordResetRequestView",
     "SignInView",
     "AccountRequestDecideView",
     "AccountRequestListView",

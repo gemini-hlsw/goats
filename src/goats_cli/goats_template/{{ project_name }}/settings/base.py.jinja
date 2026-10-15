@@ -76,6 +76,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "goats_tom.middleware.PasswordChangeRequiredMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "goats_tom.middleware.UserContextMiddleware",
     "goats_tom.middleware.TNSCredentialsMiddleware",
@@ -421,9 +422,9 @@ belongs. Setting this value to True will allow all ``ObservationRecord``,
 ``False`` will allow users to specify which groups can access ``ObservationRecord``,
 ``DataProduct``, and ``ReducedDatum`` objects"""
 
-OPEN_URLS = ["/accounts/register/*"]
+OPEN_URLS = ["/accounts/register/*", "/accounts/password_reset/*", "/accounts/reset/*"]
 """List of URLs that are open even when AUTH_STRATEGY is LOCKED. Requesting an
-account happens before signing in."""
+account and resetting a password happen before signing in."""
 
 HOOKS = {
     "target_post_save": "tom_common.hooks.target_post_save",

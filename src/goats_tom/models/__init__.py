@@ -15,6 +15,7 @@ from goats_tom.models.logins import (
 )
 from goats_tom.models.notification import Notification
 from goats_tom.models.outgoing_email import OutgoingEmail
+from goats_tom.models.password_reset_request import PasswordResetRequest
 from goats_tom.models.recipes_module import RecipesModule
 from goats_tom.models.tns_group import TNSGroup
 from goats_tom.models.tns_group_join_request import TNSGroupJoinRequest
@@ -34,6 +35,7 @@ __all__ = [
     "DataProductMetadata",
     "Notification",
     "OutgoingEmail",
+    "PasswordResetRequest",
     "AstroDatalabLogin",
     "GPPLogin",
     "LCOLogin",

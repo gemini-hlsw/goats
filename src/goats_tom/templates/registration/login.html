@@ -13,6 +13,9 @@
       <div class="mb-3">
         <div class="d-flex justify-content-between align-items-baseline">
           <label class="form-label" for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+          {% if password_reset_url %}
+          <a href="{{ password_reset_url }}" class="small">Forgot your password?</a>
+          {% endif %}
         </div>
         {{ form.password|add_class:"form-control" }}
         {% for error in form.password.errors %}

@@ -1,7 +1,10 @@
 """Tests for the sign-in page."""
 
+import re
+
 import pytest
 from django.contrib.auth.models import User
+from django.test import override_settings
 from django.urls import reverse
 
 from goats_tom.accounts import create_account_request
@@ -59,3 +62,24 @@ def test_a_deactivated_account_is_not_called_pending(client):
 @pytest.mark.django_db
 def test_the_page_links_to_requesting_an_account(client):
     assert reverse("register") in client.get(PAGE).content.decode()
+
+
+def _reset_link(client, **extra):
+    match = re.search(r'href="([^"]*)"[^>]*>Forgot your password', (
+        client.get(PAGE, **extra).content.decode()
+    ))
+    return match.group(1) if match else None
+
+
+@pytest.mark.django_db
+def test_with_email_the_reset_link_sends_an_email(client):
+    assert _reset_link(client) == reverse("password_reset")
+
+
+@pytest.mark.django_db
+@override_settings(GOATS_SEND_EMAIL=False)
+def test_without_email_the_reset_link_asks_an_administrator(client):
+    assert _reset_link(client) == reverse("password_reset_admin")
+    assert _reset_link(client, REMOTE_ADDR="192.168.1.5") == reverse(
+        "password_reset_admin"
+    )

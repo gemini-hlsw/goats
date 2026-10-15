@@ -141,6 +141,15 @@ def _account_requested(account_request) -> Content:
     )
 
 
+def _password_reset_requested(reset_request) -> Content:
+    return Content(
+        title="Password reset request",
+        message=f"{display_name(reset_request.user)} asked to reset their password.",
+        detail="Check it was them before giving them the temporary password.",
+        url=reverse("account-requests") + f"#password-reset-{reset_request.pk}",
+    )
+
+
 def _account_approved(account_request) -> Content:
     return Content(
         title="Welcome to GOATS",
@@ -178,6 +187,13 @@ _KINDS: dict[str, NotificationKind] = {
             "warning",
             actionable=True,
             icon="fa-user-plus",
+        ),
+        NotificationKind(
+            "password.reset_requested",
+            _password_reset_requested,
+            "warning",
+            actionable=True,
+            icon="fa-key",
         ),
         NotificationKind(
             "account.approved",

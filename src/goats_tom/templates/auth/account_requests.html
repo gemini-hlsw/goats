@@ -13,7 +13,7 @@
     data-bs-placement="right"
     data-bs-trigger="focus"
     data-bs-title="Account requests"
-    data-bs-content="Approving an account lets the person sign in, in the groups you choose; declining deletes it and emails them."
+    data-bs-content="Approving an account lets the person sign in, in the groups you choose; declining deletes it and emails them. Resetting a password gives the account a temporary one, shown once, that its owner must change when signing in."
     ><i class="fa-solid fa-circle-info"></i
   ></a>
 </h1>
@@ -84,6 +84,40 @@
             {% else %}
             <span class="badge bg-secondary me-1" title="The account was deleted from the user list.">Account deleted</span>
             {% endif %}
+            <button type="submit" name="action" value="deny" class="btn btn-sm btn-outline-danger">Decline</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if pending_password_resets %}
+<h2 class="h4 mt-5">Password resets</h2>
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Requested</th>
+        <th class="text-center">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for reset_request in pending_password_resets %}
+      <tr id="password-reset-{{ reset_request.pk }}" class="account-request-row">
+        <td>{{ reset_request.user|display_name }}</td>
+        <td>{{ reset_request.user.username }}</td>
+        <td>{{ reset_request.user.email }}</td>
+        <td class="text-nowrap">{{ reset_request.created_at|date:"j M Y, H:i" }}</td>
+        <td class="text-center text-nowrap">
+          <form method="post" action="{% url 'password-reset-decide' reset_request.pk %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" name="action" value="reset" class="btn btn-sm btn-warning">Reset</button>
             <button type="submit" name="action" value="deny" class="btn btn-sm btn-outline-danger">Decline</button>
           </form>
         </td>
