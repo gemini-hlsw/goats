@@ -67,13 +67,15 @@
         </div>
       </li>
       {% if user.is_authenticated %}
+      {% include 'notifications/partials/bell.html' %}
       <li class="nav-item dropdown ">
-        <a class="nav-link dropdown-toggle px-md-2 py-2 {% if request.resolver_match.url_name|starts_with:'user-' or request.resolver_match.url_name == 'status' %}active{% endif %}" title="Manage user settings and preferences" data-bs-toggle="dropdown">
+        <a class="nav-link dropdown-toggle px-md-2 py-2 {% if request.resolver_match.url_name|starts_with:'user-' or request.resolver_match.url_name == 'status' or request.resolver_match.url_name == 'account-requests' %}active{% endif %}" title="Manage user settings and preferences" data-bs-toggle="dropdown">
           {{ user.username }}
         </a>
         <div class="dropdown-menu dropdown-menu-end">
           {% if user.is_superuser %}
           <a class="dropdown-item" href="{% url 'user-list' %}">Users</a>
+          <a class="dropdown-item" href="{% url 'account-requests' %}">Account requests</a>
           {% endif %}
           <a class="dropdown-item" href="{% url 'user-update' user.id %}">Settings</a>
           <a class="dropdown-item" href="{% url 'status' %}">Service Status</a>

@@ -1,4 +1,6 @@
+from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from django.views.generic import TemplateView
 from tom_common.api_router import SharedAPIRootRouter
 
 from . import api_views, views
@@ -74,6 +76,48 @@ router.register(r"system", api_views.SystemViewSet, basename="system")
 # TODO: Make unified path formats.
 
 urlpatterns = [
+    path("accounts/login/", views.SignInView.as_view(), name="login"),
+    path(
+        "accounts/password_reset/",
+        views.PasswordResetRequestView.as_view(),
+        name="password_reset",
+    ),
+    path(
+        "accounts/password_reset/done/",
+        auth_views.PasswordResetDoneView.as_view(),
+        name="password_reset_done",
+    ),
+    path(
+        "accounts/password_reset/request/",
+        views.PasswordResetByAdminView.as_view(),
+        name="password_reset_admin",
+    ),
+    path(
+        "accounts/password_reset/request/done/",
+        views.PasswordResetByAdminDoneView.as_view(),
+        name="password_reset_admin_done",
+    ),
+    path(
+        "accounts/password/new/",
+        views.NewPasswordView.as_view(),
+        name="new_password",
+    ),
+    path(
+        "accounts/reset/<uidb64>/<token>/",
+        auth_views.PasswordResetConfirmView.as_view(),
+        name="password_reset_confirm",
+    ),
+    path(
+        "accounts/reset/done/",
+        auth_views.PasswordResetCompleteView.as_view(),
+        name="password_reset_complete",
+    ),
+    path("accounts/register/", views.register, name="register"),
+    path(
+        "accounts/register/done/",
+        TemplateView.as_view(template_name="registration/register_done.html"),
+        name="register-done",
+    ),
     path("status/", views.status_view, name="status"),
     path("astro-data-lab/", views.AstroDatalabView.as_view(), name="astro-data-lab"),
     path("api/", include(router.urls)),
@@ -129,6 +173,21 @@ urlpatterns = [
         name="user-tns-login",
     ),
     path("users/<int:pk>/gpp/", views.GPPLoginView.as_view(), name="user-gpp-login"),
+    path(
+        "users/account-requests/",
+        views.AccountRequestListView.as_view(),
+        name="account-requests",
+    ),
+    path(
+        "users/account-requests/<int:pk>/decide/",
+        views.AccountRequestDecideView.as_view(),
+        name="account-request-decide",
+    ),
+    path(
+        "users/password-resets/<int:pk>/decide/",
+        views.PasswordResetDecideView.as_view(),
+        name="password-reset-decide",
+    ),
     path("goa_query/<int:pk>/", views.GOAQueryFormView.as_view(), name="goa_query"),
     path(
         "observations/<int:pk>/goa-archive/",
@@ -137,6 +196,17 @@ urlpatterns = [
     ),
     path("api/ongoing-tasks/", views.ongoing_tasks, name="ongoing_tasks"),
     path("recent-downloads/", views.recent_downloads, name="recent_downloads"),
+    path("notifications/", views.notification_list, name="notifications"),
+    path(
+        "notifications/<int:pk>/",
+        views.notification_open,
+        name="notification-open",
+    ),
+    path(
+        "notifications/read-all/",
+        views.notification_mark_all_read,
+        name="notifications-read-all",
+    ),
     path("observations/<int:pk>/dragons/", views.DRAGONSView.as_view(), name="dragons"),
     path(
         "dataproducts/data/upload/",

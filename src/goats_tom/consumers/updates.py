@@ -76,6 +76,26 @@ class UpdatesConsumer(WebsocketConsumer):
         # Send the notification message to the WebSocket.
         self.send(text_data=json.dumps(notification))
 
+    def inbox_message(self, event: dict) -> None:
+        """Sends an inbox update to the client connected through WebSocket.
+
+        Parameters
+        ----------
+        event : `dict`
+            The unread count and, if one was just created, the notification.
+
+        """
+        self.send(
+            text_data=json.dumps(
+                {
+                    "update": "inbox",
+                    "unread": event["unread"],
+                    "notification": event.get("notification"),
+                    "read_ids": event.get("read_ids", []),
+                }
+            )
+        )
+
     def download_message(self, event: dict) -> None:
         """Sends a download update to the client connected through WebSocket.
 

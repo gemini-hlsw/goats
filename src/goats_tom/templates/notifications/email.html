@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body style="font-family: Arial, Helvetica, sans-serif; color: #212529; line-height: 1.5;">
+    <h2 style="margin: 0 0 12px;">{{ notification.title }}</h2>
+    <p style="margin: 0 0 12px;">{{ notification.message }}</p>
+    {% if notification.detail %}
+    <p style="margin: 0 0 12px; color: #495057;">{{ notification.detail|linebreaksbr }}</p>
+    {% endif %}
+    {% if action_url %}
+    <p style="margin: 20px 0;">
+      <a href="{{ action_url }}" style="background: #0d6efd; color: #ffffff; padding: 8px 16px; border-radius: 4px; text-decoration: none;">Open in GOATS</a>
+    </p>
+    {% endif %}
+    <hr style="border: none; border-top: 1px solid #dee2e6; margin: 24px 0 12px;">
+    <p style="font-size: 12px; color: #6c757d; margin: 0;">
+      You receive this because you have a GOATS account.
+      {% if inbox_url %}<a href="{{ inbox_url }}" style="color: #6c757d;">See all your notifications</a>.{% endif %}
+    </p>
+  </body>
+</html>

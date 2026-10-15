@@ -164,3 +164,32 @@ async def test_no_pending_messages():
     assert await communicator.receive_nothing() is True, "Unexpected message pending"
 
     await communicator.disconnect()
+
+
+@pytest.mark.asyncio()
+async def test_inbox_message_handling():
+    """An inbox update carries the unread count and the new notification."""
+    communicator = connect_as(USER_ID)
+    await communicator.connect()
+
+    notification = {"id": 3, "title": "TNS group request", "message": "Hi."}
+    channel_layer = get_channel_layer()
+    await channel_layer.group_send(
+        user_group(UPDATES_PREFIX, USER_ID),
+        {
+            "type": "inbox.message",
+            "unread": 2,
+            "notification": notification,
+            "read_ids": [1],
+        },
+    )
+
+    response = await communicator.receive_json_from()
+    assert response == {
+        "update": "inbox",
+        "unread": 2,
+        "notification": notification,
+        "read_ids": [1],
+    }
+
+    await communicator.disconnect()

@@ -77,6 +77,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "goats_tom.middleware.PasswordChangeRequiredMiddleware",
     # Required by the TOM list views, which read `request.htmx`.
     "django_htmx.middleware.HtmxMiddleware",
     # Mirrors the deployment template: the per-user context the app relies on.
@@ -381,6 +382,11 @@ CORS_ORIGIN_REGEX_WHITELIST = [
 PLOTLY_THEME = "plotly_white"
 
 GPP_ENV = "DEVELOPMENT"
+
+DEFAULT_FROM_EMAIL = "GOATS <noreply@localhost>"
+GOATS_SITE_URL = "http://testserver"
+GOATS_SEND_EMAIL = True
+GOATS_EMAIL_SUBJECT_PREFIX = "[GOATS] "
 
 try:
     from local_settings import *  # noqa

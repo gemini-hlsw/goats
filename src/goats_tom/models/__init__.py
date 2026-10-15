@@ -1,3 +1,4 @@
+from goats_tom.models.account_request import AccountRequest
 from goats_tom.models.base_recipe import BaseRecipe
 from goats_tom.models.dataproduct_metadata import DataProductMetadata
 from goats_tom.models.download import Download
@@ -12,6 +13,9 @@ from goats_tom.models.logins import (
     LCOLogin,
     TNSLogin,
 )
+from goats_tom.models.notification import Notification
+from goats_tom.models.outgoing_email import OutgoingEmail
+from goats_tom.models.password_reset_request import PasswordResetRequest
 from goats_tom.models.recipes_module import RecipesModule
 from goats_tom.models.tns_group import TNSGroup
 from goats_tom.models.tns_group_join_request import TNSGroupJoinRequest
@@ -19,6 +23,7 @@ from goats_tom.models.tns_group_membership import TNSGroupMembership
 from goats_tom.models.tns_submission_record import TNSSubmissionRecord
 
 __all__ = [
+    "AccountRequest",
     "DRAGONSFile",
     "Download",
     "DRAGONSRun",
@@ -28,6 +33,9 @@ __all__ = [
     "BaseRecipe",
     "RecipesModule",
     "DataProductMetadata",
+    "Notification",
+    "OutgoingEmail",
+    "PasswordResetRequest",
     "AstroDatalabLogin",
     "GPPLogin",
     "LCOLogin",

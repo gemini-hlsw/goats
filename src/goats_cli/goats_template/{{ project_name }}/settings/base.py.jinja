@@ -76,6 +76,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "goats_tom.middleware.PasswordChangeRequiredMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "goats_tom.middleware.UserContextMiddleware",
     "goats_tom.middleware.TNSCredentialsMiddleware",
@@ -215,6 +216,25 @@ LOGIN_REDIRECT_URL = "/"
 
 LOGOUT_REDIRECT_URL = "/"
 """URL to redirect to after logout."""
+
+DEFAULT_FROM_EMAIL = "GOATS <noreply@localhost>"
+"""Sender address of every email GOATS sends."""
+
+GOATS_SITE_URL = "http://localhost:8000"
+"""Public base URL of this instance, used for links in emails. Leave empty to
+send emails without links."""
+
+GOATS_SEND_EMAIL = False
+"""Whether GOATS sends email: notifications and account emails. Off until an SMTP
+server is configured in ``local.py`` (``EMAIL_HOST``, ``EMAIL_PORT``,
+``EMAIL_HOST_USER``, ``EMAIL_HOST_PASSWORD``, ``EMAIL_USE_TLS``)."""
+
+GOATS_EMAIL_SUBJECT_PREFIX = "[GOATS] "
+"""Prefix of the subject of every email GOATS sends."""
+
+EMAIL_TIMEOUT = 10
+"""Seconds to wait for the SMTP server. Without it an unresponsive server blocks
+the sending worker until dramatiq's time limit kills it."""
 
 AUTHENTICATION_BACKENDS = (
     "django.contrib.auth.backends.ModelBackend",
@@ -402,8 +422,9 @@ belongs. Setting this value to True will allow all ``ObservationRecord``,
 ``False`` will allow users to specify which groups can access ``ObservationRecord``,
 ``DataProduct``, and ``ReducedDatum`` objects"""
 
-OPEN_URLS = []
-"""List of URLs that are open even when AUTH_STRATEGY is LOCKED."""
+OPEN_URLS = ["/accounts/register/*", "/accounts/password_reset/*", "/accounts/reset/*"]
+"""List of URLs that are open even when AUTH_STRATEGY is LOCKED. Requesting an
+account and resetting a password happen before signing in."""
 
 HOOKS = {
     "target_post_save": "tom_common.hooks.target_post_save",

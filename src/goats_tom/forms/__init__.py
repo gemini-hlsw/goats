@@ -1,3 +1,11 @@
+from goats_tom.forms.accounts import (
+    AccountApprovalForm,
+    NewPasswordForm,
+    PasswordResetRequestForm,
+    PasswordResetUsernameForm,
+    RegistrationForm,
+    SignInForm,
+)
 from goats_tom.forms.form_schema import describe_field, describe_form
 from goats_tom.forms.goa_query import GOAQueryForm
 from goats_tom.forms.logins import (
@@ -14,6 +22,12 @@ from goats_tom.forms.tns_join_request import (
 )
 
 __all__ = [
+    "AccountApprovalForm",
+    "NewPasswordForm",
+    "PasswordResetRequestForm",
+    "PasswordResetUsernameForm",
+    "RegistrationForm",
+    "SignInForm",
     "TNSGroupSettingsForm",
     "TNSGroupSettingsFormSet",
     "TNSJoinRequestForm",

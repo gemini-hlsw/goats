@@ -17,6 +17,7 @@
           <th>Username</th>
           <th>Name</th>
           <th>Email</th>
+          <th>Status</th>
           {% sortable_header "date_joined" "Joined (UTC)" %}
           <th class="text-center">Admin</th>
           <th class="text-center">
@@ -53,7 +54,20 @@
           <td>{{ user.username }}</td>
           <td>{{ user.first_name }} {{ user.last_name }}</td>
           <td>{{ user.email }}</td>
-          <td>{{ user.date_joined }}</td>
+          {% with request_status=user.account_request.status %}
+          <td class="text-nowrap">
+            {% if request_status == "pending" %}
+            <a href="{% url 'account-requests' %}#account-request-{{ user.account_request.pk }}"
+               class="badge bg-warning text-dark text-decoration-none" title="Review this request">Pending</a>
+            {% elif user.is_active %}
+            <span class="badge bg-success">Active</span>
+            {% else %}
+            <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+          </td>
+          {# A requested account joins when approved. #}
+          <td>{% if request_status == "pending" %}<span class="text-muted">&mdash;</span>{% else %}{{ user.date_joined }}{% endif %}</td>
+          {% endwith %}
           <td class="text-center">
             {% if user.is_superuser %}
             <i class="fa-solid fa-check fa-lg text-success" title="Administrator"></i>

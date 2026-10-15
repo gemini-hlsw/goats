@@ -162,7 +162,7 @@ def goats_user_list(context):
         users = users.filter(pk=viewer.pk)
 
     ordering = date_ordering(context["request"], ("date_joined",), "-date_joined")
-    context_data["users"] = users.order_by(*ordering)
+    context_data["users"] = users.select_related("account_request").order_by(*ordering)
     context_data["current_order"] = resolve_date_order(
         context["request"], ("date_joined",), "-date_joined"
     )
