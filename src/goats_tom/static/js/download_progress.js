@@ -1,29 +1,29 @@
 /**
- * Updates the download link in the navbar to reflect the number of active downloads.
- *
- * This function modifies the text content of the download badge element based on
- * the number of active downloads. If there are active downloads, the badge is
- * made visible and updated with the count. If there are no active downloads,
- * the badge is hidden.
+ * Shows the number of active downloads on the navbar icon, as the bell does.
  *
  * @param {number} activeDownloads - The number of active downloads.
  */
 const updateNavbarDownloadLink = (activeDownloads) => {
-  // Get the download badge element from the DOM
   const downloadBadge = document.getElementById("downloadBadge");
-  const noDownloadsMessage = document.getElementById("noDownloadsMessage");
+  if (!downloadBadge) return;
 
-  // Check if there are any active downloads
-  if (activeDownloads > 0) {
-    downloadBadge.textContent = activeDownloads;
-    downloadBadge.classList.remove("d-none");
-    noDownloadsMessage.classList.add("d-none");
-  } else {
-    // Hide the badge by adding "d-none" class
-    downloadBadge.classList.add("d-none");
-    noDownloadsMessage.classList.remove("d-none");
-  }
+  downloadBadge.textContent = activeDownloads > 9 ? "9+" : activeDownloads;
+  downloadBadge.classList.toggle("d-none", activeDownloads === 0);
 };
+
+/**
+ * Shows the empty message while the downloads panel has no rows.
+ */
+const updateDownloadsEmpty = () => {
+  const container = document.getElementById("downloadTasksBanner");
+  const empty = document.getElementById("noDownloadsMessage");
+  if (!container || !empty) return;
+
+  empty.classList.toggle("d-none", container.childElementCount > 0);
+};
+
+/** Downloads still running, as seen through the WebSocket. */
+const activeDownloadIds = new Set();
 
 /**
  * Updates or creates a new download progress item in the DOM.
@@ -40,27 +40,35 @@ const updateDownloadProgress = (downloadProgress) => {
   const safeUniqueId = sanitizeDomId(downloadProgress.unique_id);
   let downloadItem = document.getElementById(safeUniqueId);
 
+  if (downloadProgress.done || downloadProgress.error) {
+    activeDownloadIds.delete(safeUniqueId);
+  } else {
+    activeDownloadIds.add(safeUniqueId);
+  }
+  updateNavbarDownloadLink(activeDownloadIds.size);
+
   // If the item doesn't exist, create it.
   if (!downloadItem) {
     downloadItem = document.createElement("div");
     downloadItem.setAttribute("id", safeUniqueId);
-    downloadItem.setAttribute("class", "row align-items-center");
+    downloadItem.className = "download-row";
 
-    const iconCol = document.createElement("div");
-    iconCol.className = "col-auto";
+    const kind = document.createElement("span");
+    kind.className = "download-kind kind-info";
+    kind.setAttribute("aria-hidden", "true");
     const icon = document.createElement("i");
-    icon.className = "fa-solid fa-file-arrow-down fa-2xl text-light";
-    iconCol.appendChild(icon);
+    icon.className = "fa-solid fa-file-arrow-down";
+    kind.appendChild(icon);
 
-    const contentCol = document.createElement("div");
-    contentCol.className = "col";
+    const body = document.createElement("div");
+    body.className = "download-body";
 
-    const labelP = document.createElement("p");
-    labelP.className = "fw-bold text-muted mb-0";
-    labelP.textContent = downloadProgress.label || "";
+    const title = document.createElement("div");
+    title.className = "download-title";
+    title.textContent = downloadProgress.label || "";
 
     const progress = document.createElement("div");
-    progress.className = "progress";
+    progress.className = "progress download-progress";
     progress.setAttribute("aria-label", "Downloading");
     progress.setAttribute("aria-valuenow", "100");
     progress.setAttribute("aria-valuemin", "0");
@@ -73,38 +81,29 @@ const updateDownloadProgress = (downloadProgress) => {
     progressBar.style.width = "100%";
     progress.appendChild(progressBar);
 
-    const row = document.createElement("div");
-    row.className = "row justify-content-between";
+    const meta = document.createElement("div");
+    meta.className = "download-meta";
 
-    const downloadedCol = document.createElement("div");
-    downloadedCol.className = "col-auto";
-    const downloadedBytesSmall = document.createElement("small");
+    const downloadedBytesSmall = document.createElement("span");
     downloadedBytesSmall.id = `${safeUniqueId}-downloadedBytes`;
     downloadedBytesSmall.textContent = downloadProgress.downloaded_bytes || "";
-    downloadedCol.appendChild(downloadedBytesSmall);
 
-    const statusCol = document.createElement("div");
-    statusCol.className = "col-auto";
-    const statusSmall = document.createElement("small");
+    const statusSmall = document.createElement("span");
     statusSmall.id = `${safeUniqueId}-status`;
     statusSmall.textContent = downloadProgress.status || "";
-    statusCol.appendChild(statusSmall);
 
-    row.appendChild(downloadedCol);
-    row.appendChild(statusCol);
+    meta.appendChild(downloadedBytesSmall);
+    meta.appendChild(statusSmall);
 
-    contentCol.appendChild(labelP);
-    contentCol.appendChild(progress);
-    contentCol.appendChild(row);
+    body.appendChild(title);
+    body.appendChild(progress);
+    body.appendChild(meta);
 
-    const divider = document.createElement("div");
-    divider.className = "dropdown-divider";
-
-    downloadItem.appendChild(iconCol);
-    downloadItem.appendChild(contentCol);
-    downloadItem.appendChild(divider);
+    downloadItem.appendChild(kind);
+    downloadItem.appendChild(body);
 
     container.prepend(downloadItem);
+    updateDownloadsEmpty();
   } else {
     // If the item exists, update its details.
     const downloadedBytesSmall = document.getElementById(
@@ -127,6 +126,7 @@ const updateDownloadProgress = (downloadProgress) => {
       // Remove after 5 seconds.
       setTimeout(() => {
         downloadItem.remove();
+        updateDownloadsEmpty();
       }, 5000);
     } else if (downloadProgress.done) {
       const progressBarDiv = document.getElementById(
@@ -138,6 +138,7 @@ const updateDownloadProgress = (downloadProgress) => {
       // Remove after 5 seconds.
       setTimeout(() => {
         downloadItem.remove();
+        updateDownloadsEmpty();
       }, 5000);
     }
   }

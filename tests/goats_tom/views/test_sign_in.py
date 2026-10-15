@@ -60,6 +60,11 @@ def test_a_deactivated_account_is_not_called_pending(client):
 
 
 @pytest.mark.django_db
+def test_the_page_has_a_title(client):
+    assert '<h1 class="h2 mb-3">Log in to GOATS</h1>' in client.get(PAGE).content.decode()
+
+
+@pytest.mark.django_db
 def test_the_page_links_to_requesting_an_account(client):
     assert reverse("register") in client.get(PAGE).content.decode()
 
