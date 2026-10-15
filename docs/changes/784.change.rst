@@ -1,0 +1,1 @@
+Added account requests approved by administrators, a notification inbox with optional email delivery, and password recovery by email or administrator-issued temporary password
