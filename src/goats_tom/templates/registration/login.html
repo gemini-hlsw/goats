@@ -1,0 +1,27 @@
+{% extends 'tom_common/base.html' %}
+{% load custom_filters %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="row justify-content-md-center">
+  <div class="col-md-4">
+    <form action="{% url 'login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" method="POST">
+      {% csrf_token %}
+      {% for error in form.non_field_errors %}
+      <div class="alert alert-danger" role="alert">{{ error }}</div>
+      {% endfor %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"username" %}
+      <div class="mb-3">
+        <div class="d-flex justify-content-between align-items-baseline">
+          <label class="form-label" for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+        </div>
+        {{ form.password|add_class:"form-control" }}
+        {% for error in form.password.errors %}
+        <div class="text-danger mt-2">{{ error }}</div>
+        {% endfor %}
+      </div>
+      <button type="submit" class="btn btn-primary">Login</button>
+    </form>
+    <p class="mt-4 mb-0">No account yet? <a href="{% url 'register' %}">Request an account</a>.</p>
+  </div>
+</div>
+{% endblock %}

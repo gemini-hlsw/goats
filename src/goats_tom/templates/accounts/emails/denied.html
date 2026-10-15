@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body style="font-family: Arial, Helvetica, sans-serif; color: #212529; line-height: 1.5;">
+    <h2 style="margin: 0 0 12px;">Your GOATS account request</h2>
+    <p style="margin: 0 0 12px;">Hello {{ account_request.full_name|default:account_request.username }},</p>
+    <p style="margin: 0 0 12px;">An administrator declined your request for a GOATS account with the username "{{ account_request.username }}". Your details have been removed, so you can send a new request.</p>
+    <p style="margin: 0 0 12px; color: #495057;">If you think this is a mistake, contact the administrators of this GOATS instance.</p>
+    <hr style="border: none; border-top: 1px solid #dee2e6; margin: 24px 0 12px;">
+    <p style="font-size: 12px; color: #6c757d; margin: 0;">
+      You receive this because you requested a GOATS account with this address.
+    </p>
+  </body>
+</html>

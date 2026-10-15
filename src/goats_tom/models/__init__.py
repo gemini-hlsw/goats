@@ -1,3 +1,4 @@
+from goats_tom.models.account_request import AccountRequest
 from goats_tom.models.base_recipe import BaseRecipe
 from goats_tom.models.dataproduct_metadata import DataProductMetadata
 from goats_tom.models.download import Download
@@ -21,6 +22,7 @@ from goats_tom.models.tns_group_membership import TNSGroupMembership
 from goats_tom.models.tns_submission_record import TNSSubmissionRecord
 
 __all__ = [
+    "AccountRequest",
     "DRAGONSFile",
     "Download",
     "DRAGONSRun",

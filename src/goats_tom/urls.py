@@ -1,4 +1,5 @@
 from django.urls import include, path
+from django.views.generic import TemplateView
 from tom_common.api_router import SharedAPIRootRouter
 
 from . import api_views, views
@@ -74,6 +75,13 @@ router.register(r"system", api_views.SystemViewSet, basename="system")
 # TODO: Make unified path formats.
 
 urlpatterns = [
+    path("accounts/login/", views.SignInView.as_view(), name="login"),
+    path("accounts/register/", views.register, name="register"),
+    path(
+        "accounts/register/done/",
+        TemplateView.as_view(template_name="registration/register_done.html"),
+        name="register-done",
+    ),
     path("status/", views.status_view, name="status"),
     path("astro-data-lab/", views.AstroDatalabView.as_view(), name="astro-data-lab"),
     path("api/", include(router.urls)),
@@ -129,6 +137,16 @@ urlpatterns = [
         name="user-tns-login",
     ),
     path("users/<int:pk>/gpp/", views.GPPLoginView.as_view(), name="user-gpp-login"),
+    path(
+        "users/account-requests/",
+        views.AccountRequestListView.as_view(),
+        name="account-requests",
+    ),
+    path(
+        "users/account-requests/<int:pk>/decide/",
+        views.AccountRequestDecideView.as_view(),
+        name="account-request-decide",
+    ),
     path("goa_query/<int:pk>/", views.GOAQueryFormView.as_view(), name="goa_query"),
     path(
         "observations/<int:pk>/goa-archive/",

@@ -521,7 +521,25 @@ footer {
   text-align: center;
 }
 
-/* The join request a notification links to, flashed when the page opens on it. */
+/* An applicant's note under their name in the account requests table. */
+.request-message {
+  -webkit-box-orient: vertical;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  max-width: 24rem;
+  overflow: hidden;
+}
+
+/* The groups to grant in each account request row: toggle buttons that wrap. */
+.request-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-width: 20rem;
+}
+
+/* The request a notification links to, flashed when the page opens on it. */
 @keyframes request-flash {
   from {
     background-color: var(--bs-primary-bg-subtle);
@@ -532,12 +550,14 @@ footer {
   }
 }
 
-.tns-request-row:target > td {
+.tns-request-row:target > td,
+.account-request-row:target > td {
   animation: request-flash 2.5s ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tns-request-row:target > td {
+  .tns-request-row:target > td,
+  .account-request-row:target > td {
     animation: none;
     background-color: var(--bs-primary-bg-subtle);
   }

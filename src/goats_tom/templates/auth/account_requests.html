@@ -1,0 +1,134 @@
+{% extends 'tom_common/base.html' %}
+{% load custom_filters %}
+{% block title %}Account requests{% endblock %}
+{% block content %}
+<h1 class="h2 mb-3">
+  Account requests
+  <a
+    class="link-primary ms-1 fs-6 align-middle"
+    type="button"
+    tabindex="0"
+    id="account-requests-info"
+    data-bs-toggle="popover"
+    data-bs-placement="right"
+    data-bs-trigger="focus"
+    data-bs-title="Account requests"
+    data-bs-content="Approving an account lets the person sign in, in the groups you choose; declining deletes it and emails them."
+    ><i class="fa-solid fa-circle-info"></i
+  ></a>
+</h1>
+<script>
+  new bootstrap.Popover(document.getElementById("account-requests-info"));
+</script>
+
+{% if linked_request_closed %}
+<div class="alert alert-info">
+  {% if linked_request %}
+  The request from {{ linked_request.full_name|default:linked_request.email }} was
+  {% if linked_request.status == "denied" %}declined{% else %}approved{% endif %}
+  by {{ linked_request.decided_by|display_name }} on {{ linked_request.decided_at|date:"j M Y" }}.
+  {% else %}
+  This request is no longer available.
+  {% endif %}
+</div>
+{% endif %}
+
+{% if pending_requests %}
+<div class="table-responsive">
+  <table class="table table-striped align-top">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Affiliation</th>
+        <th>Requested</th>
+        <th>Groups</th>
+        <th class="text-center">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for account_request in pending_requests %}
+      <tr id="account-request-{{ account_request.pk }}" class="account-request-row">
+        <td>
+          {{ account_request.full_name|default:account_request.email }}
+          {% if account_request.message %}
+          <small class="d-block text-muted text-break request-message" title="{{ account_request.message }}">{{ account_request.message }}</small>
+          {% endif %}
+        </td>
+        <td>{{ account_request.username }}</td>
+        <td>{{ account_request.email }}</td>
+        <td>{{ account_request.user.profile.affiliation|default:"—" }}</td>
+        <td class="text-nowrap">{{ account_request.created_at|date:"j M Y" }}</td>
+        <td>
+          {% if account_request.user and groups %}
+          <div class="request-groups" role="group" aria-label="Groups for {{ account_request.full_name|default:account_request.email }}">
+            {% for group in groups %}
+            {# Outside the form, which cannot span table cells; `form` ties it back. #}
+            <input type="checkbox" class="btn-check" name="groups" value="{{ group.pk }}" autocomplete="off"
+                   id="account-request-{{ account_request.pk }}-group-{{ group.pk }}"
+                   form="account-request-form-{{ account_request.pk }}">
+            <label class="btn btn-sm btn-outline-primary" for="account-request-{{ account_request.pk }}-group-{{ group.pk }}">{{ group.name }}</label>
+            {% endfor %}
+          </div>
+          {% else %}
+          <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="text-center text-nowrap">
+          <form method="post" action="{% url 'account-request-decide' account_request.pk %}"
+                id="account-request-form-{{ account_request.pk }}" class="d-inline">
+            {% csrf_token %}
+            {% if account_request.user %}
+            <button type="submit" name="action" value="approve" class="btn btn-sm btn-success">Approve</button>
+            {% else %}
+            <span class="badge bg-secondary me-1" title="The account was deleted from the user list.">Account deleted</span>
+            {% endif %}
+            <button type="submit" name="action" value="deny" class="btn btn-sm btn-outline-danger">Decline</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if recent_decisions %}
+<h2 class="h4 mt-5">Recent decisions</h2>
+<div class="table-responsive">
+  <table class="table table-striped align-middle">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Requested</th>
+        <th>Decision</th>
+        <th>By</th>
+        <th>Decided</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for account_request in recent_decisions %}
+      <tr>
+        <td>{{ account_request.full_name|default:account_request.email }}</td>
+        <td>{{ account_request.username }}</td>
+        <td>{{ account_request.email }}</td>
+        <td class="text-nowrap">{{ account_request.created_at|date:"j M Y, H:i" }}</td>
+        <td class="text-nowrap">
+          {% if account_request.status == "approved" %}
+          <span class="badge bg-success">Approved</span>
+          {% else %}
+          <span class="badge bg-secondary">Declined</span>
+          {% endif %}
+        </td>
+        <td>{{ account_request.decided_by|display_name }}</td>
+        <td class="text-nowrap">{{ account_request.decided_at|date:"j M Y, H:i" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

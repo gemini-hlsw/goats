@@ -124,6 +124,31 @@ def _tns_membership_revoked(tns_group) -> Content:
     )
 
 
+def _account_requested(account_request) -> Content:
+    detail = f"Email: {account_request.email}"
+    if account_request.user.profile.affiliation:
+        detail += f"\nAffiliation: {account_request.user.profile.affiliation}"
+    if account_request.message:
+        detail += f"\n\nTheir message:\n{account_request.message}"
+    return Content(
+        title="Account request",
+        message=f"{display_name(account_request.user)} requested a GOATS account.",
+        detail=detail,
+        url=(
+            reverse("account-requests")
+            + f"?request={account_request.pk}#account-request-{account_request.pk}"
+        ),
+    )
+
+
+def _account_approved(account_request) -> Content:
+    return Content(
+        title="Welcome to GOATS",
+        message="Your account has been approved.",
+        url=reverse("home"),
+    )
+
+
 _KINDS: dict[str, NotificationKind] = {
     kind.key: kind
     for kind in (
@@ -146,6 +171,19 @@ _KINDS: dict[str, NotificationKind] = {
             _tns_membership_revoked,
             "danger",
             icon="fa-user-minus",
+        ),
+        NotificationKind(
+            "account.requested",
+            _account_requested,
+            "warning",
+            actionable=True,
+            icon="fa-user-plus",
+        ),
+        NotificationKind(
+            "account.approved",
+            _account_approved,
+            "success",
+            icon="fa-circle-check",
         ),
     )
 }

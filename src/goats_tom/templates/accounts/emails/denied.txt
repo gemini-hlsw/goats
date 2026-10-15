@@ -1,0 +1,10 @@
+{% autoescape off %}Your GOATS account request
+
+Hello {{ account_request.full_name|default:account_request.username }},
+
+An administrator declined your request for a GOATS account with the username "{{ account_request.username }}". Your details have been removed, so you can send a new request.
+
+If you think this is a mistake, contact the administrators of this GOATS instance.
+--
+You receive this because you requested a GOATS account with this address.
+{% endautoescape %}

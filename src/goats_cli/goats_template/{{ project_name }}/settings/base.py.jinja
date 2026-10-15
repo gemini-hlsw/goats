@@ -224,7 +224,7 @@ GOATS_SITE_URL = "http://localhost:8000"
 send emails without links."""
 
 GOATS_SEND_EMAIL = False
-"""Whether GOATS sends notifications by email. Off until an SMTP
+"""Whether GOATS sends email: notifications and account emails. Off until an SMTP
 server is configured in ``local.py`` (``EMAIL_HOST``, ``EMAIL_PORT``,
 ``EMAIL_HOST_USER``, ``EMAIL_HOST_PASSWORD``, ``EMAIL_USE_TLS``)."""
 
@@ -421,8 +421,9 @@ belongs. Setting this value to True will allow all ``ObservationRecord``,
 ``False`` will allow users to specify which groups can access ``ObservationRecord``,
 ``DataProduct``, and ``ReducedDatum`` objects"""
 
-OPEN_URLS = []
-"""List of URLs that are open even when AUTH_STRATEGY is LOCKED."""
+OPEN_URLS = ["/accounts/register/*"]
+"""List of URLs that are open even when AUTH_STRATEGY is LOCKED. Requesting an
+account happens before signing in."""
 
 HOOKS = {
     "target_post_save": "tom_common.hooks.target_post_save",

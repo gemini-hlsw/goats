@@ -1,3 +1,7 @@
+from goats_tom.views.account_requests import (
+    AccountRequestDecideView,
+    AccountRequestListView,
+)
 from goats_tom.views.antares import RefreshAntaresPhotometryView
 from goats_tom.views.astro_datalab import AstroDatalabView
 from goats_tom.views.brokerquery_list import BrokerQueryListView
@@ -30,6 +34,8 @@ from goats_tom.views.observation_record_delete import ObservationRecordDeleteVie
 from goats_tom.views.observation_record_detail import ObservationRecordDetailView
 from goats_tom.views.observation_template_create import ObservationTemplateCreateView
 from goats_tom.views.observation_template_list import ObservationTemplateListView
+from goats_tom.views.register import register
+from goats_tom.views.sign_in import SignInView
 from goats_tom.views.status import status_view
 from goats_tom.views.target_delete import TargetDeleteView
 from goats_tom.views.target_detail import TargetDetailView
@@ -49,6 +55,10 @@ from goats_tom.views.tns_report import (
 from goats_tom.views.user_list import UserListView
 
 __all__ = [
+    "register",
+    "SignInView",
+    "AccountRequestDecideView",
+    "AccountRequestListView",
     "GOATSTNSFormView",
     "GOATSTNSSubmitView",
     "tns_choose_posting_option",

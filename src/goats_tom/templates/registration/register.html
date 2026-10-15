@@ -1,0 +1,38 @@
+{% extends 'tom_common/base.html' %}
+{% load custom_filters %}
+{% block title %}Request an account{% endblock %}
+{% block content %}
+<div class="row justify-content-md-center">
+  <div class="col-md-8 col-lg-6">
+    <h1 class="h2 mb-3">
+      Request a GOATS account
+      <a
+        class="link-primary ms-1 fs-6 align-middle"
+        type="button"
+        tabindex="0"
+        id="register-info"
+        data-bs-toggle="popover"
+        data-bs-placement="right"
+        data-bs-trigger="focus"
+        data-bs-title="Request an account"
+        data-bs-content="An administrator reviews each request. You can sign in once yours is approved."
+        ><i class="fa-solid fa-circle-info"></i
+      ></a>
+    </h1>
+    <script>
+      new bootstrap.Popover(document.getElementById("register-info"));
+    </script>
+    <form action="{% url 'register' %}" method="POST">
+      {% csrf_token %}
+      {% for error in form.non_field_errors %}
+      <div class="alert alert-danger" role="alert">{{ error }}</div>
+      {% endfor %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"username,first_name,last_name,email,affiliation" %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"password1,password2" hide_help_for="password2" %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"message" %}
+      <button type="submit" class="btn btn-primary">Request account</button>
+    </form>
+    <p class="mt-4 mb-0">Already have an account? <a href="{% url 'login' %}">Sign in</a>.</p>
+  </div>
+</div>
+{% endblock %}
