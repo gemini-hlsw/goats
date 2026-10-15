@@ -16,6 +16,9 @@ class ObservationForm {
   #finderChartEditor;
   #offsetVariantEditor;
 
+  /** ToO activations GPP runs uninterrupted, fixing the scheduling mode. */
+  static #UNINTERRUPTIBLE_ACTIVATIONS = ["RAPID", "INTERRUPTING"];
+
   /**
    * Create an ObservationForm.
    * @param {HTMLElement} parentElement - The container to render the form into.
@@ -170,10 +173,37 @@ class ObservationForm {
 
     const allFields = this.#getMergedFields(observation);
     this.#appendFields(form, allFields, observation);
+    this.#bindSchedulingMode();
 
     this.#openIncompleteSections();
 
     this.#container.appendChild(form);
+  }
+
+  /**
+   * Fix the scheduling mode at UNINTERRUPTIBLE while the ToO activation is
+   * RAPID or INTERRUPTING, as GPP does.
+   *
+   * The disabled select is not submitted, so GPP sets the mode itself.
+   * @private
+   */
+  #bindSchedulingMode() {
+    const activation = this.#form.querySelector("#tooActivationSelect");
+    const mode = this.#form.querySelector("#schedulingModeSelect");
+    if (!activation || !mode || mode.disabled) return;
+
+    const sync = () => {
+      const fixed = ObservationForm.#UNINTERRUPTIBLE_ACTIVATIONS.includes(
+        activation.value,
+      );
+      if (fixed) mode.value = "UNINTERRUPTIBLE";
+      mode.disabled = fixed;
+      mode.title = fixed
+        ? "Fixed by GPP while the ToO activation is Rapid or Interrupting."
+        : "";
+    };
+    activation.addEventListener("change", sync);
+    sync();
   }
 
   /**

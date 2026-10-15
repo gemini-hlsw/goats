@@ -10,7 +10,7 @@ from typing import Any, List
 
 from asgiref.sync import async_to_sync
 from gpp_client import GPPClient
-from gpp_client.generated.enums import AttachmentType
+from gpp_client.generated.enums import AttachmentType, TooActivation
 from gpp_client.generated.input_types import (
     CreateObservationInput,
     ScienceRequirementsInput,
@@ -146,6 +146,34 @@ def apply_goats_subtitle(observation_properties: Any, normalized_data: dict) -> 
         normalized_data.get("discoverySurveyInput")
     )
     observation_properties.subtitle = build_goats_subtitle(discovery_survey)
+
+
+def apply_too_activation_labels(
+    target_properties: Any, observation_properties: Any, normalized_data: dict
+) -> None:
+    """Label a ToO with its activation in the title and the observer notes.
+
+    Parameters
+    ----------
+    target_properties : Any
+        Target properties sent to GPP.
+    observation_properties : Any
+        Observation properties sent to GPP.
+    normalized_data : dict
+        Normalized form data holding ``"tooActivationSelect"``.
+    """
+    activation = normalized_data.get("tooActivationSelect")
+    if not activation or activation == TooActivation.NONE.value:
+        return
+
+    # GPP builds the observation title from its targets' names.
+    name = target_properties.name or ""
+    if not name.startswith(f"{activation} "):
+        target_properties.name = f"{activation} {name}".strip()
+
+    notes = observation_properties.observer_notes or ""
+    if activation not in notes.split():
+        observation_properties.observer_notes = f"{activation}\n{notes}".strip()
 
 
 def build_failure_response(
@@ -1034,6 +1062,10 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
 
             # Set subtitle to a GOATS identifier for easier tracking.
             apply_goats_subtitle(observation_properties, normalized_data)
+            # Only new observations are labelled with their ToO activation.
+            apply_too_activation_labels(
+                target_properties, observation_properties, normalized_data
+            )
 
             # Nothing is cloned, so the science requirements are built from what
             # the form submitted. GPP derives binning, ROI, read mode and the

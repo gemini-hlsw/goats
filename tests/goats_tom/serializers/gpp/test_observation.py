@@ -7,6 +7,7 @@ from gpp_client.generated.enums import (
     SkyBackground,
     WaterVapor,
 )
+from gpp_client.generated.input_types import ObservationPropertiesInput
 from rest_framework.exceptions import ValidationError
 
 from goats_tom.serializers.gpp.observation import ObservationSerializer
@@ -93,3 +94,41 @@ def test_invalid_required_fields(field, value, expected_error, minimal_input):
         serializer.is_valid(raise_exception=True)
 
     assert expected_error in str(excinfo.value)
+
+
+def test_priority_and_scheduling_constraints_format_gpp(
+    minimal_input, patched_subserializers
+):
+    """Scheduling goes inside `schedulingConstraints`, never as the deprecated
+    top-level `timingWindows` GPP rejects next to it."""
+    data = {
+        **minimal_input,
+        "prioritySelect": "HIGH",
+        "tooActivationSelect": "RAPID",
+    }
+    serializer = ObservationSerializer(data=data)
+    assert serializer.is_valid(), serializer.errors
+
+    formatted = serializer.format_gpp()
+
+    assert formatted["priority"] == "HIGH"
+    assert formatted["schedulingConstraints"] == {
+        "timingWindows": [],
+        "tooActivation": "RAPID",
+    }
+    assert "timingWindows" not in formatted
+    properties = ObservationPropertiesInput(
+        priority=formatted["priority"],
+        schedulingConstraints=formatted["schedulingConstraints"],
+    )
+    assert properties.scheduling_constraints.too_activation.value == "RAPID"
+
+
+def test_invalid_priority_is_rejected(minimal_input):
+    serializer = ObservationSerializer(
+        data={**minimal_input, "prioritySelect": "URGENT"}
+    )
+    with pytest.raises(ValidationError) as excinfo:
+        serializer.is_valid(raise_exception=True)
+
+    assert "prioritySelect" in str(excinfo.value)

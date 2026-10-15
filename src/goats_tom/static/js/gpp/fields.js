@@ -25,6 +25,10 @@
  *    Each option can be a string (used for both value and label) or an object
  *    with `labelText`, `value`, and `disabled` properties.
  *
+ * optionsFrom : string (optional)
+ *    Name of the GPP enum (or configuration choice) whose values the select
+ *    offers, taking precedence over `options`.
+ *
  * type        : string (default: "text")
  *     Input type attribute (e.g., "number", "text", etc.).
  *
@@ -119,6 +123,22 @@ const SHARED_FIELDS = [
     ],
   },
   {
+    labelText: "Priority",
+    path: "priority",
+    id: "priority",
+    colSize: "col-lg-6",
+    element: "select",
+    optionsFrom: "priority",
+  },
+  {
+    labelText: "ToO Activation",
+    path: "schedulingConstraints.tooActivation",
+    id: "tooActivation",
+    colSize: "col-lg-6",
+    element: "select",
+    optionsFrom: "tooActivation",
+  },
+  {
     labelText: "Right Ascension",
     path: "targetEnvironment.firstScienceTarget.sidereal.ra.hms",
     id: "rightAscension",
@@ -195,6 +215,14 @@ const SHARED_FIELDS = [
     handler: "handleScienceBand",
     allocationsPath: "program.allocations",
     timeChargePath: "program.timeCharge",
+  },
+  {
+    labelText: "Scheduling Mode",
+    path: "schedulingConstraints.schedulingMode",
+    id: "schedulingMode",
+    colSize: "col-lg-6",
+    element: "select",
+    optionsFrom: "schedulingMode",
   },
   {
     labelText: "Observer Notes",
@@ -288,7 +316,7 @@ const SHARED_FIELDS = [
   //Timing Windows section
   { section: "Scheduling Windows" },
   {
-    path: "timingWindows",
+    path: "schedulingConstraints.timingWindows",
     handler: "handleSchedulingWindowsInputs",
   },
   {
