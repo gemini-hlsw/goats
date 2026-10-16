@@ -5,6 +5,7 @@ from .finder_chart import FinderChartsSerializer
 from .observation import ObservationSerializer
 from .observing_mode import ObservingModeSerializer
 from .pos_angle import PosAngleSerializer
+from .scheduling_constraints import SchedulingConstraintsSerializer
 from .scheduling_windows import SchedulingWindowsSerializer
 from .science_band import ScienceBandSerializer
 from .sidereal import SiderealSerializer
@@ -24,6 +25,7 @@ __all__ = [
     "PosAngleSerializer",
     "ConstraintSetSerializer",
     "ObservationSerializer",
+    "SchedulingConstraintsSerializer",
     "SchedulingWindowsSerializer",
     "ScienceBandSerializer",
     "FinderChartsSerializer",

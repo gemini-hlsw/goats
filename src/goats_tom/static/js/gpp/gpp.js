@@ -300,33 +300,48 @@ class GPPModel {
   }
 
   /**
-   * The form choices GPP defines, labelled for display.
+   * The form choices GPP defines, labelled for display and keyed by the enum
+   * name a field asks for with `optionsFrom`.
    *
-   * A value GOATS has no label for is shown as its own name, so a preset added
-   * to GPP is offered rather than silently missing.
+   * A value GOATS has no label for in `Lookups[name]` is shown as its own name,
+   * so a preset added to GPP is offered rather than silently missing.
    *
    * @returns {!Object<string, !Array<{value: string, labelText: string}>>}
    */
   enumFieldOptions() {
-    const labelled = (values, lookup) =>
-      (values ?? []).map((value) => ({
-        value,
-        labelText:
-          lookup?.[value] ?? Formatters.titleCaseFromUnderscore(value),
-      }));
+    const options = Object.fromEntries(
+      Object.entries(this.#enums).map(([name, values]) => [
+        name,
+        (values ?? []).map((value) => ({
+          value,
+          labelText:
+            Lookups[name]?.[value] ?? Formatters.titleCaseFromUnderscore(value),
+        })),
+      ]),
+    );
 
     return {
-      imageQuality: labelled(this.#enums.imageQuality, Lookups.imageQuality),
-      cloudExtinction: labelled(
-        this.#enums.cloudExtinction,
-        Lookups.cloudExtinction,
-      ),
-      skyBackground: labelled(this.#enums.skyBackground),
-      waterVapor: labelled(this.#enums.waterVapor),
+      ...options,
+      tooActivation: this.#capAtTooActivationCeiling(options.tooActivation),
       // The brightness editor takes plain values, not labelled options.
       bands: this.#enums.band,
       units: this.#enums.brightnessUnits,
     };
+  }
+
+  /**
+   * Disable the ToO activations above the active program's ceiling: GPP flags
+   * them and keeps the observation from becoming ready. No ceiling, no limit.
+   * @param {!Array<{value: string, labelText: string}>=} options - Least
+   *     disruptive first, as GPP lists them.
+   * @returns {!Array<Object>|undefined}
+   * @private
+   */
+  #capAtTooActivationCeiling(options) {
+    const ceiling = this.#activeProgram?.tooActivationCeiling;
+    const max = options?.findIndex((opt) => opt.value === ceiling) ?? -1;
+    if (max < 0) return options;
+    return options.map((opt, i) => ({ ...opt, disabled: i > max }));
   }
 
   /**
@@ -432,6 +447,13 @@ class GPPModel {
         },
         // Likewise for the position angle: fixed at zero until told otherwise.
         posAngleConstraint: { mode: "FIXED", angle: { degrees: 0 } },
+        // What GPP gives a new observation, rather than the first option.
+        priority: "MEDIUM",
+        schedulingConstraints: {
+          // Except the activation: the most the program may declare.
+          tooActivation: this.#activeProgram?.tooActivationCeiling ?? "NONE",
+          schedulingMode: "UNCONSTRAINED",
+        },
         // An approved configuration is ready to be observed, so the new
         // observation starts defined rather than undefined.
         workflow: { value: { state: "DEFINED" } },

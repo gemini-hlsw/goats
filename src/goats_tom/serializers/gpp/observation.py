@@ -6,6 +6,7 @@ __all__ = ["ObservationSerializer"]
 
 from typing import Any
 
+from gpp_client.generated.enums import ObservationPriority
 from gpp_client.generated.input_types import ObservationPropertiesInput
 from rest_framework import serializers
 
@@ -14,7 +15,9 @@ from goats_tom.serializers.gpp.constraint_set import ConstraintSetSerializer
 from goats_tom.serializers.gpp.finder_chart import FinderChartsSerializer
 from goats_tom.serializers.gpp.observing_mode import ObservingModeSerializer
 from goats_tom.serializers.gpp.pos_angle import PosAngleSerializer
-from goats_tom.serializers.gpp.scheduling_windows import SchedulingWindowsSerializer
+from goats_tom.serializers.gpp.scheduling_constraints import (
+    SchedulingConstraintsSerializer,
+)
 from goats_tom.serializers.gpp.science_band import ScienceBandSerializer
 
 
@@ -27,6 +30,11 @@ class ObservationSerializer(_BaseGPPSerializer):
 
     observerNotesTextarea = serializers.CharField(
         required=False, allow_blank=True, allow_null=True
+    )
+    prioritySelect = serializers.ChoiceField(
+        choices=[c.value for c in ObservationPriority],
+        required=False,
+        allow_blank=False,
     )
 
     def to_internal_value(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -54,8 +62,10 @@ class ObservationSerializer(_BaseGPPSerializer):
         self._pos_angle_serializer = PosAngleSerializer(data=data)
         self._pos_angle_serializer.is_valid(raise_exception=True)
 
-        self._scheduling_windows_serializer = SchedulingWindowsSerializer(data=data)
-        self._scheduling_windows_serializer.is_valid(raise_exception=True)
+        self._scheduling_constraints_serializer = SchedulingConstraintsSerializer(
+            data=data
+        )
+        self._scheduling_constraints_serializer.is_valid(raise_exception=True)
 
         self._science_band_serializer = ScienceBandSerializer(data=data)
         self._science_band_serializer.is_valid(raise_exception=True)
@@ -81,6 +91,9 @@ class ObservationSerializer(_BaseGPPSerializer):
         ) is not None:
             result["observerNotes"] = observer_notes
 
+        if (priority := self.validated_data.get("prioritySelect")) is not None:
+            result["priority"] = priority
+
         observing_mode_data = self._observing_mode_serializer.format_gpp()
         if observing_mode_data is not None:
             result["observingMode"] = observing_mode_data
@@ -93,9 +106,12 @@ class ObservationSerializer(_BaseGPPSerializer):
         if pos_angle_data is not None:
             result["posAngleConstraint"] = pos_angle_data
 
-        scheduling_windows_data = self._scheduling_windows_serializer.format_gpp()
-        if scheduling_windows_data is not None:
-            result["timingWindows"] = scheduling_windows_data
+        # GPP rejects the deprecated top-level `timingWindows` next to these.
+        scheduling_constraints_data = (
+            self._scheduling_constraints_serializer.format_gpp()
+        )
+        if scheduling_constraints_data is not None:
+            result["schedulingConstraints"] = scheduling_constraints_data
 
         science_band_data = self._science_band_serializer.format_gpp()
         if science_band_data is not None:

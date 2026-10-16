@@ -28,6 +28,22 @@ class TestGPPEnumsViewSet:
         assert response.data["band"] == [e.value for e in enums.Band]
         assert "THREE_POINT_ZERO" not in response.data["imageQuality"]
 
+    def test_list_serves_the_scheduling_choices(self):
+        request = self.factory.get(self.url)
+        force_authenticate(request, user=self.user)
+
+        response = self.list_view(request)
+
+        assert response.data["priority"] == [
+            e.value for e in enums.ObservationPriority
+        ]
+        assert response.data["tooActivation"] == [
+            e.value for e in enums.TooActivation
+        ]
+        assert response.data["schedulingMode"] == [
+            e.value for e in enums.SchedulingMode
+        ]
+
     def test_list_needs_no_gpp_credentials(self):
         """The values come from the schema, so no GPP call is made."""
         request = self.factory.get(self.url)

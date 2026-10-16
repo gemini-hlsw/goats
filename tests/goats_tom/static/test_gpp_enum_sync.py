@@ -13,6 +13,8 @@ from pathlib import Path
 import pytest
 from gpp_client.generated import enums
 
+from goats_tom.api_views.gpp.enums import FORM_ENUMS
+
 JS_DIR = Path(__file__).resolve().parents[3] / "src/goats_tom/static/js/gpp"
 
 
@@ -130,3 +132,14 @@ def test_field_offers_what_the_schema_defines(
 ) -> None:
     """Test that a select offers exactly the values GPP accepts."""
     assert set(_field_options(field_id)) == {e.value for e in enum_class}
+
+
+def test_options_from_names_a_served_choice() -> None:
+    """Test that every ``optionsFrom`` in ``fields.js`` is served to the form."""
+    text = (JS_DIR / "fields.js").read_text()
+    names = set(re.findall(r'optionsFrom: "(\w+)"', text))
+    # Narrowed down by the approved configuration rather than an enum.
+    configuration_choices = {"fpu", "filter"}
+
+    assert {"priority", "tooActivation", "schedulingMode"} <= names
+    assert names - configuration_choices <= set(FORM_ENUMS)

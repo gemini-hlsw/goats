@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -17,6 +18,7 @@ from goats_tom.api_views.gpp.observations import (
     ResponseStatus,
     Stage,
     StageMessage,
+    apply_too_activation_labels,
     build_failure_response,
     build_goats_subtitle,
     normalize_discovery_survey,
@@ -209,6 +211,37 @@ def test_build_goats_subtitle_without_version(mocker):
     assert build_goats_subtitle() == "GOATS"
 
 
+@pytest.mark.parametrize(
+    "activation, name, notes, expected_name, expected_notes",
+    [
+        (None, "SN 2026a", "Hi", "SN 2026a", "Hi"),
+        ("NONE", "SN 2026a", "Hi", "SN 2026a", "Hi"),
+        ("RAPID", "SN 2026a", None, "RAPID SN 2026a", "RAPID"),
+        (
+            "INTERRUPTING",
+            "SN 2026a",
+            "Hi",
+            "INTERRUPTING SN 2026a",
+            "INTERRUPTING\nHi",
+        ),
+        # Already labelled, so nothing is added twice.
+        ("RAPID", "RAPID SN 2026a", "RAPID\nHi", "RAPID SN 2026a", "RAPID\nHi"),
+    ],
+)
+def test_apply_too_activation_labels(
+    activation, name, notes, expected_name, expected_notes
+):
+    target = SimpleNamespace(name=name)
+    observation = SimpleNamespace(observer_notes=notes)
+
+    apply_too_activation_labels(
+        target, observation, {"tooActivationSelect": activation}
+    )
+
+    assert target.name == expected_name
+    assert observation.observer_notes == expected_notes
+
+
 @pytest.mark.django_db
 class TestGPPObservationViewSet:
     def setup_method(self):
@@ -391,6 +424,73 @@ class TestGPPObservationViewSet:
             return_value=_mock_workflow_state_result("INACTIVE")
         )
         return client
+
+    def _mock_create_client(self, mocker):
+        """Patch ``GPPClient`` so target, observation and workflow creation succeed."""
+        mocker.patch("goats_tom.api_views.gpp.observations.CreateObservationInput")
+        client = mocker.patch(
+            "goats_tom.api_views.gpp.observations.GPPClient"
+        ).return_value
+
+        create_target_result = mocker.Mock()
+        create_target_result.model_dump.return_value = {
+            "createTarget": {"target": {"id": "t-new"}}
+        }
+        client.target.create_by_program_id = AsyncMock(
+            return_value=create_target_result
+        )
+
+        create_obs_result = mocker.Mock()
+        create_obs_result.model_dump.return_value = {
+            "createObservation": {"observation": {"id": "o-new"}}
+        }
+        client.observation.create = AsyncMock(return_value=create_obs_result)
+        client.workflow_state.update_by_id_with_retry = AsyncMock(
+            return_value=_mock_workflow_state_result("INACTIVE")
+        )
+        mocker.patch.object(
+            GPPObservationViewSet,
+            "_create_goats_observation",
+            return_value=Response({"id": 1}, status=status.HTTP_201_CREATED),
+        )
+        return client
+
+    def test_create_and_save_labels_the_too_activation(self, mocker):
+        """A new ToO carries its activation in the title and the observer notes."""
+        _, target_props, obs_props = self._mock_validated_serializers(mocker)
+        obs_props.observer_notes = "Follow up"
+        self._mock_create_client(mocker)
+
+        request = self.factory.post(
+            self.observation_create_and_save_url,
+            {"finderCharts": "{}", "tooActivationSelect": "RAPID"},
+        )
+        force_authenticate(request, user=self.user_with_login)
+
+        response = self.create_and_save_view(request)
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert target_props.name == "RAPID test-target"
+        assert obs_props.observer_notes == "RAPID\nFollow up"
+
+    def test_update_only_does_not_label_the_too_activation(self, mocker):
+        """Only new observations are labelled; an update leaves them as they are."""
+        _, target_props, obs_props = self._mock_validated_serializers(mocker)
+        obs_props.observer_notes = "Follow up"
+        self._mock_update_client(mocker)
+
+        update_view = GPPObservationViewSet.as_view({"post": "update_only"})
+        request = self.factory.post(
+            self.observation_update_and_save_url,
+            {"finderCharts": "{}", "tooActivationSelect": "RAPID"},
+        )
+        force_authenticate(request, user=self.user_with_login)
+
+        response = update_view(request)
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert target_props.name == "test-target"
+        assert obs_props.observer_notes == "Follow up"
 
     def test_update_only_happy_path(self, mocker):
         """Exercise update_only target/observation/workflow updates."""
