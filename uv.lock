@@ -2113,7 +2113,7 @@ requires-dist = [
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
     { name = "gpp-client", specifier = "==26.10.2" },
-    { name = "jdaviz", git = "https://github.com/spacetelescope/jdaviz?tag=v5.0.1" },
+    { name = "jdaviz", git = "https://github.com/spacetelescope/jdaviz?tag=v5.0.2" },
     { name = "marshmallow", specifier = "==3.26.2" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
     { name = "numpydoc", specifier = ">=1.9.0,<2" },
@@ -2147,7 +2147,7 @@ docs = [
 github = [
     { name = "dragons", git = "https://github.com/GeminiDRSoftware/DRAGONS?tag=v4.2.2" },
     { name = "fits-storage", git = "https://github.com/GeminiDRSoftware/FitsStorage?tag=v3.5.2" },
-    { name = "jdaviz", git = "https://github.com/spacetelescope/jdaviz?tag=v5.0.1" },
+    { name = "jdaviz", git = "https://github.com/spacetelescope/jdaviz?tag=v5.0.2" },
 ]
 notebook = [{ name = "ipykernel", specifier = ">=7.3.0" }]
 
@@ -2735,8 +2735,8 @@ wheels = [
 
 [[package]]
 name = "jdaviz"
-version = "5.0.1"
-source = { git = "https://github.com/spacetelescope/jdaviz?tag=v5.0.1#bdbe1bb52ea17921c06c089f7f42d8d122977756" }
+version = "5.0.2"
+source = { git = "https://github.com/spacetelescope/jdaviz?tag=v5.0.2#3e1ec3032f23265cbfe2dc1e13ce1a680e3b85e7" }
 dependencies = [
     { name = "asdf" },
     { name = "asteval" },
@@ -2773,7 +2773,6 @@ dependencies = [
     { name = "specreduce" },
     { name = "specutils" },
     { name = "spherical-geometry" },
-    { name = "starlette" },
     { name = "stdatamodels" },
     { name = "traitlets" },
     { name = "vispy" },
