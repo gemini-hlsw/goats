@@ -1,9 +1,10 @@
 {% extends 'tom_common/base.html' %}
 {% load custom_filters %}
-{% block title %}Login{% endblock %}
+{% block title %}Log in{% endblock %}
 {% block content %}
 <div class="row justify-content-md-center">
   <div class="col-md-4">
+    <h1 class="h2 mb-3">Log in to GOATS</h1>
     <form action="{% url 'login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" method="POST">
       {% csrf_token %}
       {% for error in form.non_field_errors %}
@@ -22,7 +23,7 @@
         <div class="text-danger mt-2">{{ error }}</div>
         {% endfor %}
       </div>
-      <button type="submit" class="btn btn-primary">Login</button>
+      <button type="submit" class="btn btn-primary">Log in</button>
     </form>
     <p class="mt-4 mb-0">No account yet? <a href="{% url 'register' %}">Request an account</a>.</p>
   </div>

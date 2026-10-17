@@ -45,7 +45,7 @@
         <a class="nav-link" target="_blank" rel="noopener" title="Open Gemini Explore" href="https://explore.gemini.edu/">Gemini Explore <i class="fa-solid fa-arrow-up-right-from-square fa-xs ms-1" aria-hidden="true"></i></a>
       </li>
     </ul>
-    <ul class="navbar-nav">
+    <ul class="navbar-nav navbar-tools">
       <li class="nav-item">
         <a class="nav-link px-md-2 py-2" href="https://github.com/gemini-hlsw/goats" target="_blank" title="Go to GOATS GitHub page"><i class="fa-brands fa-github fa-lg"></i><span class=" d-md-none ms-2">GitHub</span></a>
       </li>
@@ -54,48 +54,56 @@
       </li>
       <li class="nav-item">
         <button id="colorThemeToggle" class="nav-link px-md-2 py-2" title="Toggle light/dark mode">
-          <i class="fa-solid fa-sun fa-lg"></i><span class="d-md-none ms-2">Theme</span>
+          <i class="fa-solid fa-sun fa-lg" data-theme-icon></i><span class="d-md-none ms-2">Theme</span>
         </button>
       </li>
+      {% if user.is_authenticated %}
       <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle px-md-2 py-2 my-auto {% if request.resolver_match.url_name == 'recent_downloads' %}active{% endif %}" href="#" id="navbarDownloadLink" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="View current and past downloads">
-          <span id="downloadBadge" class="badge rounded-pill bg-primary d-none mt-0">0</span> <i class="fa-solid fa-download fa-lg"></i><span class=" d-md-none ms-2">Downloads</span>
+        <a class="nav-link dropdown-toggle px-md-2 py-2 my-auto {% if request.resolver_match.url_name == 'recent_downloads' %}active{% endif %}" href="#" id="navbarDownloadLink" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Downloads">
+          <span class="nav-icon"><i class="fa-solid fa-download fa-lg"></i><span id="downloadBadge" class="nav-badge bg-primary d-none">0</span></span><span class="d-md-none ms-2">Downloads</span>
         </a>
-        <div class="dropdown-menu dropdown-menu-end download-tasks-container" aria-labelledby="navbarDownloadLink">
-          <div id="downloadTasksBanner"></div>
-          <a href="{% url 'recent_downloads' %}" class="dropdown-item">View Previous Downloads</a>
+        <div class="dropdown-menu dropdown-menu-end downloads-panel" aria-labelledby="navbarDownloadLink">
+          <h6 class="dropdown-header text-uppercase fw-bold dropdown-section downloads-head">Downloads</h6>
+          <div id="downloadTasksBanner" class="downloads-list"></div>
+          <div id="noDownloadsMessage" class="downloads-empty">
+            <i class="fa-solid fa-download downloads-empty-icon" aria-hidden="true"></i>
+            <strong>No downloads in progress</strong>
+            <span>Downloads you start will show up here.</span>
+          </div>
+          <a class="dropdown-item downloads-foot" href="{% url 'recent_downloads' %}">View previous downloads</a>
         </div>
       </li>
-      {% if user.is_authenticated %}
       {% include 'notifications/partials/bell.html' %}
-      <li class="nav-item dropdown ">
-        <a class="nav-link dropdown-toggle px-md-2 py-2 {% if request.resolver_match.url_name|starts_with:'user-' or request.resolver_match.url_name == 'status' or request.resolver_match.url_name == 'account-requests' %}active{% endif %}" title="Manage user settings and preferences" data-bs-toggle="dropdown">
-          {{ user.username }}
+      <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle px-md-2 py-2 my-auto {% if request.resolver_match.url_name|starts_with:'user-' or request.resolver_match.url_name == 'status' or request.resolver_match.url_name == 'account-requests' %}active{% endif %}" href="#" id="navbarUserLink" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Manage user settings and preferences">
+          <i class="fa-solid fa-circle-user fa-lg"></i><span class="ms-2">{{ user.username }}</span>
         </a>
-        <div class="dropdown-menu dropdown-menu-end">
+        <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserLink">
+          <div class="dropdown-item-text">
+            <div class="fw-semibold">{{ user.get_full_name|default:user.username }}</div>
+            {% if user.email %}<div class="small text-body-secondary">{{ user.email }}</div>{% endif %}
+          </div>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item" href="{% url 'user-update' user.id %}"><i class="fa-solid fa-gear fa-fw me-2"></i>Account settings</a>
+          <div class="dropdown-divider"></div>
+          <a class="dropdown-item" href="{% url 'status' %}"><i class="fa-solid fa-heart-pulse fa-fw me-2"></i>Service status</a>
           {% if user.is_superuser %}
-          <a class="dropdown-item" href="{% url 'user-list' %}">Users</a>
-          <a class="dropdown-item" href="{% url 'account-requests' %}">Account requests</a>
+          <a class="dropdown-item" href="{% url 'user-list' %}"><i class="fa-solid fa-users fa-fw me-2"></i>Users</a>
+          <a class="dropdown-item" href="{% url 'account-requests' %}"><i class="fa-solid fa-user-plus fa-fw me-2"></i>Account requests</a>
           {% endif %}
-          <a class="dropdown-item" href="{% url 'user-update' user.id %}">Settings</a>
-          <a class="dropdown-item" href="{% url 'status' %}">Service Status</a>
           <div class="dropdown-divider"></div>
           <form method="post" action="{% url 'logout' %}" class="d-inline">
             {% csrf_token %}
-            <button type="submit" class="dropdown-item">Logout</button>
+            <button type="submit" class="dropdown-item"><i class="fa-solid fa-right-from-bracket fa-fw me-2"></i>Log out</button>
           </form>
+          <button id="shutdownBtn" type="button" class="dropdown-item text-danger"><i class="fa-solid fa-power-off fa-fw me-2"></i>Shut down GOATS</button>
         </div>
       </li>
       {% else %}
       <li class="nav-item">
-        <a class="nav-link px-md-2 py-2 {% if request.resolver_match.url_name == 'login' %}active{% endif %}" href="{% url 'login' %}" title="Login to GOATS">Login</a>
+        <a class="nav-link px-md-2 py-2 {% if request.resolver_match.url_name == 'login' %}active{% endif %}" href="{% url 'login' %}" title="Log in to GOATS"><i class="fa-solid fa-right-to-bracket fa-lg"></i><span class="ms-2">Log in</span></a>
       </li>
       {% endif %}
-      <li class="nav-item">
-        <button id="shutdownBtn" class="nav-link px-md-2 py-2" title="Shut down GOATS">
-          <i class="fa-solid fa-power-off fa-lg"></i><span class="d-md-none ms-2">Shut Down</span>
-        </button>
-      </li>
     </ul>
   </div>
 </div>
