@@ -360,7 +360,7 @@ class ANTARESBroker(GenericBroker):
         ----------
         alert : dict, optional
             Alert payload returned by the ANTARES broker. Expected to contain
-            a "lightcurve" key and optionally "properties.survey".
+            a "lightcurve" key.
 
         Returns
         -------
@@ -406,12 +406,11 @@ class ANTARESBroker(GenericBroker):
         lightcurve["limit"] = lightcurve["limit"].where(lightcurve["magnitude"].isna())
 
         try:
-            surveys_dict = alert_dict.get("properties", {}).get("survey", {})
-            surveys = list(surveys_dict.keys())
             lightcurve["telescope"] = "UNKNOWN"
-            for s in surveys:
+            # Older loci lack "properties.survey"; the alert_id prefix is always set.
+            for s, label in SURVEY_LABELS.items():
                 mask = lightcurve["alert_id"].str.startswith(s)
-                lightcurve.loc[mask, "telescope"] = SURVEY_LABELS.get(s, s.upper())
+                lightcurve.loc[mask, "telescope"] = label
                 lightcurve.loc[mask, "filter"] = (
                     lightcurve.loc[mask, "filter"] + "-" + s.upper()
                 )
