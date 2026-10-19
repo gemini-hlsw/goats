@@ -14,7 +14,9 @@ class TNSHarvester(AbstractHarvester):
     """A harvester for querying the TNS catalog and converting results into targets."""
 
     name = "TNS"
-    help_text = "Requires object name without prefix."
+    help_text = (
+        "Enter the object name without its prefix, for example 2024abc, not SN 2024abc."
+    )
 
     def __init__(self) -> None:
         self.client = TNSClient()

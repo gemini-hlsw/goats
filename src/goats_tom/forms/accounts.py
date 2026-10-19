@@ -34,20 +34,22 @@ class RegistrationForm(UserCreationForm):
     first_name = forms.CharField(max_length=150)
     last_name = forms.CharField(max_length=150)
     email = forms.EmailField()
-    affiliation = forms.CharField(
-        max_length=100, help_text="Your institution or organisation."
-    )
+    affiliation = forms.CharField(max_length=100)
     message = forms.CharField(
         label="Why do you need access? (optional)",
         required=False,
         max_length=500,
         widget=forms.Textarea(attrs={"rows": 3}),
-        help_text="For example, the programme or collaboration you work with.",
+        help_text="You can enter up to 500 characters.",
     )
 
     class Meta(UserCreationForm.Meta):
         model = User
         fields = ("username", "first_name", "last_name", "email")
+        # Django's, without its leading "Required.": the asterisk says it.
+        help_texts = {
+            "username": "150 characters or fewer. Letters, digits and @/./+/-/_ only."
+        }
 
     field_order = [
         "username",

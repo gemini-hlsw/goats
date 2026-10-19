@@ -41,13 +41,12 @@ PORTAL_LABELS = {
 #: observation per period, and the window it was given is dropped.
 PORTAL_HELP = {
     "period": (
-        "Hours between one observation and the next. Filling the cadence in "
-        "replaces the window: the portal expands the request into one "
-        "observation per period, each with a window of its own."
+        "Enter the hours between observations. This replaces the window: the "
+        "portal creates one observation per period, each with its own window."
     ),
     "jitter": (
-        "Hours an observation may fall either side of its cadence time, when "
-        "the exact one cannot be scheduled."
+        "Enter how many hours an observation may move before or after its "
+        "cadence time when that exact time cannot be scheduled."
     ),
 }
 
@@ -416,8 +415,8 @@ class GOATSBLANCOImagingObservationForm(BLANCOImagingObservationForm):
             initial=self._threshold_on_offer(),
             label="Acceptability Threshold",
             help_text=(
-                "The percentage of the observation that must be completed to "
-                "mark the request as complete and avert rescheduling."
+                "Enter the percentage of the observation that must be done for "
+                "the request to count as complete and not be rescheduled."
             ),
             widget=forms.TextInput(attrs={"placeholder": "Percent"}),
         )
@@ -450,8 +449,8 @@ class GOATSBLANCOImagingObservationForm(BLANCOImagingObservationForm):
                         required=False,
                         label=label,
                         help_text=(
-                            "Offset this exposure from the configuration's "
-                            "target, in arcseconds. Used for dithering."
+                            "Enter an offset in arcseconds from the target to "
+                            "dither this exposure."
                         ),
                         widget=forms.TextInput(attrs={"placeholder": "Arc seconds"}),
                     )

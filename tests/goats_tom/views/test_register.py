@@ -1,5 +1,7 @@
 """Tests for the public page to request an account."""
 
+import re
+
 import pytest
 from django.contrib.auth.models import Group, User
 from django.urls import reverse
@@ -67,6 +69,27 @@ def test_an_address_already_in_use_is_refused(client):
         response.content.decode()
     )
     assert not AccountRequest.objects.exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("submit", [False, True], ids=["empty", "with-errors"])
+def test_every_field_description_is_on_the_page(client, submit):
+    response = client.post(PAGE, _data(email="nope")) if submit else client.get(PAGE)
+    content = response.content.decode()
+
+    ids = set(re.findall(r'\bid="([^"]+)"', content))
+    described = re.findall(r'aria-describedby="([^"]+)"', content)
+    assert described
+    for refs in described:
+        assert set(refs.split()) <= ids, refs
+
+
+@pytest.mark.django_db
+def test_required_fields_are_marked(client):
+    content = client.get(PAGE).content.decode()
+
+    assert re.search(r'>Username<span class="text-danger"[^>]*>\*</span>', content)
+    assert re.search(r">Why do you need access\? \(optional\)</label>", content)
 
 
 @pytest.mark.django_db

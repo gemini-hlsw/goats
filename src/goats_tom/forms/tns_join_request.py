@@ -41,14 +41,8 @@ class TNSJoinRequestForm(forms.Form):
         label="Message to the owner (optional)",
         required=False,
         max_length=500,
-        widget=forms.Textarea(
-            attrs={
-                "rows": 2,
-                "placeholder": (
-                    "e.g. the programme or collaboration you're working on"
-                ),
-            }
-        ),
+        widget=forms.Textarea(attrs={"rows": 2}),
+        help_text="You can enter up to 500 characters.",
     )
 
     def __init__(self, *args, user=None, **kwargs):
