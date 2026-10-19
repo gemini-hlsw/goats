@@ -263,7 +263,8 @@ class GPPModel {
   }
 
   /**
-   * Fetch the approved configuration requests of a program and cache them.
+   * Fetch the approved configuration requests of a program and cache those
+   * that suit a ToO.
    * @async
    * @param {string} programId  Program identifier.
    * @returns {Promise<void>}
@@ -276,11 +277,30 @@ class GPPModel {
         `${this.#gppConfigurationRequestsUrl}?program_id=${encodeURIComponent(programId)}`,
       );
       for (const configuration of matches ?? []) {
-        this.#tooConfigurations.set(configuration.id, configuration);
+        if (GPPModel.#targetsRegion(configuration)) {
+          this.#tooConfigurations.set(configuration.id, configuration);
+        }
       }
     } catch (error) {
       console.error("Error fetching configuration requests:", error);
     }
+  }
+
+  /**
+   * Whether a configuration was approved for a region of the sky, a range or
+   * all of it, rather than for fixed coordinates. A ToO target is unknown
+   * until it is triggered, so only a region can cover it.
+   * @param {!Object} configurationRequest - Approved configuration request.
+   * @returns {boolean}
+   * @private
+   */
+  static #targetsRegion(configurationRequest) {
+    const region = configurationRequest?.configuration?.target?.region;
+    if (!region) return false;
+    // An empty arc covers no sky at all.
+    return [region.rightAscensionArc, region.declinationArc].every(
+      (arc) => arc?.type === "PARTIAL" || arc?.type === "FULL",
+    );
   }
 
   /**

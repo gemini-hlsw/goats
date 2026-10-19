@@ -223,3 +223,43 @@ test("a read-only form keeps the mode disabled", async () => {
 
   expect(mode.disabled).toBe(true);
 });
+
+/** An approved configuration request whose target is `target`. */
+function configurationRequest(id, target) {
+  return { id, configuration: { target, observingMode: {} } };
+}
+
+/** A region whose arcs are of the given types. */
+function region(raType, decType) {
+  return {
+    region: {
+      rightAscensionArc: { type: raType, start: null, end: null },
+      declinationArc: { type: decType, start: null, end: null },
+    },
+  };
+}
+
+test("only the configurations approved for a region are offered for a ToO", async () => {
+  const GPPModel = buildWindow().eval("GPPModel");
+  const model = new GPPModel({
+    api: {
+      get: async () => ({
+        matches: [
+          configurationRequest("full", region("FULL", "FULL")),
+          configurationRequest("range", region("PARTIAL", "FULL")),
+          configurationRequest("empty", region("EMPTY", "FULL")),
+          configurationRequest("fixed", {
+            coordinates: { ra: { degrees: 10 }, dec: { degrees: -20 } },
+            region: null,
+          }),
+          configurationRequest("none", null),
+        ],
+      }),
+    },
+  });
+
+  await model.fetchTooConfigurations("p-1");
+
+  expect(model.tooConfigurationsList.map((c) => c.id)).toEqual(["full", "range"]);
+  expect(model.getTooConfiguration("fixed")).toBeUndefined();
+});
