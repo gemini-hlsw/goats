@@ -199,6 +199,35 @@ def test_process_lightcurve_data_success(broker):
     assert (df["telescope"] == "P48-ZTF").all()
 
 
+def test_process_lightcurve_data_without_survey_property(broker):
+    alert = {
+        "lightcurve": [
+            {
+                "alert_id": "ztf_upper_limit:ZTF18abctzew-839447763115",
+                "ant_mjd": 59000.0,
+                "ant_mag": None,
+                "ant_magerr": None,
+                "ant_maglim": 19.5,
+                "ant_passband": "R",
+            },
+            {
+                "alert_id": "lsst:313897384100757708",
+                "ant_mjd": 61000.0,
+                "ant_mag": 20.1,
+                "ant_magerr": 0.05,
+                "ant_maglim": None,
+                "ant_passband": "g",
+            },
+        ],
+        "properties": {"ztf_object_id": "ZTF18abctzew"},
+    }
+
+    df = broker.process_lightcurve_data(alert=alert)
+
+    assert df["telescope"].tolist() == ["P48-ZTF", "RUBIN"]
+    assert df["filter"].tolist() == ["R-ZTF", "g-LSST"]
+
+
 def test_process_lightcurve_data_telescope_unknown(broker):
     alert = {
         "lightcurve": [
