@@ -2,16 +2,25 @@
 {% load static targets_extras observation_extras dataproduct_extras tom_common_extras %}
 {% block title %}Home{% endblock %}
 {% block content %}
+{% if not user.is_authenticated %}
+<div class="landing-frame">
+  <div class="landing-image">
+    <div class="home-welcome text-center">
+      <a href="{% url 'login' %}" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket me-2"></i>Log in</a>
+      <p class="home-welcome-register">No account yet? <a href="{% url 'register' %}" class="link-body-emphasis link-offset-1 fw-semibold">Request an account</a>.</p>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 {% block javascript %}
 {{ block.super }}
+{% if user.is_authenticated %}
 {% comment %}Only an administrator can open the user list; everybody else manages their own credentials in settings.{% endcomment %}
 {% if user.is_superuser %}
   {% url 'user-list' as credentials_url %}
-{% elif user.is_authenticated %}
-  {% url 'user-update' user.pk as credentials_url %}
 {% else %}
-  {% url 'login' as credentials_url %}
+  {% url 'user-update' user.pk as credentials_url %}
 {% endif %}
 <script>
   document.addEventListener("DOMContentLoaded", () => {
@@ -34,4 +43,5 @@
   }
 )
 </script>
+{% endif %}
 {% endblock %}

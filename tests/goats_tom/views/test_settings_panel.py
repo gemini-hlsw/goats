@@ -352,6 +352,22 @@ class TestHomeCredentialsLinkFitsTheUser(TestCase):
 
         assert self.credentials_link() == reverse("user-list")
 
-    def test_an_anonymous_visitor_goes_to_login(self) -> None:
+    def test_an_anonymous_visitor_is_asked_to_log_in_or_register(self) -> None:
         """There are no credentials to manage before logging in."""
-        assert self.credentials_link() == reverse("login")
+        content = self.client.get(reverse("home")).content.decode()
+
+        assert "Manage your credentials" not in content
+        assert "Add Service Credentials" not in content
+        assert 'class="home-welcome' in content
+        assert f'<a href="{reverse("login")}" class="btn btn-primary">' in content
+        assert (
+            f'No account yet? <a href="{reverse("register")}" '
+            'class="link-body-emphasis link-offset-1 fw-semibold">Request an account</a>.'
+        ) in content
+
+    def test_a_signed_in_user_gets_no_welcome_card(self) -> None:
+        """The card is only for visitors."""
+        UserFactory(username="owner", password="x")
+        self.client.login(username="owner", password="x")
+
+        assert "home-welcome" not in self.client.get(reverse("home")).content.decode()

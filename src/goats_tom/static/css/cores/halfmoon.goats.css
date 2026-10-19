@@ -242,11 +242,30 @@ footer {
   box-shadow: 0 15px 35px hsl(0deg 0% 0% / 20%);
 }
 
-.download-tasks-container {
-  max-height: 400px; /* Adjust as needed */
-  padding: 10px;
-  width: 400px;
-  overflow: hidden auto;
+/* The menus at the right of the navbar point at the icon that opened them.
+   The arrow hangs from the toggle, since the panels clip their own overflow;
+   `navbar_menus.js` sets `--menu-arrow-x` to the icon's centre. */
+@media (width >= 768px) {
+  .navbar-tools .dropdown-menu[data-bs-popper] {
+    margin-top: 0.5rem;
+  }
+
+  .navbar-tools .dropdown-toggle {
+    position: relative;
+  }
+
+  .navbar-tools .dropdown-toggle.show::before {
+    border: 0.5rem solid transparent;
+    border-bottom-color: var(--bs-content-floating-bg);
+    border-top: 0;
+    content: "";
+    filter: drop-shadow(0 -1px 0 var(--bs-content-floating-border-color));
+    left: var(--menu-arrow-x, 50%);
+    position: absolute;
+    top: 100%;
+    transform: translateX(-50%);
+    z-index: 1001;
+  }
 }
 
 /* Unread or active count, overlapping the top-right corner of a navbar icon. */
@@ -312,14 +331,16 @@ footer {
 
 /* Notification panel under the navbar bell. Built from the theme's dropdown,
    nav-underline and emphasis tokens so it matches the other navbar menus. */
-.notifications-panel {
+.notifications-panel,
+.downloads-panel {
   max-width: calc(100vw - 2rem);
   overflow: hidden;
   padding: 0;
   width: 24rem;
 }
 
-.notifications-head {
+.notifications-head,
+.downloads-head {
   padding-top: 0.75rem;
 }
 
@@ -362,12 +383,14 @@ footer {
   padding: 0 0.4rem;
 }
 
-.notifications-list {
+.notifications-list,
+.downloads-list {
   max-height: 26rem;
   overflow: hidden auto;
 }
 
-.notification-row {
+.notification-row,
+.download-row {
   align-items: flex-start;
   display: flex;
   gap: 0.625rem;
@@ -375,7 +398,8 @@ footer {
   position: relative;
 }
 
-.notification-row + .notification-row {
+.notification-row + .notification-row,
+.download-row + .download-row {
   border-top: var(--bs-border-width) solid var(--bs-border-color);
 }
 
@@ -387,7 +411,8 @@ footer {
   display: none;
 }
 
-.notification-kind {
+.notification-kind,
+.download-kind {
   flex: none;
   line-height: 1.5;
   text-align: center;
@@ -432,7 +457,8 @@ footer {
   color: var(--bs-cyan-600);
 }
 
-.notification-body {
+.notification-body,
+.download-body {
   flex: 1;
   min-width: 0;
 }
@@ -443,7 +469,8 @@ footer {
   gap: 0.5rem;
 }
 
-.notification-title {
+.notification-title,
+.download-title {
   color: var(--bs-body-color);
   flex: 1;
   font-weight: var(--bs-font-weight-semibold);
@@ -490,7 +517,8 @@ footer {
   visibility: hidden;
 }
 
-.notifications-empty {
+.notifications-empty,
+.downloads-empty {
   color: var(--bs-secondary-color);
   display: grid;
   font-size: 0.875rem;
@@ -500,13 +528,29 @@ footer {
   text-align: center;
 }
 
-.notifications-empty strong {
+.notifications-empty strong,
+.downloads-empty strong {
   color: var(--bs-body-color);
 }
 
-.notifications-empty-icon {
+.notifications-empty-icon,
+.downloads-empty-icon {
   font-size: 1.5rem;
   margin-bottom: 0.25rem;
+}
+
+/* Progress of a download in the navbar panel, and its size and status below. */
+.download-progress {
+  height: 0.375rem;
+  margin-top: 0.375rem;
+}
+
+.download-meta {
+  color: var(--bs-secondary-color);
+  display: flex;
+  font-size: 0.75rem;
+  justify-content: space-between;
+  margin-top: 0.25rem;
 }
 
 /* Kind icon column on the notifications page, like the bell's. The colour goes
@@ -516,7 +560,8 @@ footer {
   width: 2.5rem;
 }
 
-.notifications-foot {
+.notifications-foot,
+.downloads-foot {
   border-top: var(--bs-border-width) solid var(--bs-border-color);
   text-align: center;
 }
@@ -563,6 +608,10 @@ footer {
   }
 }
 
+.img-container {
+  position: relative;
+}
+
 [data-bs-core="goats"]:not([data-bs-theme="dark"]) .img-container {
   width: 100%;
   height: 100%;
@@ -579,6 +628,66 @@ footer {
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
+}
+
+/* Same box as the landing background: centered and contained in the page. */
+.landing-frame {
+  container-type: size;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* 2160 x 1717 is the size of landing-light.png and landing-dark.png. */
+.landing-image {
+  aspect-ratio: 2160 / 1717;
+  container: landing / inline-size;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(100cqw, 100cqh * 2160 / 1717);
+}
+
+/* Under the logo, between the dashed lines, scaled with the image. */
+.home-welcome {
+  font-size: clamp(0.75rem, 1.5cqw, 1rem);
+  left: 49.5%;
+  pointer-events: auto;
+  position: absolute;
+  top: 70%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.home-welcome .btn {
+  --bs-btn-font-size: 1em;
+  --bs-btn-padding-x: 1.5em;
+  --bs-btn-padding-y: 0.5em;
+
+  min-width: 10em;
+}
+
+.home-welcome-register {
+  color: var(--bs-secondary-color);
+  font-size: 0.9375em;
+  margin: 1em 0 0;
+}
+
+/* Too small to fit in the gap: below the image instead, so the page makes room for it. */
+@media (width < 576px) {
+  .img-container:has(.landing-frame) {
+    min-height: calc(100vw / (2160 / 1717) + 20rem);
+  }
+}
+
+@container landing (width < 36rem) {
+  .home-welcome {
+    font-size: 1rem;
+    left: 50%;
+    top: 100%;
+    transform: translate(-50%, 1rem);
+  }
 }
 
 [data-bs-core="goats"]:not([data-bs-theme="dark"]) .banner {

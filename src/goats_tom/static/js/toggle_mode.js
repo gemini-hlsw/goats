@@ -44,13 +44,13 @@
    * @param {string} theme - The current theme ('light' or 'dark').
    */
   const updateThemeIcon = (theme) => {
-    const toggleButton = document.getElementById("colorThemeToggle");
-    // Set the toggle button's innerHTML based on the current theme.
-    if (theme === "dark") {
-      toggleButton.innerHTML = '<i class="fa-solid fa-sun"></i><span class="d-md-none ms-2">Theme</span>';
-    } else {
-      toggleButton.innerHTML = '<i class="fa-solid fa-moon"></i><span class="d-md-none ms-2">Theme</span>';
-    }
+    const toggle = document.getElementById("colorThemeToggle");
+    if (!toggle) return;
+    const dark = theme === "dark";
+    // The icon shows the theme a click switches to.
+    const icon = toggle.querySelector("[data-theme-icon]");
+    icon.classList.toggle("fa-sun", dark);
+    icon.classList.toggle("fa-moon", !dark);
   };
 
   // Listen for system theme change and update theme accordingly if not explicitly set by the user.
