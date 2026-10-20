@@ -27,6 +27,12 @@ SURVEY_LABELS = {
     "lsst": "RUBIN",
     "ztf": "P48-ZTF",
 }
+# ANTARES "ant_survey" codes mapped to SURVEY_LABELS keys.
+ANT_SURVEY_CODES = {
+    1: "ztf",
+    2: "ztf",
+    4: "lsst",
+}
 
 
 class ANTARESBrokerForm(GenericQueryForm):
@@ -392,7 +398,7 @@ class ANTARESBroker(GenericBroker):
         if lightcurve.empty:
             return
 
-        lightcurve = lightcurve.drop(columns=["time", "ant_survey"], errors="ignore")
+        lightcurve = lightcurve.drop(columns=["time"], errors="ignore")
 
         lightcurve = lightcurve.rename(
             columns={
@@ -407,9 +413,11 @@ class ANTARESBroker(GenericBroker):
 
         try:
             lightcurve["telescope"] = "UNKNOWN"
-            # Older loci lack "properties.survey"; the alert_id prefix is always set.
+            surveys = pd.to_numeric(lightcurve["ant_survey"], errors="coerce").map(
+                ANT_SURVEY_CODES
+            )
             for s, label in SURVEY_LABELS.items():
-                mask = lightcurve["alert_id"].str.startswith(s)
+                mask = surveys == s
                 lightcurve.loc[mask, "telescope"] = label
                 lightcurve.loc[mask, "filter"] = (
                     lightcurve.loc[mask, "filter"] + "-" + s.upper()
@@ -417,6 +425,8 @@ class ANTARESBroker(GenericBroker):
         except Exception:
             logger.exception("ANTARES: failed to extract telescope")
 
+        # Only used to set the telescope; not stored.
+        lightcurve = lightcurve.drop(columns=["ant_survey"], errors="ignore")
         lightcurve["source"] = "ANTARES"
 
         return lightcurve

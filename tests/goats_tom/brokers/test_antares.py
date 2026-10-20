@@ -182,6 +182,7 @@ def test_process_lightcurve_data_success(broker):
         "lightcurve": [
             {
                 "alert_id": "ztf_192823",
+                "ant_survey": 1,
                 "ant_mjd": 60000.0,
                 "ant_mag": 18.2,
                 "ant_magerr": 0.1,
@@ -204,6 +205,7 @@ def test_process_lightcurve_data_without_survey_property(broker):
         "lightcurve": [
             {
                 "alert_id": "ztf_upper_limit:ZTF18abctzew-839447763115",
+                "ant_survey": 2,
                 "ant_mjd": 59000.0,
                 "ant_mag": None,
                 "ant_magerr": None,
@@ -212,6 +214,7 @@ def test_process_lightcurve_data_without_survey_property(broker):
             },
             {
                 "alert_id": "lsst:313897384100757708",
+                "ant_survey": 4,
                 "ant_mjd": 61000.0,
                 "ant_mag": 20.1,
                 "ant_magerr": 0.05,
@@ -226,6 +229,7 @@ def test_process_lightcurve_data_without_survey_property(broker):
 
     assert df["telescope"].tolist() == ["P48-ZTF", "RUBIN"]
     assert df["filter"].tolist() == ["R-ZTF", "g-LSST"]
+    assert "ant_survey" not in df.columns
 
 
 def test_process_lightcurve_data_telescope_unknown(broker):
@@ -233,6 +237,7 @@ def test_process_lightcurve_data_telescope_unknown(broker):
         "lightcurve": [
             {
                 "alert_id": "adskhj_192823",
+                "ant_survey": 99,
                 "ant_mjd": 1.0,
                 "ant_mag": 18.0,
                 "ant_maglim": 19,
