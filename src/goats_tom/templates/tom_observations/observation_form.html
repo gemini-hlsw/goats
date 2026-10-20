@@ -81,6 +81,8 @@
 <script src="{% static 'js/blanco/observation_form.js' %}" defer></script>
 {% endif %}
 {% if form.facility.value == "GEM" %}
+<link rel="stylesheet" href="{% static 'tom-select/tom-select.bootstrap5.css' %}" />
+<script src="{% static 'tom-select/tom-select.base.js' %}" defer></script>
 <script src="{% static 'js/utils.js' %}" defer></script>
 <script src="{% static 'js/api.js' %}" defer></script>
 <script src="{% static 'js/gpp/lookups.js' %}" defer></script>

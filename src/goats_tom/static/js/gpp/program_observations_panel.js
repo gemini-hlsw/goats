@@ -21,6 +21,8 @@ class ProgramObservationsPanel {
   #updateButton;
   #saveButton;
   #tooSelect;
+  #tomSelects = new Map();
+  #tooConfigurations = new Map();
   #tooSpinner;
   #tooToolbar;
   #createNewButton;
@@ -48,6 +50,14 @@ class ProgramObservationsPanel {
     this.#updateButton = this.#obsToolbar.querySelector("#updateButton");
     this.#saveButton = this.#obsToolbar.querySelector("#saveButton");
     this.#tooSelect = this.#container.querySelector("#tooObservationSelect");
+    // The list a native select opens is the browser's and takes no styling, so
+    // Tom Select draws all three, as GOATS menus. The ToO options also carry
+    // their configuration's details.
+    this.#mountTomSelect(this.#programSelect);
+    this.#mountTomSelect(this.#normalSelect);
+    this.#mountTomSelect(this.#tooSelect, {
+      render: { option: (data, escape) => this.#renderTooOption(data, escape) },
+    });
     this.#tooSpinner = this.#container.querySelector("#tooObservationLoading");
     this.#tooToolbar = this.#container.querySelector("#tooButtonToolbar");
     this.#createNewButton = this.#tooToolbar.querySelector("#createNewButton");
@@ -101,6 +111,7 @@ class ProgramObservationsPanel {
    */
   clearTooSelect() {
     this.#tooSelect.length = 1;
+    this.#syncSelect(this.#tooSelect);
     this.#logDebug("Cleared ToO select.");
   }
   /**
@@ -108,7 +119,9 @@ class ProgramObservationsPanel {
    * Does not remove existing placeholder.
    */
   clearNormalSelect() {
-    this.#normalSelect.length = 1;
+    // As #fillSelect does: its options sit in option groups.
+    while (this.#normalSelect.options.length > 1) this.#normalSelect.remove(1);
+    this.#syncSelect(this.#normalSelect);
     this.#logDebug("Cleared normal select.");
   }
   /**
@@ -138,35 +151,152 @@ class ProgramObservationsPanel {
   /**
    * Populate the approved ToO configurations <select>.
    * @param {!Array<Object>} configurations - Array of configuration requests.
+   * @param {!Map<string, !Array<string>>=} targets - Target names of each
+   *     configuration, by ID.
    */
-  updateTooConfigurations(configurations) {
+  updateTooConfigurations(configurations, targets = new Map()) {
+    this.#tooConfigurations = new Map(
+      (configurations ?? []).map((c) => [c.id, c]),
+    );
     this.#fillSelect(this.#tooSelect, configurations, {
-      getLabel: (c) => ProgramObservationsPanel.configurationLabel(c),
+      getLabel: (c) =>
+        ProgramObservationsPanel.configurationLabel(c, targets.get(c.id)),
     });
   }
   /**
-   * Build a readable label for an approved configuration request.
+   * Build a readable label for an approved configuration request, as the
+   * observations select labels its own: its ID, then its target, "Multiple" if
+   * it has several.
+   * @param {!Object} configuration - Configuration request object.
+   * @param {!Array<string>=} targets - Its target names.
+   * @returns {string}
+   */
+  static configurationLabel(configuration, targets = []) {
+    const target = targets.length > 1 ? "Multiple" : targets[0];
+    return [configuration.id, target].filter(Boolean).join(" - ");
+  }
+  /**
+   * The setup an approved configuration request approves, short as Explore
+   * shows it: instrument, focal plane, and the disperser or the filters.
    * @param {!Object} configuration - Configuration request object.
    * @returns {string}
    */
-  static configurationLabel(configuration) {
+  static configurationSetup(configuration) {
     const mode = configuration?.configuration?.observingMode ?? {};
-    const conditions = configuration?.configuration?.conditions ?? {};
-    const instrument = Lookups.instrument[mode.instrument] ?? mode.instrument ?? "";
-    // An approved configuration fixes the disperser, or the filters.
-    const optics =
-      mode.gmosNorthLongSlit?.grating ??
-      mode.gmosSouthLongSlit?.grating ??
-      (mode.gmosNorthImaging?.filters ?? mode.gmosSouthImaging?.filters ?? []).join(
-        ", ",
-      );
-    const iq = Lookups.imageQuality[conditions.imageQuality] ?? "";
-    const cc = Lookups.cloudExtinction[conditions.cloudExtinction] ?? "";
-    const setup = [instrument, optics && Formatters.replaceUnderscore(optics)]
+    // An approved configuration fixes the disperser, or the filters. A grating
+    // goes by the name before its part number: R400_G5310 is the R400.
+    const grating = mode.gmosNorthLongSlit?.grating ?? mode.gmosSouthLongSlit?.grating;
+    const filters = mode.gmosNorthImaging?.filters ?? mode.gmosSouthImaging?.filters;
+    return [
+      Lookups.instrumentShortName[mode.instrument] ?? mode.instrument,
+      Lookups.observingModeFpu[mode.mode] ??
+        (mode.mode && Formatters.titleCaseFromUnderscore(mode.mode)),
+      grating
+        ? grating.split("_")[0]
+        : (filters ?? []).map((f) => Lookups.gmosFilterShortName[f] ?? f).join(","),
+    ]
       .filter(Boolean)
       .join(" ");
-    const seeing = iq && cc ? ` (IQ ${iq}, CC ${cc})` : "";
-    return `${configuration.id} - ${setup}${seeing}`;
+  }
+  /**
+   * The summary of an approved configuration request, in Explore's order, as
+   * `[label, value]` pairs: the region it covers, then the conditions it
+   * approves. A partial arc reads as its range, as in Explore. Missing values
+   * are left out.
+   * @param {!Object} configuration - Configuration request object.
+   * @returns {!Array<!Array<string>>}
+   */
+  static configurationSummary(configuration) {
+    const conditions = configuration?.configuration?.conditions ?? {};
+    const region = configuration?.configuration?.target?.region ?? {};
+    // Labelled as the form labels them, so the two read the same.
+    const condition = (name) =>
+      conditions[name]
+        ? (Lookups[name]?.[conditions[name]] ??
+          Formatters.titleCaseFromUnderscore(conditions[name]))
+        : "";
+    // The form leaves the image quality unit to its label; here it goes with it.
+    const iq = Lookups.imageQuality[conditions.imageQuality];
+    // GPP pads the seconds with zeros: 10:00:00.000000 reads as 10:00:00.
+    const sexagesimal = (text) => text.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+    const arc = (a, notation) => {
+      if (a?.type === "PARTIAL" && a.start?.[notation] && a.end?.[notation]) {
+        return `${sexagesimal(a.start[notation])} - ${sexagesimal(a.end[notation])}`;
+      }
+      return a?.type ? Formatters.titleCaseFromUnderscore(a.type) : "";
+    };
+
+    return [
+      ["RA", arc(region.rightAscensionArc, "hms")],
+      ["Dec", arc(region.declinationArc, "dms")],
+      ["IQ", iq ? `${iq} arcsec` : condition("imageQuality")],
+      ["CC", condition("cloudExtinction")],
+      ["SB", condition("skyBackground")],
+      ["WV", condition("waterVapor")],
+    ].filter(([, value]) => value);
+  }
+  /**
+   * Render a ToO option: its label, then, always in view and smaller, the setup
+   * of its configuration and the rest of its details. "None available" stands
+   * for no configuration.
+   * @param {!Object} data - Tom Select option data.
+   * @param {function(string): string} escape - HTML escaper.
+   * @returns {string}
+   * @private
+   */
+  #renderTooOption(data, escape) {
+    const configuration = this.#tooConfigurations.get(data.value);
+    if (!configuration) return `<div>${escape(data.text)}</div>`;
+    // A description list allows one div around each term and its detail. The
+    // option's class tells its look apart from the one-line options'.
+    const pairs = ProgramObservationsPanel.configurationSummary(configuration)
+      .map(
+        ([label, value]) =>
+          '<div class="too-configuration-pair">' +
+          `<dt>${escape(label)}</dt><dd>${escape(value)}</dd></div>`,
+      )
+      .join("");
+    const setup = ProgramObservationsPanel.configurationSetup(configuration);
+    return (
+      '<div class="too-configuration-option">' +
+      `<div class="too-configuration-label">${escape(data.text)}</div>` +
+      `<div class="too-configuration-setup">${escape(setup)}</div>` +
+      `<dl class="too-configuration-summary">${pairs}</dl></div>`
+    );
+  }
+  /**
+   * Draw a native <select> with Tom Select, read-only, so it picks like a native
+   * select, without a search box.
+   * @param {!HTMLSelectElement} select - The native select.
+   * @param {!Object=} settings - Tom Select settings on top of the shared ones.
+   * @private
+   */
+  #mountTomSelect(select, settings = {}) {
+    const tomSelect = new TomSelect(select, {
+      maxOptions: null,
+      controlInput: '<input type="text" autocomplete="off" size="1" readonly />',
+      ...settings,
+    });
+    this.#tomSelects.set(select, tomSelect);
+  }
+  /**
+   * Mirror a native <select> into its Tom Select widget, which keeps its own
+   * copy of the options, the selection and the disabled state. Called whenever
+   * the native select changes.
+   * @param {!HTMLSelectElement} select - The native select.
+   * @private
+   */
+  #syncSelect(select) {
+    const tomSelect = this.#tomSelects.get(select);
+    // Sync only adds options, so drop the current ones first.
+    tomSelect.clear(true);
+    tomSelect.clearOptions();
+    tomSelect.sync();
+    if (select.disabled) {
+      tomSelect.disable();
+    } else {
+      tomSelect.enable();
+    }
   }
   /**
    * Show or hide loading state for programs.
@@ -174,6 +304,7 @@ class ProgramObservationsPanel {
    */
   toggleProgramsLoading(isLoading) {
     this.#programSelect.disabled = isLoading;
+    this.#syncSelect(this.#programSelect);
     this.#programSpinner.hidden = !isLoading;
     this.#logDebug(`Program loading: ${isLoading}`);
   }
@@ -183,6 +314,7 @@ class ProgramObservationsPanel {
    */
   toggleNormalLoading(isLoading) {
     this.#normalSelect.disabled = isLoading;
+    this.#syncSelect(this.#normalSelect);
     this.#normalSpinner.hidden = !isLoading;
     this.#logDebug(`Normal loading: ${isLoading}`);
   }
@@ -192,6 +324,7 @@ class ProgramObservationsPanel {
    */
   toggleTooLoading(isLoading) {
     this.#tooSelect.disabled = isLoading;
+    this.#syncSelect(this.#tooSelect);
     this.#tooSpinner.hidden = !isLoading;
     this.#logDebug(`ToO loading: ${isLoading}`);
   }
@@ -210,6 +343,7 @@ class ProgramObservationsPanel {
    */
   toggleNormalSelect(disabled) {
     this.#normalSelect.disabled = disabled;
+    this.#syncSelect(this.#normalSelect);
     this.#logDebug(`Normal select disabled: ${disabled}`);
   }
   /**
@@ -218,6 +352,7 @@ class ProgramObservationsPanel {
    */
   toggleTooSelect(disabled) {
     this.#tooSelect.disabled = disabled;
+    this.#syncSelect(this.#tooSelect);
     this.#logDebug(`ToO select disabled: ${disabled}`);
   }
   /**
@@ -276,6 +411,7 @@ class ProgramObservationsPanel {
       this.toggleTooButtons(true);
       // Reset tooSelect back to placeholder without clearing options.
       this.#tooSelect.selectedIndex = 0;
+      this.#syncSelect(this.#tooSelect);
       handler(e.target.value);
     });
   }
@@ -292,6 +428,7 @@ class ProgramObservationsPanel {
       this.toggleNormalButtons(true);
       // Reset normalSelect back to placeholder without clearing options.
       this.#normalSelect.selectedIndex = 0;
+      this.#syncSelect(this.#normalSelect);
       handler(e.target.value);
     });
   }
@@ -457,6 +594,7 @@ class ProgramObservationsPanel {
 
     if (!options || options.length === 0) {
       this.#showEmpty(selectEl);
+      this.#syncSelect(selectEl);
       return;
     }
 
@@ -489,6 +627,7 @@ class ProgramObservationsPanel {
 
     selectEl.appendChild(frag);
     selectEl.disabled = false;
+    this.#syncSelect(selectEl);
     this.#logDebug(`Filled select: ${selectEl.id} with ${options.length} items.`);
   }
 }

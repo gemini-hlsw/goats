@@ -140,4 +140,57 @@ class Lookups {
     GMOS_SOUTH: "GMOS South",
     GMOS_NORTH: "GMOS North",
   };
+
+  /** Short names, as Explore shows them in its configuration tables. */
+  static instrumentShortName = {
+    GMOS_SOUTH: "GMOS-S",
+    GMOS_NORTH: "GMOS-N",
+  };
+
+  /** The focal plane of an observing mode, as Explore shows it. */
+  static observingModeFpu = {
+    GMOS_NORTH_LONG_SLIT: "LongSlit",
+    GMOS_SOUTH_LONG_SLIT: "LongSlit",
+    GMOS_NORTH_IMAGING: "Imaging",
+    GMOS_SOUTH_IMAGING: "Imaging",
+    GMOS_NORTH_MOS: "MOS",
+    GMOS_SOUTH_MOS: "MOS",
+    GMOS_NORTH_IFU: "IFU",
+    GMOS_SOUTH_IFU: "IFU",
+  };
+
+  /** Short names of the GMOS North and South filters, as lucuma names them. */
+  static gmosFilterShortName = {
+    U_PRIME: "u",
+    G_PRIME: "g",
+    R_PRIME: "r",
+    I_PRIME: "i",
+    Z_PRIME: "z",
+    Z: "Z",
+    Y: "Y",
+    RI: "r+i",
+    GG455: "GG455",
+    OG515: "OG515",
+    RG610: "RG610",
+    RG780: "RG780",
+    CA_T: "CaT",
+    HA: "Ha",
+    HA_C: "HaC",
+    DS920: "DS920",
+    SII: "SII",
+    OIII: "OIII",
+    OIIIC: "OIIIC",
+    OVI: "OVI",
+    OVIC: "OVIC",
+    HE_II: "HeII",
+    HE_IIC: "HeIIC",
+    HARTMANN_A_R_PRIME: "r+HartA",
+    HARTMANN_B_R_PRIME: "r+HartB",
+    G_PRIME_GG455: "g+GG455",
+    G_PRIME_OG515: "g+OG515",
+    R_PRIME_RG610: "r+RG610",
+    I_PRIME_RG780: "i+RG780",
+    I_PRIME_CA_T: "i+CaT",
+    Z_PRIME_CA_T: "z+CaT",
+  };
 }
