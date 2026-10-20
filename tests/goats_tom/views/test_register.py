@@ -72,6 +72,25 @@ def test_an_address_already_in_use_is_refused(client):
 
 
 @pytest.mark.django_db
+def test_a_message_of_200_words_is_accepted(client):
+    message = " ".join(["word"] * 200)
+
+    response = client.post(PAGE, _data(message=message))
+
+    assert response.status_code == 302
+    assert AccountRequest.objects.get().message == message
+
+
+@pytest.mark.django_db
+def test_a_message_over_200_words_is_refused(client):
+    response = client.post(PAGE, _data(message=" ".join(["word"] * 201)))
+
+    assert response.status_code == 200
+    assert "at most 200 words (it has 201)." in response.content.decode()
+    assert not AccountRequest.objects.exists()
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("submit", [False, True], ids=["empty", "with-errors"])
 def test_every_field_description_is_on_the_page(client, submit):
     response = client.post(PAGE, _data(email="nope")) if submit else client.get(PAGE)

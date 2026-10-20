@@ -21,6 +21,7 @@ from django.contrib.auth.forms import (
 from django.contrib.auth.models import Group, User
 from django.urls import reverse
 
+from goats_tom.forms.validators import MaxWordsValidator
 from goats_tom.models import AccountRequest
 from goats_tom.outbox import queue_email, site_url
 
@@ -38,9 +39,9 @@ class RegistrationForm(UserCreationForm):
     message = forms.CharField(
         label="Why do you need access? (optional)",
         required=False,
-        max_length=500,
+        validators=[MaxWordsValidator(200)],
         widget=forms.Textarea(attrs={"rows": 3}),
-        help_text="You can enter up to 500 characters.",
+        help_text="You can enter up to 200 words.",
     )
 
     class Meta(UserCreationForm.Meta):

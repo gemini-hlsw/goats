@@ -9,6 +9,7 @@ __all__ = [
 from django import forms
 from django.forms import modelformset_factory
 
+from goats_tom.forms.validators import MaxWordsValidator
 from goats_tom.models import TNSGroup
 from goats_tom.tns_membership import requestable_groups
 from goats_tom.user_names import full_name
@@ -24,7 +25,7 @@ class TNSJoinRequestForm(forms.Form):
         `goats_tom.tns_membership.requestable_groups`.
     message : `forms.CharField`
         Optional note to the owner, who is deciding whether an unfamiliar
-        username may post under their bot's name. Capped at 500 characters.
+        username may post under their bot's name. Capped at 200 words.
 
     Notes
     -----
@@ -40,9 +41,9 @@ class TNSJoinRequestForm(forms.Form):
     message = forms.CharField(
         label="Message to the owner (optional)",
         required=False,
-        max_length=500,
+        validators=[MaxWordsValidator(200)],
         widget=forms.Textarea(attrs={"rows": 2}),
-        help_text="You can enter up to 500 characters.",
+        help_text="You can enter up to 200 words.",
     )
 
     def __init__(self, *args, user=None, **kwargs):

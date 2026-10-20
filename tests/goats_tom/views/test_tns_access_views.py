@@ -177,7 +177,7 @@ def test_a_message_over_the_limit_is_rejected(client, owner, shared_group):
 
     client.post(
         reverse("tns-request-access"),
-        {"tns_group": shared_group.pk, "message": "x" * 501},
+        {"tns_group": shared_group.pk, "message": " ".join(["word"] * 201)},
     )
 
     assert not TNSGroupJoinRequest.objects.filter(requester=member).exists()
