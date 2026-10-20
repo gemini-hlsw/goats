@@ -89,7 +89,6 @@ class GOAQueryForm(forms.Form):
         label="Raw/Reduced",
         widget=forms.Select(attrs={"class": "form-control"}),
         required=False,
-        help_text="(Select data by processing state)",
     )
 
     qa_state = forms.ChoiceField(
@@ -97,16 +96,15 @@ class GOAQueryForm(forms.Form):
         label="QA State",
         widget=forms.Select(attrs={"class": "form-control"}),
         required=False,
-        help_text="(Quality of results you wish to access)",
     )
 
     filename_prefix = forms.CharField(
         label="Filename Prefix",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Leave empty for any"},
-        ),
+        widget=forms.TextInput(attrs={"class": "form-control"}),
         required=False,
-        help_text="(Specify the first part of the filename to match by)",
+        help_text=(
+            "Enter the start of the filename to match, or leave it empty for any."
+        ),
     )
 
     download_calibrations = forms.ChoiceField(

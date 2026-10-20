@@ -45,7 +45,6 @@
             <label for="{{ form.raw_reduced.id_for_label }}" class="col-sm-4 col-form-label">{{ form.raw_reduced.label }}</label>
             <div class="col-sm-8">
               {{ form.raw_reduced }}
-              <small class="form-text text-muted">{{ form.raw_reduced.help_text }}</small>
             </div>
           </div>
         </div>
@@ -54,7 +53,6 @@
             <label for="{{ form.qa_state.id_for_label }}" class="col-sm-4 col-form-label">{{ form.qa_state.label }}</label>
             <div class="col-sm-8">
               {{ form.qa_state }}
-              <small class="form-text text-muted">{{ form.qa_state.help_text }}</small>
             </div>
           </div>
         </div>
@@ -65,7 +63,7 @@
             <label for="{{ form.filename_prefix.id_for_label }}" class="col-sm-4 col-form-label">{{ form.filename_prefix.label }}</label>
             <div class="col-sm-8">
               {{ form.filename_prefix }}
-              <small class="form-text text-muted">{{ form.filename_prefix.help_text }}</small>
+              <small class="form-text text-muted" id="{{ form.filename_prefix.auto_id }}_helptext">{{ form.filename_prefix.help_text }}</small>
             </div>
           </div>
         </div>

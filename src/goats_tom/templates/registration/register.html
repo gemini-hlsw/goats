@@ -15,7 +15,7 @@
         data-bs-placement="right"
         data-bs-trigger="focus"
         data-bs-title="Request an account"
-        data-bs-content="An administrator reviews each request. You can sign in once yours is approved."
+        data-bs-content="All required fields are marked with *. An admin will review your request and you can sign in once approved."
         ><i class="fa-solid fa-circle-info"></i
       ></a>
     </h1>
@@ -27,9 +27,9 @@
       {% for error in form.non_field_errors %}
       <div class="alert alert-danger" role="alert">{{ error }}</div>
       {% endfor %}
-      {% include 'partials/form_fields.html' with fields=form|select_fields:"username,first_name,last_name,email,affiliation" %}
-      {% include 'partials/form_fields.html' with fields=form|select_fields:"password1,password2" hide_help_for="password2" %}
-      {% include 'partials/form_fields.html' with fields=form|select_fields:"message" %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"username,first_name,last_name,email,affiliation" mark_required=True %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"password1,password2" hide_help_for="password2" mark_required=True %}
+      {% include 'partials/form_fields.html' with fields=form|select_fields:"message" mark_required=True %}
       <button type="submit" class="btn btn-primary">Request account</button>
     </form>
     <p class="mt-4 mb-0">Already have an account? <a href="{% url 'login' %}">Sign in</a>.</p>

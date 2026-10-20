@@ -21,6 +21,7 @@ from django.contrib.auth.forms import (
 from django.contrib.auth.models import Group, User
 from django.urls import reverse
 
+from goats_tom.forms.validators import MaxWordsValidator
 from goats_tom.models import AccountRequest
 from goats_tom.outbox import queue_email, site_url
 
@@ -34,20 +35,22 @@ class RegistrationForm(UserCreationForm):
     first_name = forms.CharField(max_length=150)
     last_name = forms.CharField(max_length=150)
     email = forms.EmailField()
-    affiliation = forms.CharField(
-        max_length=100, help_text="Your institution or organisation."
-    )
+    affiliation = forms.CharField(max_length=100)
     message = forms.CharField(
         label="Why do you need access? (optional)",
         required=False,
-        max_length=500,
+        validators=[MaxWordsValidator(200)],
         widget=forms.Textarea(attrs={"rows": 3}),
-        help_text="For example, the programme or collaboration you work with.",
+        help_text="You can enter up to 200 words.",
     )
 
     class Meta(UserCreationForm.Meta):
         model = User
         fields = ("username", "first_name", "last_name", "email")
+        # Django's, without its leading "Required.": the asterisk says it.
+        help_texts = {
+            "username": "150 characters or fewer. Letters, digits and @/./+/-/_ only."
+        }
 
     field_order = [
         "username",

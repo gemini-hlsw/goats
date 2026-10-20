@@ -199,7 +199,7 @@ class ObservationForm {
       if (fixed) mode.value = "UNINTERRUPTIBLE";
       mode.disabled = fixed;
       mode.title = fixed
-        ? "Fixed by GPP while the ToO activation is Rapid or Interrupting."
+        ? "Choose a ToO activation other than Rapid or Interrupting to change the scheduling mode."
         : "";
     };
     activation.addEventListener("change", sync);
