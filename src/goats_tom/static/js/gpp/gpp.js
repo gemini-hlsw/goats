@@ -539,6 +539,28 @@ class GPPModel {
     return Array.from(this.#tooConfigurations.values());
   }
 
+  /**
+   * The targets of each cached ToO configuration, keyed by its ID: the distinct
+   * names of the science targets of the observations it applies to. As Explore,
+   * it reads the link from each observation's configuration requests: the
+   * request's own applicable observations leave out those whose target is a
+   * region, the ToO ones. Calibrations are left out, as Explore leaves them: GPP
+   * adds them with the same configuration, on standard stars.
+   * @type {!Map<string, !Array<string>>}
+   */
+  get tooConfigurationTargets() {
+    const targets = new Map(this.tooConfigurationsList.map((c) => [c.id, new Set()]));
+    for (const observation of this.#normalObservations.values()) {
+      if (observation.calibrationRole) continue;
+      for (const { id } of observation.configurationRequests ?? []) {
+        for (const target of observation.targetEnvironment?.asterism ?? []) {
+          targets.get(id)?.add(target.name);
+        }
+      }
+    }
+    return new Map([...targets].map(([id, names]) => [id, [...names]]));
+  }
+
   get normalObservationsCount() {
     return this.#normalObservations.size;
   }
@@ -823,7 +845,10 @@ class GPPView {
 
       // ToO observation renders.
       case "updateTooConfigurations":
-        this.#poPanel.updateTooConfigurations(parameter.configurations);
+        this.#poPanel.updateTooConfigurations(
+          parameter.configurations,
+          parameter.targets,
+        );
         break;
       case "showCreateNewObservation":
         this.#showCreateNewObservation();
@@ -1399,6 +1424,7 @@ class GPPController {
     });
     this.#view.render("updateTooConfigurations", {
       configurations: this.#model.tooConfigurationsList,
+      targets: this.#model.tooConfigurationTargets,
     });
 
     // Remove loading states.
