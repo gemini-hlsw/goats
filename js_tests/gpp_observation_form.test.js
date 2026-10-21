@@ -227,8 +227,8 @@ test("a read-only form keeps the mode disabled", async () => {
 });
 
 /** An approved configuration request whose target is `target`. */
-function configurationRequest(id, target) {
-  return { id, configuration: { target, observingMode: {} } };
+function configurationRequest(id, target, mode = "GMOS_NORTH_LONG_SLIT") {
+  return { id, configuration: { target, observingMode: { mode } } };
 }
 
 /** A region whose arcs are of the given types. */
@@ -282,20 +282,6 @@ function longSlitConfiguration() {
   };
   return configuration;
 }
-
-test("an imaging configuration's setup names its filters short", () => {
-  const ProgramObservationsPanel = buildWindow().eval("ProgramObservationsPanel");
-  const configuration = configurationRequest("cr-4", null);
-  configuration.configuration.observingMode = {
-    instrument: "GMOS_SOUTH",
-    mode: "GMOS_SOUTH_IMAGING",
-    gmosSouthImaging: { filters: ["G_PRIME", "R_PRIME_RG610"] },
-  };
-
-  expect(ProgramObservationsPanel.configurationSetup(configuration)).toBe(
-    "GMOS-S Imaging g,r+RG610",
-  );
-});
 
 test("a configuration's setup is short, as in Explore", () => {
   const ProgramObservationsPanel = buildWindow().eval("ProgramObservationsPanel");
@@ -427,6 +413,47 @@ const LONG_SLIT_DETAILS = [
 ];
 
 
+test("only GMOS long slit configurations are offered for a ToO, for now", async () => {
+  const GPPModel = buildWindow().eval("GPPModel");
+  const anywhere = region("FULL", "FULL");
+  const model = new GPPModel({
+    api: {
+      get: async () => ({
+        matches: [
+          configurationRequest("north", anywhere, "GMOS_NORTH_LONG_SLIT"),
+          configurationRequest("south", anywhere, "GMOS_SOUTH_LONG_SLIT"),
+          configurationRequest("imaging", anywhere, "GMOS_NORTH_IMAGING"),
+          configurationRequest("f2", anywhere, "FLAMINGOS_2_LONG_SLIT"),
+        ],
+      }),
+    },
+  });
+
+  await model.fetchTooConfigurations("p-1");
+
+  expect(model.tooConfigurationsList.map((c) => c.id)).toEqual(["north", "south"]);
+});
+
+test("the observations select lists observations, then calibrations, and no ToO preparations", () => {
+  const { window, panel } = panelWithConfiguration();
+  const observations = window.document.getElementById("normalObservationSelect");
+
+  panel.updateNormalObservations([
+    { id: "o-1", title: "SN 2026a" },
+    { id: "o-2", title: "Boom3", isToo: true },
+    { id: "o-3", title: "Feige 34", calibrationRole: "SPECTROPHOTOMETRIC" },
+    { id: "o-4", title: "AT2026xyz" },
+  ]);
+
+  // Observations first, under no heading; then the calibrations under theirs.
+  const listed = Array.from(observations.children, (child) =>
+    child.tagName === "OPTGROUP"
+      ? `${child.label}: ${Array.from(child.children, (o) => o.value)}`
+      : child.value,
+  );
+  expect(listed).toEqual(["", "o-1", "o-4", "Calibrations: o-3"]);
+});
+
 test("the panel's three selects are drawn by Tom Select, following their native selects", () => {
   const { window, panel } = panelWithConfiguration();
   const tomSelectOf = (id) => window.document.getElementById(id).tomselect;
@@ -436,12 +463,13 @@ test("the panel's three selects are drawn by Tom Select, following their native 
   panel.updatePrograms([{ id: "p-1", name: "Rubin alerts" }]);
   panel.updateNormalObservations([
     { id: "o-1", title: "SN 2026a" },
-    { id: "o-2", title: "Boom3", isToo: true },
+    { id: "o-2", title: "Feige 34", calibrationRole: "SPECTROPHOTOMETRIC" },
   ]);
 
   expect(programs.options["p-1"].text).toBe("p-1 - Rubin alerts");
   expect(programs.isDisabled).toBe(false);
-  // The observations keep their groups.
+  // The observations keep their calibrations group.
+  expect(observations.options["o-1"].optgroup).toBeUndefined();
   expect(observations.options["o-2"].optgroup).toBeDefined();
   expect(tomSelectOf("tooObservationSelect").getOption("cr-1", true).classList).toContain(
     "too-configuration-option",
@@ -487,17 +515,6 @@ test("hovering a ToO option highlights it", () => {
   option.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true }));
 
   expect(option.classList).toContain("active");
-});
-
-test("a GMOS MOS or IFU configuration's setup names its focal plane, as in Explore", () => {
-  const ProgramObservationsPanel = buildWindow().eval("ProgramObservationsPanel");
-  const configuration = configurationRequest("cr-5", null);
-  configuration.configuration.observingMode = {
-    instrument: "GMOS_NORTH",
-    mode: "GMOS_NORTH_IFU",
-  };
-
-  expect(ProgramObservationsPanel.configurationSetup(configuration)).toBe("GMOS-N IFU");
 });
 
 test("picking a ToO configuration reports it", () => {

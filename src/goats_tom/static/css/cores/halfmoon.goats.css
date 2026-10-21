@@ -779,10 +779,17 @@ select.form-control[multiple] {
 
 /* A Tom Select built on a .form-select: the wrapper takes the select's classes and
    draws it like the native ones, so the inner control draws nothing of its own.
-   Tom Select's stylesheet loads later, hence the extra classes to outweigh it. */
+   Tom Select's stylesheet loads later, hence the extra classes to outweigh it.
+   The wrapper's padding moves into the control, which Tom Select listens to, so
+   a click anywhere opens it, the arrow included. */
+.ts-wrapper.form-select.single {
+  padding: 0;
+}
+
 .ts-wrapper.form-select.single .ts-control,
 .ts-wrapper.form-select.single.input-active .ts-control {
-  padding: 0 !important;
+  padding: var(--bs-action-padding-y) 2rem var(--bs-action-padding-y)
+    var(--bs-action-padding-x) !important;
   color: inherit;
   line-height: inherit;
   background: transparent;
@@ -859,31 +866,34 @@ select.form-control[multiple] {
   border-radius: var(--bs-border-radius-sm) var(--bs-border-radius-sm) 0 0;
 }
 
+/* Colour alone, no bolder type: bold text runs wider, which would shift the
+   label and could rewrap it. */
 .ts-wrapper.form-select .ts-dropdown .option.active,
 .ts-wrapper.form-select .ts-dropdown .option.active .too-configuration-label {
-  font-weight: var(--bs-font-weight-semibold);
   color: var(--bs-body-color);
   background-color: color-mix(in srgb, var(--bs-primary) 40%, var(--bs-body-bg));
   box-shadow: inset 3px 0 0 var(--bs-primary);
 }
 
 .ts-wrapper.form-select .ts-dropdown .too-configuration-option.active {
-  font-weight: var(--bs-font-weight-normal);
   background-color: transparent;
   box-shadow: none;
 }
 
-/* Group headings, as the section headings of the other GOATS menus. */
+/* Group headings, as the section headings of the other GOATS menus: a
+   .dropdown-header.dropdown-section, in bold capitals. */
 .ts-wrapper.form-select .ts-dropdown .optgroup-header {
   padding: 0.5rem 1rem 0.1rem;
   font-size: inherit;
+  font-weight: var(--bs-font-weight-bold);
   color: var(--bs-body-color);
+  text-transform: uppercase;
   background: transparent;
 }
 
-/* The rule between groups, within the menu's padding. */
+/* The rule between groups, spaced as the .dropdown-divider of GOATS menus. */
 .ts-wrapper.form-select .ts-dropdown .optgroup::before {
-  margin: 0.25rem 0;
+  margin: 0.5rem 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
