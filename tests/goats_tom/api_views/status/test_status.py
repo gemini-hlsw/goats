@@ -84,6 +84,16 @@ def test_list_status_anonymous_has_no_manage_url(
 
     assert all(s["manage_url"] is None for s in response.data["services"])
 
+def test_list_status_resolves_callable_url(
+    api_rf, status_viewset, mock_status_mixins
+):
+    mock_status_mixins["service1"]["url"] = lambda: "https://explore-dev.lucuma.xyz"
+    request = api_rf.get("/status/")
+    request.user = MagicMock(is_authenticated=True, pk=7)
+    response = status_viewset.list(request)
+
+    assert response.data["services"][0]["url"] == "https://explore-dev.lucuma.xyz"
+
 def test_status_router_valid_service(api_rf, status_viewset, mock_status_mixins):
     service_name = "service1"
     request = api_rf.get(f"/status/{service_name}/")

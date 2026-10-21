@@ -14,7 +14,7 @@ import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 from django.core.cache import cache
 from rest_framework import status
@@ -76,7 +76,7 @@ def register_status(
     name: str,
     display_name: str,
     *,
-    url: str | None = None,
+    url: str | Callable[[], str] | None = None,
     url_label: str | None = None,
     manage_url_name: str | None = None,
 ):
@@ -98,8 +98,9 @@ def register_status(
         The machine-readable service name (used in the URL path, e.g., "gpp").
     display_name : str
         A human-readable label for display (e.g., "Gemini Program Platform").
-    url : str | None, optional
-        The service's website, linked from the page. Defaults to the mixin's
+    url : str | Callable[[], str] | None, optional
+        The service's website, linked from the page, or a function returning
+        it when it depends on the environment. Defaults to the mixin's
         `get_public_url`.
     url_label : str | None, optional
         The name of the site `url` opens, when it is not the service itself.

@@ -1,10 +1,11 @@
 import os
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from astropy.table import Table
 from django.test import TestCase
+from gpp_client.settings import GPPEnvironment
 from rest_framework import status
 from tom_dataproducts.models import DataProduct, ReducedDatum
 from tom_observations.tests.factories import ObservingRecordFactory
@@ -19,6 +20,7 @@ from goats_tom.utils import (
     create_name_reduction_map,
     custom_data_product_path,
     delete_associated_data_products,
+    get_explore_url,
 )
 
 
@@ -187,3 +189,23 @@ class TestCustomDataProductPath:
         expected_path = "target_name/none/none/image.fits"
         result = custom_data_product_path(mock_data_product, filename)
         assert result == expected_path
+
+
+@pytest.mark.parametrize(
+    "environment, expected",
+    [
+        (GPPEnvironment.DEVELOPMENT, "https://explore-dev.lucuma.xyz"),
+        (GPPEnvironment.PRODUCTION, "https://explore.gemini.edu"),
+    ],
+)
+def test_get_explore_url_follows_gpp_environment(environment, expected):
+    """Explore links to the GPP environment the client targets."""
+    with patch("goats_tom.utils.utils.GPPSettings") as settings_cls:
+        settings_cls.return_value.environment = environment
+        assert get_explore_url() == expected
+
+
+def test_get_explore_url_defaults_to_production():
+    """An unreadable environment links production instead of failing."""
+    with patch("goats_tom.utils.utils.GPPSettings", side_effect=ValueError):
+        assert get_explore_url() == "https://explore.gemini.edu"

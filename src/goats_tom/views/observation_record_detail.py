@@ -13,7 +13,7 @@ from tom_observations.views import (
     ObservationRecordDetailView as BaseObservationRecordDetailView,
 )
 
-from goats_tom.utils import is_gpp_id
+from goats_tom.utils import get_explore_url, is_gpp_id
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class ObservationRecordDetailView(BaseObservationRecordDetailView):
             program_id = observation_record.parameters.get("gpp_program_id")
             obs_id = observation_record.parameters.get("gpp_id")
             if program_id and obs_id:
-                return f"https://explore.gemini.edu/{program_id}/observation/{obs_id}"
+                return f"{get_explore_url()}/{program_id}/observation/{obs_id}"
             else:
                 raise KeyError("Missing gpp_program_id or gpp_id in parameters")
         except Exception as exc:

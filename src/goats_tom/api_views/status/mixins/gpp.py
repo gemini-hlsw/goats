@@ -11,6 +11,7 @@ from rest_framework.request import Request
 from goats_tom.credentials import require_credentials
 from goats_tom.models import GPPLogin
 from goats_tom.service_checks import CheckResult, check_gpp, check_gpp_reachable
+from goats_tom.utils import get_explore_url
 
 from .base import BaseStatusMixin, MissingCredentialsError, register_status
 
@@ -18,7 +19,7 @@ from .base import BaseStatusMixin, MissingCredentialsError, register_status
 @register_status(
     "gpp",
     "Gemini Program Platform (GPP)",
-    url="https://explore.gemini.edu",
+    url=get_explore_url,
     url_label="Explore",
     manage_url_name="user-gpp-login",
 )
