@@ -262,9 +262,13 @@ class GPPModel {
     }
   }
 
+  /** The observing modes GOATS creates ToO observations in, for now. */
+  static #tooModes = new Set(["GMOS_NORTH_LONG_SLIT", "GMOS_SOUTH_LONG_SLIT"]);
+
   /**
    * Fetch the approved configuration requests of a program and cache those
-   * that suit a ToO.
+   * that suit a ToO GOATS can create: approved for a region of the sky, in an
+   * observing mode GOATS supports.
    * @async
    * @param {string} programId  Program identifier.
    * @returns {Promise<void>}
@@ -277,7 +281,8 @@ class GPPModel {
         `${this.#gppConfigurationRequestsUrl}?program_id=${encodeURIComponent(programId)}`,
       );
       for (const configuration of matches ?? []) {
-        if (GPPModel.#targetsRegion(configuration)) {
+        const mode = configuration?.configuration?.observingMode?.mode;
+        if (GPPModel.#targetsRegion(configuration) && GPPModel.#tooModes.has(mode)) {
           this.#tooConfigurations.set(configuration.id, configuration);
         }
       }

@@ -135,18 +135,21 @@ class ProgramObservationsPanel {
     });
   }
   /**
-   * Populate the observations <select> with every observation of the program,
-   * split into normal, ToO and calibration groups.
+   * Populate the observations <select>: the observations of the program, then
+   * its calibrations under their own heading. ToO observations that are still
+   * being prepared, with a region rather than a target, are not observations to
+   * act on, so they are left out.
    * @param {!Array<Object>} observations - Array of observation objects.
    */
   updateNormalObservations(observations) {
-    this.#fillSelect(this.#normalSelect, observations, {
-      groups: ["Normal", "ToO", "Calibrations"],
-      getGroup: (o) => {
-        if (o?.calibrationRole) return "Calibrations";
-        return o?.isToo ? "ToO" : "Normal";
+    this.#fillSelect(
+      this.#normalSelect,
+      (observations ?? []).filter((o) => !o?.isToo),
+      {
+        groups: ["Calibrations"],
+        getGroup: (o) => (o?.calibrationRole ? "Calibrations" : null),
       },
-    });
+    );
   }
   /**
    * Populate the approved ToO configurations <select>.
@@ -177,23 +180,18 @@ class ProgramObservationsPanel {
   }
   /**
    * The setup an approved configuration request approves, short as Explore
-   * shows it: instrument, focal plane, and the disperser or the filters.
+   * shows it: instrument, focal plane and grating.
    * @param {!Object} configuration - Configuration request object.
    * @returns {string}
    */
   static configurationSetup(configuration) {
     const mode = configuration?.configuration?.observingMode ?? {};
-    // An approved configuration fixes the disperser, or the filters. A grating
-    // goes by the name before its part number: R400_G5310 is the R400.
+    // A grating goes by the name before its part number: R400_G5310 is the R400.
     const grating = mode.gmosNorthLongSlit?.grating ?? mode.gmosSouthLongSlit?.grating;
-    const filters = mode.gmosNorthImaging?.filters ?? mode.gmosSouthImaging?.filters;
     return [
       Lookups.instrumentShortName[mode.instrument] ?? mode.instrument,
-      Lookups.observingModeFpu[mode.mode] ??
-        (mode.mode && Formatters.titleCaseFromUnderscore(mode.mode)),
-      grating
-        ? grating.split("_")[0]
-        : (filters ?? []).map((f) => Lookups.gmosFilterShortName[f] ?? f).join(","),
+      Lookups.observingModeFpu[mode.mode],
+      grating?.split("_")[0],
     ]
       .filter(Boolean)
       .join(" ");

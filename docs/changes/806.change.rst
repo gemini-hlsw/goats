@@ -1,0 +1,1 @@
+Restored observation grouping, limited ToO configurations to GMOS long slit, and fixed selector click handling
