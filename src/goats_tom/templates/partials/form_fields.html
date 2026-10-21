@@ -7,14 +7,17 @@ Takes ``fields``, an iterable of bound fields, and optionally ``note_for`` and
 ``note`` to hang one extra hint off the named field, ``hide_help_for`` to hide
 the help text of one field from sight, or ``mark_required`` to put an asterisk
 after the label of each required field. Help and errors carry the ids Django's
-``aria-describedby`` points at, so screen readers read them out.
+``aria-describedby`` points at, so screen readers read them out. A multiple
+choice field with nothing to choose, such as groups when there are none, is
+left out.
 {% endcomment %}
 {% load custom_filters %}
 {% for field in fields %}
+{% if not field.field.widget.allow_multiple_selected or field.field.choices %}
 <div class="mb-3">
   {% if field.field.widget.input_type == "checkbox" %}
   <label class="form-label d-block">{{ field.label }}{% if mark_required and field.field.required %}<span class="text-danger" aria-hidden="true">*</span>{% endif %}</label>
-  {% if field.field.choices %}
+  {% if field.field.widget.allow_multiple_selected %}
   {% for choice in field|with_widget_class:"form-check-input" %}
   <div class="form-check">
     {{ choice.tag }}
@@ -46,4 +49,5 @@ after the label of each required field. Help and errors carry the ids Django's
   </div>
   {% endif %}
 </div>
+{% endif %}
 {% endfor %}

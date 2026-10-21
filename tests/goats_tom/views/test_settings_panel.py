@@ -230,11 +230,25 @@ class TestTheFieldOrderIsGroupedByMeaning(TestCase):
 
     def test_a_superuser_gets_groups_last(self) -> None:
         """Groups is administration, and only an admin sees it at all."""
+        Group.objects.create(name="observers")
         admin = UserFactory(
             username="admin", password="z", is_superuser=True, is_staff=True
         )
 
         assert self.labels_of(admin)[-1] == "Groups"
+
+    def test_no_groups_leaves_the_field_out(self) -> None:
+        """With nothing to pick, an empty checkbox would be all that shows."""
+        admin = UserFactory(
+            username="admin", password="z", is_superuser=True, is_staff=True
+        )
+
+        assert "Groups" not in self.labels_of(admin)
+        self.client.force_login(admin)
+        rendered = self.client.get(
+            reverse("user-update", kwargs={"pk": admin.pk})
+        ).content.decode()
+        assert 'id="id_groups"' not in rendered
 
 
 class TestCheckboxesAreBootstrap5(TestCase):
