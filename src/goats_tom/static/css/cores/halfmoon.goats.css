@@ -630,66 +630,6 @@ footer {
   background-repeat: no-repeat;
 }
 
-/* Same box as the landing background: centered and contained in the page. */
-.landing-frame {
-  container-type: size;
-  inset: 0;
-  pointer-events: none;
-  position: absolute;
-}
-
-/* 2160 x 1717 is the size of landing-light.png and landing-dark.png. */
-.landing-image {
-  aspect-ratio: 2160 / 1717;
-  container: landing / inline-size;
-  left: 50%;
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(100cqw, 100cqh * 2160 / 1717);
-}
-
-/* Under the logo, between the dashed lines, scaled with the image. */
-.home-welcome {
-  font-size: clamp(0.75rem, 1.5cqw, 1rem);
-  left: 49.5%;
-  pointer-events: auto;
-  position: absolute;
-  top: 70%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-}
-
-.home-welcome .btn {
-  --bs-btn-font-size: 1em;
-  --bs-btn-padding-x: 1.5em;
-  --bs-btn-padding-y: 0.5em;
-
-  min-width: 10em;
-}
-
-.home-welcome-register {
-  color: var(--bs-secondary-color);
-  font-size: 0.9375em;
-  margin: 1em 0 0;
-}
-
-/* Too small to fit in the gap: below the image instead, so the page makes room for it. */
-@media (width < 576px) {
-  .img-container:has(.landing-frame) {
-    min-height: calc(100vw / (2160 / 1717) + 20rem);
-  }
-}
-
-@container landing (width < 36rem) {
-  .home-welcome {
-    font-size: 1rem;
-    left: 50%;
-    top: 100%;
-    transform: translate(-50%, 1rem);
-  }
-}
-
 [data-bs-core="goats"]:not([data-bs-theme="dark"]) .banner {
   background-color: var(--gemini);
 }
