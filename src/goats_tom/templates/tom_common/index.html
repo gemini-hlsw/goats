@@ -2,16 +2,6 @@
 {% load static targets_extras observation_extras dataproduct_extras tom_common_extras %}
 {% block title %}Home{% endblock %}
 {% block content %}
-{% if not user.is_authenticated %}
-<div class="landing-frame">
-  <div class="landing-image">
-    <div class="home-welcome text-center">
-      <a href="{% url 'login' %}" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket me-2"></i>Log in</a>
-      <p class="home-welcome-register">No account yet? <a href="{% url 'register' %}" class="link-body-emphasis link-offset-1 fw-semibold">Request an account</a>.</p>
-    </div>
-  </div>
-</div>
-{% endif %}
 {% endblock %}
 {% block javascript %}
 {{ block.super }}

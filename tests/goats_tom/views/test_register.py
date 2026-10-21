@@ -122,7 +122,8 @@ def test_a_signed_in_user_is_sent_home(client):
 
 
 @pytest.mark.django_db
-def test_the_done_page_explains_what_happens_next(client):
+def test_the_done_page_says_it_awaits_approval(client):
     content = client.get(reverse("register-done")).content.decode()
 
     assert "Awaiting approval." in content
+    assert "What happens next" not in content

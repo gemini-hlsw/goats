@@ -54,7 +54,7 @@ per-user settings panel, so it also lists the credentials stored per service.
   <div class="col-lg-5">
     <p class="h2 mb-1">Service credentials</p>
     <p>
-      GOATS uses these to reach each service on behalf of
+      GOATS uses these to reach each service on behalf of user
       <code>{{ object.username }}</code>.
     </p>
     <table class="table table-borderless align-middle">
@@ -93,8 +93,8 @@ per-user settings panel, so it also lists the credentials stored per service.
       {% include 'tom_common/partials/api_token.html' %}
       <p class="mt-2">
         This is the token the <strong>antares2goats</strong> browser extension
-        uses. Regenerating it stops the extension working until you paste the
-        new one in.
+        uses to connect to your account. Regenerating it stops the extension
+        from working until you paste the new one in.
       </p>
     </div>
   </div>
