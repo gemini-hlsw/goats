@@ -9,12 +9,21 @@ import tempfile
 
 from rest_framework import permissions, status
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 
 
+class IsSuperuser(permissions.BasePermission):
+    """Allows access only to administrators (superusers)."""
+
+    def has_permission(self, request: Request, view: APIView) -> bool:
+        return bool(request.user and request.user.is_superuser)
+
+
 class SystemViewSet(ViewSet):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsSuperuser]
 
     @action(detail=False, methods=["post"])
     def shutdown(self, request):

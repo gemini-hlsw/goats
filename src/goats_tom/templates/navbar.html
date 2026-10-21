@@ -96,7 +96,9 @@
             {% csrf_token %}
             <button type="submit" class="dropdown-item"><i class="fa-solid fa-right-from-bracket fa-fw me-2"></i>Log out</button>
           </form>
+          {% if user.is_superuser %}
           <button id="shutdownBtn" type="button" class="dropdown-item text-danger"><i class="fa-solid fa-power-off fa-fw me-2"></i>Shut down GOATS</button>
+          {% endif %}
         </div>
       </li>
       {% else %}
