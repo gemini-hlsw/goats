@@ -1,0 +1,1 @@
+Restricted the GOATS shutdown button to administrators only

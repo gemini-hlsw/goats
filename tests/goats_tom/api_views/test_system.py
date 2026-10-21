@@ -18,7 +18,7 @@ class TestSystemViewSet(APITestCase):
 
     def setUp(self):
         self.factory = APIRequestFactory()
-        self.user = UserFactory()
+        self.user = UserFactory(is_superuser=True)
         self.view = SystemViewSet.as_view({"post": "shutdown"})
 
     def authenticate(self, request):
@@ -26,21 +26,22 @@ class TestSystemViewSet(APITestCase):
 
     @patch("goats_tom.api_views.system.os.kill")
     def test_shutdown_unauthenticated(self, mock_kill):
-        """Test that unauthenticated requests are allowed and can shut down."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            pid_file = Path(tmp_dir) / "goats.pid"
-            pid_file.write_text("12345")
+        """Test that unauthenticated requests cannot shut down."""
+        request = self.factory.post(reverse("system-shutdown"))
+        response = self.view(request)
 
-            with patch(
-                "goats_tom.api_views.system.tempfile.gettempdir",
-                return_value=tmp_dir,
-            ):
-                request = self.factory.post(reverse("system-shutdown"))
-                response = self.view(request)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        mock_kill.assert_not_called()
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["status"], "shutdown initiated")
-        mock_kill.assert_called_once_with(12345, signal.SIGINT)
+    @patch("goats_tom.api_views.system.os.kill")
+    def test_shutdown_non_admin(self, mock_kill):
+        """Test that a signed-in user who is not an admin cannot shut down."""
+        request = self.factory.post(reverse("system-shutdown"))
+        force_authenticate(request, user=UserFactory())
+        response = self.view(request)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        mock_kill.assert_not_called()
 
     @patch("goats_tom.api_views.system.os.kill")
     def test_shutdown_pid_file_found(self, mock_kill):

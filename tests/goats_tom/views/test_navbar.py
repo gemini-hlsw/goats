@@ -46,8 +46,15 @@ def test_shut_down_is_not_offered_when_signed_out(client):
 
 
 @pytest.mark.django_db
-def test_shut_down_is_in_the_user_menu_when_signed_in(client):
+def test_shut_down_is_not_offered_to_non_admins(client):
     client.force_login(UserFactory())
+
+    assert 'id="shutdownBtn"' not in _page(client)
+
+
+@pytest.mark.django_db
+def test_shut_down_is_in_the_user_menu_for_admins(client):
+    client.force_login(UserFactory(is_superuser=True))
 
     content = _page(client)
 
