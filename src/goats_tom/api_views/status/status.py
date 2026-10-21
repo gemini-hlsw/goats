@@ -4,6 +4,8 @@ Status API ViewSet.
 
 __all__ = ["StatusViewSet"]
 
+from typing import Any
+
 from django.urls import reverse
 from rest_framework import permissions, status
 from rest_framework.decorators import action
@@ -41,7 +43,7 @@ class StatusViewSet(ViewSet):
                 "display_name": meta["display_name"],
                 "endpoint": meta["endpoint"],
                 "group": meta["group"],
-                "url": meta["url"] or meta["instance"].get_public_url(),
+                "url": self._site_url(meta),
                 "url_label": meta["url_label"] or meta["display_name"],
                 "manage_url": self._manage_url(request, meta["manage_url_name"]),
             }
@@ -67,6 +69,27 @@ class StatusViewSet(ViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @staticmethod
+    def _site_url(meta: dict[str, Any]) -> str | None:
+        """
+        Returns the website a service links to from the page.
+
+        Parameters
+        ----------
+        meta : dict[str, Any]
+            The service's entry in the status registry.
+
+        Returns
+        -------
+        str | None
+            The registered URL, resolved if it is a function, or else the URL
+            the service checks.
+        """
+        url = meta["url"]
+        if callable(url):
+            return url()
+        return url or meta["instance"].get_public_url()
 
     @staticmethod
     def _manage_url(request: Request, url_name: str | None) -> str | None:

@@ -1,4 +1,4 @@
-{% load static bootstrap4 custom_filters %}
+{% load static bootstrap4 custom_filters gpp_extras %}
 <div class="navbar navbar-expand-md navbar-dark">
   <a class="navbar-brand" href="{% url 'home' %}">
     <img src="{% static 'img/goats-logo-light.svg' %}" alt="Logo" height="48" class="align-text-top theme-logo-light">
@@ -42,7 +42,7 @@
         <a class="nav-link {% if request.resolver_match.url_name == 'astro-data-lab' %}active{% endif %}" title="Open Astro Data Lab science platform" href="{% url 'astro-data-lab' %}">Astro Data Lab</a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" target="_blank" rel="noopener" title="Open Gemini Explore" href="https://explore.gemini.edu/">Gemini Explore <i class="fa-solid fa-arrow-up-right-from-square fa-xs ms-1" aria-hidden="true"></i></a>
+        <a class="nav-link" target="_blank" rel="noopener" title="Open Gemini Explore" href="{% explore_url %}/">Gemini Explore <i class="fa-solid fa-arrow-up-right-from-square fa-xs ms-1" aria-hidden="true"></i></a>
       </li>
     </ul>
     <ul class="navbar-nav navbar-tools">

@@ -8,6 +8,7 @@ __all__ = [
     "extract_metadata",
     "get_short_name",
     "get_astrodata_header",
+    "get_explore_url",
     "get_recipes_and_primitives",
     "is_gpp_id",
     "is_ocs_id",
@@ -23,6 +24,7 @@ from typing import Any
 import astrodata
 from astropy.table import Table
 from django.http import JsonResponse
+from gpp_client.settings import GPPEnvironment, GPPSettings
 from recipe_system.mappers.recipeMapper import RecipeMapper
 from recipe_system.utils.errors import ModeError, RecipeNotFound
 from rest_framework import status
@@ -30,6 +32,11 @@ from tom_dataproducts.models import DataProduct, ReducedDatum
 from tom_observations.models import ObservationRecord
 
 logger = logging.getLogger(__name__)
+
+EXPLORE_URLS = {
+    GPPEnvironment.DEVELOPMENT: "https://explore-dev.gemini.edu",
+    GPPEnvironment.PRODUCTION: "https://explore.gemini.edu",
+}
 
 
 def delete_associated_data_products(
@@ -313,6 +320,23 @@ def is_gpp_id(obs_id: str) -> bool:
         ``True`` if it is a GPP ID, ``False`` otherwise.
     """
     return obs_id.startswith("G-")
+
+
+def get_explore_url() -> str:
+    """
+    Return the base URL of the Explore site for the GPP environment in use.
+
+    Returns
+    -------
+    str
+        The Explore URL, without a trailing slash. Production when the
+        environment cannot be read.
+    """
+    try:
+        return EXPLORE_URLS[GPPSettings().environment]
+    except Exception:
+        logger.exception("Could not read the GPP environment; linking production.")
+        return EXPLORE_URLS[GPPEnvironment.PRODUCTION]
 
 
 def is_ocs_id(obs_id: str) -> bool:
