@@ -503,9 +503,8 @@ function generateGmosLongSlitFields(site) {
       labelText: "Spatial Offsets",
       path: obsPath,
       id: "spatialOffsets",
-      suffix: "arcsec",
-      handler: "handleSpatialOffsetsList",
-      colSize: "col-lg-6",
+      handler: "handleSpatialOffsets",
+      colSize: "col-lg-12",
     },
     {
       labelText: "λ Dithers",

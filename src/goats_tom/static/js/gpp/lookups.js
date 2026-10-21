@@ -107,6 +107,12 @@ class Lookups {
     INTERLEAVED: "interleaved",
   };
 
+  /** Long slit offset modes, as lucuma labels them. */
+  static slitOffsetMode = {
+    NOD_ALONG_SLIT: "Nod along slit",
+    NOD_TO_SKY: "Nod to sky",
+  };
+
   /** GPP sends the pre-imaging offsets as four named keys, not as a list. */
   static gmosImagingPreImagingOffsetKeys = [
     "offset1",

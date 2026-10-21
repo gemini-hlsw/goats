@@ -20,6 +20,7 @@ const SCRIPTS = [
   "gpp/scheduling_windows_editor.js",
   "gpp/finder_chart_editor.js",
   "gpp/offset_variant_editor.js",
+  "gpp/spatial_offsets_editor.js",
   "gpp/observation_form.js",
   "gpp/gpp.js",
 ];
@@ -541,4 +542,201 @@ test("picking an observation or clearing the ToO select empties its choice", () 
   panel.toggleTooSelect(true);
   expect(Object.keys(tomSelect.options)).toEqual([]);
   expect(tomSelect.isDisabled).toBe(true);
+});
+
+/** GPP's telescope configs along the slit, guided unless listed as not. */
+function alongSlit(qs, unguided = []) {
+  return {
+    offsetMode: "NOD_ALONG_SLIT",
+    alongSlit: qs.map((q, i) => ({
+      q: { arcseconds: q },
+      guiding: unguided.includes(i) ? "DISABLED" : "ENABLED",
+    })),
+    toSky: null,
+  };
+}
+
+function renderSpatialOffsets(window, data, { readOnly = false } = {}) {
+  const SpatialOffsetsEditor = window.eval("SpatialOffsetsEditor");
+  const parent = window.document.getElementById("form");
+  const editor = new SpatialOffsetsEditor(parent, { data, readOnly });
+  const offsets = () =>
+    [...parent.querySelectorAll("#spatial-offsets-list > div")].map((row) =>
+      [...row.querySelectorAll("input")].map((input) => input.value),
+    );
+  return {
+    editor,
+    parent,
+    offsets,
+    mode: parent.querySelector("#spatial-offsets-mode"),
+    rowButtons: (index) =>
+      parent.querySelectorAll("#spatial-offsets-list > div")[index].querySelectorAll("button"),
+    add: [...parent.querySelectorAll("button")].find((b) => b.textContent.includes("Add")),
+  };
+}
+
+function type(input, value) {
+  input.value = value;
+  input.dispatchEvent(new input.ownerDocument.defaultView.Event("change"));
+}
+
+test("the spatial offsets show the explicit configs, or else the default ones", () => {
+  const defaults = renderSpatialOffsets(buildWindow(), {
+    defaultTelescopeConfigs: alongSlit([0, 15, -15]),
+    explicitTelescopeConfigs: null,
+  });
+  expect(defaults.mode.value).toBe("NOD_ALONG_SLIT");
+  expect(defaults.offsets()).toEqual([
+    ["0.00", "0.00"],
+    ["0.00", "15.00"],
+    ["0.00", "-15.00"],
+  ]);
+
+  const explicit = renderSpatialOffsets(buildWindow(), {
+    defaultTelescopeConfigs: alongSlit([0, 15, -15]),
+    explicitTelescopeConfigs: {
+      offsetMode: "NOD_TO_SKY",
+      alongSlit: null,
+      toSky: [{ offset: { p: { arcseconds: 30 }, q: { arcseconds: 1.5 } }, guiding: "DISABLED" }],
+    },
+  });
+  expect(explicit.mode.value).toBe("NOD_TO_SKY");
+  expect(explicit.offsets()).toEqual([["30.00", "1.50"]]);
+  expect(explicit.rowButtons(0)[0].classList.contains("btn-outline-secondary")).toBe(true);
+});
+
+test("the offset modes are offered as Explore labels them", () => {
+  const { mode } = renderSpatialOffsets(buildWindow(), {});
+
+  expect([...mode.options].map((o) => [o.value, o.textContent])).toEqual([
+    ["NOD_ALONG_SLIT", "Nod along slit"],
+    ["NOD_TO_SKY", "Nod to sky"],
+  ]);
+});
+
+test("each offset mode keeps its own offsets, starting from GPP's defaults", () => {
+  const { mode, offsets, parent } = renderSpatialOffsets(buildWindow(), {});
+  expect(offsets()).toEqual([
+    ["0.00", "0.00"],
+    ["0.00", "15.00"],
+    ["0.00", "-15.00"],
+  ]);
+  type(parent.querySelector("#spatial-offsets-q-1"), "10");
+
+  choose(mode, "NOD_TO_SKY");
+  expect(offsets()).toEqual([["0.00", "0.00"]]);
+
+  choose(mode, "NOD_ALONG_SLIT");
+  expect(offsets()).toEqual([
+    ["0.00", "0.00"],
+    ["0.00", "10.00"],
+    ["0.00", "-15.00"],
+  ]);
+});
+
+test("the spatial offsets are sent as GPP's telescope configs", () => {
+  const { editor, parent, rowButtons, add } = renderSpatialOffsets(buildWindow(), {
+    defaultTelescopeConfigs: alongSlit([0, 15, -15]),
+  });
+
+  rowButtons(1)[0].click();
+  rowButtons(2)[1].click();
+  add.click();
+  type(parent.querySelector("#spatial-offsets-q-2"), "-7.5");
+
+  expect(editor.getValues()).toEqual({
+    offsetMode: "NOD_ALONG_SLIT",
+    alongSlit: [
+      { q: { arcseconds: 0 }, guiding: "ENABLED" },
+      { q: { arcseconds: 15 }, guiding: "DISABLED" },
+      { q: { arcseconds: -7.5 }, guiding: "ENABLED" },
+    ],
+  });
+});
+
+test("offsets to sky are sent with both axes", () => {
+  const { editor, mode, parent } = renderSpatialOffsets(buildWindow(), {});
+
+  choose(mode, "NOD_TO_SKY");
+  type(parent.querySelector("#spatial-offsets-p-0"), "30");
+
+  expect(editor.getValues()).toEqual({
+    offsetMode: "NOD_TO_SKY",
+    toSky: [
+      { offset: { p: { arcseconds: 30 }, q: { arcseconds: 0 } }, guiding: "ENABLED" },
+    ],
+  });
+});
+
+test("each axis of an offset shows its unit, in either mode", () => {
+  const { mode, parent } = renderSpatialOffsets(buildWindow(), {});
+  const labels = () =>
+    [...parent.querySelectorAll("#spatial-offsets-list > div")][0].querySelectorAll(
+      ".input-group-text",
+    );
+  const expected = ["p", "arcsec", "q", "arcsec"];
+
+  expect([...labels()].map((l) => l.textContent)).toEqual(expected);
+
+  choose(mode, "NOD_TO_SKY");
+  expect([...labels()].map((l) => l.textContent)).toEqual(expected);
+});
+
+test("p is locked along the slit and editable to sky", () => {
+  const { mode, parent } = renderSpatialOffsets(buildWindow(), {});
+  const p = () => parent.querySelector("#spatial-offsets-p-0");
+  const q = () => parent.querySelector("#spatial-offsets-q-0");
+
+  expect([p().disabled, q().disabled]).toEqual([true, false]);
+
+  choose(mode, "NOD_TO_SKY");
+  expect([p().disabled, q().disabled]).toEqual([false, false]);
+});
+
+test("the first spatial offset cannot be removed", () => {
+  const { offsets, rowButtons } = renderSpatialOffsets(buildWindow(), {
+    defaultTelescopeConfigs: alongSlit([0]),
+  });
+
+  const remove = rowButtons(0)[1];
+  expect(remove.classList.contains("invisible")).toBe(true);
+  remove.click();
+  expect(offsets()).toEqual([["0.00", "0.00"]]);
+});
+
+test("read-only spatial offsets cannot be edited", () => {
+  const { parent } = renderSpatialOffsets(
+    buildWindow(),
+    { defaultTelescopeConfigs: alongSlit([0, 15]) },
+    { readOnly: true },
+  );
+
+  const controls = parent.querySelectorAll("input, select, button");
+  expect(controls.length).toBeGreaterThan(0);
+  controls.forEach((control) => expect(control.disabled).toBe(true));
+});
+
+test("a long slit form submits its spatial offsets", async () => {
+  const window = buildWindow();
+  const ObservationForm = window.eval("ObservationForm");
+  const form = new ObservationForm(window.document.getElementById("form"), {
+    observation: {
+      priority: "MEDIUM",
+      schedulingConstraints: { tooActivation: "NONE", schedulingMode: "UNCONSTRAINED" },
+      observingMode: {
+        mode: "GMOS_NORTH_LONG_SLIT",
+        gmosNorthLongSlit: { defaultTelescopeConfigs: alongSlit([0, 15, -15], [2]) },
+      },
+    },
+    fieldOptions: await enumFieldOptions(window),
+  });
+
+  expect(JSON.parse(form.getData().get("spatialOffsets"))).toEqual({
+    offsetMode: "NOD_ALONG_SLIT",
+    alongSlit: [
+      { q: { arcseconds: 0 }, guiding: "ENABLED" },
+      { q: { arcseconds: 15 }, guiding: "ENABLED" },
+      { q: { arcseconds: -15 }, guiding: "DISABLED" },
+    ],
+  });
 });

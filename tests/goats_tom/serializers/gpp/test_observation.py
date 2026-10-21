@@ -19,7 +19,10 @@ def minimal_input():
         "observerNotesTextarea": "Test note",
         "hiddenObservingModeInput": "GMOS_SOUTH_LONG_SLIT",
         "centralWavelengthInput": "750",
-        "spatialOffsetsInput": "0.0, 1.0",
+        "spatialOffsets": (
+            '{"offsetMode": "NOD_ALONG_SLIT",'
+            ' "alongSlit": [{"q": {"arcseconds": 0.0}, "guiding": "ENABLED"}]}'
+        ),
         "wavelengthDithersInput": "0.0, 1.0",
         "posAngleConstraintModeSelect": "FIXED",
         "posAngleConstraintAngleInput": 180.0,
