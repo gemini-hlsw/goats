@@ -2112,7 +2112,7 @@ requires-dist = [
     { name = "djangorestframework", specifier = "==3.17.2,<4" },
     { name = "dramatiq", extras = ["redis", "watch"], specifier = ">=1.18.0,<2" },
     { name = "dramatiq-abort", specifier = ">=1.2.1" },
-    { name = "gpp-client", specifier = "==26.10.2" },
+    { name = "gpp-client", specifier = "==26.10.4" },
     { name = "jdaviz", git = "https://github.com/spacetelescope/jdaviz?tag=v5.0.2" },
     { name = "marshmallow", specifier = "==3.26.2" },
     { name = "marshmallow-jsonapi", specifier = ">=0.24.0" },
@@ -2153,11 +2153,12 @@ notebook = [{ name = "ipykernel", specifier = ">=7.3.0" }]
 
 [[package]]
 name = "gpp-client"
-version = "26.10.2"
+version = "26.10.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "beautifulsoup4" },
+    { name = "click" },
     { name = "graphql-core" },
     { name = "httpx" },
     { name = "pydantic" },
@@ -2165,9 +2166,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e3/a7/f226f2e0d8b6c77fc456c2cfae6554db50c2cb06e89e5751d366aca8bbaf/gpp_client-26.10.2.tar.gz", hash = "sha256:1f0bc1965cc9b10cfff036ad87e40232b55df0787a844d42171a88e52a68cd81", size = 242576, upload-time = "2026-10-16T15:31:17.548Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/83/7c5e0b5176f54d2146357d83a22b863dae5778de4e26280cf0a0c8d3f70f/gpp_client-26.10.4.tar.gz", hash = "sha256:f1f422df4cad691b9371a5b1c418a4b71c6a1ece8a0914e78e574f2e0650e730", size = 243636, upload-time = "2026-10-21T13:29:27.204Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/28/998b8bf49ba610287f76ba0a27c0ebad8729f0908409b2ef87a83945c4a4/gpp_client-26.10.2-py3-none-any.whl", hash = "sha256:4e01e3b749917130aa62467baf3a2654cfa8e81741ad9a52f85bca7ba22cc779", size = 282191, upload-time = "2026-10-16T15:31:15.99Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/7c/f74531d37d2cc8d22be86f23cd2322c75cc0a4155cc93f6cbe388cc3e6b1/gpp_client-26.10.4-py3-none-any.whl", hash = "sha256:9ff7d474247a3b7f862c8b583bcb2057c978c3989975ab99f33413939dda6187", size = 283388, upload-time = "2026-10-21T13:29:25.89Z" },
 ]
 
 [[package]]
