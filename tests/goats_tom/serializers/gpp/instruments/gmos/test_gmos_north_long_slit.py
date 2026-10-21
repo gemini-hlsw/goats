@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from gpp_client.generated.enums import GuideState
 
@@ -20,21 +22,29 @@ def mock_exposure_mode_serializer(mocker):
         return_value=None,
     )
 
+
+def along_slit(*qs: float) -> str:
+    """Build the spatial offsets JSON the form emits, guided along the slit."""
+    return json.dumps(
+        {
+            "offsetMode": "NOD_ALONG_SLIT",
+            "alongSlit": [{"q": {"arcseconds": q}, "guiding": "ENABLED"} for q in qs],
+        }
+    )
+
+
 @pytest.mark.parametrize(
     "input_data",
     [
         {
             "centralWavelengthInput": "750.5",
             "wavelengthDithersInput": "0.0, 8.0, -8.0",
-            "spatialOffsetsInput": "0.0, 15.0, -15.0",
+            "spatialOffsets": along_slit(0.0, 15.0, -15.0),
         },
         {"centralWavelengthInput": "700.0"},
         {"wavelengthDithersInput": "1.0, 2.0"},
-        {"spatialOffsetsInput": "5.5, -5.5"},
-        {
-            "wavelengthDithersInput": " 1.0 , , 2.0 ",
-            "spatialOffsetsInput": " , 10.0 , -10.0",
-        },
+        {"spatialOffsets": along_slit(5.5, -5.5)},
+        {"wavelengthDithersInput": " 1.0 , , 2.0 ", "spatialOffsets": ""},
     ],
 )
 def test_gmos_north_longslit_valid_inputs(input_data: dict[str, str], mocker) -> None:
@@ -57,9 +67,9 @@ def test_gmos_north_longslit_valid_inputs(input_data: dict[str, str], mocker) ->
             "Invalid float value",
         ),
         (
-            {"spatialOffsetsInput": "0.0, fail"},
-            "spatialOffsetsInput",
-            "Invalid float value",
+            {"spatialOffsets": "not json"},
+            "spatialOffsets",
+            "Invalid JSON for the spatial offsets.",
         ),
     ],
 )
@@ -70,7 +80,7 @@ def test_gmos_north_longslit_invalid_inputs(
     serializer = GMOSNorthLongSlitSerializer(data=input_data)
     assert not serializer.is_valid()
     assert expected_field in serializer.errors
-    assert expected_error in str(serializer.errors[expected_field][0])
+    assert expected_error in str(serializer.errors[expected_field])
 
 
 def test_format_gpp_outputs_structured_data(mocker) -> None:
@@ -78,7 +88,7 @@ def test_format_gpp_outputs_structured_data(mocker) -> None:
     input_data = {
         "centralWavelengthInput": "750.5",
         "wavelengthDithersInput": "0.0, 8.0, -8.0",
-        "spatialOffsetsInput": "0.0, 15.0, -15.0",
+        "spatialOffsets": along_slit(0.0, 15.0, -15.0),
     }
     serializer = GMOSNorthLongSlitSerializer(data=input_data)
     assert serializer.is_valid(), serializer.errors
@@ -106,7 +116,7 @@ def test_to_pydantic_outputs_valid_model(mocker) -> None:
     input_data = {
         "centralWavelengthInput": "750.5",
         "wavelengthDithersInput": "1.0, -1.0",
-        "spatialOffsetsInput": "5.0, -5.0",
+        "spatialOffsets": along_slit(5.0, -5.0),
     }
     serializer = GMOSNorthLongSlitSerializer(data=input_data)
     assert serializer.is_valid(), serializer.errors

@@ -4,6 +4,7 @@ from .gmos import (
     GMOSSouthImagingSerializer,
     GMOSSouthLongSlitSerializer,
     ImagingVariantSerializer,
+    SlitTelescopeConfigsSerializer,
 )
 from .registry import (
     InstrumentRegistry,
@@ -16,4 +17,5 @@ __all__ = [
     "GMOSSouthLongSlitSerializer",
     "ImagingVariantSerializer",
     "InstrumentRegistry",
+    "SlitTelescopeConfigsSerializer",
 ]

@@ -12,7 +12,6 @@ from gpp_client.generated.enums import (
     GmosSouthBuiltinFpu,
     GmosSouthFilter,
     GmosSouthGrating,
-    GuideState,
 )
 from gpp_client.generated.input_types import GmosSouthLongSlitInput
 from rest_framework import serializers
@@ -45,7 +44,6 @@ class GMOSSouthLongSlitSerializer(_BaseGMOSSerializer):
         allow_blank=True,
         allow_null=True,
     )
-    spatialOffsetsInput = CommaSeparatedFloatField(required=False, allow_null=True)
     wavelengthDithersInput = CommaSeparatedFloatField(required=False, allow_null=True)
 
     pydantic_model = GmosSouthLongSlitInput
@@ -78,15 +76,10 @@ class GMOSSouthLongSlitSerializer(_BaseGMOSSerializer):
         if (wd := data.get("wavelengthDithersInput")) is not None:
             result["explicitWavelengthDithers"] = [{"nanometers": v} for v in wd]
 
-        if (so := data.get("spatialOffsetsInput")) is not None:
-            # GPP takes long slit offsets as telescope configs along the slit; the
-            # form only collects q, so guiding stays enabled for every offset.
-            result["explicitTelescopeConfigs"] = {
-                "alongSlit": [
-                    {"q": {"arcseconds": v}, "guiding": GuideState.ENABLED.value}
-                    for v in so
-                ]
-            }
+        if self._telescope_configs_serializer is not None:
+            result["explicitTelescopeConfigs"] = (
+                self._telescope_configs_serializer.format_gpp()
+            )
 
         if self._exposure_mode_serializer is not None:
             exposure_mode_data = self._exposure_mode_serializer.format_gpp()

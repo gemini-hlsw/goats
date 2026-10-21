@@ -15,6 +15,7 @@ class ObservationForm {
   #schedulingWindowsEditor;
   #finderChartEditor;
   #offsetVariantEditor;
+  #spatialOffsetsEditor;
 
   /** ToO activations GPP runs uninterrupted, fixing the scheduling mode. */
   static #UNINTERRUPTIBLE_ACTIVATIONS = ["RAPID", "INTERRUPTING"];
@@ -114,13 +115,14 @@ class ObservationForm {
         });
         return [div];
       },
-      handleSpatialOffsetsList: (meta, raw) => {
-        // GPP only fills the explicit configs when the user overrode the defaults.
-        const configs =
-          raw?.explicitTelescopeConfigs ?? raw?.defaultTelescopeConfigs;
-        const values =
-          configs?.alongSlit?.map((o) => o.q.arcseconds.toFixed(2)) ?? [];
-        return [this.#createFormField({ ...meta, value: values.join(", ") })];
+      handleSpatialOffsets: (meta, raw) => {
+        const div = Utils.createElement("div", meta.colSize);
+        this.#spatialOffsetsEditor = new SpatialOffsetsEditor(div, {
+          data: raw ?? {},
+          labelText: meta.labelText,
+          readOnly: this.#readOnly,
+        });
+        return [div];
       },
       handleWavelengthDithersList: (meta, raw) => {
         const values = raw?.map((o) => o.nanometers.toFixed(1)) ?? [];
@@ -245,6 +247,7 @@ class ObservationForm {
     // Only imaging modes build this editor, so drop the stale reference or a
     // later long-slit form would still submit the previous offset variant.
     this.#offsetVariantEditor = null;
+    this.#spatialOffsetsEditor = null;
   }
 
   /**
@@ -737,6 +740,14 @@ class ObservationForm {
       formData.append(
         "imagingOffsetVariant",
         JSON.stringify(this.#offsetVariantEditor.getValues()),
+      );
+    }
+
+    // Long slit spatial offsets: a list per offset mode, sent the same way.
+    if (this.#spatialOffsetsEditor) {
+      formData.append(
+        "spatialOffsets",
+        JSON.stringify(this.#spatialOffsetsEditor.getValues()),
       );
     }
 
