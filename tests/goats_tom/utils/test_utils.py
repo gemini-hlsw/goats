@@ -194,7 +194,7 @@ class TestCustomDataProductPath:
 @pytest.mark.parametrize(
     "environment, expected",
     [
-        (GPPEnvironment.DEVELOPMENT, "https://explore-dev.lucuma.xyz"),
+        (GPPEnvironment.DEVELOPMENT, "https://explore-dev.gemini.edu"),
         (GPPEnvironment.PRODUCTION, "https://explore.gemini.edu"),
     ],
 )

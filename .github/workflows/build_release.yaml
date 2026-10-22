@@ -31,6 +31,62 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.branch }}
 
+      # YY.M.PATCH with an optional rcN or devN suffix, matching what conda
+      # and goats-infra expect. A suffix means a pre-release.
+      - name: Check the version
+        env:
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]{2}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)((rc|dev)[1-9][0-9]*)?$ ]]; then
+            echo "::error::'$VERSION' is not YY.M.PATCH[rcN|devN], e.g. 26.11.0 or 26.11.0rc1."
+            exit 1
+          fi
+          suffixed=false
+          [[ "$VERSION" =~ (rc|dev)[0-9]+$ ]] && suffixed=true
+          if [ "$suffixed" != "$PRERELEASE" ]; then
+            echo "::error::'$VERSION' needs prerelease=$suffixed."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$VERSION" >/dev/null; then
+            echo "::error::Tag $VERSION already exists. Pick the next version."
+            exit 1
+          fi
+
+      # R1: a release candidate or final release talks to
+      # GPP production, so it must pin a stable gpp-client.
+      - name: Check the gpp-client pin
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          pin=$(python3 -c 'import tomllib; deps = tomllib.load(open("pyproject.toml", "rb"))["project"]["dependencies"]; print(next(d for d in deps if d.startswith("gpp-client")))')
+          echo "pyproject pins $pin"
+          if [[ "$pin" != gpp-client==* ]]; then
+            echo "::error::Pin gpp-client with == so the conda recipe can match it."
+            exit 1
+          fi
+          if [[ "$pin" == *.dev* && "$VERSION" != *dev* ]]; then
+            echo "::error::$VERSION pins $pin. Pin a stable gpp-client, or release a dev version (e.g. ${VERSION%%rc*}dev1) for conda-dev."
+            exit 1
+          fi
+
+      # python_ci.yaml runs on every push to main. Release only a commit whose
+      # lint, format and tests passed.
+      - name: Check CI passed on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          run=$(gh run list --workflow python_ci.yaml --commit "$sha" --limit 1 --json databaseId -q '.[0].databaseId')
+          if [ -z "$run" ]; then
+            echo "::error::Python CI has not run on $sha. Release from main, or push the branch and let CI run first."
+            exit 1
+          fi
+          gh run watch "$run" --exit-status >/dev/null || {
+            echo "::error::Python CI failed on $sha: ${{ github.server_url }}/${{ github.repository }}/actions/runs/$run"
+            exit 1
+          }
+
       - name: Install dependencies
         run: pip install towncrier uv
 
