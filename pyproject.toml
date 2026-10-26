@@ -159,6 +159,9 @@ line-ending = "auto"
 docstring-code-format = true
 docstring-code-line-length = "dynamic"
 
+[tool.uv]
+override-dependencies = ["pillow>=13.0.0", "cryptography>=50.0.2"]
+
 [tool.uv.sources]
 dragons = { git = "https://github.com/GeminiDRSoftware/DRAGONS", tag = "v4.2.2" }
 fits-storage = { git = "https://github.com/GeminiDRSoftware/FitsStorage", tag = "v3.5.2" }
