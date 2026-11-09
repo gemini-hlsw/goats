@@ -1,1 +1,0 @@
-Fixed missing GOATS logo in the light theme

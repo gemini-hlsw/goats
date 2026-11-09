@@ -1,1 +1,0 @@
-Fixed services incorrectly showing as unavailable when only the credential check fails

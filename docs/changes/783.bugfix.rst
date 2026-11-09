@@ -1,1 +1,0 @@
-Fixed authenticated users being incorrectly redirected to the login page

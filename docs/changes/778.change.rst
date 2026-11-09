@@ -1,1 +1,0 @@
-Improved the lunar phase plot on the target page with updated colors and clearer legends

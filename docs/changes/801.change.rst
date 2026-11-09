@@ -1,1 +1,0 @@
-Improved registration form UX and helper texts

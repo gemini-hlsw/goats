@@ -3,6 +3,63 @@ Full Changelog
 ==============
 
 .. towncrier release notes start
+Version 26.11.0 (2026-11-09)
+============================
+
+New Features
+------------
+
+- Added NSF, NOIRLab, Gemini, and AURA logos to the GOATS interface (`PR #777 <https://github.com/gemini-hlsw/goats/pull/777>`_)
+- Added the ability to unplot data from the Photometry and Spectroscopy tabs (`PR #779 <https://github.com/gemini-hlsw/goats/pull/779>`_)
+- Added ToO activation, priority, and scheduling mode to the GPP observation form (`PR #796 <https://github.com/gemini-hlsw/goats/pull/796>`_)
+- Added an Explore-like spatial offsets editor for GMOS long slit observations (`PR #809 <https://github.com/gemini-hlsw/goats/pull/809>`_)
+
+
+Changes
+-------
+
+- Improved the lunar phase plot on the target page with updated colors and clearer legends (`PR #778 <https://github.com/gemini-hlsw/goats/pull/778>`_)
+- Polished header, navbar, and Plotly styling for the light theme (`PR #780 <https://github.com/gemini-hlsw/goats/pull/780>`_)
+- Improved TNS group management on the credentials page (`PR #782 <https://github.com/gemini-hlsw/goats/pull/782>`_)
+- Added account requests approved by administrators, a notification inbox with optional email delivery, and password recovery by email or administrator-issued temporary password (`PR #784 <https://github.com/gemini-hlsw/goats/pull/784>`_)
+- Removed plaintext credentials storage warning banner (`PR #788 <https://github.com/gemini-hlsw/goats/pull/788>`_)
+- Added a read timeout to GOA downloads to prevent requests from hanging indefinitely (`PR #789 <https://github.com/gemini-hlsw/goats/pull/789>`_)
+- Isolated GOA sessions per request to prevent session state leaking between requests (`PR #790 <https://github.com/gemini-hlsw/goats/pull/790>`_)
+- Isolated concurrent DRAGONS reductions to prevent interference between simultaneous runs (`PR #791 <https://github.com/gemini-hlsw/goats/pull/791>`_)
+- Improved credentials and groups UI with updated helper text, TNS groups inline rows, owner full name display, and enforced first and last name on registration (`PR #792 <https://github.com/gemini-hlsw/goats/pull/792>`_)
+- Removed the Gaia broker from GOATS (`PR #794 <https://github.com/gemini-hlsw/goats/pull/794>`_)
+- Improved navbar menus and sign-in pages (`PR #795 <https://github.com/gemini-hlsw/goats/pull/795>`_)
+- Updated gpp-client to v26.10.2 (`PR #798 <https://github.com/gemini-hlsw/goats/pull/798>`_)
+- Updated JDaviz to v5.0.2 (`PR #799 <https://github.com/gemini-hlsw/goats/pull/799>`_)
+- Added region-based filtering for ToO configurations (`PR #800 <https://github.com/gemini-hlsw/goats/pull/800>`_)
+- Improved registration form UX and helper texts (`PR #801 <https://github.com/gemini-hlsw/goats/pull/801>`_)
+- Improved the approved ToO configuration selector (`PR #804 <https://github.com/gemini-hlsw/goats/pull/804>`_)
+- Restored observation grouping, limited ToO configurations to GMOS long slit, and fixed selector click handling (`PR #806 <https://github.com/gemini-hlsw/goats/pull/806>`_)
+- Restricted the GOATS shutdown button to administrators only (`PR #807 <https://github.com/gemini-hlsw/goats/pull/807>`_)
+- Simplified the landing and registration pages and clarified credentials helper texts (`PR #808 <https://github.com/gemini-hlsw/goats/pull/808>`_)
+- Updated gpp-client to v26.10.4 (`PR #812 <https://github.com/gemini-hlsw/goats/pull/812>`_)
+- Updated gpp-client to v26.10.6 (`PR #813 <https://github.com/gemini-hlsw/goats/pull/813>`_)
+
+
+Bug Fixes
+---------
+
+- Fixed the home credentials link pointing to an inaccessible page (`PR #781 <https://github.com/gemini-hlsw/goats/pull/781>`_)
+- Fixed authenticated users being incorrectly redirected to the login page (`PR #783 <https://github.com/gemini-hlsw/goats/pull/783>`_)
+- Fixed services incorrectly showing as unavailable when only the credential check fails (`PR #785 <https://github.com/gemini-hlsw/goats/pull/785>`_)
+- Fixed missing GOATS logo in the light theme (`PR #786 <https://github.com/gemini-hlsw/goats/pull/786>`_)
+- Fixed Survey view broken by a conflict with Aladin v2; migrated to Aladin v3 to resolve the issue (`PR #793 <https://github.com/gemini-hlsw/goats/pull/793>`_)
+- Fixed telescope name incorrectly displayed for old ANTARES loci (`PR #802 <https://github.com/gemini-hlsw/goats/pull/802>`_)
+- Fixed an empty checkbox appearing under Groups on the user settings page when no groups exist (`PR #810 <https://github.com/gemini-hlsw/goats/pull/810>`_)
+- Updated Explore URLs in GOATS following the GPP domain name change (`PR #811 <https://github.com/gemini-hlsw/goats/pull/811>`_)
+
+
+Other
+-----
+
+- Added pre-release checks for version, gpp-client pin, and CI status (`PR #814 <https://github.com/gemini-hlsw/goats/pull/814>`_)
+
+
 Version 26.10.0 (2026-10-02)
 ============================
 

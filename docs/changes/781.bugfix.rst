@@ -1,1 +1,0 @@
-Fixed the home credentials link pointing to an inaccessible page

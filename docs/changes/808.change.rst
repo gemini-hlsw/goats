@@ -1,1 +1,0 @@
-Simplified the landing and registration pages and clarified credentials helper texts

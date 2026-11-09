@@ -1,1 +1,0 @@
-Improved TNS group management on the credentials page

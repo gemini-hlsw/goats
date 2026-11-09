@@ -1,1 +1,0 @@
-Added pre-release checks for version, gpp-client pin, and CI status
