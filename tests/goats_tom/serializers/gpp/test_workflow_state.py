@@ -56,3 +56,21 @@ def test_invalid_workflow_state(
     errors = exc_info.value.detail
     assert expected_field in errors
     assert any(expected_message in str(msg) for msg in errors[expected_field])
+
+
+def test_optional_state_may_be_left_out() -> None:
+    """Left out of an existing observation's form, the state is kept as it is."""
+    serializer = WorkflowStateSerializer(data={}, optional=True)
+
+    assert serializer.is_valid(), serializer.errors
+    assert serializer.workflow_state is None
+    assert serializer.workflow_state_enum is None
+
+
+def test_optional_state_is_still_checked_when_given() -> None:
+    serializer = WorkflowStateSerializer(
+        data={"workflowStateSelect": "NOT_A_STATE"}, optional=True
+    )
+
+    assert not serializer.is_valid()
+    assert "workflowStateSelect" in serializer.errors

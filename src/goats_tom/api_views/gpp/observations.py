@@ -788,8 +788,10 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             # Setup client to communicate with GPP.
             client = GPPClient(token=credentials.token)
 
-            # Serialize and validate workflow state (always updated).
-            workflow_state_serializer = WorkflowStateSerializer(data=normalized_data)
+            # Serialize and validate workflow state; left out, GPP keeps it.
+            workflow_state_serializer = WorkflowStateSerializer(
+                data=normalized_data, optional=True
+            )
             workflow_state_serializer.is_valid(raise_exception=True)
             workflow_state = workflow_state_serializer.workflow_state_enum
 
@@ -928,36 +930,46 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     )
                 )
 
-        # Set workflow state.
-        logger.debug("Setting workflow state for updated GPP observation")
-        try:
-            new_workflow_state = async_to_sync(
-                client.workflow_state.update_by_id_with_retry
-            )(
-                observation_id=gpp_observation_id,
-                workflow_state=workflow_state,
-                max_attempts=55,
-                initial_delay=5,
-                retry_delay=1,
-            )
+        # Set workflow state, unless the form left it as it was read: then GPP
+        # keeps it, and GOATS does not send back a state the user did not choose.
+        if workflow_state is None:
             messages.append(
                 StageMessage(
                     stage=Stage.UPDATE_WORKFLOW_STATE,
                     status=MessageStatus.SUCCESS,
-                    message="Workflow state set to "
-                    f"{_format_workflow_state(new_workflow_state)}.",
+                    message="Workflow state left as it was.",
                 )
             )
+        else:
+            logger.debug("Setting workflow state for updated GPP observation")
+            try:
+                new_workflow_state = async_to_sync(
+                    client.workflow_state.update_by_id_with_retry
+                )(
+                    observation_id=gpp_observation_id,
+                    workflow_state=workflow_state,
+                    max_attempts=55,
+                    initial_delay=5,
+                    retry_delay=1,
+                )
+                messages.append(
+                    StageMessage(
+                        stage=Stage.UPDATE_WORKFLOW_STATE,
+                        status=MessageStatus.SUCCESS,
+                        message="Workflow state set to "
+                        f"{_format_workflow_state(new_workflow_state)}.",
+                    )
+                )
 
-        except Exception as e:
-            # Continue to saving observation even if workflow state update fails.
-            messages.append(
-                StageMessage(
-                    stage=Stage.UPDATE_WORKFLOW_STATE,
-                    status=MessageStatus.ERROR,
-                    message=str(e),
+            except Exception as e:
+                # Continue to saving observation even if workflow state update fails.
+                messages.append(
+                    StageMessage(
+                        stage=Stage.UPDATE_WORKFLOW_STATE,
+                        status=MessageStatus.ERROR,
+                        message=str(e),
+                    )
                 )
-            )
         if client is not None:
             try:
                 async_to_sync(client.close)()

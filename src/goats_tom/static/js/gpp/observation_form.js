@@ -548,6 +548,8 @@ class ObservationForm {
     control.id = elementId;
     control.name = elementId;
     control.disabled = isReadOnly;
+    // The state as read, to tell on saving whether the user changed it.
+    if (elementId === "workflowStateSelect") control.dataset.read = value ?? "";
 
     // Ask for what has to be answered, but never for what cannot be typed.
     if (isRequired && !isReadOnly) {
@@ -707,6 +709,15 @@ class ObservationForm {
     if (!this.#form) return null;
 
     const formData = new FormData(this.#form);
+
+    // An existing observation's state is sent only when the user changed it.
+    // Left as read, GPP keeps it. The browser would not send it anyway when it
+    // is one the user cannot choose (Undefined, Unapproved…), since its option
+    // is disabled, and GOATS then asked for a state it did not get.
+    const state = this.#form.querySelector("#workflowStateSelect");
+    if (this.#mode === "normal" && state && state.value === state.dataset.read) {
+      formData.delete("workflowStateSelect");
+    }
 
     // Calibrations are read-only except for the State field, so flag the request
     // to update only the workflow state on the backend.

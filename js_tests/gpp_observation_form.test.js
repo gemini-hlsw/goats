@@ -740,3 +740,42 @@ test("a long slit form submits its spatial offsets", async () => {
     ],
   });
 });
+
+/** A form showing an observation in `state`, in the given form mode. */
+async function renderStateForm(state, mode = "normal") {
+  const window = buildWindow();
+  window.structuredClone = (value) => JSON.parse(JSON.stringify(value));
+  const ObservationForm = window.eval("ObservationForm");
+  const form = new ObservationForm(window.document.getElementById("form"), {
+    observation: {
+      priority: "MEDIUM",
+      schedulingConstraints: { tooActivation: "NONE", schedulingMode: "UNCONSTRAINED" },
+      workflow: { value: { state } },
+    },
+    mode,
+    fieldOptions: await enumFieldOptions(window),
+  });
+  return { form, state: window.document.getElementById("workflowStateSelect") };
+}
+
+test("an existing observation's state left as read is not sent, so GPP keeps it", async () => {
+  // Unapproved is shown but cannot be chosen; the browser would drop it anyway.
+  const { form, state } = await renderStateForm("UNAPPROVED");
+
+  expect(state.value).toBe("UNAPPROVED");
+  expect(form.getData().has("workflowStateSelect")).toBe(false);
+});
+
+test("an existing observation's state is sent once the user changes it", async () => {
+  const { form, state } = await renderStateForm("READY");
+
+  choose(state, "INACTIVE");
+
+  expect(form.getData().get("workflowStateSelect")).toBe("INACTIVE");
+});
+
+test("a new observation always sends its state", async () => {
+  const { form } = await renderStateForm("DEFINED", "too");
+
+  expect(form.getData().get("workflowStateSelect")).toBe("DEFINED");
+});
