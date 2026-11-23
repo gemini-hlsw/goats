@@ -173,6 +173,12 @@ class ObservationForm {
     const form = Utils.createElement("form", ["row", "g-3"]);
     this.#form = form;
 
+    // An observation GOATS cannot edit says so before anything else.
+    const unsupported = ObservationForm.unsupportedMode(observation);
+    if (this.#mode === "normal" && unsupported) {
+      form.append(ObservationForm.#unsupportedNotice(unsupported));
+    }
+
     const allFields = this.#getMergedFields(observation);
     this.#appendFields(form, allFields, observation);
     this.#bindSchedulingMode();
@@ -180,6 +186,36 @@ class ObservationForm {
     this.#openIncompleteSections();
 
     this.#container.appendChild(form);
+  }
+
+  /**
+   * The observing mode of an observation that GOATS cannot edit, because it has
+   * no fields for that mode and the server cannot save it. A calibration is not
+   * edited but for its state, which any mode allows, and an observation with no
+   * mode yet is left as it is.
+   * @param {?Object} observation - The observation.
+   * @returns {?string} The mode, e.g. "GMOS_NORTH_IFU", or null.
+   */
+  static unsupportedMode(observation) {
+    const mode = observation?.observingMode?.mode;
+    if (!mode || observation?.calibrationRole) return null;
+    return Object.hasOwn(FIELD_CONFIGS, mode) ? null : mode;
+  }
+
+  /**
+   * The note above the form of an observation GOATS cannot edit.
+   * @param {string} mode - Its observing mode.
+   * @returns {!HTMLElement}
+   * @private
+   */
+  static #unsupportedNotice(mode) {
+    const col = Utils.createElement("div", ["col-12"]);
+    col.innerHTML = `
+      <div class="alert alert-info d-flex gap-2 align-items-baseline mb-0" role="note">
+        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+        <span>GOATS cannot edit ${Utils.escapeHTML(Formatters.observingModeName(mode))} observations yet.</span>
+      </div>`;
+    return col;
   }
 
   /**

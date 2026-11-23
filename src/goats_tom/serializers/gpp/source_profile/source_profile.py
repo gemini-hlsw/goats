@@ -65,7 +65,12 @@ class SourceProfileSerializer(_BaseGPPSerializer):
         # Validate SED if sedTypeSelect is provided.
         sed_type = data.get("sedTypeSelect")
         if sed_type:
-            sed_serializer = SEDRegistry.get_serializer(sed_type)
+            try:
+                sed_serializer = SEDRegistry.get_serializer(sed_type)
+            except serializers.ValidationError as exc:
+                # Raised from `to_internal_value`, the detail has to be a mapping:
+                # DRF cannot build the serializer's errors from a bare message.
+                raise serializers.ValidationError({"sedTypeSelect": exc.detail})
             sed = sed_serializer(data=data)
             sed.is_valid(raise_exception=True)
             self._sed = sed

@@ -46,7 +46,21 @@ class ObservingModeSerializer(_BaseGPPSerializer):
         self._instrument = None
 
         observing_mode = internal["hiddenObservingModeInput"]
-        instrument_serializer_class = InstrumentRegistry.get_serializer(observing_mode)
+        try:
+            instrument_serializer_class = InstrumentRegistry.get_serializer(
+                observing_mode
+            )
+        except serializers.ValidationError:
+            # Raised from `to_internal_value`, the detail has to be a mapping: DRF
+            # cannot build the serializer's errors from a bare message, and fails
+            # with an unrelated "dictionary update sequence" error instead.
+            raise serializers.ValidationError(
+                {
+                    "hiddenObservingModeInput": [
+                        f"GOATS cannot edit {observing_mode} observations yet."
+                    ]
+                }
+            )
 
         instrument = instrument_serializer_class(data=data)
         instrument.is_valid(raise_exception=True)
