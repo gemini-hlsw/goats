@@ -145,6 +145,26 @@ class TestSourceProfileSerializer:
         with pytest.raises(ValidationError, match="Invalid SED data"):
             serializer.is_valid(raise_exception=True)
 
+    def test_sed_without_serializer_is_a_field_error(self, mocker, mock_brightness):
+        """A SED type with no serializer is reported on its field, not as the
+        "dictionary update sequence" error DRF raises for a bare message."""
+        data = {
+            "sedProfileTypeSelect": SourceProfileType.POINT.value,
+            "sedTypeSelect": SEDType.BLACK_BODY.value,
+        }
+        mocker.patch.object(
+            SEDRegistry,
+            "get_serializer",
+            side_effect=ValidationError("Unsupported SED type: BLACK_BODY"),
+        )
+
+        serializer = SourceProfileSerializer(data=data)
+
+        assert not serializer.is_valid()
+        assert serializer.errors == {
+            "sedTypeSelect": ["Unsupported SED type: BLACK_BODY"]
+        }
+
     def test_format_gpp_returns_none_when_empty(self, mocker, mock_brightness):
         """Test `format_gpp()` returns None if no brightness or SED data are present."""
         mock_brightness.format_gpp.return_value = None

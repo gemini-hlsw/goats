@@ -70,6 +70,18 @@ def test_invalid_mode_selection(input_data, expected_error):
     assert expected_error in str(excinfo.value)
 
 
+def test_mode_without_editor_is_a_field_error():
+    """A mode GOATS cannot edit is reported on its field, not as the
+    "dictionary update sequence" error DRF raises for a bare message."""
+    serializer = ObservingModeSerializer(
+        data={"hiddenObservingModeInput": ObservingModeType.GMOS_NORTH_IFU.value}
+    )
+
+    assert not serializer.is_valid()
+    message = "GOATS cannot edit GMOS_NORTH_IFU observations yet."
+    assert serializer.errors == {"hiddenObservingModeInput": [message]}
+
+
 def test_format_gpp_returns_none_when_instrument_has_no_data():
     mock_serializer = MagicMock()
     mock_serializer.is_valid.return_value = True

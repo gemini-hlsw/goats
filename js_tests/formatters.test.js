@@ -30,3 +30,12 @@ test.each([
 ])("discoverySurveyFromSubtitle(%p) is %p", (subtitle, expected) => {
   expect(Formatters.discoverySurveyFromSubtitle(subtitle)).toBe(expected);
 });
+
+test.each([
+  ["GMOS_NORTH_IFU", "GMOS North IFU"],
+  ["GMOS_SOUTH_LONG_SLIT", "GMOS South Long Slit"],
+  ["GNIRS_LONG_SLIT", "GNIRS Long Slit"],
+  ["FLAMINGOS_2_LONG_SLIT", "Flamingos 2 Long Slit"],
+])("observingModeName(%p) is %p", (mode, expected) => {
+  expect(Formatters.observingModeName(mode)).toBe(expected);
+});

@@ -778,4 +778,66 @@ test("a new observation always sends its state", async () => {
   const { form } = await renderStateForm("DEFINED", "too");
 
   expect(form.getData().get("workflowStateSelect")).toBe("DEFINED");
+/** An observation in `mode`, as the observations list serves it. */
+function observationIn(mode, extra = {}) {
+  return {
+    priority: "MEDIUM",
+    schedulingConstraints: { tooActivation: "NONE", schedulingMode: "UNCONSTRAINED" },
+    observingMode: { mode },
+    ...extra,
+  };
+}
+
+test("a mode GOATS cannot edit is said above the form", async () => {
+  const window = buildWindow();
+  const ObservationForm = window.eval("ObservationForm");
+  new ObservationForm(window.document.getElementById("form"), {
+    observation: observationIn("GMOS_NORTH_IFU"),
+    fieldOptions: await enumFieldOptions(window),
+  });
+
+  const form = window.document.querySelector("#form form");
+  const notice = form.firstElementChild.querySelector(".alert-info");
+  expect(notice.textContent.trim()).toBe(
+    "GOATS cannot edit GMOS North IFU observations yet.",
+  );
+});
+
+test.each([
+  ["a mode GOATS edits", observationIn("GMOS_NORTH_LONG_SLIT")],
+  ["a calibration, whose state any mode lets GOATS edit", observationIn("GMOS_NORTH_IFU", { calibrationRole: "TELLURIC" })],
+  ["an observation with no mode yet", observationIn(undefined)],
+])("%s has no notice", async (_, observation) => {
+  const window = buildWindow();
+  const ObservationForm = window.eval("ObservationForm");
+  new ObservationForm(window.document.getElementById("form"), {
+    observation,
+    fieldOptions: await enumFieldOptions(window),
+  });
+
+  expect(window.document.querySelector(".alert-info")).toBeNull();
+});
+
+test("an observation GOATS cannot edit is read-only and cannot be updated", async () => {
+  const window = buildWindow();
+  const GPPView = window.eval("GPPView");
+  const GPPTemplate = window.eval("GPPTemplate");
+  const view = new GPPView(new GPPTemplate({}), window.document.body, {});
+  const fieldOptions = await enumFieldOptions(window);
+  const update = window.document.getElementById("updateButton");
+
+  view.render("updateNormalObservation", {
+    observation: observationIn("GMOS_NORTH_LONG_SLIT"),
+    fieldOptions,
+  });
+  expect(update.disabled).toBe(false);
+  expect(window.document.getElementById("prioritySelect").disabled).toBe(false);
+
+  view.render("updateNormalObservation", {
+    observation: observationIn("GMOS_NORTH_IFU"),
+    fieldOptions,
+  });
+  expect(update.disabled).toBe(true);
+  expect(window.document.getElementById("prioritySelect").disabled).toBe(true);
+  expect(window.document.querySelector(".alert-info")).not.toBeNull();
 });

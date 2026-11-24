@@ -1,0 +1,1 @@
+Added a message informing users when GOATS cannot edit an observation with an unsupported observing mode
