@@ -1,0 +1,1 @@
+Updated the workflow state selector to show only the states allowed by GPP

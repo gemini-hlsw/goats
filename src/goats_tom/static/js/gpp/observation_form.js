@@ -364,13 +364,40 @@ class ObservationForm {
       const given = meta.optionsFrom
         ? this.#fieldOptions[meta.optionsFrom]
         : null;
-      const options = given?.length ? given : meta.options;
+      let options = given?.length ? given : meta.options;
+      if (meta.id === "workflowState") {
+        options = ObservationForm.#allowedStates(options, observation?.workflow);
+      }
 
       currentSectionBody.append(
         this.#createFormField({ ...meta, value, options }),
       );
     });
   }
+
+  /**
+   * Keep only the states the user may set an observation to, and the one it is
+   * in. GPP lists them as its valid transitions. Without that list, as for a new
+   * observation, or while GPP is recalculating it, the form's own choices stand.
+   * @param {!Array<{value: string, labelText: string, disabled: (boolean|undefined)}>} states
+   *     Every state, with those only GPP sets disabled.
+   * @param {?Object} workflow - The workflow of the observation.
+   * @returns {!Array<{value: string, labelText: string}>} The states to show.
+   * @private
+   */
+  static #allowedStates(states, workflow) {
+    const current = workflow?.value?.state;
+    const isReady = (workflow?.calculationState ?? "READY") === "READY";
+    const transitions = isReady ? workflow?.value?.validTransitions : null;
+    return states
+      .filter(
+        ({ value, disabled }) =>
+          value === current ||
+          (transitions ? transitions.includes(value) : !disabled),
+      )
+      .map(({ value, labelText }) => ({ value, labelText }));
+  }
+
   /**
    * Create a section header with a collapse toggle and a body container.
    *
@@ -747,9 +774,7 @@ class ObservationForm {
     const formData = new FormData(this.#form);
 
     // An existing observation's state is sent only when the user changed it.
-    // Left as read, GPP keeps it. The browser would not send it anyway when it
-    // is one the user cannot choose (Undefined, Unapproved…), since its option
-    // is disabled, and GOATS then asked for a state it did not get.
+    // Left as read, GPP keeps it.
     const state = this.#form.querySelector("#workflowStateSelect");
     if (this.#mode === "normal" && state && state.value === state.dataset.read) {
       formData.delete("workflowStateSelect");
