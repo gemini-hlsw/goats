@@ -704,11 +704,13 @@ class GPPView {
     const isLocked =
       observation?.workflow?.value?.state === "COMPLETED" ||
       observation?.workflow?.value?.state === "ONGOING";
-    this.#poPanel.toggleUpdateButton(isLocked);
+    // GOATS cannot save a mode it has no fields for; the form says why.
+    const isUnsupported = Boolean(ObservationForm.unsupportedMode(observation));
+    this.#poPanel.toggleUpdateButton(isLocked || isUnsupported);
     this.#form = new ObservationForm(this.#formContainer, {
       observation: observation,
       mode: "normal",
-      readOnly: isCalibration || isLocked,
+      readOnly: isCalibration || isLocked || isUnsupported,
       allowStateEdit: isCalibration && !isLocked,
       target: this.#targetInfo(),
       fieldOptions,

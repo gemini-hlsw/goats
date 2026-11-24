@@ -54,4 +54,22 @@ class Formatters {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(" ");
   }
+
+  /**
+   * Names an observing mode as people write it, e.g. "GMOS_NORTH_IFU" as
+   * "GMOS North IFU": the instrument and focal plane acronyms keep their
+   * capitals.
+   *
+   * @param {string} mode - The observing mode, as GPP names it.
+   * @returns {string} The name of the mode.
+   */
+  static observingModeName(mode) {
+    const acronyms = new Set(["GMOS", "GNIRS", "GHOST", "IGRINS", "IFU", "MOS"]);
+    return String(mode ?? "")
+      .split("_")
+      .map((word) =>
+        acronyms.has(word) ? word : word.charAt(0) + word.slice(1).toLowerCase(),
+      )
+      .join(" ");
+  }
 }
