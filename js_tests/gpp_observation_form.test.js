@@ -742,7 +742,11 @@ test("a long slit form submits its spatial offsets", async () => {
 });
 
 /** A form showing an observation in `state`, in the given form mode. */
-async function renderStateForm(state, mode = "normal") {
+async function renderStateForm(
+  state,
+  mode = "normal",
+  { validTransitions, calculationState } = {},
+) {
   const window = buildWindow();
   window.structuredClone = (value) => JSON.parse(JSON.stringify(value));
   const ObservationForm = window.eval("ObservationForm");
@@ -750,7 +754,7 @@ async function renderStateForm(state, mode = "normal") {
     observation: {
       priority: "MEDIUM",
       schedulingConstraints: { tooActivation: "NONE", schedulingMode: "UNCONSTRAINED" },
-      workflow: { value: { state } },
+      workflow: { calculationState, value: { state, validTransitions } },
     },
     mode,
     fieldOptions: await enumFieldOptions(window),
@@ -759,7 +763,6 @@ async function renderStateForm(state, mode = "normal") {
 }
 
 test("an existing observation's state left as read is not sent, so GPP keeps it", async () => {
-  // Unapproved is shown but cannot be chosen; the browser would drop it anyway.
   const { form, state } = await renderStateForm("UNAPPROVED");
 
   expect(state.value).toBe("UNAPPROVED");
@@ -778,6 +781,69 @@ test("a new observation always sends its state", async () => {
   const { form } = await renderStateForm("DEFINED", "too");
 
   expect(form.getData().get("workflowStateSelect")).toBe("DEFINED");
+});
+
+/** The states the select shows. */
+const shownStates = (select) => [...select.options].map((option) => option.value);
+
+test.each([
+  ["UNDEFINED", ["INACTIVE"], ["INACTIVE", "UNDEFINED"]],
+  ["DEFINED", ["INACTIVE"], ["DEFINED", "INACTIVE"]],
+  ["DEFINED", ["INACTIVE", "READY"], ["READY", "DEFINED", "INACTIVE"]],
+  // GPP takes an inactive observation back to a state only GPP sets.
+  ["INACTIVE", ["UNAPPROVED"], ["INACTIVE", "UNAPPROVED"]],
+  ["COMPLETED", [], ["COMPLETED"]],
+])("from %s, with %j allowed, only %j are shown", async (current, allowed, shown) => {
+  const { state } = await renderStateForm(current, "normal", {
+    validTransitions: allowed,
+    calculationState: "READY",
+  });
+
+  expect(shownStates(state)).toEqual(shown);
+  expect(state.value).toBe(current);
+  expect([...state.options].some((option) => option.disabled)).toBe(false);
+});
+
+test("a state GPP allows is sent, even one the form does not offer on its own", async () => {
+  const { form, state } = await renderStateForm("INACTIVE", "normal", {
+    validTransitions: ["UNAPPROVED"],
+  });
+
+  choose(state, "UNAPPROVED");
+
+  expect(form.getData().get("workflowStateSelect")).toBe("UNAPPROVED");
+});
+
+test("a state can be changed back to the one read, and is then not sent", async () => {
+  const { form, state } = await renderStateForm("UNDEFINED", "normal", {
+    validTransitions: ["INACTIVE"],
+  });
+
+  choose(state, "INACTIVE");
+  choose(state, "UNDEFINED");
+
+  expect(state.value).toBe("UNDEFINED");
+  expect(form.getData().has("workflowStateSelect")).toBe(false);
+});
+
+test.each(["PENDING", "CALCULATING", "RETRY"])(
+  "while GPP's calculation is %s, its transitions are not relied on",
+  async (calculationState) => {
+    const { state } = await renderStateForm("UNDEFINED", "normal", {
+      validTransitions: ["INACTIVE"],
+      calculationState,
+    });
+
+    expect(shownStates(state)).toEqual(["READY", "DEFINED", "INACTIVE", "UNDEFINED"]);
+  },
+);
+
+test("a new observation shows only the states it may start in", async () => {
+  const { state } = await renderStateForm("DEFINED", "too");
+
+  expect(shownStates(state)).toEqual(["READY", "DEFINED", "INACTIVE"]);
+});
+
 /** An observation in `mode`, as the observations list serves it. */
 function observationIn(mode, extra = {}) {
   return {

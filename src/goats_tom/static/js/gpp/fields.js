@@ -112,6 +112,8 @@ const SHARED_FIELDS = [
     id: "workflowState",
     colSize: "col-12",
     element: "select",
+    // The disabled ones are GPP's to set: shown only when the observation is in
+    // them or GPP allows them.
     options: [
       { value: "READY", labelText: "Ready" },
       { value: "DEFINED", labelText: "Defined" },
