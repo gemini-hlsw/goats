@@ -9,6 +9,15 @@ from ._base_gpp import _BaseGPPSerializer
 
 
 class WorkflowStateSerializer(_BaseGPPSerializer):
+    """The workflow state asked for.
+
+    Parameters
+    ----------
+    optional : bool, optional
+        Whether the state may be left out, for an existing observation whose
+        state the user did not change: GPP keeps it as it is.
+    """
+
     workflowStateSelect = serializers.ChoiceField(
         choices=[c.value for c in ObservationWorkflowState],
         required=True,
@@ -17,6 +26,10 @@ class WorkflowStateSerializer(_BaseGPPSerializer):
     )
 
     pydantic_model = None
+
+    def __init__(self, *args: Any, optional: bool = False, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.fields["workflowStateSelect"].required = not optional
 
     def _format_gpp(self) -> dict[str, Any]:
         """
@@ -35,23 +48,24 @@ class WorkflowStateSerializer(_BaseGPPSerializer):
         return {"state": self.workflow_state}
 
     @property
-    def workflow_state(self) -> str:
+    def workflow_state(self) -> str | None:
         """Get the workflow state value.
 
         Returns
         -------
-        str
-            The workflow state value.
+        str | None
+            The workflow state value, or ``None`` when it was left out.
         """
-        return self.validated_data["workflowStateSelect"]
+        return self.validated_data.get("workflowStateSelect")
 
     @property
-    def workflow_state_enum(self) -> ObservationWorkflowState:
+    def workflow_state_enum(self) -> ObservationWorkflowState | None:
         """Get the workflow state enum.
 
         Returns
         -------
-        ObservationWorkflowState
-            The workflow state enum.
+        ObservationWorkflowState | None
+            The workflow state enum, or ``None`` when it was left out.
         """
-        return ObservationWorkflowState(self.workflow_state)
+        state = self.workflow_state
+        return ObservationWorkflowState(state) if state else None

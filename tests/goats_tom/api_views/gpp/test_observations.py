@@ -513,6 +513,33 @@ class TestGPPObservationViewSet:
         client.observation.update_by_id.assert_called_once()
         client.workflow_state.update_by_id_with_retry.assert_called_once()
 
+    def test_update_only_leaves_a_state_the_form_did_not_send(self, mocker):
+        """A state the form left as read is not set, and GPP keeps it."""
+        self._mock_validated_serializers(mocker)
+        workflow_ser = mocker.patch(
+            "goats_tom.api_views.gpp.observations.WorkflowStateSerializer"
+        )
+        workflow_ser.return_value.workflow_state_enum = None
+        client = self._mock_update_client(mocker)
+
+        update_view = GPPObservationViewSet.as_view({"post": "update_only"})
+        request = self.factory.post(
+            self.observation_update_and_save_url, {"finderCharts": "{}"}
+        )
+        force_authenticate(request, user=self.user_with_login)
+
+        response = update_view(request)
+
+        assert workflow_ser.call_args.kwargs["optional"] is True
+        client.observation.update_by_id.assert_called_once()
+        client.workflow_state.update_by_id_with_retry.assert_not_called()
+        assert response.data["status"] == "Success"
+        assert response.data["messages"][-1] == {
+            "stage": "Update Workflow State",
+            "status": "Success",
+            "message": "Workflow state left as it was.",
+        }
+
     @pytest.mark.parametrize(
         "form_data, expected_subtitle",
         [

@@ -1,0 +1,1 @@
+Fixed the observation workflow state being reset when the user did not change it
