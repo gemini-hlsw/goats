@@ -1,19 +1,31 @@
 import json
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
-from gpp_client.generated.enums import AttachmentType, ObservationWorkflowState
+from gpp_client.generated.enums import (
+    AttachmentType,
+    Existence,
+    ObservationWorkflowState,
+)
+from gpp_client.generated.exceptions import (
+    GraphQLClientGraphQLError,
+    GraphQLClientGraphQLMultiError,
+)
 from gpp_client.generated.set_observation_workflow_state import (
     SetObservationWorkflowStateSetObservationWorkflowState,
 )
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from goats_tom.api_views import GPPObservationViewSet
 from goats_tom.api_views.gpp.observations import (
+    NOT_EDITABLE_MESSAGE,
+    NOT_EDITABLE_REASON,
     MessageStatus,
     ResponseStatus,
     Stage,
@@ -21,9 +33,27 @@ from goats_tom.api_views.gpp.observations import (
     apply_too_activation_labels,
     build_failure_response,
     build_goats_subtitle,
+    left_out_error,
     normalize_discovery_survey,
+    stage_error,
 )
 from goats_tom.tests.factories import GPPLoginFactory, UserFactory
+
+NOT_EDITABLE = f"{NOT_EDITABLE_MESSAGE}. {NOT_EDITABLE_REASON}"
+CANNOT_EDIT_IFU = "GOATS cannot edit GMOS North IFU observations yet."
+END_REQUIRED = "End must contain either 'atUtc' or 'after'."
+
+
+def _multi_error(*messages: str, data: dict | None = None):
+    """An answer from GPP with errors, as the client raises it."""
+    return GraphQLClientGraphQLMultiError(
+        errors=[GraphQLClientGraphQLError(message=m) for m in messages], data=data
+    )
+
+
+def _answer(data: dict) -> Mock:
+    """An answer from GPP, as the client returns it."""
+    return Mock(model_dump=Mock(return_value=data))
 
 
 def _mock_workflow_state_result(
@@ -58,6 +88,7 @@ def _mock_workflow_state_result(
                         "stage": "Data Validation",
                         "status": "Error",
                         "message": "Validation error occurred",
+                        "details": [],
                     }
                 ],
                 "data": {},
@@ -83,11 +114,13 @@ def _mock_workflow_state_result(
                         "stage": "Credentials Check",
                         "status": "Success",
                         "message": "Credentials verified successfully.",
+                        "details": [],
                     },
                     {
                         "stage": "Create Observation",
                         "status": "Error",
                         "message": "Unexpected error",
+                        "details": [],
                     },
                 ],
                 "data": {"key": "value"},
@@ -109,6 +142,7 @@ def _mock_workflow_state_result(
                         "stage": "Create Observation",
                         "status": "Error",
                         "message": "Exception()",
+                        "details": [],
                     }
                 ],
                 "data": {},
@@ -134,11 +168,13 @@ def _mock_workflow_state_result(
                         "stage": "Data Validation",
                         "status": "Success",
                         "message": "Validation passed.",
+                        "details": [],
                     },
                     {
                         "stage": "Update Sidereal Target",
                         "status": "Error",
                         "message": "Target update failed",
+                        "details": [],
                     },
                 ],
                 "data": {},
@@ -538,6 +574,7 @@ class TestGPPObservationViewSet:
             "stage": "Update Workflow State",
             "status": "Success",
             "message": "Workflow state left as it was.",
+            "details": [],
         }
 
     @pytest.mark.parametrize(
@@ -591,6 +628,9 @@ class TestGPPObservationViewSet:
         client.workflow_state.update_by_id_with_retry = AsyncMock(
             return_value=_mock_workflow_state_result("INACTIVE")
         )
+        client.target.get_by_id = AsyncMock(
+            return_value=_answer({"target": {"existence": Existence.PRESENT}})
+        )
 
         update_view = GPPObservationViewSet.as_view({"post": "update_only"})
         request = self.factory.post(
@@ -603,9 +643,101 @@ class TestGPPObservationViewSet:
         # Partial success because target update reported an error.
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["status"] == "Partial Success"
-        stages = {m["stage"]: m["status"] for m in response.data["messages"]}
-        assert stages["Update Sidereal Target"] == "Error"
-        assert stages["Update Observation"] == "Success"
+        stages = {m["stage"]: m for m in response.data["messages"]}
+        assert stages["Update Sidereal Target"]["status"] == "Error"
+        assert stages["Update Sidereal Target"]["message"] == NOT_EDITABLE
+        assert stages["Update Observation"]["status"] == "Success"
+        # The state is of the observation, which was saved.
+        assert stages["Update Workflow State"]["status"] == "Success"
+
+    def _update(self, mocker, **observation_update):
+        """Update an observation whose GPP update ends as given, and return the
+        messages by stage, the response and the client."""
+        self._mock_validated_serializers(mocker)
+        client = self._mock_update_client(mocker)
+        client.observation.update_by_id = AsyncMock(**observation_update)
+        client.observation.get_by_id = AsyncMock(
+            return_value=_answer({"observation": {"existence": Existence.PRESENT}})
+        )
+
+        update_view = GPPObservationViewSet.as_view({"post": "update_only"})
+        request = self.factory.post(
+            self.observation_update_and_save_url, {"finderCharts": "{}"}
+        )
+        force_authenticate(request, user=self.user_with_login)
+        response = update_view(request)
+        return {m["stage"]: m for m in response.data["messages"]}, response, client
+
+    def test_update_only_observation_not_editable_skips_workflow_state(self, mocker):
+        """GPP leaves out what the account cannot edit, without an error."""
+        messages, response, client = self._update(
+            mocker, return_value=_answer({"updateObservations": {"observations": []}})
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        observation = messages["Update Observation"]
+        assert observation["status"] == "Error"
+        assert observation["message"] == NOT_EDITABLE
+        assert observation["details"] == [
+            {"severity": "error", "text": NOT_EDITABLE_REASON}
+        ]
+        assert messages["Update Workflow State"] == {
+            "stage": "Update Workflow State",
+            "status": "Skipped",
+            "message": "Not attempted, since the observation was not saved.",
+            "details": [],
+        }
+        client.workflow_state.update_by_id_with_retry.assert_not_called()
+
+    def test_update_only_lists_each_gpp_error_and_skips_workflow_state(self, mocker):
+        """GPP's reasons come one by one, and the state waits for a saved one."""
+        messages, _, client = self._update(
+            mocker,
+            side_effect=_multi_error("A grating is required.", "A fpu is required"),
+        )
+
+        observation = messages["Update Observation"]
+        assert observation["status"] == "Error"
+        assert observation["message"] == (
+            "GPP did not accept the changes. A grating is required. A fpu is required."
+        )
+        assert observation["details"] == [
+            {"severity": "error", "text": "A grating is required."},
+            {"severity": "error", "text": "A fpu is required"},
+        ]
+        assert messages["Update Workflow State"]["status"] == "Skipped"
+        client.workflow_state.update_by_id_with_retry.assert_not_called()
+
+    def test_update_only_observation_refused_for_its_state_says_so(self, mocker):
+        """GPP leaves it out with an error here: the account is not to blame."""
+        reason = "Observation o-1 is ineligible due to its workflow state (Ongoing)."
+        messages, _, client = self._update(
+            mocker,
+            side_effect=_multi_error(
+                reason, data={"updateObservations": {"observations": []}}
+            ),
+        )
+
+        assert messages["Update Observation"]["message"] == (
+            f"GPP did not accept the changes. {reason}"
+        )
+        client.observation.get_by_id.assert_not_called()
+
+    def test_update_only_observation_saved_with_errors_is_saved(self, mocker):
+        """GPP saves an observation it has no sequence for, and reports it: the
+        state is still set."""
+        messages, response, client = self._update(
+            mocker,
+            side_effect=_multi_error(
+                "The background calculation has not (yet) produced a value",
+                data={"updateObservations": {"observations": [{"id": "o-updated"}]}},
+            ),
+        )
+
+        assert response.data["status"] == "Success"
+        assert response.data["data"]["updatedObservationId"] == "o-updated"
+        assert messages["Update Observation"]["status"] == "Success"
+        client.workflow_state.update_by_id_with_retry.assert_called_once()
 
     def test_create_and_save_happy_path(self, mocker):
         """Exercise the full create_and_save flow with mocked serializers."""
@@ -1461,3 +1593,78 @@ class TestGPPObservationViewSet:
                 program_id="prog-1",
                 finder_charts=finder_charts,
             )
+
+
+@pytest.mark.parametrize(
+    "answer, expected",
+    [
+        ({"return_value": _answer({"target": {"existence": "PRESENT"}})}, NOT_EDITABLE),
+        # No longer visible: the account was taken out of the program.
+        ({"return_value": _answer({"target": None})}, NOT_EDITABLE),
+        (
+            {"return_value": _answer({"target": {"existence": Existence.DELETED}})},
+            "The target was deleted in GPP.",
+        ),
+        # GPP answers, and reports something else besides.
+        (
+            {
+                "side_effect": _multi_error(
+                    "No sequence.", data={"target": {"existence": "DELETED"}}
+                )
+            },
+            "The target was deleted in GPP.",
+        ),
+    ],
+    ids=["present", "not visible", "deleted", "deleted with errors"],
+)
+def test_left_out_error_tells_deleted_from_not_editable(answer, expected):
+    error = left_out_error(AsyncMock(**answer), "target", "t-1")
+
+    assert stage_error(Stage.UPDATE_TARGET, error).message == expected
+
+
+def test_left_out_error_does_not_guess_without_an_answer():
+    """GPP did not answer, so why it left the item out is not known."""
+    with pytest.raises(GraphQLClientGraphQLMultiError):
+        left_out_error(
+            AsyncMock(side_effect=_multi_error("Internal error.")), "target", "t-1"
+        )
+
+
+def test_build_failure_response_lists_form_errors_by_field():
+    """A form error names each field for people, instead of DRF's nested repr."""
+    error = ValidationError(
+        {
+            "hiddenObservingModeInput": [CANNOT_EDIT_IFU],
+            "timingWindows": [{}, {"end": {"non_field_errors": [END_REQUIRED]}}],
+            "non_field_errors": ["The form is incomplete."],
+        }
+    )
+
+    message = build_failure_response(Stage.VALIDATION, error, []).data["messages"][-1]
+
+    reasons = [
+        f"Observing mode: {CANNOT_EDIT_IFU}",
+        f"Timing windows › #2 › End: {END_REQUIRED}",
+        "The form is incomplete.",
+    ]
+    assert message["message"] == " ".join(["Some fields need to be fixed.", *reasons])
+    assert message["details"] == [{"severity": "error", "text": r} for r in reasons]
+
+
+@pytest.mark.parametrize(
+    "error, logs_traceback",
+    [
+        (KeyError("asterism"), True),
+        (ValidationError({"bandSelect": ["Required."]}), False),
+        ("GPP login credentials are not configured for this user.", False),
+    ],
+    ids=["unexpected", "form", "text"],
+)
+def test_build_failure_response_logs_where_an_unexpected_error_came_from(
+    caplog, error, logs_traceback
+):
+    with caplog.at_level(logging.ERROR, logger="goats_tom.api_views.gpp.observations"):
+        build_failure_response(Stage.VALIDATION, error, [])
+
+    assert bool(caplog.records[-1].exc_info) is logs_traceback

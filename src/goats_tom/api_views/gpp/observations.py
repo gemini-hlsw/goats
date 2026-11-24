@@ -4,13 +4,16 @@ __all__ = ["GPPObservationViewSet"]
 
 import json
 import logging
-from dataclasses import asdict, dataclass
+import re
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, List
 
 from asgiref.sync import async_to_sync
 from gpp_client import GPPClient
-from gpp_client.generated.enums import AttachmentType, TooActivation
+from gpp_client.generated.enums import AttachmentType, Existence, TooActivation
+from gpp_client.generated.exceptions import GraphQLClientGraphQLMultiError
 from gpp_client.generated.input_types import (
     CreateObservationInput,
     ScienceRequirementsInput,
@@ -20,8 +23,10 @@ from gpp_client.generated.input_types import (
 )
 from rest_framework import permissions, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 from rest_framework.test import APIRequestFactory
 from rest_framework.viewsets import GenericViewSet, mixins
 from tom_observations.api_views import ObservationRecordViewSet
@@ -45,6 +50,38 @@ from ._credentials import GPPCredentialsMixin
 
 logger = logging.getLogger(__name__)
 
+#: A target or observation the account may view but not edit.
+NOT_EDITABLE_MESSAGE = "Your GPP account cannot edit this program"
+NOT_EDITABLE_REASON = (
+    "Editing needs the PI, Co-I or support role in the program; ask the PI to "
+    "change your role."
+)
+
+#: A stage GPP turned down; GPP's own messages follow it.
+NOT_ACCEPTED_MESSAGE = "GPP did not accept the changes"
+
+#: A form GOATS could not send; the fields to fix follow it.
+FORM_ERRORS_MESSAGE = "Some fields need to be fixed"
+
+#: The state of an observation that was not saved.
+NOT_ATTEMPTED_MESSAGE = "Not attempted, since the observation was not saved."
+
+
+class LeftOutError(Exception):
+    """GPP left a target or observation out of an update, see ``left_out_error``.
+
+    Parameters
+    ----------
+    message : str
+        Why it was left out.
+    *reasons : str
+        What more there is to say about it.
+    """
+
+    def __init__(self, message: str, *reasons: str) -> None:
+        super().__init__(message)
+        self.reasons = list(reasons)
+
 
 class Stage(str, Enum):
     """Stages in the observation creation process."""
@@ -66,6 +103,8 @@ class MessageStatus(str, Enum):
     SUCCESS = "Success"
     ERROR = "Error"
     WARNING = "Warning"
+    #: Left out because an earlier stage failed.
+    SKIPPED = "Skipped"
 
 
 class ResponseStatus(str, Enum):
@@ -78,17 +117,151 @@ class ResponseStatus(str, Enum):
 
 @dataclass
 class StageMessage:
-    """Message for a specific stage in the observation creation process."""
+    """Message for a specific stage in the observation creation process.
+
+    ``message`` says it all in one line. ``details`` lists the reasons in it one by
+    one, each as ``{"severity": "error", "text": ...}``.
+    """
 
     stage: Stage
     status: MessageStatus
     message: str
+    details: list[dict[str, str]] = field(default_factory=list)
 
 
 def _format_workflow_state(workflow_state) -> str:
     state = getattr(workflow_state, "state", None)
     value = getattr(state, "value", None)
     return value or "unknown"
+
+
+def left_out_error(
+    get_by_id: Callable[..., Any], kind: str, item_id: str
+) -> LeftOutError:
+    """Find out why GPP left a target or observation out of an update.
+
+    GPP updates only what exists and the account may edit, and reports nothing
+    about the rest. What GOATS just listed is therefore either deleted since or
+    in a program the account may only view. GPP has no query for the account's
+    own role, so GOATS cannot check it first.
+
+    Parameters
+    ----------
+    get_by_id : Callable[..., Any]
+        The client method that gets the item, deleted or not.
+    kind : str
+        ``"target"`` or ``"observation"``, as GPP names it in the answer.
+    item_id : str
+        The ID of the item.
+
+    Returns
+    -------
+    LeftOutError
+        The error to raise.
+    """
+    try:
+        answer = async_to_sync(get_by_id)(item_id).model_dump(by_alias=True)
+    except GraphQLClientGraphQLMultiError as error:
+        # GPP may answer and still report that it has no sequence for it.
+        if not error.data:
+            raise
+        answer = error.data
+    if (answer.get(kind) or {}).get("existence") == Existence.DELETED:
+        return LeftOutError(f"The {kind} was deleted in GPP")
+    return LeftOutError(NOT_EDITABLE_MESSAGE, NOT_EDITABLE_REASON)
+
+
+def _field_label(name: str | int) -> str:
+    """Name a form field for people, e.g. ``hiddenObservingModeInput`` as
+    "Observing mode", or a list index as "#1"."""
+    if isinstance(name, int) or str(name).isdigit():
+        return f"#{int(name) + 1}"
+    name = re.sub(r"^hidden(?=[A-Z])", "", str(name))
+    name = re.sub(r"(Select|Input|Textarea|Checkbox)$", "", name)
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", name).lower()
+    return words[:1].upper() + words[1:]
+
+
+def _form_errors(detail: Any, path: tuple = ()) -> list[str]:
+    """Flatten the nested errors of a form into one line each.
+
+    Parameters
+    ----------
+    detail : Any
+        A ``ValidationError.detail``: a mapping, a list or a message.
+    path : tuple, optional
+        The fields leading to ``detail``.
+
+    Returns
+    -------
+    list[str]
+        Each error, prefixed with the field it is about, e.g.
+        "Timing windows › #1 › End: End must contain either 'atUtc' or 'after'."
+    """
+    if isinstance(detail, dict):
+        return [
+            line
+            for key, value in detail.items()
+            # Errors about the whole of a nested form belong to its field.
+            for line in _form_errors(
+                value,
+                path if key == api_settings.NON_FIELD_ERRORS_KEY else (*path, key),
+            )
+        ]
+    if isinstance(detail, list):
+        return [
+            line
+            for index, item in enumerate(detail)
+            for line in _form_errors(
+                item, (*path, index) if isinstance(item, (dict, list)) else path
+            )
+        ]
+    prefix = " › ".join(_field_label(p) for p in path)
+    return [f"{prefix}: {detail}" if prefix else str(detail)]
+
+
+def _sentence(text: str) -> str:
+    """End a text as a sentence, so that several can follow one another."""
+    return text if text.endswith((".", "!", "?")) else f"{text}."
+
+
+def stage_error(stage: Stage, error: Exception | str) -> StageMessage:
+    """Describe a stage that failed and why.
+
+    GPP can turn a request down for several reasons at once, and a form error
+    comes as nested mappings: each reason is made a sentence of the message and
+    listed on its own in the details.
+
+    Parameters
+    ----------
+    stage : Stage
+        The stage that failed.
+    error : Exception | str
+        What it raised.
+
+    Returns
+    -------
+    StageMessage
+        The error message of the stage.
+    """
+    if isinstance(error, LeftOutError):
+        message, reasons = str(error), error.reasons
+    elif isinstance(error, GraphQLClientGraphQLMultiError):
+        message, reasons = NOT_ACCEPTED_MESSAGE, [e.message for e in error.errors]
+    elif isinstance(error, ValidationError):
+        message, reasons = FORM_ERRORS_MESSAGE, _form_errors(error.detail)
+    else:
+        return StageMessage(
+            stage=stage,
+            status=MessageStatus.ERROR,
+            message=str(error) or repr(error),
+        )
+    return StageMessage(
+        stage=stage,
+        status=MessageStatus.ERROR,
+        message=" ".join(_sentence(text) for text in (message, *reasons)),
+        details=[{"severity": "error", "text": reason} for reason in reasons],
+    )
 
 
 def normalize_discovery_survey(discovery_survey: Any) -> str:
@@ -207,10 +380,16 @@ def build_failure_response(
         The response containing the failure details.
     """
     error_message = str(error) or repr(error)
-    logger.error("Error at stage %s: %s", stage.value, error_message)
-    messages = previous_messages + [
-        StageMessage(stage=stage, status=MessageStatus.ERROR, message=error_message)
-    ]
+    # The traceback tells where an unexpected error came from, which its message
+    # alone often does not. A form error is expected and says it all.
+    unexpected = isinstance(error, Exception) and not isinstance(error, ValidationError)
+    logger.error(
+        "Error at stage %s: %s",
+        stage.value,
+        error_message,
+        exc_info=error if unexpected else None,
+    )
+    messages = [*previous_messages, stage_error(stage, error)]
 
     return Response(
         {
@@ -743,6 +922,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
         messages: list[StageMessage] = []
         updated_target_id: str | None = None
         updated_observation_id: str | None = None
+        observation_failed = False
 
         logger.info("Updating observation on GPP")
 
@@ -848,8 +1028,8 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                 updated_target_id = targets[0].get("id") if targets else None
 
                 if updated_target_id is None:
-                    raise ValueError(
-                        "Failed to retrieve updated target ID from update result."
+                    raise left_out_error(
+                        client.target.get_by_id, "target", gpp_target_id
                     )
 
                 messages.append(
@@ -862,13 +1042,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
 
             except Exception as e:
                 # Continue to observation update even if target update fails.
-                messages.append(
-                    StageMessage(
-                        stage=Stage.UPDATE_TARGET,
-                        status=MessageStatus.ERROR,
-                        message=str(e),
-                    )
-                )
+                messages.append(stage_error(Stage.UPDATE_TARGET, e))
 
             # Update observation.
             logger.debug("Updating observation in GPP")
@@ -888,25 +1062,38 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
 
                 # where = WhereObservation(id=WhereOrderObservationId
                 # (eq=gpp_observation_id))
-                update_observation_result = async_to_sync(
-                    client.observation.update_by_id
-                )(
-                    observation_id=gpp_observation_id,
-                    properties=observation_properties,
-                )
-                update_observation_dump = update_observation_result.model_dump(
-                    by_alias=True
-                )
-                observations_list = update_observation_dump.get(
-                    "updateObservations", {}
-                ).get("observations", [])
+                reported = None
+                try:
+                    update_observation_result = async_to_sync(
+                        client.observation.update_by_id
+                    )(
+                        observation_id=gpp_observation_id,
+                        properties=observation_properties,
+                    )
+                    update_observation_dump = update_observation_result.model_dump(
+                        by_alias=True
+                    )
+                except GraphQLClientGraphQLMultiError as error:
+                    # GPP answers with the observation it saved and an error when
+                    # it cannot generate its sequence. Without it, GPP refused it.
+                    reported = error
+                    update_observation_dump = error.data or {}
+                observations_list = (
+                    update_observation_dump.get("updateObservations") or {}
+                ).get("observations") or []
                 updated_observation_id = (
                     observations_list[0].get("id") if observations_list else None
                 )
 
                 if updated_observation_id is None:
-                    raise ValueError(
-                        "Failed to retrieve updated observation ID from update result."
+                    raise reported or left_out_error(
+                        client.observation.get_by_id, "observation", gpp_observation_id
+                    )
+                if reported is not None:
+                    logger.warning(
+                        "GPP saved observation %s and reported: %s",
+                        updated_observation_id,
+                        reported,
                     )
 
                 messages.append(
@@ -921,18 +1108,23 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                 )
 
             except Exception as e:
-                # Continue to workflow state update even if observation update fails.
-                messages.append(
-                    StageMessage(
-                        stage=Stage.UPDATE_OBSERVATION,
-                        status=MessageStatus.ERROR,
-                        message=str(e),
-                    )
-                )
+                observation_failed = True
+                messages.append(stage_error(Stage.UPDATE_OBSERVATION, e))
 
-        # Set workflow state, unless the form left it as it was read: then GPP
-        # keeps it, and GOATS does not send back a state the user did not choose.
-        if workflow_state is None:
+        # Set workflow state, unless the observation was not saved: GPP would judge
+        # the state on the observation it still has, so its reasons (such as a
+        # missing band the form had set) would not be about what the form shows.
+        if observation_failed:
+            messages.append(
+                StageMessage(
+                    stage=Stage.UPDATE_WORKFLOW_STATE,
+                    status=MessageStatus.SKIPPED,
+                    message=NOT_ATTEMPTED_MESSAGE,
+                )
+            )
+        # Nor when the form left it as it was read: then GPP keeps it, and GOATS
+        # does not send back a state the user did not choose.
+        elif workflow_state is None:
             messages.append(
                 StageMessage(
                     stage=Stage.UPDATE_WORKFLOW_STATE,
@@ -963,13 +1155,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
 
             except Exception as e:
                 # Continue to saving observation even if workflow state update fails.
-                messages.append(
-                    StageMessage(
-                        stage=Stage.UPDATE_WORKFLOW_STATE,
-                        status=MessageStatus.ERROR,
-                        message=str(e),
-                    )
-                )
+                messages.append(stage_error(Stage.UPDATE_WORKFLOW_STATE, e))
         if client is not None:
             try:
                 async_to_sync(client.close)()
@@ -1211,13 +1397,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             )
 
         except Exception as e:
-            messages.append(
-                StageMessage(
-                    stage=Stage.UPDATE_WORKFLOW_STATE,
-                    status=MessageStatus.ERROR,
-                    message=str(e),
-                )
-            )
+            messages.append(stage_error(Stage.UPDATE_WORKFLOW_STATE, e))
 
         # Save the created observation to GOATS database.
         logger.debug("Creating GOATS observation record")
