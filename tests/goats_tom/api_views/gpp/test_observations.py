@@ -854,6 +854,48 @@ class TestGPPObservationViewSet:
         assert response.data["summary"] == expected_summary
         client.observation.update_by_id.assert_not_called()
 
+    def test_update_only_sends_each_step_as_it_ends(self, mocker):
+        """With a progress id, each step reaches the page as it ends, in order."""
+        self._mock_validated_serializers(mocker)
+        self._mock_update_client(mocker)
+        progress = mocker.patch("goats_tom.api_views.gpp.observations.GPPProgress")
+
+        update_view = GPPObservationViewSet.as_view({"post": "update_only"})
+        request = self.factory.post(
+            self.observation_update_and_save_url,
+            {"finderCharts": "{}", "progressId": "p-1"},
+        )
+        force_authenticate(request, user=self.user_with_login)
+
+        response = update_view(request)
+
+        progress.assert_called_once_with(self.user_with_login.pk, "p-1")
+        assert [c.args for c in progress.return_value.send.call_args_list] == [
+            (m["stage"], m["status"], m["message"]) for m in response.data["messages"]
+        ]
+
+    def test_update_only_sends_the_step_it_stopped_at(self, mocker):
+        mocker.patch(
+            "goats_tom.api_views.gpp.observations.ContextSerializer"
+        ).return_value.is_valid.side_effect = ValueError("bad data")
+        mocker.patch("goats_tom.api_views.gpp.observations.GPPClient")
+        progress = mocker.patch("goats_tom.api_views.gpp.observations.GPPProgress")
+
+        update_view = GPPObservationViewSet.as_view({"post": "update_only"})
+        request = self.factory.post(
+            self.observation_update_and_save_url,
+            {"finderCharts": "{}", "progressId": "p-1"},
+        )
+        force_authenticate(request, user=self.user_with_login)
+
+        update_view(request)
+
+        assert progress.return_value.send.call_args.args == (
+            "Data Validation",
+            "Error",
+            "bad data",
+        )
+
     def test_create_and_save_refused_by_gpp_says_so(self, mocker):
         self._mock_validated_serializers(mocker, with_instrument=True)
         client = self._mock_create_client(mocker)

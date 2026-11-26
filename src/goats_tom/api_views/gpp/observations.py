@@ -40,6 +40,7 @@ from tom_observations.models import ObservationRecord
 from goats_tom.context_processors.goats_version_processor import get_goats_version
 from goats_tom.credentials import get_credentials
 from goats_tom.models import GPPLogin
+from goats_tom.realtime import GPPProgress
 from goats_tom.serializers.gpp import (
     ContextSerializer,
     CreateContextSerializer,
@@ -135,6 +136,25 @@ class StageMessage:
     status: MessageStatus
     message: str
     details: list[dict[str, str]] = field(default_factory=list)
+
+
+class ProgressMessages(list):
+    """The messages of a request, each also sent to the page that made it as the
+    stage ends, so that the page shows the steps while the request runs.
+
+    Parameters
+    ----------
+    request : Request
+        The request; its ``progressId`` names it for the page.
+    """
+
+    def __init__(self, request: Request) -> None:
+        super().__init__()
+        self._progress = GPPProgress(request.user.pk, request.data.get("progressId"))
+
+    def append(self, message: StageMessage) -> None:
+        super().append(message)
+        self._progress.send(message.stage.value, message.status.value, message.message)
 
 
 def _format_workflow_state(workflow_state) -> str:
@@ -458,7 +478,7 @@ def build_failure_response(
     error : Exception | str
         The error that occurred.
     previous_messages : list[StageMessage]
-        The list of messages from previous stages.
+        The list of messages from previous stages, to which the error is added.
     data : dict[str, Any] | None = None
         Additional data to include in the response.
     http_status : int = status.HTTP_400_BAD_REQUEST
@@ -484,13 +504,13 @@ def build_failure_response(
         error_message,
         exc_info=error if unexpected else None,
     )
-    messages = [*previous_messages, stage_error(stage, error)]
+    previous_messages.append(stage_error(stage, error))
 
     return Response(
         {
             "status": overall_status,
             "summary": summary or failure_summary(stage),
-            "messages": [asdict(msg) for msg in messages],
+            "messages": [asdict(msg) for msg in previous_messages],
             "data": data or {},
         },
         status=http_status,
@@ -920,7 +940,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
         Response
             A DRF Response object containing the details of the saved observation.
         """
-        messages: list[StageMessage] = []
+        messages = ProgressMessages(request)
         data: dict[str, Any] = {}
         logger.info("Saving GPP observation to GOATS database")
         try:
@@ -1031,7 +1051,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
         Response
             A DRF Response object containing the details of the updated observation.
         """
-        messages: list[StageMessage] = []
+        messages = ProgressMessages(request)
         updated_target_id: str | None = None
         updated_observation_id: str | None = None
         observation_failed = False
@@ -1318,7 +1338,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
         Response
             A DRF Response object containing the details of the created observation.
         """
-        messages: list[StageMessage] = []
+        messages = ProgressMessages(request)
         new_target_id: str | None = None
         new_observation_id: str | None = None
         goats_observation: dict[str, Any] | None = None

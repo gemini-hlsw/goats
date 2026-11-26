@@ -193,3 +193,32 @@ async def test_inbox_message_handling():
     }
 
     await communicator.disconnect()
+
+
+@pytest.mark.asyncio()
+async def test_gpp_progress_handling():
+    """A step of a request to GPP reaches the page that made it."""
+    communicator = connect_as(USER_ID)
+    connected, _ = await communicator.connect()
+    assert connected, "Connection to WebSocket failed"
+
+    await get_channel_layer().group_send(
+        user_group(UPDATES_PREFIX, USER_ID),
+        {
+            "type": "gpp.progress",
+            "progress_id": "p-1",
+            "stage": "Update Observation",
+            "status": "Success",
+            "message": "o-1 updated",
+        },
+    )
+
+    assert await communicator.receive_json_from() == {
+        "update": "gpp_progress",
+        "progress_id": "p-1",
+        "stage": "Update Observation",
+        "status": "Success",
+        "message": "o-1 updated",
+    }
+
+    await communicator.disconnect()
