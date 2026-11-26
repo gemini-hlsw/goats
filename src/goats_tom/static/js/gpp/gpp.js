@@ -1232,10 +1232,11 @@ class GPPController {
   /**
    * Handles the response from an observation creation or update request.
    * Updates the modal with appropriate messages based on the response status and data.
-   * @param {string} titleSuccess - Title to display on success.
+   * @param {string} titleSuccess - Title on success, when the response does not say
+   *     what happened.
    * @param {number} status - HTTP status code from the response.
    * @param {Object} data - Response data object, may contain messages.
-   * @param {string} fallbackTitle - Title to display on failure or unexpected result.
+   * @param {string} fallbackTitle - Likewise, title on failure.
    * @param {?string} [id=null] - Optional observation ID to display.
    * @returns {void}
    * @private
@@ -1248,10 +1249,12 @@ class GPPController {
     id = null,
   ) {
     const isStructured = data?.messages && Array.isArray(data.messages);
+    // What happened, in the server's words.
+    const summary = data?.summary ? Utils.escapeHTML(data.summary) : null;
 
     if (status >= 200 && status < 300 && isStructured) {
       this.#modal.update({
-        title: titleSuccess,
+        title: summary ?? titleSuccess,
         body: `
         <div class="text-center">
           <p class="fst-italic">Your observation has been successfully processed.</p>
@@ -1274,7 +1277,7 @@ class GPPController {
       });
     } else if (isStructured) {
       this.#modal.update({
-        title: fallbackTitle,
+        title: summary ?? fallbackTitle,
         body: `
         <div class="text-center">
           <p>The request was processed with status: ${data.status}.</p>
