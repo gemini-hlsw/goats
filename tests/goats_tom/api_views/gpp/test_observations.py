@@ -33,9 +33,12 @@ from goats_tom.api_views.gpp.observations import (
     apply_too_activation_labels,
     build_failure_response,
     build_goats_subtitle,
+    failure_summary,
     left_out_error,
     normalize_discovery_survey,
     stage_error,
+    summarize,
+    summarize_calibration,
 )
 from goats_tom.tests.factories import GPPLoginFactory, UserFactory
 
@@ -83,6 +86,7 @@ def _mock_workflow_state_result(
             ResponseStatus.FAILURE,
             {
                 "status": "Failure",
+                "summary": "Observation not sent to GPP",
                 "messages": [
                     {
                         "stage": "Data Validation",
@@ -109,6 +113,7 @@ def _mock_workflow_state_result(
             ResponseStatus.FAILURE,
             {
                 "status": "Failure",
+                "summary": "Observation not created",
                 "messages": [
                     {
                         "stage": "Credentials Check",
@@ -137,6 +142,7 @@ def _mock_workflow_state_result(
             ResponseStatus.FAILURE,
             {
                 "status": "Failure",
+                "summary": "Observation not created",
                 "messages": [
                     {
                         "stage": "Create Observation",
@@ -163,6 +169,7 @@ def _mock_workflow_state_result(
             ResponseStatus.PARTIAL_SUCCESS,
             {
                 "status": "Partial Success",
+                "summary": "Observation not updated",
                 "messages": [
                     {
                         "stage": "Data Validation",
@@ -347,6 +354,7 @@ class TestGPPObservationViewSet:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["status"] == "Failure"
+        assert response.data["summary"] == "Observation not sent to GPP"
         assert response.data["messages"][0]["stage"] == "Credentials Check"
 
     def test_update_only_validation_failure(self, mocker):
@@ -366,6 +374,7 @@ class TestGPPObservationViewSet:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["status"] == "Failure"
+        assert response.data["summary"] == "Observation not sent to GPP"
         stages = [m["stage"] for m in response.data["messages"]]
         assert "Data Validation" in stages
         mock_client.assert_called_once()
@@ -384,8 +393,64 @@ class TestGPPObservationViewSet:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["status"] == "Failure"
+        # Saving in GOATS sends nothing to GPP in the first place.
+        assert response.data["summary"] == "Observation not saved in GOATS"
         stages = [m["stage"] for m in response.data["messages"]]
         assert "Data Validation" in stages
+
+    def test_save_observation_only_normalization_failure(self, mocker):
+        mocker.patch.object(
+            GPPObservationViewSet, "_normalize_form_data", side_effect=ValueError("bad")
+        )
+
+        save_view = GPPObservationViewSet.as_view({"post": "save_observation_only"})
+        request = self.factory.post(self.observation_save_only_url, {})
+        force_authenticate(request, user=self.user_with_login)
+
+        response = save_view(request)
+
+        assert response.data["status"] == "Failure"
+        assert response.data["summary"] == "Observation not saved in GOATS"
+
+    @pytest.mark.parametrize(
+        "saved, expected_status, expected_summary",
+        [
+            (
+                {"return_value": Response({"id": 1}, status=status.HTTP_201_CREATED)},
+                "Success",
+                "Observation saved in GOATS",
+            ),
+            (
+                {
+                    "return_value": Response(
+                        {"detail": "Exists."}, status=status.HTTP_208_ALREADY_REPORTED
+                    )
+                },
+                "Partial Success",
+                "Observation already in GOATS",
+            ),
+            (
+                {"side_effect": ValueError("boom")},
+                "Failure",
+                "Observation not saved in GOATS",
+            ),
+        ],
+        ids=["saved", "already saved", "not saved"],
+    )
+    def test_save_observation_only_says_what_happened(
+        self, mocker, saved, expected_status, expected_summary
+    ):
+        self._mock_validated_serializers(mocker, with_instrument=True)
+        mocker.patch.object(GPPObservationViewSet, "_create_goats_observation", **saved)
+
+        save_view = GPPObservationViewSet.as_view({"post": "save_observation_only"})
+        request = self.factory.post(self.observation_save_only_url, {})
+        force_authenticate(request, user=self.user_with_login)
+
+        response = save_view(request)
+
+        assert response.data["status"] == expected_status
+        assert response.data["summary"] == expected_summary
 
     def _mock_validated_serializers(self, mocker, with_instrument=False):
         """Patch serializers used in update/create flows to return valid objects."""
@@ -435,7 +500,9 @@ class TestGPPObservationViewSet:
             "goats_tom.api_views.gpp.observations.WorkflowStateSerializer"
         )
         workflow_ser.return_value.is_valid.return_value = True
-        workflow_ser.return_value.workflow_state_enum = "INACTIVE"
+        workflow_ser.return_value.workflow_state_enum = (
+            ObservationWorkflowState.INACTIVE
+        )
 
         return goats_target, target_props, obs_props
 
@@ -543,6 +610,7 @@ class TestGPPObservationViewSet:
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data["status"] == "Success"
+        assert response.data["summary"] == "Observation updated"
         assert response.data["data"]["updatedTargetId"] == "t-updated"
         assert response.data["data"]["updatedObservationId"] == "o-updated"
         client.target.update_by_id.assert_called_once()
@@ -570,6 +638,7 @@ class TestGPPObservationViewSet:
         client.observation.update_by_id.assert_called_once()
         client.workflow_state.update_by_id_with_retry.assert_not_called()
         assert response.data["status"] == "Success"
+        assert response.data["summary"] == "Observation updated"
         assert response.data["messages"][-1] == {
             "stage": "Update Workflow State",
             "status": "Success",
@@ -643,6 +712,7 @@ class TestGPPObservationViewSet:
         # Partial success because target update reported an error.
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.data["status"] == "Partial Success"
+        assert response.data["summary"] == "Observation updated; target update failed"
         stages = {m["stage"]: m for m in response.data["messages"]}
         assert stages["Update Sidereal Target"]["status"] == "Error"
         assert stages["Update Sidereal Target"]["message"] == NOT_EDITABLE
@@ -675,6 +745,8 @@ class TestGPPObservationViewSet:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["status"] == "Failure"
+        assert response.data["summary"] == "Observation not updated"
         observation = messages["Update Observation"]
         assert observation["status"] == "Error"
         assert observation["message"] == NOT_EDITABLE
@@ -691,11 +763,13 @@ class TestGPPObservationViewSet:
 
     def test_update_only_lists_each_gpp_error_and_skips_workflow_state(self, mocker):
         """GPP's reasons come one by one, and the state waits for a saved one."""
-        messages, _, client = self._update(
+        messages, response, client = self._update(
             mocker,
             side_effect=_multi_error("A grating is required.", "A fpu is required"),
         )
 
+        assert response.data["status"] == "Failure"
+        assert response.data["summary"] == "Observation not updated"
         observation = messages["Update Observation"]
         assert observation["status"] == "Error"
         assert observation["message"] == (
@@ -738,6 +812,67 @@ class TestGPPObservationViewSet:
         assert response.data["data"]["updatedObservationId"] == "o-updated"
         assert messages["Update Observation"]["status"] == "Success"
         client.workflow_state.update_by_id_with_retry.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "update, expected_status, expected_summary",
+        [
+            (
+                {"return_value": _mock_workflow_state_result("INACTIVE")},
+                "Success",
+                "Calibration state updated to Inactive",
+            ),
+            (
+                {"side_effect": ValueError("boom")},
+                "Failure",
+                "Calibration state could not be updated",
+            ),
+        ],
+        ids=["set", "not set"],
+    )
+    def test_update_only_calibration_says_what_happened_to_its_state(
+        self, mocker, update, expected_status, expected_summary
+    ):
+        """GOATS sets only the state of a calibration, so it saves nothing else."""
+        self._mock_validated_serializers(mocker)
+        client = self._mock_update_client(mocker)
+        client.workflow_state.update_by_id_with_retry = AsyncMock(**update)
+
+        update_view = GPPObservationViewSet.as_view({"post": "update_only"})
+        request = self.factory.post(
+            self.observation_update_and_save_url,
+            {
+                "finderCharts": "{}",
+                "isCalibration": "true",
+                "hiddenObservationIdInput": "o-1",
+            },
+        )
+        force_authenticate(request, user=self.user_with_login)
+
+        response = update_view(request)
+
+        assert response.data["status"] == expected_status
+        assert response.data["summary"] == expected_summary
+        client.observation.update_by_id.assert_not_called()
+
+    def test_create_and_save_refused_by_gpp_says_so(self, mocker):
+        self._mock_validated_serializers(mocker, with_instrument=True)
+        client = self._mock_create_client(mocker)
+        client.target.create_by_program_id = AsyncMock(
+            side_effect=_multi_error("The name is required.")
+        )
+
+        request = self.factory.post(
+            self.observation_create_and_save_url, {"finderCharts": "{}"}
+        )
+        force_authenticate(request, user=self.user_with_login)
+
+        response = self.create_and_save_view(request)
+
+        assert response.data["status"] == "Failure"
+        assert response.data["summary"] == "Observation not created"
+        assert response.data["messages"][-1]["message"] == (
+            "GPP did not accept the changes. The name is required."
+        )
 
     def test_create_and_save_happy_path(self, mocker):
         """Exercise the full create_and_save flow with mocked serializers."""
@@ -1668,3 +1803,69 @@ def test_build_failure_response_logs_where_an_unexpected_error_came_from(
         build_failure_response(Stage.VALIDATION, error, [])
 
     assert bool(caplog.records[-1].exc_info) is logs_traceback
+
+
+@pytest.mark.parametrize(
+    "stage, expected",
+    [
+        (Stage.CREDENTIALS_CHECK, "Observation not sent to GPP"),
+        (Stage.NORMALIZATION, "Observation not sent to GPP"),
+        (Stage.VALIDATION, "Observation not sent to GPP"),
+        (Stage.UPDATE_OBSERVATION, "Observation not updated"),
+        (Stage.CREATE_TARGET, "Observation not created"),
+        (Stage.CREATE_OBSERVATION, "Observation not created"),
+    ],
+)
+def test_failure_summary(stage, expected):
+    assert failure_summary(stage) == expected
+
+
+DEFINED = ObservationWorkflowState.DEFINED
+
+
+def _messages(*failed: Stage) -> list[StageMessage]:
+    """The messages of a request whose `failed` stages did not go through."""
+    return [
+        StageMessage(
+            stage=stage,
+            status=MessageStatus.ERROR if stage in failed else MessageStatus.SUCCESS,
+            message="",
+        )
+        for stage in Stage
+    ]
+
+
+@pytest.mark.parametrize(
+    "failed, expected",
+    [
+        ([], "Observation updated"),
+        ([Stage.UPDATE_WORKFLOW_STATE], "Observation updated, but not set to Defined"),
+        ([Stage.UPDATE_TARGET], "Observation updated; target update failed"),
+        (
+            [Stage.GOATS_OBSERVATION_SAVE],
+            "Observation updated, but not saved in GOATS",
+        ),
+        (
+            [Stage.UPDATE_TARGET, Stage.UPDATE_WORKFLOW_STATE],
+            "Observation updated, with problems",
+        ),
+    ],
+)
+def test_summarize(failed, expected):
+    assert summarize(_messages(*failed), "Observation updated", DEFINED) == expected
+
+
+@pytest.mark.parametrize(
+    "state, failed, expected",
+    [
+        (None, [], "No changes requested"),
+        (DEFINED, [], "Calibration state updated to Defined"),
+        (
+            DEFINED,
+            [Stage.UPDATE_WORKFLOW_STATE],
+            "Calibration state could not be updated",
+        ),
+    ],
+)
+def test_summarize_calibration(state, failed, expected):
+    assert summarize_calibration(_messages(*failed), state) == expected

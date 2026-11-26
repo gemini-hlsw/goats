@@ -12,7 +12,12 @@ from typing import Any, List
 
 from asgiref.sync import async_to_sync
 from gpp_client import GPPClient
-from gpp_client.generated.enums import AttachmentType, Existence, TooActivation
+from gpp_client.generated.enums import (
+    AttachmentType,
+    Existence,
+    ObservationWorkflowState,
+    TooActivation,
+)
 from gpp_client.generated.exceptions import GraphQLClientGraphQLMultiError
 from gpp_client.generated.input_types import (
     CreateObservationInput,
@@ -65,6 +70,9 @@ FORM_ERRORS_MESSAGE = "Some fields need to be fixed"
 
 #: The state of an observation that was not saved.
 NOT_ATTEMPTED_MESSAGE = "Not attempted, since the observation was not saved."
+
+#: A request to save in GOATS only that did not go through.
+NOT_SAVED_SUMMARY = "Observation not saved in GOATS"
 
 
 class LeftOutError(Exception):
@@ -133,6 +141,11 @@ def _format_workflow_state(workflow_state) -> str:
     state = getattr(workflow_state, "state", None)
     value = getattr(state, "value", None)
     return value or "unknown"
+
+
+def _state_label(workflow_state: ObservationWorkflowState) -> str:
+    """Name a workflow state as the form does, e.g. ``DEFINED`` as "Defined"."""
+    return workflow_state.value.capitalize()
 
 
 def left_out_error(
@@ -264,6 +277,84 @@ def stage_error(stage: Stage, error: Exception | str) -> StageMessage:
     )
 
 
+def failure_summary(stage: Stage) -> str:
+    """Say what a stage that failed kept from happening, for the title of the result.
+
+    Parameters
+    ----------
+    stage : Stage
+        The stage that failed.
+
+    Returns
+    -------
+    str
+        The summary.
+    """
+    # Up to validation, nothing has reached GPP.
+    if stage in (Stage.CREDENTIALS_CHECK, Stage.NORMALIZATION, Stage.VALIDATION):
+        return "Observation not sent to GPP"
+    if stage in (Stage.CREATE_TARGET, Stage.CREATE_OBSERVATION):
+        return "Observation not created"
+    return "Observation not updated"
+
+
+def summarize(
+    messages: list[StageMessage],
+    done: str,
+    workflow_state: ObservationWorkflowState | None,
+) -> str:
+    """Say what happened to an observation GPP has, for the title of the result.
+
+    Parameters
+    ----------
+    messages : list[StageMessage]
+        The messages of every stage.
+    done : str
+        What GPP did with it, e.g. "Observation updated".
+    workflow_state : ObservationWorkflowState | None
+        The state asked for, ``None`` when it was left as it was.
+
+    Returns
+    -------
+    str
+        The summary.
+    """
+    failed = {m.stage for m in messages if m.status == MessageStatus.ERROR}
+    if not failed:
+        return done
+    if failed == {Stage.UPDATE_WORKFLOW_STATE}:
+        return f"{done}, but not set to {_state_label(workflow_state)}"
+    if failed == {Stage.UPDATE_TARGET}:
+        return f"{done}; target update failed"
+    if failed == {Stage.GOATS_OBSERVATION_SAVE}:
+        return f"{done}, but not saved in GOATS"
+    return f"{done}, with problems"
+
+
+def summarize_calibration(
+    messages: list[StageMessage], workflow_state: ObservationWorkflowState | None
+) -> str:
+    """Say what happened to a calibration, of which GOATS sets only the state.
+
+    Parameters
+    ----------
+    messages : list[StageMessage]
+        The messages of every stage.
+    workflow_state : ObservationWorkflowState | None
+        The state asked for, ``None`` when it was left as it was.
+
+    Returns
+    -------
+    str
+        The summary.
+    """
+    if workflow_state is None:
+        return "No changes requested"
+    if any(m.status == MessageStatus.ERROR for m in messages):
+        return "Calibration state could not be updated"
+    return f"Calibration state updated to {_state_label(workflow_state)}"
+
+
 def normalize_discovery_survey(discovery_survey: Any) -> str:
     """Normalize the discovery survey submitted by the observation form.
 
@@ -356,6 +447,7 @@ def build_failure_response(
     data: dict[str, Any] | None = None,
     http_status: int = status.HTTP_400_BAD_REQUEST,
     overall_status: ResponseStatus = ResponseStatus.FAILURE,
+    summary: str | None = None,
 ) -> Response:
     """Build a structured failure response and append an error message.
 
@@ -373,6 +465,9 @@ def build_failure_response(
         The HTTP status code for the response.
     overall_status : ResponseStatus = ResponseStatus.FAILURE
         The overall status of the response.
+    summary : str | None = None
+        What happened, for the title of the result; by default, what
+        ``failure_summary`` says of the stage.
 
     Returns
     -------
@@ -394,6 +489,7 @@ def build_failure_response(
     return Response(
         {
             "status": overall_status,
+            "summary": summary or failure_summary(stage),
             "messages": [asdict(msg) for msg in messages],
             "data": data or {},
         },
@@ -831,7 +927,10 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             normalized_data = self._normalize_form_data(request)
         except Exception as e:
             return build_failure_response(
-                stage=Stage.NORMALIZATION, error=e, previous_messages=messages
+                stage=Stage.NORMALIZATION,
+                error=e,
+                previous_messages=messages,
+                summary=NOT_SAVED_SUMMARY,
             )
         messages.append(
             StageMessage(
@@ -859,7 +958,9 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             )
 
         except Exception as e:
-            return build_failure_response(Stage.VALIDATION, e, messages)
+            return build_failure_response(
+                Stage.VALIDATION, e, messages, summary=NOT_SAVED_SUMMARY
+            )
 
         # Save the existing observation to GOATS database.
         logger.debug("Creating GOATS observation record")
@@ -870,6 +971,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                 instrument=instrument,
                 observation=formatted_observation,
             )
+            summary = "Observation saved in GOATS"
 
             if tom_response.status_code == status.HTTP_208_ALREADY_REPORTED:
                 messages.append(
@@ -879,6 +981,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                         message=tom_response.data["detail"],
                     )
                 )
+                summary = "Observation already in GOATS"
 
             elif tom_response.status_code != status.HTTP_201_CREATED:
                 raise ValueError(tom_response.data)
@@ -901,8 +1004,17 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     message=f"Failed to save observation to GOATS database: {str(e)}",
                 )
             )
+            # Nothing else is done here, so the request failed as a whole.
+            return self._build_structured_response(
+                messages=messages,
+                data=data,
+                summary=NOT_SAVED_SUMMARY,
+                overall_status=ResponseStatus.FAILURE,
+            )
 
-        return self._build_structured_response(messages=messages, data=data)
+        return self._build_structured_response(
+            messages=messages, data=data, summary=summary
+        )
 
     @action(detail=False, methods=["post"], url_path="update-only")
     def update_only(self, request: Request, *args, **kwargs) -> Response:
@@ -1162,12 +1274,27 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             except Exception:
                 logger.debug("Failed to close GPP client.", exc_info=True)
 
+        failed = any(m.status == MessageStatus.ERROR for m in messages)
+        if observation_failed:
+            summary = failure_summary(Stage.UPDATE_OBSERVATION)
+        elif is_calibration:
+            summary = summarize_calibration(messages, workflow_state)
+        else:
+            summary = summarize(messages, "Observation updated", workflow_state)
         return self._build_structured_response(
             messages=messages,
             data={
                 "updatedTargetId": updated_target_id,
                 "updatedObservationId": updated_observation_id,
             },
+            summary=summary,
+            # Without the observation, or the state of a calibration, the request
+            # failed as a whole, whatever else went through.
+            overall_status=(
+                ResponseStatus.FAILURE
+                if observation_failed or (is_calibration and failed)
+                else None
+            ),
         )
 
     @action(detail=False, methods=["post"], url_path="create-and-save")
@@ -1452,7 +1579,11 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             except Exception:
                 logger.debug("Failed to close GPP client.", exc_info=True)
 
-        return self._build_structured_response(messages=messages, data=response_data)
+        return self._build_structured_response(
+            messages=messages,
+            data=response_data,
+            summary=summarize(messages, "Observation created", workflow_state),
+        )
 
     def _create_goats_observation(
         self,
@@ -1529,7 +1660,9 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
         self,
         messages: List[StageMessage],
         data: dict[str, Any],
+        summary: str,
         status_code: int = status.HTTP_201_CREATED,
+        overall_status: ResponseStatus | None = None,
     ) -> Response:
         """
         Build a structured response from the given messages and data.
@@ -1540,8 +1673,12 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             The list of stage messages.
         data : dict[str, Any]
             The data to include in the response.
+        summary : str
+            What happened, for the title of the result.
         status_code : int = status.HTTP_201_CREATED
             The HTTP status code for the response.
+        overall_status : ResponseStatus | None = None
+            The overall status, when the messages alone do not tell it.
 
         Returns
         -------
@@ -1550,7 +1687,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
         """
         # Determine final overall status and HTTP code.
         all_success = all(msg.status == MessageStatus.SUCCESS for msg in messages)
-        final_status = (
+        final_status = overall_status or (
             ResponseStatus.SUCCESS if all_success else ResponseStatus.PARTIAL_SUCCESS
         )
         if not all_success:
@@ -1559,6 +1696,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
         return Response(
             {
                 "status": final_status.value,
+                "summary": summary,
                 "messages": [asdict(msg) for msg in messages],
                 "data": data,
             },
