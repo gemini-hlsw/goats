@@ -30,7 +30,7 @@ const ENUMS = {
   priority: ["LOW", "MEDIUM", "HIGH"],
   tooActivation: ["NONE", "RAPID", "INTERRUPTING"],
   schedulingMode: ["UNCONSTRAINED", "NO_SPLITTING", "UNINTERRUPTIBLE"],
-  imageQuality: ["POINT_ONE"],
+  imageQuality: ["POINT_THREE"],
 };
 
 function buildWindow() {
@@ -83,7 +83,7 @@ test("every served enum is offered, labelled by Lookups or its own name", async 
     { value: "UNINTERRUPTIBLE", labelText: "Uninterruptible" },
   ]);
   expect(options.imageQuality).toEqual([
-    { value: "POINT_ONE", labelText: "< 0.10" },
+    { value: "POINT_THREE", labelText: "< 0.30" },
   ]);
 });
 
@@ -809,6 +809,7 @@ test.each([
   ["DEFINED", "Defined"],
   ["INACTIVE", "Inactive"],
   ["ONGOING", "Ongoing"],
+  ["SUSPENDED", "Suspended"],
   ["COMPLETED", "Completed"],
   ["UNAPPROVED", "Unapproved"],
   ["UNDEFINED", "Undefined"],

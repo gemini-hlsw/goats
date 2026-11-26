@@ -25,6 +25,8 @@ class ModalManager {
   #dialog;
   /** @type {bootstrap.Modal | null} @private */
   #bootstrapModal;
+  /** Whether Esc closes a modal shown with `keyboard: false`, see `allowEscape()`. @private */
+  #escapeAllowed = false;
 
   /**
    * Creates a new ModalManager instance.
@@ -57,6 +59,11 @@ class ModalManager {
 
     // Set bootstrap modal instance to null.
     this.#bootstrapModal = null;
+
+    // Esc, once `allowEscape()` lets it close a modal shown without it.
+    this.#element.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && this.#escapeAllowed) this.hide();
+    });
   }
 
   /**
@@ -134,6 +141,7 @@ class ModalManager {
     contentClasses = [],
   } = {}) {
     this.#logDebug("Showing modal");
+    this.#escapeAllowed = false;
     this.#title.innerHTML = title;
     this.#body.innerHTML = body;
 
@@ -164,6 +172,14 @@ class ModalManager {
   }
 
   /**
+   * Lets Esc close the modal, once shown with `keyboard: false` while it must stay
+   * open, e.g. until a request it follows ends.
+   */
+  allowEscape() {
+    this.#escapeAllowed = true;
+  }
+
+  /**
    * Hides the modal.
    */
   hide() {
@@ -177,9 +193,13 @@ class ModalManager {
    * @param {Object} [options={}] - Update options.
    * @param {string} [options.title] - New modal title HTML. Default is unchanged.
    * @param {string} [options.body] - New modal body HTML. Default is unchanged.
-   * @param {string} [options.footer] - New modal footer HTML. Default is unchanged.
+   * @param {string} [options.footer] - New modal footer HTML; empty hides the footer.
+   *     Default is unchanged.
+   * @param {boolean} [options.smooth=false] - Grow or shrink to the new content
+   *     instead of jumping to it, e.g. when a centred modal changes height.
    */
-  update({ title, body, footer } = {}) {
+  update({ title, body, footer, smooth = false } = {}) {
+    const from = smooth ? this.#content.getBoundingClientRect().height : null;
     if (title !== undefined) {
       this.#logDebug("Updating modal title");
       this.#title.innerHTML = title;
@@ -191,10 +211,40 @@ class ModalManager {
     if (footer !== undefined) {
       this.#logDebug("Updating modal footer");
       this.#footer.innerHTML = footer;
-      this.#footer.classList.remove("d-none");
+      // An empty footer is hidden, as `show()` does.
+      this.#footer.classList.toggle("d-none", !footer);
     }
     // Call handleUpdate() to readjust the modal's position in case a scrollbar appears/disappears.
     this.#handleUpdate();
+    if (smooth) this.#animateHeight(from);
+  }
+
+  /**
+   * Animates the content from its old height to its new one.
+   * @param {number} from - The height before the update, in pixels.
+   * @private
+   */
+  #animateHeight(from) {
+    const to = this.#content.getBoundingClientRect().height;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduced || typeof this.#content.animate !== "function" || Math.abs(to - from) < 1) {
+      return;
+    }
+    // While the height animates the body is shorter than what it holds; in a
+    // scrollable dialog it would show a scrollbar for that moment.
+    const overflow = this.#body.style.overflow;
+    this.#body.style.overflow = "hidden";
+    const grow = this.#content.animate(
+      [
+        { height: `${from}px`, overflow: "hidden" },
+        { height: `${to}px`, overflow: "hidden" },
+      ],
+      { duration: 200, easing: "ease-out" },
+    );
+    const restore = () => {
+      this.#body.style.overflow = overflow;
+    };
+    grow?.finished?.then(restore, restore) ?? restore();
   }
 
   /**

@@ -7,7 +7,7 @@ function buildWindow() {
   const dom = new JSDOM("<!DOCTYPE html><body></body>", {
     runScripts: "dangerously",
   });
-  ["utils.js", "gpp/gpp.js"].forEach((file) => {
+  ["utils.js", "gpp/lookups.js", "gpp/gpp.js"].forEach((file) => {
     const script = dom.window.document.createElement("script");
     script.textContent = fs.readFileSync(path.join(js_dir, file), "utf8");
     dom.window.document.head.appendChild(script);

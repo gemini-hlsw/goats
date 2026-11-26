@@ -6,8 +6,6 @@
 
 class Lookups {
   static imageQuality = {
-    POINT_ONE: "< 0.10",
-    POINT_TWO: "< 0.20",
     POINT_THREE: "< 0.30",
     POINT_FOUR: "< 0.40",
     POINT_SIX: "< 0.60",
@@ -59,6 +57,7 @@ class Lookups {
     IFU2_SLITS: "IFU2 Slits",
     IFU_BLUE: "IFU Blue",
     IFU_RED: "IFU red",
+    PINHOLE: "Pinhole",
   };
 
   static gmosSouthBuiltinFpu = {
@@ -80,6 +79,7 @@ class Lookups {
     IFU_NS2_SLITS: "IFU NS2 Slits",
     IFU_NS_BLUE: "IFU NS Blue",
     IFU_NS_RED: "IFU NS Red",
+    PINHOLE: "Pinhole",
   };
   static gmosImagingOffsetVariant = {
     PRE_IMAGING: "pre-imaging",

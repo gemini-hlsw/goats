@@ -12,9 +12,12 @@ from typing import Any, List
 
 from asgiref.sync import async_to_sync
 from gpp_client import GPPClient
+from gpp_client.exceptions import GPPWorkflowTransitionError
 from gpp_client.generated.enums import (
     AttachmentType,
+    CalculationState,
     Existence,
+    ObservationValidationCodeSeverity,
     ObservationWorkflowState,
     TooActivation,
 )
@@ -26,6 +29,7 @@ from gpp_client.generated.input_types import (
     TargetEnvironmentInput,
     WavelengthInput,
 )
+from httpx import TimeoutException
 from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -56,8 +60,7 @@ from ._credentials import GPPCredentialsMixin
 
 logger = logging.getLogger(__name__)
 
-#: A target or observation the account may view but not edit.
-NOT_EDITABLE_MESSAGE = "Your GPP account cannot edit this program"
+#: What it takes to edit a target or observation the account may only view.
 NOT_EDITABLE_REASON = (
     "Editing needs the PI, Co-I or support role in the program; ask the PI to "
     "change your role."
@@ -67,10 +70,25 @@ NOT_EDITABLE_REASON = (
 NOT_ACCEPTED_MESSAGE = "GPP did not accept the changes"
 
 #: A form GOATS could not send; the fields to fix follow it.
-FORM_ERRORS_MESSAGE = "Some fields need to be fixed"
+FORM_ERRORS_MESSAGE = "Fix these fields and try again"
+
+#: GPP did not answer, so whether it did what was asked is not known.
+TIMEOUTS = (TimeoutError, TimeoutException)
+TIMEOUT_MESSAGE = "GPP did not respond in time."
+
+#: A check that found nothing.
+CHECKED_MESSAGE = "Checked"
 
 #: The state of an observation that was not saved.
-NOT_ATTEMPTED_MESSAGE = "Not attempted, since the observation was not saved."
+NOT_ATTEMPTED_MESSAGE = "Not attempted"
+
+#: The states GPP gives an observation for what its validation finds, as opposed
+#: to those a user or an execution sets.
+VALIDATION_STATES = (
+    ObservationWorkflowState.UNDEFINED,
+    ObservationWorkflowState.UNAPPROVED,
+    ObservationWorkflowState.DEFINED,
+)
 
 #: A request to save in GOATS only that did not go through.
 NOT_SAVED_SUMMARY = "Observation not saved in GOATS"
@@ -85,11 +103,14 @@ class LeftOutError(Exception):
         Why it was left out.
     *reasons : str
         What more there is to say about it.
+    label : str
+        Why it was left out, in a couple of words.
     """
 
-    def __init__(self, message: str, *reasons: str) -> None:
+    def __init__(self, message: str, *reasons: str, label: str) -> None:
         super().__init__(message)
         self.reasons = list(reasons)
+        self.label = label
 
 
 class Stage(str, Enum):
@@ -124,18 +145,36 @@ class ResponseStatus(str, Enum):
     FAILURE = "Failure"
 
 
+class StepLabel(str, Enum):
+    """What the steps of the result say of a stage that failed: why, as the title of
+    the result already says what was not done."""
+
+    NOT_CONFIGURED = "Not configured"
+    NOT_VALID = "Not valid"
+    REFUSED = "Refused"
+    NO_PERMISSION = "No permission"
+    DELETED = "Deleted"
+    NOT_CONFIRMED = "Not confirmed"
+    FAILED = "Failed"
+    #: The state of an observation that was saved, when GPP could not be asked.
+    NOT_CHECKED = "Not checked"
+
+
 @dataclass
 class StageMessage:
     """Message for a specific stage in the observation creation process.
 
-    ``message`` says it all in one line. ``details`` lists the reasons in it one by
-    one, each as ``{"severity": "error", "text": ...}``.
+    ``message`` says what happened and ``details`` lists why, each reason as
+    ``{"severity": "error" | "warning" | "note", "text": ...}``, errors first.
+    ``label`` says it in a couple of words, for the steps of the result, when
+    ``message`` is a whole sentence.
     """
 
     stage: Stage
     status: MessageStatus
     message: str
     details: list[dict[str, str]] = field(default_factory=list)
+    label: str = ""
 
 
 class ProgressMessages(list):
@@ -154,13 +193,23 @@ class ProgressMessages(list):
 
     def append(self, message: StageMessage) -> None:
         super().append(message)
-        self._progress.send(message.stage.value, message.status.value, message.message)
+        self._progress.send(
+            message.stage.value, message.status.value, message.label or message.message
+        )
+
+
+#: The labels of the checks, which fail in one way only.
+CHECK_LABELS = {
+    Stage.CREDENTIALS_CHECK: StepLabel.NOT_CONFIGURED,
+    Stage.NORMALIZATION: StepLabel.NOT_VALID,
+    Stage.VALIDATION: StepLabel.NOT_VALID,
+}
 
 
 def _format_workflow_state(workflow_state) -> str:
     state = getattr(workflow_state, "state", None)
     value = getattr(state, "value", None)
-    return value or "unknown"
+    return (value or "unknown").capitalize()
 
 
 def _state_label(workflow_state: ObservationWorkflowState) -> str:
@@ -200,8 +249,12 @@ def left_out_error(
             raise
         answer = error.data
     if (answer.get(kind) or {}).get("existence") == Existence.DELETED:
-        return LeftOutError(f"The {kind} was deleted in GPP")
-    return LeftOutError(NOT_EDITABLE_MESSAGE, NOT_EDITABLE_REASON)
+        return LeftOutError(f"{item_id} was deleted in GPP", label=StepLabel.DELETED)
+    return LeftOutError(
+        f"Your GPP account cannot edit {item_id}",
+        NOT_EDITABLE_REASON,
+        label=StepLabel.NO_PERMISSION,
+    )
 
 
 def _field_label(name: str | int) -> str:
@@ -250,20 +303,42 @@ def _form_errors(detail: Any, path: tuple = ()) -> list[str]:
             )
         ]
     prefix = " › ".join(_field_label(p) for p in path)
-    return [f"{prefix}: {detail}" if prefix else str(detail)]
+    text = str(detail).replace(
+        "End must contain either 'atUtc' or 'after'.",
+        "Specify an end time or a duration.",
+    )
+    return [f"{prefix}: {text}" if prefix else text]
 
 
-def _sentence(text: str) -> str:
-    """End a text as a sentence, so that several can follow one another."""
-    return text if text.endswith((".", "!", "?")) else f"{text}."
+def _stage_message(
+    stage: Stage,
+    status: MessageStatus,
+    message: str,
+    reasons: list[tuple[str, str]],
+    label: str = "",
+) -> StageMessage:
+    """Build a message with its reasons, as severity and text."""
+    return StageMessage(
+        stage=stage,
+        status=status,
+        message=message,
+        details=[{"severity": severity, "text": text} for severity, text in reasons],
+        label=label,
+    )
 
 
-def stage_error(stage: Stage, error: Exception | str) -> StageMessage:
+def stage_error(
+    stage: Stage,
+    error: Exception | str,
+    lead: str | None = None,
+    label: str | None = None,
+    check: str | None = None,
+    failed: str | None = None,
+) -> StageMessage:
     """Describe a stage that failed and why.
 
     GPP can turn a request down for several reasons at once, and a form error
-    comes as nested mappings: each reason is made a sentence of the message and
-    listed on its own in the details.
+    comes as nested mappings: each reason is listed on its own.
 
     Parameters
     ----------
@@ -271,29 +346,192 @@ def stage_error(stage: Stage, error: Exception | str) -> StageMessage:
         The stage that failed.
     error : Exception | str
         What it raised.
+    lead : str | None, optional
+        What to say before the reasons of GPP or of the form, to be more precise
+        than the messages they have by default.
+    label : str | None, optional
+        What the steps of the result say; by default, why the stage failed.
+    check : str | None, optional
+        What to check before trying again when GPP did not answer, e.g. "o-123".
+    failed : str | None, optional
+        What to say before an unexpected error, which does not say what it is about.
 
     Returns
     -------
     StageMessage
         The error message of the stage.
     """
-    if isinstance(error, LeftOutError):
-        message, reasons = str(error), error.reasons
+    if isinstance(error, TIMEOUTS):
+        message, reasons = TIMEOUT_MESSAGE, []
+        if check is not None:
+            message = f"{message} Check {check} before trying again."
+        cause = StepLabel.NOT_CONFIRMED
+    elif isinstance(error, GPPWorkflowTransitionError):
+        message, reasons = lead or NOT_ACCEPTED_MESSAGE, _transition_reasons(error)
+        cause = StepLabel.REFUSED
+    elif isinstance(error, LeftOutError):
+        message, reasons = str(error), [("note", reason) for reason in error.reasons]
+        cause = error.label
     elif isinstance(error, GraphQLClientGraphQLMultiError):
-        message, reasons = NOT_ACCEPTED_MESSAGE, [e.message for e in error.errors]
+        message = lead or NOT_ACCEPTED_MESSAGE
+        reasons = [("error", e.message) for e in error.errors]
+        cause = StepLabel.REFUSED
     elif isinstance(error, ValidationError):
-        message, reasons = FORM_ERRORS_MESSAGE, _form_errors(error.detail)
+        message = lead or FORM_ERRORS_MESSAGE
+        reasons = [("error", line) for line in _form_errors(error.detail)]
+        cause = StepLabel.FAILED
     else:
-        return StageMessage(
-            stage=stage,
-            status=MessageStatus.ERROR,
-            message=str(error) or repr(error),
+        # The client names the domain that raised an error, which means nothing here.
+        text = re.sub(r"^(\w+Domain: )+", "", str(error)) or repr(error)
+        message, reasons = (failed, [("error", text)]) if failed else (text, [])
+        cause = StepLabel.FAILED
+    return _stage_message(
+        stage,
+        MessageStatus.ERROR,
+        message,
+        reasons,
+        label or CHECK_LABELS.get(stage, cause),
+    )
+
+
+def _with_lead(message: StageMessage, lead: str) -> StageMessage:
+    """Give what a message says as the reason of a lead, unless it has reasons."""
+    if not message.details:
+        message.details = [{"severity": "error", "text": message.message}]
+        message.message = lead
+    return message
+
+
+def _calculated_state(
+    client: GPPClient, observation_id: str
+) -> ObservationWorkflowState:
+    """Ask GPP for the workflow state of an observation it has finished calculating.
+
+    Raises
+    ------
+    RuntimeError
+        When GPP is still calculating it, as the state it has may change.
+    """
+    result = async_to_sync(client.workflow_state.get_by_id)(
+        observation_id=observation_id
+    )
+    workflow = result.observation.workflow
+    if workflow.state != CalculationState.READY:
+        raise RuntimeError(f"GPP is still calculating {observation_id}.")
+    return workflow.value.state
+
+
+def _transition_reasons(error: GPPWorkflowTransitionError) -> list[tuple[str, str]]:
+    """Why GPP does not allow a workflow state: its reasons or, when it gives none,
+    the states it does allow."""
+    reasons = [(reason.severity.lower(), reason.message) for reason in error.reasons]
+    if not reasons:
+        allowed = ", ".join(state.capitalize() for state in error.allowed)
+        reasons = [("error", f"GPP allows {allowed or 'no other state'}.")]
+    return reasons
+
+
+def state_error(
+    client: GPPClient,
+    error: Exception,
+    observation_id: str,
+    workflow_state: ObservationWorkflowState,
+) -> StageMessage:
+    """Describe a workflow state that was not set, and the one GPP has instead.
+
+    Parameters
+    ----------
+    client : GPPClient
+        The client to ask GPP with.
+    error : Exception
+        What setting the state raised.
+    observation_id : str
+        The ID of the observation.
+    workflow_state : ObservationWorkflowState
+        The state asked for.
+
+    Returns
+    -------
+    StageMessage
+        The message of the workflow state stage.
+    """
+    asked = _state_label(workflow_state)
+    label = f"Not set to {asked}"
+    lead = f"GPP did not set {observation_id} to {asked}"
+    check = None
+    if isinstance(error, TIMEOUTS):
+        label = StepLabel.NOT_CONFIRMED
+        lead = f"GPP did not confirm the change of {observation_id} to {asked}"
+        check = observation_id
+    try:
+        state = _calculated_state(client, observation_id)
+    except Exception as e:
+        logger.warning("Could not check the workflow state", exc_info=e)
+    else:
+        label = _state_label(state)
+        if state == workflow_state:
+            # It was set all the same: only GPP's answer was lost.
+            return _stage_message(
+                Stage.UPDATE_WORKFLOW_STATE, MessageStatus.SUCCESS, label, []
+            )
+        lead = f"{observation_id} is {label}. GPP could not change its state to {asked}"
+        # It was just checked.
+        check = None
+    # Whatever went wrong, what matters is the state that was not set.
+    message = stage_error(Stage.UPDATE_WORKFLOW_STATE, error, lead, label, check)
+    return _with_lead(message, lead)
+
+
+def _not_saved_error(error: Exception, observation_id: str) -> StageMessage:
+    """Describe an observation that GOATS did not save."""
+    return _stage_message(
+        Stage.GOATS_OBSERVATION_SAVE,
+        MessageStatus.ERROR,
+        f"GOATS did not save {observation_id}",
+        [("error", str(error) or repr(error))],
+        StepLabel.FAILED,
+    )
+
+
+def workflow_report(observation: Any) -> StageMessage:
+    """Say what state GPP has an observation in, once it has recalculated it.
+
+    An observation in a state its validation gives (Undefined, Unapproved, or
+    Defined with warnings, which keep it from Ready) comes with GPP's reasons. A
+    warning its program dismissed no longer keeps it from anything.
+
+    Parameters
+    ----------
+    observation : Any
+        The observation from ``workflow_state.get_by_id_when_ready()``.
+
+    Returns
+    -------
+    StageMessage
+        The message of the workflow state stage.
+    """
+    workflow = observation.workflow.value
+    warning = ObservationValidationCodeSeverity.WARNING
+    dismissed = observation.program.dismissed_warnings
+    reasons = [
+        (error.severity.value.lower(), text)
+        for error in workflow.validation_errors
+        if not (error.severity == warning and error.code in dismissed)
+        for text in (error.messages or [error.code.value])
+    ]
+    # Errors are what keeps it back, so they come first.
+    reasons.sort(key=lambda reason: reason[0] != "error")
+
+    state = _state_label(workflow.state)
+    if workflow.state not in VALIDATION_STATES or not reasons:
+        return _stage_message(
+            Stage.UPDATE_WORKFLOW_STATE, MessageStatus.SUCCESS, state, []
         )
-    return StageMessage(
-        stage=stage,
-        status=MessageStatus.ERROR,
-        message=" ".join(_sentence(text) for text in (message, *reasons)),
-        details=[{"severity": "error", "text": reason} for reason in reasons],
+    message = f"{observation.id} is {state}"
+    if workflow.state == ObservationWorkflowState.DEFINED:
+        message = f"{message}. These warnings keep it from Ready"
+    return _stage_message(
+        Stage.UPDATE_WORKFLOW_STATE, MessageStatus.WARNING, message, reasons, state
     )
 
 
@@ -340,7 +578,22 @@ def summarize(
         The summary.
     """
     failed = {m.stage for m in messages if m.status == MessageStatus.ERROR}
+    if any(m.label == StepLabel.NOT_CONFIRMED for m in messages):
+        return f"{done}; some results could not be confirmed"
     if not failed:
+        state_report = next(
+            (
+                m
+                for m in messages
+                if m.stage == Stage.UPDATE_WORKFLOW_STATE
+                and m.status == MessageStatus.WARNING
+            ),
+            None,
+        )
+        if state_report is not None:
+            if state_report.label == StepLabel.NOT_CHECKED:
+                return f"{done}; state could not be confirmed"
+            return f"{done}; validation issues found"
         return done
     if failed == {Stage.UPDATE_WORKFLOW_STATE}:
         return f"{done}, but not set to {_state_label(workflow_state)}"
@@ -370,6 +623,8 @@ def summarize_calibration(
     """
     if workflow_state is None:
         return "No changes requested"
+    if any(m.label == StepLabel.NOT_CONFIRMED for m in messages):
+        return "Calibration state could not be confirmed"
     if any(m.status == MessageStatus.ERROR for m in messages):
         return "Calibration state could not be updated"
     return f"Calibration state updated to {_state_label(workflow_state)}"
@@ -468,6 +723,9 @@ def build_failure_response(
     http_status: int = status.HTTP_400_BAD_REQUEST,
     overall_status: ResponseStatus = ResponseStatus.FAILURE,
     summary: str | None = None,
+    lead: str | None = None,
+    check: str | None = None,
+    failed: str | None = None,
 ) -> Response:
     """Build a structured failure response and append an error message.
 
@@ -488,6 +746,12 @@ def build_failure_response(
     summary : str | None = None
         What happened, for the title of the result; by default, what
         ``failure_summary`` says of the stage.
+    lead : str | None = None
+        What to say before the reasons, see ``stage_error``.
+    check : str | None = None
+        What to check when GPP did not answer, see ``stage_error``.
+    failed : str | None = None
+        What to say before an unexpected error, see ``stage_error``.
 
     Returns
     -------
@@ -504,7 +768,12 @@ def build_failure_response(
         error_message,
         exc_info=error if unexpected else None,
     )
-    previous_messages.append(stage_error(stage, error))
+    previous_messages.append(
+        stage_error(stage, error, lead, check=check, failed=failed)
+    )
+    # Without its target, the observation was not created for sure.
+    if stage == Stage.CREATE_OBSERVATION and isinstance(error, TIMEOUTS):
+        summary = "Observation creation could not be confirmed"
 
     return Response(
         {
@@ -956,7 +1225,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             StageMessage(
                 stage=Stage.NORMALIZATION,
                 status=MessageStatus.SUCCESS,
-                message="Form data normalized successfully.",
+                message=CHECKED_MESSAGE,
             )
         )
 
@@ -967,13 +1236,14 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             context_serializer.is_valid(raise_exception=True)
             goats_target = context_serializer.goats_target
             instrument = context_serializer.instrument
+            gpp_observation_id = context_serializer.gpp_observation_id
             formatted_observation = context_serializer.format_observation()
 
             messages.append(
                 StageMessage(
                     stage=Stage.VALIDATION,
                     status=MessageStatus.SUCCESS,
-                    message="All serializers validated successfully.",
+                    message=CHECKED_MESSAGE,
                 )
             )
 
@@ -998,7 +1268,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     StageMessage(
                         stage=Stage.GOATS_OBSERVATION_SAVE,
                         status=MessageStatus.WARNING,
-                        message=tom_response.data["detail"],
+                        message=f"{gpp_observation_id} already saved",
                     )
                 )
                 summary = "Observation already in GOATS"
@@ -1012,18 +1282,12 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     StageMessage(
                         stage=Stage.GOATS_OBSERVATION_SAVE,
                         status=MessageStatus.SUCCESS,
-                        message="Observation saved to GOATS database successfully.",
+                        message=f"{gpp_observation_id} saved",
                     )
                 )
 
         except Exception as e:
-            messages.append(
-                StageMessage(
-                    stage=Stage.GOATS_OBSERVATION_SAVE,
-                    status=MessageStatus.ERROR,
-                    message=f"Failed to save observation to GOATS database: {str(e)}",
-                )
-            )
+            messages.append(_not_saved_error(e, gpp_observation_id))
             # Nothing else is done here, so the request failed as a whole.
             return self._build_structured_response(
                 messages=messages,
@@ -1071,7 +1335,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             StageMessage(
                 stage=Stage.CREDENTIALS_CHECK,
                 status=MessageStatus.SUCCESS,
-                message="GPP credentials verified.",
+                message=CHECKED_MESSAGE,
             )
         )
 
@@ -1087,7 +1351,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             StageMessage(
                 stage=Stage.NORMALIZATION,
                 status=MessageStatus.SUCCESS,
-                message="Form data normalized successfully.",
+                message=CHECKED_MESSAGE,
             )
         )
 
@@ -1140,12 +1404,22 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                 StageMessage(
                     stage=Stage.VALIDATION,
                     status=MessageStatus.SUCCESS,
-                    message="All serializers validated successfully.",
+                    message=CHECKED_MESSAGE,
                 )
             )
 
         except Exception as e:
-            return build_failure_response(Stage.VALIDATION, e, messages)
+            observation_id = normalized_data.get("hiddenObservationIdInput")
+            return build_failure_response(
+                Stage.VALIDATION,
+                e,
+                messages,
+                lead=(
+                    f"Fix these fields of {observation_id} and try again"
+                    if observation_id
+                    else None
+                ),
+            )
 
         # Calibrations only update the workflow state; skip target/observation.
         if not is_calibration:
@@ -1168,13 +1442,21 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     StageMessage(
                         stage=Stage.UPDATE_TARGET,
                         status=MessageStatus.SUCCESS,
-                        message=f"Target updated successfully as {updated_target_id}.",
+                        message=f"{updated_target_id} updated",
                     )
                 )
 
             except Exception as e:
                 # Continue to observation update even if target update fails.
-                messages.append(stage_error(Stage.UPDATE_TARGET, e))
+                messages.append(
+                    stage_error(
+                        Stage.UPDATE_TARGET,
+                        e,
+                        f"GPP did not accept the changes to {gpp_target_id}",
+                        check=gpp_target_id,
+                        failed=f"GOATS could not update {gpp_target_id}",
+                    )
+                )
 
             # Update observation.
             logger.debug("Updating observation in GPP")
@@ -1232,16 +1514,21 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     StageMessage(
                         stage=Stage.UPDATE_OBSERVATION,
                         status=MessageStatus.SUCCESS,
-                        message=(
-                            "Observation updated successfully as "
-                            f"{updated_observation_id}."
-                        ),
+                        message=f"{updated_observation_id} updated",
                     )
                 )
 
             except Exception as e:
                 observation_failed = True
-                messages.append(stage_error(Stage.UPDATE_OBSERVATION, e))
+                messages.append(
+                    stage_error(
+                        Stage.UPDATE_OBSERVATION,
+                        e,
+                        f"GPP did not accept the changes to {gpp_observation_id}",
+                        check=gpp_observation_id,
+                        failed=f"GOATS could not update {gpp_observation_id}",
+                    )
+                )
 
         # Set workflow state, unless the observation was not saved: GPP would judge
         # the state on the observation it still has, so its reasons (such as a
@@ -1256,14 +1543,37 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             )
         # Nor when the form left it as it was read: then GPP keeps it, and GOATS
         # does not send back a state the user did not choose.
-        elif workflow_state is None:
+        elif workflow_state is None and is_calibration:
             messages.append(
                 StageMessage(
                     stage=Stage.UPDATE_WORKFLOW_STATE,
                     status=MessageStatus.SUCCESS,
-                    message="Workflow state left as it was.",
+                    message=f"{gpp_observation_id} unchanged",
                 )
             )
+        elif workflow_state is None:
+            # The edit may still have changed what GPP makes of the observation (a
+            # band set takes it from Undefined to Defined, say). GPP marks it for
+            # recalculation as it saves the edit, so once ready it answers with the
+            # state after it.
+            logger.debug("Checking the workflow state of the updated observation")
+            try:
+                observation = async_to_sync(client.workflow_state.get_by_id_when_ready)(
+                    gpp_observation_id, max_attempts=60, retry_delay=1
+                )
+                messages.append(workflow_report(observation))
+            except Exception as e:
+                # The changes are saved all the same.
+                logger.warning("Could not check the workflow state", exc_info=e)
+                lead = (
+                    f"Could not retrieve the observation state of "
+                    f"{gpp_observation_id} from GPP"
+                )
+                report = stage_error(
+                    Stage.UPDATE_WORKFLOW_STATE, e, lead, StepLabel.NOT_CHECKED
+                )
+                report.status = MessageStatus.WARNING
+                messages.append(_with_lead(report, lead))
         else:
             logger.debug("Setting workflow state for updated GPP observation")
             try:
@@ -1276,18 +1586,18 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     initial_delay=5,
                     retry_delay=1,
                 )
-                messages.append(
-                    StageMessage(
-                        stage=Stage.UPDATE_WORKFLOW_STATE,
-                        status=MessageStatus.SUCCESS,
-                        message="Workflow state set to "
-                        f"{_format_workflow_state(new_workflow_state)}.",
-                    )
+                report = StageMessage(
+                    stage=Stage.UPDATE_WORKFLOW_STATE,
+                    status=MessageStatus.SUCCESS,
+                    message=_format_workflow_state(new_workflow_state),
                 )
-
             except Exception as e:
                 # Continue to saving observation even if workflow state update fails.
-                messages.append(stage_error(Stage.UPDATE_WORKFLOW_STATE, e))
+                report = state_error(client, e, gpp_observation_id, workflow_state)
+            # No other step of a calibration says which one it is.
+            if is_calibration and report.status == MessageStatus.SUCCESS:
+                report.message = f"{gpp_observation_id} {report.message}"
+            messages.append(report)
         if client is not None:
             try:
                 async_to_sync(client.close)()
@@ -1296,7 +1606,15 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
 
         failed = any(m.status == MessageStatus.ERROR for m in messages)
         if observation_failed:
-            summary = failure_summary(Stage.UPDATE_OBSERVATION)
+            summary = (
+                "Observation update could not be confirmed"
+                if any(
+                    m.stage == Stage.UPDATE_OBSERVATION
+                    and m.label == StepLabel.NOT_CONFIRMED
+                    for m in messages
+                )
+                else failure_summary(Stage.UPDATE_OBSERVATION)
+            )
         elif is_calibration:
             summary = summarize_calibration(messages, workflow_state)
         else:
@@ -1360,7 +1678,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             StageMessage(
                 stage=Stage.CREDENTIALS_CHECK,
                 status=MessageStatus.SUCCESS,
-                message="GPP credentials verified.",
+                message=CHECKED_MESSAGE,
             )
         )
 
@@ -1376,7 +1694,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
             StageMessage(
                 stage=Stage.NORMALIZATION,
                 status=MessageStatus.SUCCESS,
-                message="Form data normalized successfully.",
+                message=CHECKED_MESSAGE,
             )
         )
 
@@ -1430,7 +1748,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                 StageMessage(
                     stage=Stage.VALIDATION,
                     status=MessageStatus.SUCCESS,
-                    message="All serializers validated successfully.",
+                    message=CHECKED_MESSAGE,
                 )
             )
 
@@ -1454,12 +1772,19 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                 StageMessage(
                     stage=Stage.CREATE_TARGET,
                     status=MessageStatus.SUCCESS,
-                    message=f"Target created successfully as {new_target_id}.",
+                    message=f"{new_target_id} created",
                 )
             )
 
         except Exception as e:
-            return build_failure_response(Stage.CREATE_TARGET, e, messages)
+            return build_failure_response(
+                Stage.CREATE_TARGET,
+                e,
+                messages,
+                lead="GPP did not accept the target",
+                check="whether it created the target",
+                failed="GOATS could not create the target",
+            )
 
         # Create observation.
         logger.debug("Creating observation in GPP")
@@ -1508,9 +1833,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                 StageMessage(
                     stage=Stage.CREATE_OBSERVATION,
                     status=MessageStatus.SUCCESS,
-                    message=(
-                        f"Observation created successfully as {new_observation_id}."
-                    ),
+                    message=f"{new_observation_id} created",
                 )
             )
 
@@ -1520,7 +1843,14 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     async_to_sync(client.close)()
                 except Exception:
                     logger.debug("Failed to close GPP client.", exc_info=True)
-            return build_failure_response(Stage.CREATE_OBSERVATION, e, messages)
+            return build_failure_response(
+                Stage.CREATE_OBSERVATION,
+                e,
+                messages,
+                lead="GPP did not accept the observation",
+                check="whether it created the observation",
+                failed="GOATS could not create the observation",
+            )
 
         # Set workflow state.
         logger.debug("Setting workflow state for new GPP observation")
@@ -1538,13 +1868,12 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                 StageMessage(
                     stage=Stage.UPDATE_WORKFLOW_STATE,
                     status=MessageStatus.SUCCESS,
-                    message=f"Workflow state set to "
-                    f"{_format_workflow_state(new_workflow_state)}.",
+                    message=_format_workflow_state(new_workflow_state),
                 )
             )
 
         except Exception as e:
-            messages.append(stage_error(Stage.UPDATE_WORKFLOW_STATE, e))
+            messages.append(state_error(client, e, new_observation_id, workflow_state))
 
         # Save the created observation to GOATS database.
         logger.debug("Creating GOATS observation record")
@@ -1561,7 +1890,7 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     StageMessage(
                         stage=Stage.GOATS_OBSERVATION_SAVE,
                         status=MessageStatus.WARNING,
-                        message=tom_response.data["detail"],
+                        message="Already in GOATS",
                     )
                 )
             elif tom_response.status_code != status.HTTP_201_CREATED:
@@ -1573,18 +1902,12 @@ class GPPObservationViewSet(GPPCredentialsMixin, GenericViewSet, mixins.ListMode
                     StageMessage(
                         stage=Stage.GOATS_OBSERVATION_SAVE,
                         status=MessageStatus.SUCCESS,
-                        message="Observation saved to GOATS database successfully.",
+                        message="Saved",
                     )
                 )
 
         except Exception as e:
-            messages.append(
-                StageMessage(
-                    stage=Stage.GOATS_OBSERVATION_SAVE,
-                    status=MessageStatus.ERROR,
-                    message=f"Failed to save observation to GOATS database: {str(e)}",
-                )
-            )
+            messages.append(_not_saved_error(e, new_observation_id))
 
         response_data: dict[str, Any] = {
             "newTargetId": new_target_id,
