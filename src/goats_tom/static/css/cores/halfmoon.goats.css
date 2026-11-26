@@ -1204,3 +1204,321 @@ main:has(.status-table) {
 .ts-wrapper.form-select .ts-dropdown .too-configuration-option + .too-configuration-option {
   border-top: var(--bs-border-width) solid var(--bs-border-color-translucent);
 }
+
+/* Result of sending an observation to GPP: what happened as the modal title, the
+   steps in a row with a couple of words each, and under them a card that says why
+   and points to the steps it is about. One tone per result: a failed step and its
+   card take the colour of the title. The theme's 0.875rem base is too small for
+   text people have to act on. */
+.gpp-result {
+  --gpp-result-tone: var(--bs-danger);
+
+  font-size: 1rem;
+  line-height: 1.5;
+  text-align: start;
+}
+
+.gpp-result-success {
+  --gpp-result-tone: var(--bs-success);
+}
+
+.gpp-result-warning {
+  --gpp-result-tone: var(--bs-warning);
+}
+
+.gpp-result-danger {
+  --gpp-result-tone: var(--bs-danger);
+}
+
+/* While the request runs, the modal cannot be closed until the result is in. */
+.gpp-result-running {
+  --gpp-result-tone: var(--bs-primary);
+}
+
+.modal-content:has(.gpp-result-running) .btn-close {
+  visibility: hidden;
+}
+
+.gpp-result-title {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+.gpp-result-icon {
+  color: var(--gpp-result-tone);
+  flex-shrink: 0;
+}
+
+/* Font Awesome draws an icon a moment after it is added. Until then its <i>
+   keeps the icon's room, so that the text next to it does not shift. */
+.gpp-result-title i.fa-solid,
+.gpp-result-note i.fa-solid,
+.gpp-step-dot i.fa-solid {
+  display: inline-block;
+  height: 1em;
+  width: 1em;
+}
+
+/* The ID of an observation, easy to tell from the text around it. */
+.gpp-result-id {
+  background: var(--bs-tertiary-bg);
+  border: var(--bs-border-width) solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  color: var(--bs-body-color);
+  font-family: var(--bs-font-monospace);
+  font-size: 0.9em;
+  font-weight: 600;
+  padding: 0.1em 0.45em;
+  white-space: nowrap;
+}
+
+.gpp-steps {
+  display: grid;
+  grid-auto-columns: minmax(0, 11rem);
+  grid-auto-flow: column;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gpp-step {
+  --gpp-step-color: var(--bs-border-color);
+
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  padding-inline: 0.125rem;
+  position: relative;
+  text-align: center;
+}
+
+.gpp-step-done {
+  --gpp-step-color: var(--bs-success);
+}
+
+.gpp-step-error,
+.gpp-step-warning {
+  --gpp-step-color: var(--gpp-result-tone);
+}
+
+.gpp-step-running {
+  --gpp-step-color: var(--bs-primary);
+}
+
+/* The line to the next step, green once this one went through. */
+.gpp-step:not(:last-child)::before {
+  background: var(--bs-border-color);
+  content: "";
+  height: 2px;
+  inset-inline-start: calc(50% + 1rem);
+  position: absolute;
+  top: calc(0.75rem - 1px);
+  width: calc(100% - 2rem);
+}
+
+.gpp-step-done:not(:last-child)::before {
+  background: var(--bs-success);
+}
+
+.gpp-step-dot {
+  align-items: center;
+  color: var(--gpp-step-color);
+  display: flex;
+  font-size: 1.15rem;
+  height: 1.5rem;
+  justify-content: center;
+}
+
+.gpp-step-none .gpp-step-dot svg,
+.gpp-step-none .gpp-step-dot i.fa-solid {
+  height: 0.5rem;
+  width: 0.5rem;
+}
+
+.gpp-step-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.4rem;
+  margin-top: 0.3rem;
+}
+
+/* As tall with the ID of an observation as without it, so that the steps do not
+   move as they end. */
+.gpp-step-text {
+  font-size: 0.92rem;
+  line-height: 1.5rem;
+  min-height: 1.5rem;
+}
+
+.gpp-step-text .gpp-result-id {
+  line-height: 1;
+}
+
+/* What went through or was not reached stays grey, so that what is running or
+   needs attention stands out. */
+.gpp-step-name,
+.gpp-step-text {
+  color: var(--bs-secondary-color);
+}
+
+.gpp-step-none .gpp-step-name {
+  opacity: 0.55;
+}
+
+.gpp-step-running .gpp-step-name,
+.gpp-step-running .gpp-step-text,
+.gpp-step-error .gpp-step-name,
+.gpp-step-error .gpp-step-text,
+.gpp-step-warning .gpp-step-name,
+.gpp-step-warning .gpp-step-text,
+.gpp-step-outcome.gpp-step-done .gpp-step-text {
+  color: var(--bs-body-color);
+}
+
+.gpp-step-outcome:is(.gpp-step-done, .gpp-step-error, .gpp-step-warning) .gpp-step-text {
+  font-weight: 600;
+}
+
+/* Why, in a card with a tip under each step it is about. */
+.gpp-result-why,
+.gpp-step-explained {
+  --gpp-why-border: color-mix(in srgb, var(--gpp-result-tone) 40%, var(--bs-border-color));
+  --gpp-why-bg: color-mix(in srgb, var(--gpp-result-tone) 7%, var(--bs-modal-bg));
+}
+
+.gpp-result-why {
+  background: var(--gpp-why-bg);
+  border: var(--bs-border-width) solid var(--gpp-why-border);
+  border-radius: 0.5rem;
+  margin-top: 0.9rem;
+  padding: 0.8rem 1rem;
+}
+
+.gpp-steps:has(+ .gpp-result-why) .gpp-step-explained::after {
+  background: var(--gpp-why-bg);
+  border: var(--bs-border-width) solid var(--gpp-why-border);
+  border-bottom: 0;
+  border-right: 0;
+  bottom: calc(-0.9rem - 6.5px);
+  content: "";
+  height: 12px;
+  left: calc(50% - 6px);
+  position: absolute;
+  transform: rotate(45deg);
+  width: 12px;
+}
+
+.gpp-why + .gpp-why {
+  margin-top: 0.85rem;
+}
+
+.gpp-why-lead,
+.gpp-why-note {
+  margin: 0;
+}
+
+.gpp-why-note {
+  color: var(--bs-secondary-color);
+  font-size: 0.95rem;
+  margin-top: 0.125rem;
+}
+
+.gpp-result-reasons {
+  list-style: disc;
+  margin: 0.375rem 0 0.125rem;
+  padding-inline-start: 1.25rem;
+}
+
+.gpp-result-reasons li + li {
+  margin-top: 0.375rem;
+}
+
+.gpp-result-reasons li::marker {
+  color: var(--gpp-result-tone);
+}
+
+.gpp-result-tag {
+  color: var(--bs-warning-text-emphasis);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-inline-end: 0.125rem;
+  text-transform: uppercase;
+}
+
+/* The note in the footer while the request runs. */
+.gpp-result-note {
+  align-items: baseline;
+  color: var(--bs-secondary-color);
+  display: flex;
+  font-size: 0.875rem;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 0;
+  width: 100%;
+}
+
+/* The step that just ended lights up. */
+.gpp-step-latest .gpp-step-dot {
+  animation: gpp-step-on 0.25s ease-out both;
+}
+
+@keyframes gpp-step-on {
+  from {
+    color: var(--bs-border-color);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gpp-step-latest .gpp-step-dot {
+    animation: none;
+  }
+}
+
+/* Wide enough for the six steps of a new observation to say theirs in a line. */
+@media (width >= 992px) {
+  .gpp-result-dialog {
+    --bs-modal-width: 50rem;
+  }
+}
+
+/* Narrower than that, the steps go one under the other. */
+@media (width < 992px) {
+  .gpp-steps {
+    grid-auto-columns: auto;
+    grid-auto-flow: row;
+    justify-content: stretch;
+  }
+
+  .gpp-step {
+    align-items: start;
+    column-gap: 0.75rem;
+    display: grid;
+    grid-template-columns: 1.25rem 6.5rem 1fr;
+    padding: 0 0 0.75rem;
+    text-align: start;
+  }
+
+  .gpp-step:last-child {
+    padding-bottom: 0;
+  }
+
+  .gpp-step-name {
+    line-height: 1.5rem;
+    margin-top: 0;
+  }
+
+  .gpp-step:not(:last-child)::before {
+    bottom: 0;
+    height: auto;
+    inset-inline-start: calc(0.625rem - 1px);
+    top: 1.5rem;
+    width: 2px;
+  }
+
+  .gpp-steps:has(+ .gpp-result-why) .gpp-step-explained::after {
+    content: none;
+  }
+}

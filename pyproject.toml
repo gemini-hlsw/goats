@@ -33,7 +33,7 @@ dependencies = [
     "djangorestframework==3.18.2",
     "dramatiq-abort>=1.2.1",
     "dramatiq[redis,watch]>=1.18.0,<2",
-    "gpp-client==26.10.6",
+    "gpp-client==26.11.3.dev3",
     "marshmallow==3.26.2",
     "marshmallow-jsonapi>=0.24.0",
     "numpydoc>=1.9.0,<2",
@@ -42,6 +42,7 @@ dependencies = [
     "tomtoolkit==2.32.2",
     "whitenoise>=6.6.0,<7",
     "jdaviz==5.0.2",
+    "httpx>=0.28.1",
 ]
 version = "26.11.0"
 

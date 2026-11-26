@@ -119,6 +119,7 @@ const SHARED_FIELDS = [
       { value: "DEFINED", labelText: "Defined" },
       { value: "INACTIVE", labelText: "Inactive" },
       { value: "ONGOING", labelText: "Ongoing", disabled: true },
+      { value: "SUSPENDED", labelText: "Suspended", disabled: true },
       { value: "COMPLETED", labelText: "Completed", disabled: true },
       { value: "UNAPPROVED", labelText: "Unapproved", disabled: true },
       { value: "UNDEFINED", labelText: "Undefined", disabled: true },
@@ -254,8 +255,6 @@ const SHARED_FIELDS = [
     optionsFrom: "imageQuality",
     element: "select",
     options: [
-      { value: "POINT_ONE", labelText: "< 0.10" },
-      { value: "POINT_TWO", labelText: "< 0.20" },
       { value: "POINT_THREE", labelText: "< 0.30" },
       { value: "POINT_FOUR", labelText: "< 0.40" },
       { value: "POINT_SIX", labelText: "< 0.60" },

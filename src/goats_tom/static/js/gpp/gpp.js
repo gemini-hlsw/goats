@@ -1187,22 +1187,16 @@ class GPPController {
       return;
     }
 
-    // Show progress modal with spinner and message.
-    this.#showProgressModal(
-      "Updating Observation",
-      "Please wait while your observation is updated in GPP.",
-    );
+    const { ACTIONS } = GPPController;
+    // Of a calibration, only the state is updated.
+    const action = formData.has("isCalibration") ? ACTIONS.calibration : ACTIONS.update;
+    const finish = this.#startProgress(action, formData);
 
     // Attempt to update the normal observation.
     const { status, data } =
       await this.#model.updateOnGppNormalObservation(formData);
 
-    this.#handleObservationResponse(
-      "Observation Updated on GPP",
-      status,
-      data,
-      "Observation Update Result",
-    );
+    finish(status, data);
     await this.#reloadObservations(data);
   }
 
@@ -1238,95 +1232,13 @@ class GPPController {
       return;
     }
 
-    // Show progress modal with spinner and message.
-    this.#showProgressModal(
-      "Creating Observation",
-      "Please wait while your observation is created in GPP and added to GOATS.",
-    );
+    const finish = this.#startProgress(GPPController.ACTIONS.create, formData);
 
     // Attempt to create the ToO observation.
     const { status, data } = await this.#model.createTooObservation(formData);
 
-    this.#handleObservationResponse(
-      "Observation Created and Saved",
-      status,
-      data,
-      "Observation Creation and Saved Result",
-    );
-
+    finish(status, data);
     await this.#reloadObservations(data);
-  }
-
-  /**
-   * Handles the response from an observation creation or update request.
-   * Updates the modal with appropriate messages based on the response status and data.
-   * @param {string} titleSuccess - Title on success, when the response does not say
-   *     what happened.
-   * @param {number} status - HTTP status code from the response.
-   * @param {Object} data - Response data object, may contain messages.
-   * @param {string} fallbackTitle - Likewise, title on failure.
-   * @param {?string} [id=null] - Optional observation ID to display.
-   * @returns {void}
-   * @private
-   */
-  #handleObservationResponse(
-    titleSuccess,
-    status,
-    data,
-    fallbackTitle,
-    id = null,
-  ) {
-    const isStructured = data?.messages && Array.isArray(data.messages);
-    // What happened, in the server's words.
-    const summary = data?.summary ? Utils.escapeHTML(data.summary) : null;
-
-    if (status >= 200 && status < 300 && isStructured) {
-      this.#modal.update({
-        title: summary ?? titleSuccess,
-        body: `
-        <div class="text-center">
-          <p class="fst-italic">Your observation has been successfully processed.</p>
-          ${id ? `<p><strong>Observation ID:</strong> ${id}</p>` : ""}
-          ${this.renderMessageTable(data.messages)}
-        </div>
-      `,
-      });
-    } else if (status >= 200 && status < 300) {
-      this.#modal.update({
-        title: titleSuccess,
-        body: `
-        <div class="text-center">
-          <p class="fst-italic">The operation succeeded, but the response format was unexpected.</p>
-          <pre class="bg-light p-3 rounded small text-wrap">
-            <code>${JSON.stringify(data, null, 2)}</code>
-          </pre>
-        </div>
-      `,
-      });
-    } else if (isStructured) {
-      this.#modal.update({
-        title: summary ?? fallbackTitle,
-        body: `
-        <div class="text-center">
-          <p>The request was processed with status: ${data.status}.</p>
-          ${id ? `<p><strong>Observation ID:</strong> ${id}</p>` : ""}
-          ${this.renderMessageTable(data.messages)}
-        </div>
-      `,
-      });
-    } else {
-      this.#modal.update({
-        title: `Request Failed (${status})`,
-        body: `
-        <div class="text-center">
-          <p class="fst-italic">An error occurred.</p>
-          <pre class="bg-light p-3 rounded small text-wrap">
-            <code>${JSON.stringify(data, null, 2)}</code>
-          </pre>
-        </div>
-      `,
-      });
-    }
   }
 
   /**
@@ -1355,84 +1267,374 @@ class GPPController {
   }
 
   /**
-   * Shows a modal dialog indicating that a process is in progress.
-   * @private
-   * @param {string} title - The title to display in the modal.
-   * @param {string} subtitle - The subtitle or message to display below the spinner.
-   * @returns {void}
+   * What each request does: its title while it runs, and its steps, in order, with
+   * what to say of each while it runs. The steps in `goesOn` do not stop the request
+   * when they fail.
+   * @type {!Object<string, {title: string, steps: !Object<string, string>,
+   *     goesOn: (!Array<string>|undefined)}>}
    */
-  #showProgressModal(title, subtitle) {
-    this.#modal.show({
-      title,
-      body: `
-      <div class="text-center">
-        <div class="spinner-border mb-4" role="status">
-          <span class="visually-hidden">Loading...</span>
-        </div>
-        <p class="fst-italic">${subtitle}</p>
-        <p>This process can take a few minutes. Do not refresh the page, close this modal, or use the back or forward buttons until the operation completes.</p>
-      </div>
-    `,
-      backdrop: "static",
-      dialogClasses: [
-        "modal-dialog-centered",
-        "modal-dialog-scrollable",
-        "modal-lg",
-      ],
+  static ACTIONS = {
+    update: {
+      title: "Updating observation",
+      steps: {
+        "GPP login": "Checking",
+        Form: "Checking",
+        Target: "Updating",
+        Observation: "Updating",
+        State: "Recalculating",
+      },
+      goesOn: ["Target"],
+    },
+    calibration: {
+      title: "Updating observation",
+      steps: { "GPP login": "Checking", Form: "Checking", State: "Recalculating" },
+    },
+    create: {
+      title: "Creating observation",
+      steps: {
+        "GPP login": "Checking",
+        Form: "Checking",
+        Target: "Creating",
+        Observation: "Creating",
+        State: "Recalculating",
+        GOATS: "Saving",
+      },
+      goesOn: ["State"],
+    },
+    save: {
+      title: "Saving observation in GOATS",
+      steps: { Form: "Checking", GOATS: "Saving" },
+    },
+  };
+
+  /**
+   * The step each stage of the server belongs to.
+   * @type {!Object<string, string>}
+   * @private
+   */
+  static #STEP_OF = {
+    "Credentials Check": "GPP login",
+    "Data Normalization": "Form",
+    "Data Validation": "Form",
+    "Create Sidereal Target": "Target",
+    "Update Sidereal Target": "Target",
+    "Create Observation": "Observation",
+    "Update Observation": "Observation",
+    "Update Workflow State": "State",
+    "Save Observation in GOATS": "GOATS",
+  };
+
+  /**
+   * How a step is drawn and said, by its state.
+   * @type {!Object<string, {icon: string, said: string}>}
+   * @private
+   */
+  static #STEP_STATES = {
+    done: { icon: "fa-circle-check", said: "done" },
+    error: { icon: "fa-circle-xmark", said: "failed" },
+    warning: { icon: "fa-circle-exclamation", said: "needs attention" },
+    running: { icon: "fa-circle-notch fa-spin", said: "running" },
+    none: { icon: "fa-circle", said: "not reached" },
+  };
+
+  /**
+   * The steps of a request, with what happened to each.
+   * @param {!Object} action - The request, one of `ACTIONS`.
+   * @param {!Array<{stage: string, status: string, message: string,
+   *     label: (string|undefined),
+   *     details: (!Array<{severity: string, text: string}>|undefined)}>} messages - The
+   *     stages that ended.
+   * @returns {!Array<{name: string, state: string, text: string,
+   *     why: ?{message: string, details: !Array<!Object>}}>} - Each step with what to
+   *     say in it and, when it takes more than that, why.
+   * @private
+   */
+  static #stepsOf(action, messages) {
+    return Object.keys(action.steps).map((name) => {
+      const own = messages.filter(({ stage }) => GPPController.#STEP_OF[stage] === name);
+      const shown = own.find(({ status }) => status === "Error") ?? own.at(-1);
+      // One that was skipped was not reached.
+      const state =
+        { Success: "done", Error: "error", Warning: "warning" }[shown?.status] ?? "none";
+      if (state === "none") return { name, state, text: "", why: null };
+      const { label = "", message, details = [] } = shown;
+      const why = label || details.length > 0 ? { message, details } : null;
+      return { name, state, text: label || message, why };
     });
   }
 
   /**
-   * Renders a status message table from a list of messages.
-   * @param {Array<Object>} messages - The messages array with `stage`, `status`, and `message`.
-   * @returns {string} - HTML string for the table.
+   * The modal while a request runs: every step that ended with what happened, and the
+   * one that runs with what it is doing.
+   *
+   * @param {!Object} action - The request, one of `ACTIONS`.
+   * @param {!Array<!Object>} ended - The stages that ended, see `#stepsOf`.
+   * @param {?string} [id=null] - ID of the observation, when it exists beforehand.
+   * @returns {{title: string, body: string, footer: string}} - HTML for the modal.
    */
-  renderMessageTable(messages) {
-    const rows = messages
-      .map(({ stage, status, message }, index) => {
-        let variant = "table-";
-        switch (status.toLowerCase()) {
-          case "success":
-            variant += "success";
-            break;
-          case "error":
-            variant += "danger";
-            break;
-          case "warning":
-            variant += "warning";
-            break;
-          default:
-            variant += "secondary";
-            break;
-        }
+  renderRunning(action, ended, id = null) {
+    const steps = GPPController.#stepsOf(action, ended);
+    const last = steps.findLastIndex(({ state }) => state !== "none");
+    const stopped =
+      steps[last]?.state === "error" && !action.goesOn?.includes(steps[last].name);
+    const next = stopped ? null : steps[last + 1];
+    if (next) {
+      next.state = "running";
+      const doing = action.steps[next.name];
+      next.text = next.name === "Observation" && id ? `${doing} ${id}` : doing;
+    }
+    const latest = ended.length > 0 ? GPPController.#STEP_OF[ended.at(-1).stage] : null;
+    // Closing or reloading the page loses the result, not the request.
+    const note = "Don't close or reload this page until it finishes.";
+    return {
+      title: GPPController.#renderTitle("running", action.title),
+      body: `
+        <div class="gpp-result" role="status" aria-live="polite">
+          ${GPPController.#renderSteps(steps, { latest })}
+        </div>`,
+      footer: `
+        <p class="gpp-result-note">
+          <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+          <span>${next?.name === "State" ? "GPP can take up to a minute. " : ""}${note}</span>
+        </p>`,
+    };
+  }
 
-        return `
-        <tr class="${variant}">
-          <td class="text-end">${index + 1}.</td>
-          <td class="text-start">${stage}</td>
-          <td>${status}</td>
-          <td class="text-start">${message}</td>
-        </tr>`;
-      })
-      .join("");
+  /**
+   * The modal once a request ended: what happened as its title, every step with what
+   * happened to it, and why for those that need attention.
+   *
+   * @param {!Object} action - The request, one of `ACTIONS`.
+   * @param {!Object} data - The response, with `status`, `summary` and `messages`.
+   * @returns {{title: string, body: string}} - HTML for the modal.
+   */
+  renderResult(action, data) {
+    const tone = data.messages.every(({ status }) => status === "Success")
+      ? "success"
+      : data.status === "Failure"
+        ? "danger"
+        : "warning";
+    const steps = GPPController.#stepsOf(action, data.messages);
+    return {
+      title: GPPController.#renderTitle(tone, data.summary ?? data.status),
+      body: `
+        <div class="gpp-result gpp-result-${tone}" role="${tone === "success" ? "status" : "alert"}">
+          ${GPPController.#renderSteps(steps, { tone })}
+          ${GPPController.#renderWhy(steps)}
+        </div>`,
+    };
+  }
 
+  /**
+   * The steps of a request, in a row.
+   * @param {!Array<!Object>} steps - The steps, see `#stepsOf`.
+   * @param {{tone: (string|undefined), latest: ?string}} [options] - `tone` of the
+   *     outcome, which a step that failed takes: "danger" or "warning"; `latest`, the
+   *     step that just ended.
+   * @returns {string} - HTML.
+   * @private
+   */
+  static #renderSteps(steps, { tone = "danger", latest = null } = {}) {
+    const items = steps.map(({ name, state, text, why }) => {
+      // In a request that went through in part, what failed is not an error.
+      const drawn = state === "error" && tone === "warning" ? "warning" : state;
+      const { icon, said } = GPPController.#STEP_STATES[drawn];
+      const classes = ["gpp-step", `gpp-step-${state}`];
+      if (name === latest) classes.push("gpp-step-latest");
+      if (name === "State") classes.push("gpp-step-outcome");
+      if (why) classes.push("gpp-step-explained");
+      return `
+        <li class="${classes.join(" ")}">
+          <span class="gpp-step-dot"><i class="fa-solid ${icon}" aria-hidden="true"></i></span>
+          <span class="gpp-step-name">${name}<span class="visually-hidden">: ${said}</span></span>
+          <span class="gpp-step-text">${GPPController.#withIds(text)}</span>
+        </li>`;
+    });
+    return `<ol class="gpp-steps" aria-label="Steps">${items.join("")}</ol>`;
+  }
+
+  /**
+   * Why the steps that need attention do, under all of them.
+   * @param {!Array<!Object>} steps - The steps, see `#stepsOf`.
+   * @returns {string} - HTML, empty when none does.
+   * @private
+   */
+  static #renderWhy(steps) {
+    const withIds = GPPController.#withIds;
+    const failed = steps.filter(({ why }) => why);
+    const sameReasons = (a, b) =>
+      a.details.length > 0 && JSON.stringify(a.details) === JSON.stringify(b.details);
+    const explained = failed
+      // Two steps that failed for the same reasons are explained once, at the last one,
+      // naming what each is about.
+      .filter(
+        ({ why }, index, all) => !all.slice(index + 1).some((later) => sameReasons(why, later.why)),
+      )
+      .map((step) => {
+        const shared = failed.filter(({ why }) => sameReasons(step.why, why));
+        if (shared.length < 2) return step;
+        const message = GPPController.#joinIds(shared.map(({ why }) => why.message));
+        return { ...step, why: { ...step.why, message } };
+      });
+    const items = explained.map(({ name, why: { message, details } }) => {
+      const notes = details.filter(({ severity }) => severity === "note");
+      const reasons = details.filter(({ severity }) => severity !== "note");
+      const end = reasons.length > 0 ? ":" : /\w$/.test(message) ? "." : "";
+      const said = withIds(`${message}${end}`);
+      const lead = name === "State" ? said.replace(GPPController.#STATES, "<b>$&</b>") : said;
+      const list = reasons.map(({ severity, text }) =>
+        severity === "warning"
+          ? `<li><span class="gpp-result-tag">Warning</span> ${withIds(text)}</li>`
+          : `<li>${withIds(text)}</li>`,
+      );
+      return `
+        <div class="gpp-why">
+          <p class="gpp-why-lead">${lead}</p>
+          ${notes.map(({ text }) => `<p class="gpp-why-note">${withIds(text)}</p>`).join("")}
+          ${list.length > 0 ? `<ul class="gpp-result-reasons">${list.join("")}</ul>` : ""}
+        </div>`;
+    });
+    return items.length > 0 ? `<div class="gpp-result-why">${items.join("")}</div>` : "";
+  }
+
+  /**
+   * The states of an observation, as the server names them.
+   * @type {!RegExp}
+   * @private
+   */
+  static #STATES = new RegExp(
+    `\\b(?:${Object.values(Lookups.workflowState).join("|")})\\b`,
+    "g",
+  );
+
+  /**
+   * The IDs of observations and targets, e.g. "o-4f2" or "t-2b9".
+   * @type {!RegExp}
+   * @private
+   */
+  static #ID = /\b[ot]-[1-9a-f][0-9a-f]*\b/g;
+
+  /**
+   * Escape a text and set apart the IDs of observations and targets in it.
+   * @param {*} text
+   * @returns {string} - HTML.
+   * @private
+   */
+  static #withIds(text) {
+    return Utils.escapeHTML(String(text ?? "")).replace(
+      GPPController.#ID,
+      '<span class="gpp-result-id">$&</span>',
+    );
+  }
+
+  /**
+   * One message for several that say the same of different IDs, e.g. "Your GPP
+   * account cannot edit t-2b9 or o-4f2"; the last one when they say different things.
+   * @param {!Array<string>} messages - In the order of their steps.
+   * @returns {string}
+   * @private
+   */
+  static #joinIds(messages) {
+    const ids = messages.map((message) => message.match(GPPController.#ID) ?? []);
+    const said = new Set(messages.map((message) => message.replace(GPPController.#ID, "#")));
+    if (said.size > 1 || ids.some((found) => found.length !== 1)) return messages.at(-1);
+    return [...said][0].replace("#", [...new Set(ids.flat())].join(" or "));
+  }
+
+  /**
+   * The title of the modal: an icon in the tone of the outcome, and a text.
+   * @param {string} tone - "running", "success", "warning" or "danger".
+   * @param {string} text - What is being done or what happened.
+   * @returns {string} - HTML.
+   * @private
+   */
+  static #renderTitle(tone, text) {
+    const icon = {
+      running: "fa-circle-notch fa-spin",
+      success: "fa-circle-check",
+      warning: "fa-circle-exclamation",
+      danger: "fa-circle-xmark",
+    }[tone];
     return `
-    <div class="table-responsive">
-      <table class="table table-striped">
-        <thead class="table-secondary">
-          <tr>
-            <th class="text-end" scope="col"></th>
-            <th class="text-start" scope="col">Stage</th>
-            <th scope="col">Status</th>
-            <th class="text-start" scope="col">Message</th>
-          </tr>
-        </thead>
-        <tbody class="table-group-divider">
-          ${rows}
-        </tbody>
-      </table>
-    </div>
-  `;
+      <span class="gpp-result-title gpp-result-${tone}">
+        <i class="fa-solid ${icon} gpp-result-icon" aria-hidden="true"></i>
+        <span>${Utils.escapeHTML(text)}</span>
+      </span>`;
+  }
+
+  /**
+   * Open the modal of a request. While it runs, the steps show what each is doing and,
+   * as the server reports through the updates WebSocket that it ended, what happened;
+   * without the WebSocket, they are all shown at the end. The same modal then shows the
+   * result.
+   * @param {!Object} action - The request, one of `ACTIONS`.
+   * @param {!FormData} formData - What is sent, to which the ID of its progress is added.
+   * @returns {function(number, ?Object)} - To call with the status and data of the
+   *     response.
+   * @private
+   */
+  #startProgress(action, formData) {
+    const progressId =
+      globalThis.crypto?.randomUUID?.() ??
+      `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    formData.append("progressId", progressId);
+    // A new observation has none yet.
+    const id = formData.get("hiddenObservationIdInput") || null;
+    const ended = [];
+    let running = this.renderRunning(action, ended, id);
+
+    this.#modal.show({
+      ...running,
+      // Nothing closes it while the request runs: closing would not stop the
+      // request, only lose its result. Esc closes it again once the result is in.
+      backdrop: "static",
+      keyboard: false,
+      // One block that grows and shrinks with what it shows, never a scrollbar of
+      // its own: a scrollable body flashes one while the height animates.
+      dialogClasses: ["modal-dialog-centered", "modal-lg", "gpp-result-dialog"],
+    });
+
+    const onProgress = ({ detail }) => {
+      if (detail?.progress_id !== progressId) return;
+      ended.push(detail);
+      const { footer: before } = running;
+      running = this.renderRunning(action, ended, id);
+      const { body, footer } = running;
+      // Drawn again, its icon would blink.
+      this.#modal.update({ body, smooth: true, ...(footer !== before && { footer }) });
+    };
+    document.addEventListener("gpp:progress", onProgress);
+
+    return (status, data) => {
+      document.removeEventListener("gpp:progress", onProgress);
+      this.#modal.allowEscape();
+      this.#modal.update({
+        ...(Array.isArray(data?.messages)
+          ? this.renderResult(action, data)
+          : GPPController.#renderUnexpected(status, data)),
+        footer: "",
+        smooth: true,
+      });
+    };
+  }
+
+  /**
+   * The modal for a response that does not say what happened to each step.
+   * @param {number} status - HTTP status code of the response.
+   * @param {?Object} data - The response data.
+   * @returns {{title: string, body: string}} - HTML for the modal.
+   * @private
+   */
+  static #renderUnexpected(status, data) {
+    const isOk = status >= 200 && status < 300;
+    return {
+      title: isOk
+        ? GPPController.#renderTitle("warning", "Unable to confirm the result")
+        : GPPController.#renderTitle("danger", `Request failed (${status})`),
+      body: `
+        <p>${isOk ? "We received an unexpected response. Check the observation before trying again." : "An error occurred."}</p>
+        <pre class="p-3 mb-0 rounded small text-wrap"><code>${Utils.escapeHTML(JSON.stringify(data, null, 2) ?? "")}</code></pre>`,
+    };
   }
 
   /**
@@ -1511,22 +1713,12 @@ class GPPController {
       return;
     }
 
-    // Show progress modal with spinner and message.
-    this.#showProgressModal(
-      "Saving Observation to GOATS",
-      "Please wait while your observation is added to GOATS.",
-    );
+    const finish = this.#startProgress(GPPController.ACTIONS.save, formData);
 
     // Attempt to save the observation.
     const { status, data } = await this.#model.saveNormalObservation(formData);
 
-    this.#handleObservationResponse(
-      "Observation Saved to GOATS",
-      status,
-      data,
-      "Observation Result",
-    );
-
+    finish(status, data);
     await this.#reloadObservations(data);
   }
 
