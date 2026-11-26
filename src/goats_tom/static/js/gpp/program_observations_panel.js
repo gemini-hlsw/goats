@@ -378,6 +378,38 @@ class ProgramObservationsPanel {
     this.toggleTooButtons(disabled);
     this.#logDebug(`All buttons disabled: ${disabled}`);
   }
+  /**
+   * What is selected and the buttons it leaves disabled, for `restoreSelection()`.
+   * @type {{normal: string, too: string, disabled: !Array<boolean>}}
+   */
+  get selection() {
+    return {
+      normal: this.#normalSelect.value,
+      too: this.#tooSelect.value,
+      disabled: this.#buttons.map((button) => button.disabled),
+    };
+  }
+  /**
+   * Select again what was selected before the lists were filled again, without
+   * telling the handlers. What is no longer in them is left unselected.
+   * @param {{normal: string, too: string, disabled: !Array<boolean>}} selection
+   */
+  restoreSelection({ normal, too, disabled }) {
+    this.#tomSelects.get(this.#normalSelect).setValue(normal, true);
+    this.#tomSelects.get(this.#tooSelect).setValue(too, true);
+    this.#buttons.forEach((button, index) => {
+      button.disabled = disabled[index];
+    });
+    this.#logDebug(`Restored selection: ${normal || too}`);
+  }
+  /**
+   * Every button of the toolbars.
+   * @type {!Array<!HTMLButtonElement>}
+   * @private
+   */
+  get #buttons() {
+    return [this.#updateButton, this.#saveButton, this.#createNewButton];
+  }
   // Event hooks.
   /**
    * Attach a handler for when a program is selected.

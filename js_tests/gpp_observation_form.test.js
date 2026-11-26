@@ -804,6 +804,29 @@ test.each([
   expect([...state.options].some((option) => option.disabled)).toBe(false);
 });
 
+test.each([
+  ["READY", "Ready"],
+  ["DEFINED", "Defined"],
+  ["INACTIVE", "Inactive"],
+  ["ONGOING", "Ongoing"],
+  ["COMPLETED", "Completed"],
+  ["UNAPPROVED", "Unapproved"],
+  ["UNDEFINED", "Undefined"],
+])("an observation in %s shows its state as %s", async (current, label) => {
+  const { state } = await renderStateForm(current, "normal", {
+    validTransitions: [],
+    calculationState: "READY",
+  });
+
+  expect(state.selectedOptions[0].textContent).toBe(label);
+});
+
+test("a new observation offers only the states users set", async () => {
+  const { state } = await renderStateForm("DEFINED", "too");
+
+  expect(shownStates(state)).toEqual(["READY", "DEFINED", "INACTIVE"]);
+});
+
 test("a state GPP allows is sent, even one the form does not offer on its own", async () => {
   const { form, state } = await renderStateForm("INACTIVE", "normal", {
     validTransitions: ["UNAPPROVED"],

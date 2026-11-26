@@ -243,7 +243,7 @@ class GPPModel {
    * Fetch all observations for the given program ID and refresh the cache.
    * @async
    * @param {string} programId  Program identifier (e.g. "GN-2025A-Q-101").
-   * @returns {Promise<void>}
+   * @returns {Promise<boolean>} - Whether GPP answered.
    */
   async fetchObservations(programId) {
     this.clearObservations();
@@ -257,8 +257,10 @@ class GPPModel {
       for (const obs of matches?.results ?? []) {
         this.#normalObservations.set(obs.id, obs);
       }
+      return true;
     } catch (error) {
       console.error("Error fetching observations:", error);
+      return false;
     }
   }
 
@@ -658,6 +660,10 @@ class GPPView {
   #formContainer;
   #poPanel; // ProgramObservationsPanel instance.
   #callbacks = {};
+
+  /** States of an observation that is being or was executed. */
+  static #LOCKED_STATES = ["ONGOING", "SUSPENDED", "COMPLETED"];
+
   /**
    * Construct the view, inject the template, and attach it to the DOM.
    * @param {GPPTemplate} template
@@ -695,15 +701,22 @@ class GPPView {
   }
 
   /**
+   * Whether an observation is being or was executed, so that it cannot be edited.
+   * @param {Object} observation
+   * @returns {boolean}
+   */
+  static isLocked(observation) {
+    return GPPView.#LOCKED_STATES.includes(observation?.workflow?.value?.state);
+  }
+
+  /**
    * Update the observation form with a normal observation.
    * @param {Object} observation
    * @private
    */
   #updateNormalObservation(observation, fieldOptions) {
     const isCalibration = Boolean(observation?.calibrationRole);
-    const isLocked =
-      observation?.workflow?.value?.state === "COMPLETED" ||
-      observation?.workflow?.value?.state === "ONGOING";
+    const isLocked = GPPView.isLocked(observation);
     // GOATS cannot save a mode it has no fields for; the form says why.
     const isUnsupported = Boolean(ObservationForm.unsupportedMode(observation));
     this.#poPanel.toggleUpdateButton(isLocked || isUnsupported);
@@ -838,7 +851,7 @@ class GPPView {
         break;
       case "resetNormalObservations":
         this.#poPanel.clearNormalSelect();
-        this.#clearObservationForm();
+        if (!parameter?.keepForm) this.#clearObservationForm();
         break;
       case "normalObservationsLoading":
         this.#poPanel.toggleNormalLoading(true);
@@ -862,7 +875,7 @@ class GPPView {
         break;
       case "resetTooObservations":
         this.#poPanel.clearTooSelect();
-        this.#clearObservationForm();
+        if (!parameter?.keepForm) this.#clearObservationForm();
         break;
       case "tooObservationsLoading":
         this.#poPanel.toggleTooLoading(true);
@@ -875,6 +888,11 @@ class GPPView {
         break;
 
       // Observation helpers.
+      case "getSelection":
+        return this.#poPanel.selection;
+      case "restoreSelection":
+        this.#poPanel.restoreSelection(parameter);
+        break;
       case "disableObservationButtons":
         this.#poPanel.toggleAllButtons(true);
         break;
@@ -1185,9 +1203,21 @@ class GPPController {
       data,
       "Observation Update Result",
     );
-    // Finally, refresh the observations list.
-    const programId = this.#model.activeProgram.id;
-    await this.#resetAndUpdateObservations(programId);
+    await this.#reloadObservations(data);
+  }
+
+  /**
+   * Show the observations as they are in GPP once a request ended. One that did not
+   * go through keeps the form as the user filled it in, to be fixed and sent again.
+   * @param {?Object} data - The response data.
+   * @returns {Promise<void>}
+   * @private
+   */
+  async #reloadObservations(data) {
+    const wentThrough = data?.status === "Success" || data?.status === "Partial Success";
+    await this.#resetAndUpdateObservations(this.#model.activeProgram.id, {
+      keepForm: !wentThrough,
+    });
   }
 
   /**
@@ -1224,9 +1254,7 @@ class GPPController {
       "Observation Creation and Saved Result",
     );
 
-    // Finally, refresh the observations list.
-    const programId = this.#model.activeProgram.id;
-    await this.#resetAndUpdateObservations(programId);
+    await this.#reloadObservations(data);
   }
 
   /**
@@ -1410,22 +1438,25 @@ class GPPController {
   /**
    * Resets and updates both normal and ToO observation lists for the given program ID.
    * @param {string} programId  Program identifier.
+   * @param {{keepForm: (boolean|undefined)}} [options] - `keepForm` to leave what is
+   *     selected, and its form, as they are, if GPP still has it.
    * @returns {Promise<void>}
    * @private
    */
-  async #resetAndUpdateObservations(programId) {
+  async #resetAndUpdateObservations(programId, { keepForm = false } = {}) {
+    const selection = keepForm ? this.#view.render("getSelection") : null;
     this.#view.render("disableObservationButtons");
 
     // Reset the observation lists.
-    this.#view.render("resetNormalObservations");
-    this.#view.render("resetTooObservations");
+    this.#view.render("resetNormalObservations", { keepForm });
+    this.#view.render("resetTooObservations", { keepForm });
 
     // Show loading states.
     this.#view.render("normalObservationsLoading");
     this.#view.render("tooObservationsLoading");
 
     // Fetch observations and approved configurations again.
-    await this.#model.fetchObservations(programId);
+    const answered = await this.#model.fetchObservations(programId);
     await this.#model.fetchTooConfigurations(programId);
 
     // Update both lists in one go.
@@ -1440,6 +1471,30 @@ class GPPController {
     // Remove loading states.
     this.#view.render("normalObservationsLoaded");
     this.#view.render("tooObservationsLoaded");
+
+    if (selection) this.#restoreSelection(selection, answered);
+  }
+
+  /**
+   * Select again what was selected before its list was loaded again, with its form as
+   * the user left it. An observation deleted since leaves no form, and one that is
+   * being or was executed since shows its own, which cannot be edited.
+   * @param {!Object} selection - What was selected.
+   * @param {boolean} answered - Whether GPP gave the observations.
+   * @private
+   */
+  #restoreSelection(selection, answered) {
+    this.#view.render("restoreSelection", selection);
+    // Without an answer, or of a ToO configuration, there is nothing to compare.
+    if (!answered || !selection.normal) return;
+
+    const observation = this.#model.getNormalObservation(selection.normal);
+    if (!observation) {
+      this.#view.render("disableObservationButtons");
+      this.#view.render("clearObservationForm");
+    } else if (GPPView.isLocked(observation)) {
+      this.#selectNormalObservation(selection.normal);
+    }
   }
 
   async #saveObservation() {
@@ -1472,9 +1527,7 @@ class GPPController {
       "Observation Result",
     );
 
-    // Finally, refresh the observations list.
-    const programId = this.#model.activeProgram.id;
-    await this.#resetAndUpdateObservations(programId);
+    await this.#reloadObservations(data);
   }
 
   /**
