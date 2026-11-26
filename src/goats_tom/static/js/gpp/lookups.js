@@ -153,6 +153,18 @@ class Lookups {
     GMOS_NORTH: "GMOS-N",
   };
 
+  /** Workflow states, in the order the form offers them. */
+  static workflowState = {
+    READY: "Ready",
+    DEFINED: "Defined",
+    INACTIVE: "Inactive",
+    ONGOING: "Ongoing",
+    SUSPENDED: "Suspended",
+    COMPLETED: "Completed",
+    UNAPPROVED: "Unapproved",
+    UNDEFINED: "Undefined",
+  };
+
   /** The focal plane of an observing mode, as Explore shows it. */
   static observingModeFpu = {
     GMOS_NORTH_LONG_SLIT: "LongSlit",
