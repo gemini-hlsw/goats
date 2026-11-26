@@ -96,6 +96,26 @@ class UpdatesConsumer(WebsocketConsumer):
             )
         )
 
+    def gpp_progress(self, event: dict) -> None:
+        """Sends that a step of a request to GPP ended to the client connected
+        through WebSocket.
+
+        Parameters
+        ----------
+        event : `dict`
+            The event dictionary containing the request id, stage, status and
+            message.
+
+        """
+        progress = {
+            "update": "gpp_progress",
+            "progress_id": event["progress_id"],
+            "stage": event["stage"],
+            "status": event["status"],
+            "message": event["message"],
+        }
+        self.send(text_data=json.dumps(progress))
+
     def download_message(self, event: dict) -> None:
         """Sends a download update to the client connected through WebSocket.
 

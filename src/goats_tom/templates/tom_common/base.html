@@ -105,6 +105,9 @@
           updateDownloadProgress(data);
         } else if (data.update === "inbox") {
           window.inbox?.update(data);
+        } else if (data.update === "gpp_progress") {
+          // A step of a request to GPP ended; the page that made it listens.
+          document.dispatchEvent(new CustomEvent("gpp:progress", { detail: data }));
         }
       };
 
