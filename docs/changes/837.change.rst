@@ -1,0 +1,1 @@
+Updated the GPP result to show each step, its reasons, and the resulting state
